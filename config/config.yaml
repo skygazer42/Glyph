@@ -1,0 +1,70 @@
+# Configuration for Policy QA System
+
+# Model Configuration
+model:
+  name: "deepseek-chat"  # or "gpt-4", "qwen-max"
+  temperature: 0.1
+  timeout: 120
+  max_tokens: 2000
+
+# API Configuration
+api:
+  base_url: "https://api.deepseek.com"  # or your OpenAI endpoint
+  api_key: "${OPENAI_API_KEY}"  # Set environment variable
+
+# Vector Store Configuration
+vector_store:
+  model_name: "all-MiniLM-L6-v2"
+  index_path: "data/vector_store/faiss.index"
+  metadata_path: "data/vector_store/metadata.pkl"
+  similarity_threshold: 0.7
+  top_k: 5
+
+# Knowledge Graph Configuration
+graph_db:
+  use_networkx: true  # Set to false to use Neo4j
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "password"
+
+# Document Processing
+documents:
+  supported_formats: [".pdf", ".docx", ".txt", ".md"]
+  chunk_size: 1000
+  chunk_overlap: 200
+
+# Agent Configuration
+agents:
+  question_understander:
+    name: "QuestionUnderstander"
+    model_temperature: 0.1
+
+  policy_retriever:
+    name: "PolicyRetriever"
+    retrieval_method: "hybrid"
+    top_k: 5
+
+  policy_analyzer:
+    name: "PolicyAnalyzer"
+    model_temperature: 0.1
+
+  answer_generator:
+    name: "AnswerGenerator"
+    model_temperature: 0.2
+
+  answer_verifier:
+    name: "AnswerVerifier"
+    confidence_threshold: 0.8
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  file: "logs/policy_qa.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Storage Paths
+storage:
+  data_dir: "data"
+  logs_dir: "logs"
+  cache_dir: "cache"
+  temp_dir: "temp"

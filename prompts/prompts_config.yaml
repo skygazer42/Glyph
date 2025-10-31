@@ -1,0 +1,270 @@
+# 提示词配置文件
+# 定义各类提示词的元数据和配置
+
+prompts:
+  # 意图识别相关
+  intent:
+    classification:
+      name: "意图分类"
+      description: "识别用户查询的主要意图类型"
+      version: "1.0"
+      tags: ["intent", "classification", "routing"]
+      parameters:
+        - name: "query"
+          type: "string"
+          required: true
+          description: "用户查询文本"
+      output_format: "json"
+      temperature: 0.1
+      max_tokens: 500
+
+    entity_extraction:
+      name: "实体提取"
+      description: "从查询中提取结构化实体信息"
+      version: "1.0"
+      tags: ["intent", "entity", "extraction"]
+      parameters:
+        - name: "query"
+          type: "string"
+          required: true
+      output_format: "json"
+      temperature: 0.0
+      max_tokens: 400
+
+    chain_selection:
+      name: "处理链选择"
+      description: "根据意图选择最优的处理链"
+      version: "1.0"
+      tags: ["intent", "routing", "chain"]
+      parameters:
+        - name: "intent_type"
+          type: "string"
+        - name: "confidence"
+          type: "float"
+        - name: "entity_count"
+          type: "integer"
+        - name: "complexity"
+          type: "string"
+      output_format: "json"
+      temperature: 0.2
+      max_tokens: 300
+
+  # 聊天对话相关
+  chat:
+    greeting:
+      name: "问候回应"
+      description: "生成友好的问候回应"
+      version: "1.0"
+      tags: ["chat", "greeting", "conversation"]
+      parameters:
+        - name: "user_input"
+          type: "string"
+        - name: "current_time"
+          type: "string"
+      output_format: "text"
+      temperature: 0.7
+      max_tokens: 100
+
+    casual_chat:
+      name: "日常对话"
+      description: "处理日常闲聊对话"
+      version: "1.0"
+      tags: ["chat", "casual", "conversation"]
+      parameters:
+        - name: "user_input"
+          type: "string"
+        - name: "chat_history"
+          type: "string"
+      output_format: "text"
+      temperature: 0.8
+      max_tokens: 200
+
+    farewell:
+      name: "告别回应"
+      description: "生成礼貌的告别语"
+      version: "1.0"
+      tags: ["chat", "farewell", "conversation"]
+      parameters:
+        - name: "user_input"
+          type: "string"
+      output_format: "text"
+      temperature: 0.6
+      max_tokens: 100
+
+  # 政策分析相关
+  policy:
+    retrieval:
+      name: "政策检索"
+      description: "构建政策检索查询"
+      version: "1.0"
+      tags: ["policy", "retrieval", "search"]
+      parameters:
+        - name: "query"
+          type: "string"
+        - name: "entities"
+          type: "json"
+      output_format: "text"
+      temperature: 0.3
+      max_tokens: 200
+
+    analysis:
+      name: "政策分析"
+      description: "深度分析政策文档内容"
+      version: "1.0"
+      tags: ["policy", "analysis", "extraction"]
+      parameters:
+        - name: "policy_content"
+          type: "string"
+        - name: "user_query"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.1
+      max_tokens: 1000
+
+    eligibility_check:
+      name: "资格审核"
+      description: "判断申请资格条件"
+      version: "1.0"
+      tags: ["policy", "eligibility", "check"]
+      parameters:
+        - name: "policy_content"
+          type: "string"
+        - name: "user_info"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.0
+      max_tokens: 800
+
+  # 计算相关
+  calculation:
+    subsidy_calculation:
+      name: "补贴计算"
+      description: "计算政策补贴金额"
+      version: "1.0"
+      tags: ["calculation", "subsidy", "amount"]
+      parameters:
+        - name: "policy_rules"
+          type: "string"
+        - name: "user_situation"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.0
+      max_tokens: 600
+
+    rule_extraction:
+      name: "规则提取"
+      description: "提取计算规则"
+      version: "1.0"
+      tags: ["calculation", "rules", "extraction"]
+      parameters:
+        - name: "policy_content"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.1
+      max_tokens: 500
+
+  # 比较分析相关
+  comparison:
+    policy_comparison:
+      name: "政策对比"
+      description: "对比分析不同政策"
+      version: "1.0"
+      tags: ["comparison", "policy", "analysis"]
+      parameters:
+        - name: "policies"
+          type: "json"
+        - name: "comparison_focus"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.2
+      max_tokens: 1000
+
+    feature_comparison:
+      name: "特征对比"
+      description: "对比政策特征细节"
+      version: "1.0"
+      tags: ["comparison", "features", "details"]
+      parameters:
+        - name: "policy_info"
+          type: "json"
+      output_format: "structured"
+      temperature: 0.1
+      max_tokens: 800
+
+  # 分析处理相关
+  analysis:
+    content_analysis:
+      name: "内容分析"
+      description: "深度分析文档内容"
+      version: "1.0"
+      tags: ["analysis", "content", "deep"]
+      parameters:
+        - name: "document_content"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.2
+      max_tokens: 1200
+
+    structure_extraction:
+      name: "结构提取"
+      description: "提取文档结构信息"
+      version: "1.0"
+      tags: ["analysis", "structure", "metadata"]
+      parameters:
+        - name: "policy_text"
+          type: "string"
+      output_format: "json"
+      temperature: 0.0
+      max_tokens: 400
+
+  # 答案生成相关
+  generation:
+    answer_generation:
+      name: "答案生成"
+      description: "生成完整答案"
+      version: "1.0"
+      tags: ["generation", "answer", "final"]
+      parameters:
+        - name: "retrieved_policies"
+          type: "json"
+        - name: "analysis_results"
+          type: "json"
+        - name: "user_query"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.3
+      max_tokens: 1000
+
+    summary_generation:
+      name: "摘要生成"
+      description: "生成政策摘要"
+      version: "1.0"
+      tags: ["generation", "summary", "brief"]
+      parameters:
+        - name: "policy_content"
+          type: "string"
+      output_format: "text"
+      temperature: 0.2
+      max_tokens: 300
+
+    step_by_step:
+      name: "步骤说明"
+      description: "生成步骤化指导"
+      version: "1.0"
+      tags: ["generation", "steps", "guide"]
+      parameters:
+        - name: "process_info"
+          type: "string"
+      output_format: "structured"
+      temperature: 0.1
+      max_tokens: 600
+
+# 全局配置
+global_config:
+  cache_enabled: true
+  cache_ttl: 3600
+  auto_save: true
+  backup_enabled: true
+  backup_interval: 86400
+  version_control: true
+  prompt_validation: true
