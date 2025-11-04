@@ -5,7 +5,7 @@ Coordinator agent for managing the policy QA workflow.
 import json
 import asyncio
 from typing import Dict, Any, List
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 
 from ..base.base_agent import BaseAgent
 from ..base.types import (
@@ -217,8 +217,6 @@ class Coordinator(BaseAgent):
     async def process_message(
         self,
         message: str,
-        sender: Optional[Any] = None,
-        context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process incoming message - delegate to process_query."""
         return await self.process_query(message)

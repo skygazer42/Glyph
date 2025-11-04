@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 from enum import Enum
 from pydantic import BaseModel, Field, validator
 from uuid import UUID, uuid4
-
+from pydantic_settings import BaseSettings
 
 class AgentType(str, Enum):
     """Agent type enumeration."""
@@ -78,12 +78,12 @@ class PolicyDocument(BaseModel):
     publish_date: Optional[datetime] = Field(None, description="发布日期")
     effective_date: Optional[datetime] = Field(None, description="生效日期")
     expiry_date: Optional[datetime] = Field(None, description="失效日期")
-    relevant_departments: List[str] = Field(default_factory=list, description="相关部门")
-    target_groups: List[str] = Field(default_factory=list, description="目标群体")
-    regions: List[str] = Field(default_factory=list, description="适用地区")
-    keywords: List[str] = Field(default_factory=list, description="关键词")
+    relevant_departments: List[str] = Field(..., description="相关部门")
+    target_groups: List[str] = Field(..., description="目标群体")
+    regions: List[str] = Field(..., description="适用地区")
+    keywords: List[str] = Field(..., description="关键词")
     embedding: Optional[List[float]] = Field(None, description="向量嵌入")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+    metadata: Dict[str, Any] = Field(..., description="元数据")
 
     @validator('expiry_date')
     def validate_dates(cls, v, values):
@@ -97,21 +97,21 @@ class UserQuery(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     text: str = Field(..., description="查询文本")
     timestamp: datetime = Field(default_factory=datetime.now)
-    session_id: Optional[str] = Field(None, description="会话ID")
-    user_id: Optional[str] = Field(None, description="用户ID")
-    context: Dict[str, Any] = Field(default_factory=dict, description="上下文信息")
+    session_id: Optional[str] = Field(..., description="会话ID")
+    user_id: Optional[str] = Field(..., description="用户ID")
+    context: Dict[str, Any] = Field(..., description="上下文信息")
 
 
 class QueryAnalysis(BaseModel):
     """Query analysis result."""
     query_id: UUID
     intent: QueryIntent = Field(..., description="查询意图")
-    entities: List[str] = Field(default_factory=list, description="提取的实体")
-    keywords: List[str] = Field(default_factory=list, description="关键词")
-    policy_types: List[PolicyType] = Field(default_factory=list, description="相关政策类型")
-    time_constraints: Optional[str] = Field(None, description="时间约束")
-    location_constraints: Optional[str] = Field(None, description="地点约束")
-    target_groups: List[str] = Field(default_factory=list, description="目标群体")
+    entities: List[str] = Field(..., description="提取的实体")
+    keywords: List[str] = Field(..., description="关键词")
+    policy_types: List[PolicyType] = Field(..., description="相关政策类型")
+    time_constraints: Optional[str] = Field(..., description="时间约束")
+    location_constraints: Optional[str] = Field(..., description="地点约束")
+    target_groups: List[str] = Field(..., description="目标群体")
     confidence: float = Field(..., ge=0, le=1, description="置信度")
     reasoning: Optional[str] = Field(None, description="推理过程")
 
@@ -120,7 +120,7 @@ class RetrievalRequest(BaseModel):
     """Retrieval request model."""
     query_id: UUID
     query_embedding: Optional[List[float]] = Field(None, description="查询向量")
-    filters: Dict[str, Any] = Field(default_factory=dict, description="过滤条件")
+    filters: Dict[str, Any] = Field(..., description="过滤条件")
     method: RetrievalMethod = Field(RetrievalMethod.HYBRID_SEARCH)
     top_k: int = Field(10, ge=1, le=100, description="返回数量")
     threshold: float = Field(0.7, ge=0, le=1, description="相似度阈值")
@@ -129,8 +129,8 @@ class RetrievalRequest(BaseModel):
 class RetrievalResult(BaseModel):
     """Retrieval result model."""
     query_id: UUID
-    documents: List[PolicyDocument] = Field(default_factory=list)
-    scores: List[float] = Field(default_factory=list)
+    documents: List[PolicyDocument] = Field(...)
+    scores: List[float] = Field(...)
     method: RetrievalMethod
     total_searched: int = Field(0, description="搜索总数")
     search_time: float = Field(0, description="搜索耗时(秒)")
@@ -141,14 +141,14 @@ class PolicyAnalysis(BaseModel):
     document_id: UUID
     query_id: UUID
     relevance_score: float = Field(..., ge=0, le=1)
-    eligibility_criteria: List[str] = Field(default_factory=list)
-    benefit_details: Optional[str] = Field(None)
-    application_steps: List[str] = Field(default_factory=list)
-    required_documents: List[str] = Field(default_factory=list)
-    deadlines: List[str] = Field(default_factory=list)
-    contact_info: List[str] = Field(default_factory=list)
-    limitations: List[str] = Field(default_factory=list)
-    related_policies: List[UUID] = Field(default_factory=list)
+    eligibility_criteria: List[str] = Field(...,)
+    benefit_details: Optional[str] = Field(None, description="福利详情")
+    application_steps: List[str] = Field(..., description="申请步骤")
+    required_documents: List[str] = Field(..., description="所需文件")
+    deadlines: List[str] = Field(..., description="截止日期")
+    contact_info: List[str] = Field(..., description="联系信息")
+    limitations: List[str] = Field(..., description="限制条件")
+    related_policies: List[UUID] = Field(..., description="相关政策")
     analysis_confidence: float = Field(..., ge=0, le=1)
 
 
@@ -156,24 +156,24 @@ class GeneratedAnswer(BaseModel):
     """Generated answer model."""
     query_id: UUID
     answer: str = Field(..., description="答案内容")
-    sources: List[UUID] = Field(default_factory=list, description="来源文档ID")
+    sources: List[UUID] = Field(..., description="来源文档ID")
     confidence: float = Field(..., ge=0, le=1, description="置信度")
-    evidence: List[str] = Field(default_factory=list, description="证据列表")
-    assumptions: List[str] = Field(default_factory=list, description="假设列表")
-    limitations: List[str] = Field(default_factory=list, description="局限性")
-    followup_questions: List[str] = Field(default_factory=list, description="后续问题")
+    evidence: List[str] = Field(..., description="证据列表")
+    assumptions: List[str] = Field(..., description="假设列表")
+    limitations: List[str] = Field(..., description="局限性")
+    followup_questions: List[str] = Field(..., description="后续问题")
     generation_time: float = Field(0, description="生成耗时(秒)")
 
 
 class FactCheck(BaseModel):
     """Fact check result."""
     answer_id: UUID
-    claims: List[str] = Field(default_factory=list)
-    verified_claims: List[str] = Field(default_factory=list)
-    unverified_claims: List[str] = Field(default_factory=list)
-    confidence_score: float = Field(..., ge=0, le=1)
-    issues: List[str] = Field(default_factory=list)
-    suggestions: List[str] = Field(default_factory=list)
+    claims: List[str] = Field(..., description="声明列表")
+    verified_claims: List[str] = Field(..., description="已验证声明")
+    unverified_claims: List[str] = Field(..., description="未验证声明")
+    confidence_score: float = Field(..., ge=0, le=1, description="置信度")
+    issues: List[str] = Field(..., description="问题列表")
+    suggestions: List[str] = Field(..., description="建议列表")
 
 
 class ConsistencyCheck(BaseModel):
@@ -181,21 +181,21 @@ class ConsistencyCheck(BaseModel):
     answer_id: UUID
     sources_analyzed: int = Field(0)
     consistency_score: float = Field(..., ge=0, le=1)
-    contradictions: List[str] = Field(default_factory=list)
-    missing_information: List[str] = Field(default_factory=list)
-    recommendations: List[str] = Field(default_factory=list)
+    contradictions: List[str] = Field(..., description="矛盾点")
+    missing_information: List[str] = Field(..., description="缺失信息")
+    recommendations: List[str] = Field(..., description="建议")
 
 
 class FinalAnswer(BaseModel):
     """Final answer model."""
     query_id: UUID
     answer: str = Field(..., description="最终答案")
-    sources: List[PolicyDocument] = Field(default_factory=list)
+    sources: List[PolicyDocument] = Field(..., description="来源文档")
     confidence: float = Field(..., ge=0, le=1)
-    verification_passed: bool = Field(default)
+    verification_passed: bool = Field(False, description="是否通过验证")
     fact_check: Optional[FactCheck] = Field(None)
     consistency_check: Optional[ConsistencyCheck] = Field(None)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(..., description="元数据")
     total_processing_time: float = Field(0, description="总处理时间")
 
 

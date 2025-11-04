@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, TypeVar, Generic
 from abc import ABC, abstractmethod
+from uuid import UUID
 
 from autogen_core import (
     BaseAgent,
@@ -13,14 +14,13 @@ from autogen_core import (
     MessageContext,
     TopicId,
     CancellationToken,
-    subscription,
     default_subscription,
     message_handler
 )
 from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
 from autogen_agentchat.messages import TextMessage, ModelClientStreamingChunkEvent
 
-from ..models.base import (
+from models.base import (
     AgentType,
     MessageType,
     AgentMessage,
@@ -38,7 +38,7 @@ from ..models.base import (
 T = TypeVar('T')
 
 
-class PolicyAgentBase(BaseAgent, Generic[T], ABC):
+class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
     """Base class for all policy QA agents."""
 
     def __init__(
