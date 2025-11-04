@@ -15,8 +15,6 @@ from autogen_core import (
     TopicId,
     CancellationToken
 )
-from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_agentchat.conditions import TextMentionTermination
 from autogen_agentchat.messages import TextMessage, AgentMessage
 
 from models.base import (
@@ -32,15 +30,13 @@ from models.base import (
     UUID
 )
 from agents.retrieval.query_analyzer import QueryAnalyzerAgent
-from agents.retrieval.policy_retriever import PolicyRetrieverAgent
 from agents.retrieval.vector_retriever import VectorRetrieverAgent
 from agents.analysis.policy_analyzer import PolicyAnalyzerAgent
 from agents.analysis.policy_comparator import PolicyComparatorAgent
 from agents.generation.answer_generator import AnswerGeneratorAgent
-from agents.generation.question_understander import QuestionUnderstanderAgent
 from agents.verification.answer_verifier import AnswerVerifierAgent
-from agents.coordination.coordinator import CoordinatorAgent
-from agents.coordination.session_manager import SessionManagerAgent
+from agents.common import session_store
+from agents.common.model_client import create_openai_client
 from knowledge_base.data_loader import DataLoader
 
 
@@ -100,15 +96,7 @@ class EnhancedPolicyQAOrchestrator:
         # 2. 初始化核心agents
         await self._initialize_core_agents()
 
-        # 3. 初始化管理agents
-        await self._initialize_management_agents()
-
-        # 4. 注册agents到runtime
-        for agent_type, agent in self.agents.items():
-            await self.runtime.register(agent, f"{agent_type.value}")
-
-        # 5. 启动runtime
-        self.runtime.start()
+        # 3.（可选）使用 runtime 的高级能力时再注册；此处无需注册/启动
 
         self.logger.info("All enhanced agents initialized successfully")
 
@@ -142,16 +130,7 @@ class EnhancedPolicyQAOrchestrator:
             )
 
     async def _initialize_management_agents(self):
-        """初始化管理agents"""
-        # 会话管理Agent
-        self.session_manager = SessionManagerAgent()
-        self.agents["session_manager"] = self.session_manager
-
-        # 协调Agent
-        self.agents[AgentType.COORDINATOR] = CoordinatorAgent(
-            runtime=self.runtime
-        )
-
+        """初始化管理相关组件（此处仅保留比较器）"""
         # 政策比较Agent
         self.policy_comparator = PolicyComparatorAgent(
             model_client=self._create_model_client()
@@ -160,9 +139,10 @@ class EnhancedPolicyQAOrchestrator:
 
     def _create_model_client(self):
         """创建模型客户端"""
-        # 这里应该根据配置创建实际的模型客户端
-        # 暂时返回None，使用默认配置
-        return None
+        try:
+            return create_openai_client()
+        except Exception:
+            return None
 
     async def process_query(
         self,
@@ -171,15 +151,8 @@ class EnhancedPolicyQAOrchestrator:
         user_id: Optional[str] = None
     ) -> FinalAnswer:
         """处理用户查询的完整工作流程"""
-        # 创建或获取会话
-        session_result = await self.session_manager.process_request({
-            "action": "create_or_update",
-            "session_id": session_id,
-            "user_id": user_id
-        }, MessageContext())
-
-        session_id = session_result["session_id"]
-        session_context = session_result["context"]
+        # 创建或获取会话（基础设施层）
+        session_id, _ = session_store.create_or_update_session(session_id, user_id)
 
         # 创建用户查询对象
         user_query = UserQuery(
@@ -189,18 +162,10 @@ class EnhancedPolicyQAOrchestrator:
         )
 
         # 添加查询到会话
-        await self.session_manager.process_request({
-            "action": "add_query",
-            "session_id": session_id,
-            "query": user_query
-        }, MessageContext())
+        session_store.add_query(session_id, user_query)
 
         # 获取会话上下文
-        context_result = await self.session_manager.process_request({
-            "action": "get_context",
-            "session_id": session_id,
-            "query": query
-        }, MessageContext())
+        context_result = session_store.get_context(session_id, query)
 
         # 处理查询
         start_time = datetime.now()
@@ -282,11 +247,7 @@ class EnhancedPolicyQAOrchestrator:
             )
 
             # 添加答案到会话
-            await self.session_manager.process_request({
-                "action": "add_answer",
-                "session_id": session_id,
-                "answer": final_answer
-            }, MessageContext())
+            session_store.add_answer(session_id, final_answer)
 
             # 计算处理时间
             processing_time = (datetime.now() - start_time).total_seconds()

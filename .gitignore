@@ -1,0 +1,61 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.whl
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+pytest.xml
+.pytest_cache/
+
+# IDEs/editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+env/
+ENV/
+
+# Logs
+logs/
+*.log
+
+# Local data caches
+data/vector_store/
+data/lightrag/
+**/.cache/
+**/tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Docker / PIDs
+*.pid

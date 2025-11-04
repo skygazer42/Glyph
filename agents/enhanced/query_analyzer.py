@@ -16,7 +16,7 @@ from ..chatdb.base_agent import BaseAgent
 from ..router.intent_router import IntentRouterAgent, IntentClassification
 from ..specialized.chat_agent import ChatAgent
 from ..specialized.calculation_agent import CalculationAgent
-from ..retrieval.policy_retriever import PolicyRetrieverAgent
+from ..retrieval.vector_retriever import VectorRetrieverAgent
 from ..analysis.policy_analyzer import PolicyAnalyzerAgent
 from ..analysis.policy_comparator import PolicyComparatorAgent
 from ..generation.answer_generator import AnswerGeneratorAgent
@@ -55,7 +55,7 @@ class EnhancedQueryAnalyzerAgent(BaseAgent):
         self.intent_router = IntentRouterAgent()
         self.chat_agent = ChatAgent()
         self.calculation_agent = CalculationAgent()
-        self.policy_retriever = None  # 延迟初始化
+        self.policy_retriever = None  # 延迟初始化（VectorRetrieverAgent）
         self.policy_analyzer = PolicyAnalyzerAgent()
         self.policy_comparator = PolicyComparatorAgent()
         self.answer_generator = AnswerGeneratorAgent()

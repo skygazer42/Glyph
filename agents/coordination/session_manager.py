@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import json
 from collections import deque
 
+import os
 from autogen_core import MessageContext
 from autogen_agentchat.messages import TextMessage
 
@@ -40,7 +41,7 @@ class SessionContext(BaseModel):
 class SessionManagerAgent(PolicyAgentBase):
     """会话管理Agent，负责管理用户会话状态和上下文"""
 
-    def __init__(self, session_timeout: int = 3600, max_history: int = 50, **kwargs):
+    def __init__(self, session_timeout: int = 3600, max_history: int = 50, max_turns: Optional[int] = None, history_window: Optional[int] = None, **kwargs):
         super().__init__(
             agent_type=AgentType.COORDINATOR,
             name="SessionManager",
@@ -49,7 +50,10 @@ class SessionManagerAgent(PolicyAgentBase):
         )
 
         self.session_timeout = session_timeout  # 会话超时时间（秒）
-        self.max_history = max_history  # 最大历史记录数
+        self.max_history = max_history  # 最大历史记录数（条目）
+        # 多轮对话参数（支持.env 配置）
+        self.max_turns = max_turns if max_turns is not None else int(os.getenv("CONVERSATION__MAX_TURNS", os.getenv("CONVERSATION_MAX_TURNS", "20")))
+        self.history_window = history_window if history_window is not None else int(os.getenv("CONVERSATION__HISTORY_WINDOW", os.getenv("CONVERSATION_HISTORY_WINDOW", "5")))
 
         # 会话存储
         self.sessions: Dict[str, SessionContext] = {}
@@ -198,9 +202,17 @@ class SessionManagerAgent(PolicyAgentBase):
             "query_id": str(query.id) if isinstance(query, UserQuery) else None
         }
 
+        # 如超过最大轮数，丢弃最早的记录（保持最近 max_turns 轮）
+        if session.query_count >= self.max_turns:
+            # 移除最早一条查询和对应的最早一条答案（如果有）
+            if session.queries:
+                session.queries = session.queries[-(self.max_turns - 1):]
+            if session.answers and len(session.answers) > (self.max_turns - 1):
+                session.answers = session.answers[-(self.max_turns - 1):]
+
         # 添加到查询历史
         session.queries.append(query_record)
-        session.query_count += 1
+        session.query_count = min(session.query_count + 1, self.max_turns)
         session.last_active = datetime.now()
 
         # 限制历史记录数量
@@ -242,6 +254,10 @@ class SessionManagerAgent(PolicyAgentBase):
         if len(session.answers) > self.max_history:
             session.answers = session.answers[-self.max_history:]
 
+        # 同步轮数限制（保持最近 max_turns 条答案）
+        if len(session.answers) > self.max_turns:
+            session.answers = session.answers[-self.max_turns:]
+
         # 更新上下文
         session.context["last_answer"] = answer_record
         session.context["recent_answers"] = session.answers[-5:]  # 最近5条答案
@@ -267,8 +283,9 @@ class SessionManagerAgent(PolicyAgentBase):
             context["is_new_session"] = session.query_count == 0
 
             # 获取最近的对话历史
-            recent_queries = session.queries[-3:] if session.queries else []
-            recent_answers = session.answers[-3:] if session.answers else []
+            recent_limit = max(1, min(self.history_window, self.max_turns))
+            recent_queries = session.queries[-recent_limit:] if session.queries else []
+            recent_answers = session.answers[-recent_limit:] if session.answers else []
 
             # 构建对话历史
             history = []
@@ -412,5 +429,7 @@ class SessionManagerAgent(PolicyAgentBase):
             "total_sessions": total_sessions,
             "active_sessions": active_sessions,
             "total_users": len(self.user_sessions),
-            "session_timeout": self.session_timeout
+            "session_timeout": self.session_timeout,
+            "max_turns": self.max_turns,
+            "history_window": self.history_window
         }

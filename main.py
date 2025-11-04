@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 sys.path.append(str(Path(__file__).parent))
 
 from orchestrator import PolicyQAOrchestrator
-from models.base import PolicyDocument, PolicyType
+from models.base import PolicyDocument, PolicyType, AgentType
 from utils.document_loader import DocumentLoader
 from utils.config import Config
 
@@ -177,7 +177,7 @@ async def load_documents_command(orchestrator: PolicyQAOrchestrator, paths: List
 
     if all_documents:
         # Add to vector store
-        await orchestrator.agents[orchestrator.AgentType.POLICY_RETRIEVER].add_documents(all_documents)
+        await orchestrator.agents[AgentType.POLICY_RETRIEVER].add_documents(all_documents)
         console.print(f"[green]✅ 成功加载 {len(all_documents)} 个文档[/green]")
     else:
         console.print("[red]❌ 未找到任何文档[/red]")
@@ -209,7 +209,8 @@ async def main():
     async with PolicyQAOrchestrator(
         model_config=config.model,
         vector_store_config=config.vector_store,
-        logging_config=config.logging
+        logging_config=config.logging,
+        conversation_config=config.conversation.dict()
     ) as orchestrator:
         # Load documents if specified
         if args.load_docs:

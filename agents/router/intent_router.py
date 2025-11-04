@@ -11,7 +11,8 @@ from datetime import datetime
 from autogen_core import MessageContext
 
 from ..base.base_agent import PolicyAgentBase
-from ...prompts import get_prompt_manager
+from .prompt import intent_system_instruction, intent_user_prompt
+from .llm_classifier import LLMIntentClassifier
 from ...models.base import (
     AgentType,
     UUID,
@@ -52,6 +53,7 @@ class IntentRouterAgent(PolicyAgentBase):
             **kwargs
         )
         self.model_client = model_client
+        self._llm_classifier = LLMIntentClassifier()
 
         # 意图分类器
         self.intent_classifiers = {
@@ -111,7 +113,7 @@ class IntentRouterAgent(PolicyAgentBase):
             },
             "recommendation": {
                 "keywords": ["推荐", "建议", "哪个好", "选择"],
-                "patterns": [r"推荐|建议|.*哪个好|怎么选择],
+                "patterns": [r"推荐|建议|.*哪个好|怎么选择"],
                 "agent": "recommendation_agent",
                 "response_type": "recommendation"
             }
@@ -162,8 +164,8 @@ class IntentRouterAgent(PolicyAgentBase):
             # 1. 文本预处理
             cleaned_text = self._preprocess_text(request.text)
 
-            # 2. 意图分类
-            classification = await self._classify_intent(cleaned_text)
+            # 2. 意图分类（优先 LLM，失败回退规则）
+            classification = await self._classify_intent_llm_first(cleaned_text)
 
             # 3. 实体提取
             entities = await self._extract_entities(cleaned_text)
@@ -215,6 +217,39 @@ class IntentRouterAgent(PolicyAgentBase):
         # 去除多余空格
         text = re.sub(r'\s+', ' ', text.strip())
         return text
+
+    async def _classify_intent_llm_first(self, text: str) -> Dict[str, Any]:
+        """优先使用 LLM 进行意图分类，失败则回退规则。"""
+        llm = await self._llm_classify(text)
+        if llm:
+            # 期望 llm = {intent, sub_intent, confidence, chains, requires_parallel}
+            intent = llm.get("intent") or "policy_inquiry"
+            sub_intent = llm.get("sub_intent") if llm.get("sub_intent") not in [None, "null", "None", ""] else None
+            try:
+                confidence = float(llm.get("confidence", 0.6))
+            except Exception:
+                confidence = 0.6
+            # 记下 LLM 的建议链（用于优化决策）
+            llm_chains = llm.get("chains") or []
+            requires_parallel = bool(llm.get("requires_parallel", False))
+
+            return {
+                "intent_type": intent,
+                "sub_intent": sub_intent,
+                "confidence": confidence,
+                "llm_chains": llm_chains,
+                "llm_parallel": requires_parallel
+            }
+
+        # 回退：规则分类
+        return await self._classify_intent(text)
+
+    async def _llm_classify(self, text: str) -> Optional[Dict[str, Any]]:
+        """调用 Autogen AgentChat 进行意图分类，严格 JSON 返回。失败返回 None。"""
+        try:
+            return await self._llm_classifier.classify(text)
+        except Exception:
+            return None
 
     async def _classify_intent(self, text: str) -> Dict[str, Any]:
         """分类意图"""
@@ -377,8 +412,14 @@ class IntentRouterAgent(PolicyAgentBase):
         """确定处理链"""
         intent_type = classification["intent_type"]
 
+        # 如果 LLM 有建议链，直接采用（必要时并行）
+        llm_chains = classification.get("llm_chains") or []
+        llm_parallel = bool(classification.get("llm_parallel", False))
+        if llm_chains:
+            return {"chain": llm_chains, "parallel": llm_parallel}
+
         # 闲聊类直接返回
-        if intent_type in ["greeting", "farewell", "casual_chat"]:
+        if intent_type in ["greeting", "farewell", "casual_chat", "chit_chat", "general_query"]:
             return {"chain": ["chat_agent"], "parallel": False}
 
         # 计算类使用计算链
@@ -389,13 +430,9 @@ class IntentRouterAgent(PolicyAgentBase):
         if intent_type == "comparison":
             return {"chain": ["comparison_chain"], "parallel": False}
 
-        # 状态查询使用状态链
-        if intent_type == "status_inquiry":
-            return {"chain": ["status_chain"], "parallel": False}
-
-        # 推荐类使用推荐链
-        if intent_type == "recommendation":
-            return {"chain": ["recommendation_chain"], "parallel": False}
+        # 澄清类
+        if intent_type == "clarification":
+            return {"chain": ["clarification_chain"], "parallel": False}
 
         # 政策查询类需要智能选择
         if intent_type == "policy_inquiry":

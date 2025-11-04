@@ -10,6 +10,8 @@ import re
 
 from autogen_core import MessageContext, CancellationToken
 from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
 
 from ...models.base import (
     AgentType,
@@ -22,6 +24,8 @@ from ...models.base import (
     QueryIntent
 )
 from ..base.base_agent import StatefulAgent, ReactiveAgent
+from ..common.model_client import create_buffered_context
+from .prompt import nlp_extraction_system_prompt, nlp_extraction_user_prompt
 
 
 class PolicyAnalyzerAgent(ReactiveAgent):
@@ -41,6 +45,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
         )
 
         self.model_client = model_client
+        self._assistant: Optional[AssistantAgent] = None
 
         # Analysis patterns and rules
         self.eligibility_patterns = [
@@ -170,11 +175,14 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         # If model client available, use NLP extraction
         if self.model_client:
-            nlp_criteria = await self._extract_with_nlp(
-                content,
-                "提取所有申请条件和资格要求，以列表形式返回"
-            )
-            criteria.extend(nlp_criteria)
+            try:
+                nlp_criteria = await self._extract_with_nlp(
+                    content,
+                    "以 JSON 数组形式返回所有申请条件和资格要求，短句精炼"
+                )
+                criteria.extend(nlp_criteria)
+            except Exception as e:
+                self.logger.warning(f"LLM eligibility extraction failed: {e}")
 
         # Remove duplicates and clean
         criteria = list(set(criteria))
@@ -394,12 +402,25 @@ class PolicyAnalyzerAgent(ReactiveAgent):
         return score / total
 
     async def _extract_with_nlp(self, content: str, prompt: str) -> List[str]:
-        """Use NLP model to extract information."""
+        """Use LLM (AssistantAgent) to extract info as a JSON array of strings."""
         if not self.model_client:
             return []
-
-        # This would use the model client to extract information
-        # Implementation depends on the specific model client
+        if self._assistant is None:
+            self._assistant = AssistantAgent(
+                name="policy_analyzer_llm",
+                system_message=nlp_extraction_system_prompt(),
+                model_client=self.model_client,
+                model_context=create_buffered_context(10),
+            )
+        user = nlp_extraction_user_prompt(content, prompt)
+        resp = await self._assistant.on_messages([TextMessage(content=user, source="user")], CancellationToken())
+        text = resp.chat_message.to_text().strip()
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                return [str(x) for x in data][:20]
+        except Exception as e:
+            self.logger.debug(f"LLM JSON parse failed: {e}")
         return []
 
     async def _synthesize_analyses(self, analyses: List[Dict], query_id: str) -> Dict[str, Any]:

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from smart_orchestrator import SmartOrchestrator
+from utils.document_loader import DocumentLoader
 from utils.config import Config
 
 
@@ -196,6 +197,32 @@ async def main():
         )
 
         await orchestrator.initialize()
+
+        # 可选：加载文档到 KB / RAG
+        if args.load_docs:
+            loader = DocumentLoader()
+            all_docs = []
+            for p in args.load_docs:
+                path = Path(p)
+                if path.is_dir():
+                    all_docs.extend(loader.load_from_directory(str(path)))
+                elif path.is_file():
+                    doc = loader.load_single_file(str(path))
+                    if doc:
+                        all_docs.append(doc)
+
+            if all_docs:
+                try:
+                    # KB 向量检索索引
+                    await orchestrator.kb_agents["knowledge_retriever"].add_documents(all_docs)
+                except Exception as e:
+                    logger.warning(f"KB 索引加载失败: {e}")
+                try:
+                    # RAG 图谱存储（LightRAG）
+                    if orchestrator.graph_agents.get("graph_retriever"):
+                        await orchestrator.graph_agents["graph_retriever"].add_documents(all_docs)
+                except Exception as e:
+                    logger.warning(f"LightRAG 加载失败（可选）: {e}")
 
         # 根据模式运行
         if args.demo:

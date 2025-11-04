@@ -42,7 +42,8 @@ class PolicyQAOrchestrator:
         self,
         model_config: Dict[str, Any],
         vector_store_config: Dict[str, Any],
-        logging_config: Optional[Dict[str, Any]] = None
+        logging_config: Optional[Dict[str, Any]] = None,
+        conversation_config: Optional[Dict[str, Any]] = None
     ):
         """Initialize the orchestrator."""
         self.model_config = model_config
@@ -53,6 +54,16 @@ class PolicyQAOrchestrator:
         self.agents: Dict[AgentType, Any] = {}
         self.workflow_state: Dict[str, Any] = {}
         self.active_sessions: Dict[str, Dict] = {}
+        # Conversation config
+        self.conversation_max_turns = 20
+        try:
+            if conversation_config and isinstance(conversation_config, dict):
+                self.conversation_max_turns = int(conversation_config.get("max_turns", 20))
+            else:
+                import os
+                self.conversation_max_turns = int(os.getenv("CONVERSATION__MAX_TURNS", os.getenv("CONVERSATION_MAX_TURNS", "20")))
+        except Exception:
+            self.conversation_max_turns = 20
 
         self.logger.info("Policy QA Orchestrator initialized")
 
@@ -122,6 +133,9 @@ class PolicyQAOrchestrator:
             user_id=user_id
         )
 
+        # Enforce max turns: keep only recent N queries
+        if len(self.active_sessions[session_id]["queries"]) >= self.conversation_max_turns:
+            self.active_sessions[session_id]["queries"] = self.active_sessions[session_id]["queries"][-(self.conversation_max_turns - 1):]
         # Store in session
         self.active_sessions[session_id]["queries"].append(user_query)
 

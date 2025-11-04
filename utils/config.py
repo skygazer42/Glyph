@@ -38,6 +38,12 @@ class LoggingConfig(BaseSettings):
     backup_count: int = Field(default=5)
 
 
+class ConversationConfig(BaseSettings):
+    """Conversation (multi-turn) configuration."""
+    max_turns: int = Field(default=20, ge=1, description="Maximum turns kept per session")
+    history_window: int = Field(default=5, ge=1, description="How many recent turns to include in context")
+
+
 class DatabaseConfig(BaseSettings):
     """Database configuration."""
     neo4j_uri: str = Field(default="bolt://localhost:7687")
@@ -58,6 +64,7 @@ class Config(BaseSettings):
     model: ModelConfig = Field(default_factory=ModelConfig)
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    conversation: ConversationConfig = Field(default_factory=ConversationConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
 
     @classmethod
@@ -79,5 +86,6 @@ class Config(BaseSettings):
             "model": self.model.dict(),
             "vector_store": self.vector_store.dict(),
             "logging": self.logging.dict(),
+            "conversation": self.conversation.dict(),
             "database": self.database.dict()
         }

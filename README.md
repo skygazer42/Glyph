@@ -67,6 +67,27 @@ MODEL__MODEL_NAME=deepseek-chat
 DATABASE__NEO4J_URI=bolt://localhost:7687
 DATABASE__NEO4J_USER=neo4j
 DATABASE__NEO4J_PASSWORD=your_password
+
+# 多轮对话配置（可选）
+CONVERSATION__MAX_TURNS=20
+CONVERSATION__HISTORY_WINDOW=5
+
+# LightRAG（图谱检索）配置（可选）
+# LLM
+LLM_MODEL=deepseek-chat
+LLM_BINDING_API_KEY=$OPENAI_API_KEY
+LLM_BINDING_HOST=https://api.deepseek.com
+# Embedding（Ollama 服务）
+EMBEDDING_MODEL=bge-m3:latest
+EMBEDDING_BINDING_HOST=http://localhost:11434
+EMBEDDING_DIM=1024
+MAX_EMBED_TOKENS=8192
+# 工作目录与日志
+LIGHTRAG_WORKDIR=data/lightrag
+LOG_DIR=.
+LOG_MAX_BYTES=10485760
+LOG_BACKUP_COUNT=5
+VERBOSE_DEBUG=false
 ```
 
 ## 🚀 快速开始
@@ -100,6 +121,13 @@ python main.py --load-docs /path/to/policies --interactive
 
 置信度: 绿色92.0%
 ```
+
+提示：多轮对话最大轮次可通过环境变量 `CONVERSATION__MAX_TURNS` 控制（默认 20）。会话上下文提取最近 `CONVERSATION__HISTORY_WINDOW` 轮对话（默认 5）。
+
+如需启用图谱检索链（LightRAG），请确保：
+- 已安装并可访问本地或远程 Ollama 嵌入服务（`EMBEDDING_BINDING_HOST`）。
+- 设置好 LLM 访问配置（`LLM_MODEL`, `LLM_BINDING_API_KEY`, `LLM_BINDING_HOST`）。
+- 数据将保存在 `LIGHTRAG_WORKDIR` 下。
 
 ### 2. 批量处理
 
@@ -238,7 +266,183 @@ pytest tests/integration/
 python tests/performance.py
 ```
 
+## 🧭 运行指南（Smart Orchestrator）
+
+### 1) 安装依赖
+
+```bash
+pip install -r requirements.txt
+# 或者确保安装了 OpenAI 兼容扩展与 LightRAG：
+pip install "autogen-ext[openai]"
+pip install lightrag
+```
+
+### 2) 配置环境（.env）
+
+```bash
+# 大模型（LLM）
+MODEL__API_KEY=your_api_key
+MODEL__BASE_URL=https://api.deepseek.com
+MODEL__MODEL_NAME=deepseek-chat
+MODEL__TEMPERATURE=0
+
+# 多轮对话（基础设施，非智能体）
+CONVERSATION__MAX_TURNS=20
+CONVERSATION__HISTORY_WINDOW=5
+
+# 并行/早停（可选）
+EARLY_STOP_CONF=0.80
+
+# LightRAG（可选，用于图谱检索链）
+LIGHTRAG_WORKDIR=data/lightrag
+EMBEDDING_MODEL=bge-m3:latest
+EMBEDDING_BINDING_HOST=http://localhost:11434
+EMBEDDING_DIM=1024
+MAX_EMBED_TOKENS=8192
+```
+
+说明：
+- 仅启用 KB 链路可不配置 LightRAG；需要图谱检索链时，请准备好本地 Ollama 嵌入服务。
+
+### 3) 加载文档索引（可选）
+
+```bash
+# 将本地政策资料加载进向量库与 LightRAG 存储
+python smart_main.py --load-docs ./knowledge_base/documents --interactive
+```
+
+### 4) 交互/演示/批量
+
+```bash
+# 交互模式（推荐）
+python smart_main.py --interactive
+
+# 演示（内置示例）：
+python smart_main.py --demo
+
+# 批量模式
+python smart_main.py --batch queries.txt
+```
+
+### 5) 工作原理（按意图分支 + 按需并行）
+
+- 意图路由（LLM+规则）：
+  - greeting/farewell/chit_chat/general_query → chat_chain
+  - calculation → calculation_chain（必要时补检索）
+  - policy_inquiry.{eligibility|process|deadline|documents|contact} → kb_chain
+  - summary（概括/主题/关系） → graph_chain（LightRAG）
+  - comparison → comparison_chain
+  - clarification → clarification_chain（澄清问题）
+- 低置信或含混 → hybrid：并行 kb_chain + graph_chain，先达到阈值（EARLY_STOP_CONF）早停；否则择优（最高置信）。
+- 分析并发：对候选文档并发抽取结构化要素（Semaphore 限流）。
+- 多轮对话：基础设施层缓存最近 N 轮历史，不作为智能体参与路由。
+
+### 7) 基于 Autogen 的智能体实现
+
+- LLM 意图路由：`agents/router/llm_classifier.py` 使用 `AssistantAgent` + `OpenAIChatCompletionClient`，按 `agents/router/prompt.py` 的 JSON 协议返回意图与链路。
+- 政策分析与答案生成（LLM 优先）：
+  - `PolicyAnalyzer` 与 `AnswerGenerator` 在提供 `model_client` 时，使用 `AssistantAgent` 搭配缓冲上下文（`BufferedChatCompletionContext`）进行抽取与生成；失败时回退到规则/模板逻辑。
+  - 配置通过 `.env` 的 `MODEL__*` 注入。
+
+示例（模型客户端）：
+```python
+from agents.common.model_client import create_openai_client, create_buffered_context
+client = create_openai_client()
+ctx = create_buffered_context(10)
+```
+
+### 6) LightRAG 说明（可选）
+
+- 首次运行会在 `LIGHTRAG_WORKDIR` 初始化存储。
+- `--load-docs` 会自动将文档内容注入 LightRAG 存储（需要本地嵌入服务）。
+- 图谱检索链（graph_chain）适合“概括/主题/关系/脉络”类问题。
+
+## 🧹 清理
+
+使用脚本安全清理项目中的临时/缓存/日志等“可忽略文件”。脚本仅删除 `.gitignore` 中列出的忽略文件（等价于 `git clean -fdX`），不会影响已跟踪的源码。
+
+```bash
+# 预览将要删除的文件（默认干跑）
+bash scripts/clean.sh
+
+# 实际删除（不提示）
+bash scripts/clean.sh --no-dry-run --yes
+
+# 手动确认删除（会提示确认）
+bash scripts/clean.sh --no-dry-run
+```
+
+当前清理范围包括：
+- 缓存与编译产物：`__pycache__/`, `*.py[cod]`, `.pytest_cache/`, `.mypy_cache/` 等
+- 构建产物：`build/`, `dist/`, `*.egg-info/`, `.eggs/`
+- 日志：`logs/`, `*.log`
+- 向量索引缓存：`data/vector_store/`
+- IDE 目录：`.idea/`, `.vscode/`
+
 ## 📝 开发指南
+
+### 意图路由（LLM + 规则，按需并行）
+
+新增 LLM 意图路由（agents/router/prompt.py + IntentRouterAgent）：
+- 先用大模型根据提示分类意图与推荐处理链（chat/calculation/comparison/kb/graph/hybrid），并给出是否需要并行（requires_parallel）。
+- 若 LLM 不可用或失败，回退到规则分类（关键词+正则）。
+- Orchestrator 接收路由结果：
+  - 单链：只执行该链（最小必要路径）。
+  - 低置信/歧义：并行执行多链（如 kb_chain + graph_chain），采用早停或择优返回。
+
+环境变量：
+- MODEL__API_KEY / MODEL__BASE_URL / MODEL__MODEL_NAME 控制 LLM 接口（兼容 OpenAI 风格）。
+
+### 意图细化与链路映射
+
+- greeting / farewell / chit_chat / general_query → chat_chain（仅 ChatAgent）
+- calculation（金额/比例/标准） → calculation_chain（Calculator，可按需补检索）
+- policy_inquiry：
+  - eligibility / process / deadline / documents / contact → kb_chain（KBRetriever→Analyzer→Generator）
+- summary（概括/主题/关系/图谱） → graph_chain（RAGRetriever→Analyzer→Generator）
+- comparison（对比/哪个好/差异） → comparison_chain（KBRetriever→Comparator→Generator）
+- clarification（意图不明） → clarification_chain（Clarifier 生成澄清问题）
+
+当路由置信度低或查询含混时，执行 hybrid（并行 kb_chain + graph_chain），采用早停或择优。
+
+### 架构图（并行优先）
+
+```mermaid
+graph TD
+  U[用户] --> IR[IntentRouter]
+  IR -->|chat| CHAT[ChatAgent]
+  IR -->|calc| CALC[Calculator]
+  IR -->|kb| KB[KBRetriever]
+  IR -->|rag| RAG[RAGRetriever]
+  IR -->|compare| COMP[PolicyComparator]
+  IR -->|clarify| CLF[Clarifier]
+
+  KB --> PA[PolicyAnalyzer]
+  RAG --> PA2[PolicyAnalyzer]
+  PA --> AG[AnswerGenerator]
+  PA2 --> AG2[AnswerGenerator]
+  COMP --> AG3[AnswerGenerator]
+
+  CHAT --> OUT[FinalAnswer]
+  CALC --> OUT
+  AG --> OUT
+  AG2 --> OUT
+  AG3 --> OUT
+  CLF --> OUT
+```
+
+### 智能体说明
+
+- IntentRouter：基于 LLM+规则细化意图，给出处理链与是否并行。
+- KBRetriever（VectorRetrieverAgent）：向量库检索（FAISS），返回候选文档。
+- RAGRetriever（GraphRetrieverAgent）：LightRAG 图谱检索（naive/local/global/hybrid）。
+- PolicyAnalyzer：并发抽取结构化要素（资格/流程/截止/材料/金额线索等）。
+- AnswerGenerator：模板化/LLM 生成最终答复，支持证据与信心评估。
+- PolicyComparator：多政策维度对比。
+- Calculator：补贴金额估算（必要时引用检索结果规则）。
+- Clarifier：低置信/歧义时提出澄清问题。
+
+提示：多轮对话为基础设施能力，系统在会话开始启用历史上下文缓存（不参与路由），仅保留最近 N 轮历史（.env: CONVERSATION__MAX_TURNS / CONVERSATION__HISTORY_WINDOW）。
 
 ### 添加新的Agent
 

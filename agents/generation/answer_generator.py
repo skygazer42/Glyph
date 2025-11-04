@@ -9,6 +9,8 @@ from datetime import datetime
 
 from autogen_core import MessageContext, CancellationToken
 from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import TextMessage
 
 from ...models.base import (
     AgentType,
@@ -22,6 +24,8 @@ from ...models.base import (
     PolicyType
 )
 from ..base.base_agent import StatefulAgent
+from ..common.model_client import create_buffered_context
+from .prompt import generation_system_prompt, generation_user_prompt
 
 
 class AnswerGeneratorAgent(StatefulAgent):
@@ -43,6 +47,7 @@ class AnswerGeneratorAgent(StatefulAgent):
         )
 
         self.model_client = model_client
+        self._assistant: Optional[AssistantAgent] = None
         self.max_sources = max_sources
         self.confidence_threshold = confidence_threshold
 
@@ -553,10 +558,59 @@ class AnswerGeneratorAgent(StatefulAgent):
         return None
 
     async def process_request(self, request: Any, context: MessageContext) -> Any:
-        """Process an answer generation request."""
+        """Process an answer generation request (accepts dict or object)."""
+        # Normalize request to dict-like
+        if hasattr(request, "query_context"):
+            query_context = request.query_context
+            sources = request.sources
+            synthesis = request.synthesis
+            intent = getattr(request, "intent", None)
+        else:
+            query_context = request.get("query_context") or request.get("analysis") or {}
+            sources = request.get("sources") or []
+            synthesis = request.get("synthesis") or {}
+            intent = request.get("intent") or request.get("analysis", {}).get("intent")
+
+        # If LLM client exists, try LLM generation
+        if self.model_client:
+            try:
+                return await self._generate_with_llm(query_context, sources, synthesis, intent)
+            except Exception as e:
+                self.logger.warning(f"LLM generation failed, fallback to template: {e}")
+
         return await self._generate_comprehensive_answer(
-            request.query_context,
-            request.sources,
-            request.synthesis,
-            request.intent
+            query_context,
+            sources,
+            synthesis,
+            intent
+        )
+
+    async def _generate_with_llm(self, query_context: Dict[str, Any], sources: List, synthesis: Dict[str, Any], intent: Any) -> GeneratedAnswer:
+        if self._assistant is None:
+            self._assistant = AssistantAgent(
+                name="answer_gen_llm",
+                system_message=generation_system_prompt(),
+                model_client=self.model_client,
+                model_context=create_buffered_context(10),
+            )
+
+        # Simplify structured info for the prompt
+        info = await self._extract_information_from_sources(sources)
+        user_prompt = generation_user_prompt(query_context, info, synthesis)
+        resp = await self._assistant.on_messages([TextMessage(content=user_prompt, source="user")], CancellationToken())
+        answer_text = resp.chat_message.to_text()
+
+        # Calculate confidence via heuristic
+        confidence = await self._calculate_answer_confidence(sources, info)
+        query_id = query_context.get("query_id")
+        return GeneratedAnswer(
+            query_id=query_id,
+            answer=answer_text,
+            sources=[source[0]["document_id"] for source in sources] if sources else [],
+            confidence=confidence,
+            evidence=await self._generate_evidence_list(sources),
+            assumptions=info.get("assumptions", []),
+            limitations=info.get("limitations", []),
+            followup_questions=await self._generate_followup_questions(query_context, info),
+            generation_time=0.0,
         )

@@ -87,11 +87,14 @@ class AgentOrchestratorService:
             }
         }
 
-        # 智能体注册
+        # 智能体注册推迟到 initialize()
+        self.logger.info("Agent Orchestrator Service constructed (deferred init)")
+
+    async def initialize(self):
+        """异步初始化（注册所有智能体并启动 runtime）"""
         self.runtime.start()
         for name, agent in self.agents.items():
             await self.runtime.register(agent, name)
-
         self.logger.info("Agent Orchestrator Service initialized")
 
     async def process_query(

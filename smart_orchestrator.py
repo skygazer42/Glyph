@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import os
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 import json
@@ -13,6 +14,7 @@ from autogen_core import (
     SingleThreadedAgentRuntime,
     MessageContext
 )
+from agents.common.model_client import create_openai_client
 
 from models.base import (
     AgentType,
@@ -23,11 +25,13 @@ from models.base import (
 from agents.router.intent_router import IntentRouterAgent, IntentClassification
 from agents.specialized.chat_agent import ChatAgent
 from agents.specialized.calculation_agent import CalculationAgent
-from agents.retrieval.policy_retriever import PolicyRetrieverAgent
+from agents.specialized.clarifier import ClarifierAgent
+from agents.retrieval.vector_retriever import VectorRetrieverAgent
+from agents.retrieval.graph_retriever import GraphRetrieverAgent
 from agents.analysis.policy_analyzer import PolicyAnalyzerAgent
 from agents.analysis.policy_comparator import PolicyComparatorAgent
 from agents.generation.answer_generator import AnswerGeneratorAgent
-from agents.coordination.session_manager import SessionManagerAgent
+from agents.common import session_store
 
 
 class SmartOrchestrator:
@@ -48,13 +52,14 @@ class SmartOrchestrator:
 
         # 初始化agents
         self.intent_router = IntentRouterAgent(model_client=self._create_model_client())
-        self.session_manager = SessionManagerAgent()
+        # 使用基础设施级会话存储（非智能体）
 
         # 专门agents
         self.specialized_agents = {
             "chat_agent": ChatAgent(),
             "calculation_agent": CalculationAgent(),
             "comparison_agent": PolicyComparatorAgent(model_client=self._create_model_client()),
+            "clarifier": ClarifierAgent(),
         }
 
         # 知识库agents
@@ -110,20 +115,23 @@ class SmartOrchestrator:
 
     def _create_model_client(self):
         """创建模型客户端"""
-        # 实际实现需要根据配置创建
-        return None
+        # 从环境变量创建 OpenAI 兼容客户端
+        try:
+            return create_openai_client()
+        except Exception:
+            return None
 
     async def initialize(self):
         """初始化系统"""
         self.logger.info("Initializing smart orchestrator...")
 
         # 初始化检索agents
-        self.kb_agents["knowledge_retriever"] = PolicyRetrieverAgent(**self.vector_store_config)
+        self.kb_agents["knowledge_retriever"] = VectorRetrieverAgent(**self.vector_store_config)
         await self.kb_agents["knowledge_retriever"].initialize()
 
-        # 这里可以初始化图谱检索器
-        # self.graph_agents["graph_retriever"] = GraphRetrieverAgent(**graph_config)
-        # await self.graph_agents["graph_retriever"].initialize()
+        # 初始化图谱检索器（LightRAG）
+        self.graph_agents["graph_retriever"] = GraphRetrieverAgent()
+        await self.graph_agents["graph_retriever"].initialize()
 
         self.logger.info("Smart orchestrator initialized successfully")
 
@@ -141,21 +149,9 @@ class SmartOrchestrator:
             user_id=user_id
         )
 
-        # 获取或创建会话
-        session_result = await self.session_manager.process_request({
-            "action": "create_or_update",
-            "session_id": session_id,
-            "user_id": user_id
-        }, MessageContext())
-
-        session_id = session_result["session_id"]
-
-        # 添加查询到会话
-        await self.session_manager.process_request({
-            "action": "add_query",
-            "session_id": session_id,
-            "query": user_query
-        }, MessageContext())
+        # 获取或创建会话（基础设施层，非路由）
+        session_id, _ = session_store.create_or_update_session(session_id, user_id)
+        session_store.add_query(session_id, user_query)
 
         try:
             # Step 1: 意图识别和路由
@@ -176,11 +172,7 @@ class SmartOrchestrator:
 
             # Step 3: 添加答案到会话
             if result:
-                await self.session_manager.process_request({
-                    "action": "add_answer",
-                    "session_id": session_id,
-                    "answer": result
-                }, MessageContext())
+                session_store.add_answer(session_id, result)
 
             return result or self._create_fallback_response(user_query)
 
@@ -194,26 +186,76 @@ class SmartOrchestrator:
         routing: IntentClassification,
         session_id: str
     ) -> Optional[FinalAnswer]:
-        """执行处理链"""
-        chain_name = routing.processing_chain[0] if routing.processing_chain else "kb_chain"
-
-        if chain_name in self.processing_chains:
-            chain_config = self.processing_chains[chain_name]
-
-            if chain_name == "chat_agent":
+        """执行处理链（支持并行与早停）"""
+        chains = routing.processing_chain or ["kb_chain"]
+        # 单链快捷路径
+        if not routing.requires_parallel and len(chains) == 1 and chains[0] != "hybrid_chain":
+            name = chains[0]
+            if name == "chat_agent":
                 return await self._handle_chat_chain(user_query, routing)
-            elif chain_name == "calculation_chain":
+            if name == "calculation_chain":
                 return await self._handle_calculation_chain(user_query, routing)
-            elif chain_name == "comparison_chain":
+            if name == "comparison_chain":
                 return await self._handle_comparison_chain(user_query, routing)
-            elif chain_name == "kb_chain":
+            if name == "clarification_chain":
+                return await self._handle_clarification_chain(user_query, routing)
+            if name == "kb_chain":
                 return await self._handle_kb_chain(user_query, routing)
-            elif chain_name == "graph_chain":
+            if name == "graph_chain":
                 return await self._handle_graph_chain(user_query, routing)
-            elif chain_name == "hybrid_chain":
+            if name == "hybrid_chain":
                 return await self._handle_hybrid_chain(user_query, routing)
+            # 未识别则回退 KB
+            return await self._handle_kb_chain(user_query, routing)
 
-        # 默认使用知识库链
+        # 并行：当指定多个链或需要并行/混合
+        tasks = []
+        def spawn(chain_name: str):
+            if chain_name == "kb_chain":
+                return self._handle_kb_chain(user_query, routing)
+            if chain_name == "graph_chain":
+                return self._handle_graph_chain(user_query, routing)
+            if chain_name == "comparison_chain":
+                return self._handle_comparison_chain(user_query, routing)
+            if chain_name == "calculation_chain":
+                return self._handle_calculation_chain(user_query, routing)
+            if chain_name == "chat_agent":
+                return self._handle_chat_chain(user_query, routing)
+            if chain_name == "clarification_chain":
+                return self._handle_clarification_chain(user_query, routing)
+            if chain_name == "hybrid_chain":
+                return self._handle_hybrid_chain(user_query, routing)
+            return self._handle_kb_chain(user_query, routing)
+
+        for name in chains:
+            tasks.append(asyncio.create_task(spawn(name)))
+
+        try:
+            EARLY_STOP_CONF = float(os.getenv("EARLY_STOP_CONF", "0.80"))
+        except Exception:
+            EARLY_STOP_CONF = 0.80
+        results: list[FinalAnswer] = []
+        while tasks:
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for d in done:
+                try:
+                    res = d.result()
+                    if res:
+                        if res.confidence >= EARLY_STOP_CONF:
+                            for p in pending:
+                                p.cancel()
+                            return res
+                        results.append(res)
+                except Exception as e:
+                    self.logger.warning(f"Parallel chain error: {e}")
+            tasks = list(pending)
+
+        # 择优（最大置信度）
+        if results:
+            best = max(results, key=lambda r: getattr(r, 'confidence', 0.0))
+            return best
+
+        # 全部失败回退 KB
         return await self._handle_kb_chain(user_query, routing)
 
     async def _handle_chat_chain(
@@ -315,6 +357,23 @@ class SmartOrchestrator:
             }
         )
 
+    async def _handle_clarification_chain(
+        self,
+        user_query: UserQuery,
+        routing: IntentClassification
+    ) -> FinalAnswer:
+        clarifier = self.specialized_agents.get("clarifier")
+        result = await clarifier.process_request({"query": user_query.text}, MessageContext())
+        question = result.get("question", "请问您具体想了解申请条件、办理流程还是截止时间？")
+        return FinalAnswer(
+            query_id=user_query.id,
+            answer=f"为更好地解答您的问题，请澄清：{question}",
+            sources=[],
+            confidence=0.4,
+            verification_passed=False,
+            metadata={"clarification": True}
+        )
+
     async def _handle_kb_chain(
         self,
         user_query: UserQuery,
@@ -328,14 +387,17 @@ class SmartOrchestrator:
             return self._create_no_policy_response(user_query)
 
         # 分析文档
-        analyses = []
-        for doc in documents[:3]:
-            analysis = await self.kb_agents["policy_analyzer"].process_request({
-                "document": doc,
-                "query_id": user_query.id,
-                "intent": routing.sub_intent or routing.intent_type
-            }, MessageContext())
-            analyses.append(analysis)
+        # 并发分析文档（限流）
+        semaphore = asyncio.Semaphore(5)
+        async def analyze_doc(d):
+            async with semaphore:
+                return await self.kb_agents["policy_analyzer"].process_request({
+                    "document": d,
+                    "query_id": user_query.id,
+                    "intent": routing.sub_intent or routing.intent_type
+                }, MessageContext())
+        tasks = [asyncio.create_task(analyze_doc(d)) for d in documents[:5]]
+        analyses = [res for res in await asyncio.gather(*tasks, return_exceptions=False)]
 
         # 生成答案
         generation_request = {
@@ -374,11 +436,68 @@ class SmartOrchestrator:
         user_query: UserQuery,
         routing: IntentClassification
     ) -> FinalAnswer:
-        """处理图谱链"""
-        # TODO: 实现图谱检索
-        # 暂时回退到知识库链
-        self.logger.warning("Graph chain not implemented, falling back to KB chain")
-        return await self._handle_kb_chain(user_query, routing)
+        """处理图谱链（LightRAG）"""
+        documents = []
+        if self.graph_agents.get("graph_retriever"):
+            try:
+                result = await self.graph_agents["graph_retriever"].process_request(
+                    {"query_text": user_query.text, "mode": "hybrid", "top_k": 5},
+                    MessageContext(),
+                )
+                documents = result.documents
+            except Exception as e:
+                self.logger.warning(f"Graph retrieval failed, fallback to KB: {e}")
+                documents = await self._retrieve_documents(user_query, top_k=5)
+        else:
+            documents = await self._retrieve_documents(user_query, top_k=5)
+
+        if not documents:
+            return self._create_no_policy_response(user_query)
+
+        # 分析文档
+        # 并发分析文档（限流）
+        semaphore = asyncio.Semaphore(5)
+        async def analyze_doc2(d):
+            async with semaphore:
+                return await self.kb_agents["policy_analyzer"].process_request({
+                    "document": d,
+                    "query_id": user_query.id,
+                    "intent": routing.sub_intent or routing.intent_type
+                }, MessageContext())
+        tasks2 = [asyncio.create_task(analyze_doc2(d)) for d in documents[:5]]
+        analyses = [res for res in await asyncio.gather(*tasks2, return_exceptions=False)]
+
+        # 生成答案
+        generation_request = {
+            "query_context": {
+                "query_id": str(user_query.id),
+                "text": user_query.text,
+                "intent": routing.intent_type,
+                "entities": routing.entities
+            },
+            "sources": [(a.dict(), a.relevance_score) for a in analyses],
+            "synthesis": {
+                "most_relevant": analyses[0].document_id if analyses else None,
+                "total_analyzed": len(analyses)
+            }
+        }
+
+        generated_answer = await self.kb_agents["answer_generator"].process_request(
+            generation_request,
+            MessageContext()
+        )
+
+        return FinalAnswer(
+            query_id=user_query.id,
+            answer=generated_answer.answer,
+            sources=documents,
+            confidence=generated_answer.confidence,
+            verification_passed=generated_answer.confidence > 0.7,
+            metadata={
+                "chain": "graph_chain",
+                "retrieved_count": len(documents)
+            }
+        )
 
     async def _handle_hybrid_chain(
         self,
@@ -389,7 +508,7 @@ class SmartOrchestrator:
         # 并行执行知识库检索和图谱检索
         tasks = [
             self._handle_kb_chain(user_query, routing),
-            # self._handle_graph_chain(user_query, routing)  # 图谱链未实现
+            self._handle_graph_chain(user_query, routing),
         ]
 
         # 等待所有任务完成
@@ -425,7 +544,18 @@ class SmartOrchestrator:
                 request,
                 MessageContext()
             )
-            return result.documents if result else []
+            docs = result.documents if result else []
+            # 若KB检索为空，尝试图谱检索作为回退
+            if not docs and self.graph_agents.get("graph_retriever"):
+                try:
+                    graph_result = await self.graph_agents["graph_retriever"].process_request(
+                        {"query_text": user_query.text, "mode": "hybrid", "top_k": top_k},
+                        MessageContext(),
+                    )
+                    docs = graph_result.documents or []
+                except Exception as e:
+                    self.logger.warning(f"Graph fallback retrieval failed: {e}")
+            return docs
         return []
 
     def _format_calculation_result(self, result, query: str) -> str:

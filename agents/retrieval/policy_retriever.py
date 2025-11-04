@@ -156,7 +156,7 @@ class PolicyRetriever(BaseAgent):
         return QueryResult(
             query=query,
             documents=unique_docs,
-            final_scores,
+            scores=final_scores,
             method=RetrievalMethod.GRAPH_SEARCH,
             metadata={"search_type": "graph", "entities": entities}
         )
