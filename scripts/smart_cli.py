@@ -9,7 +9,11 @@ import logging
 import sys
 from pathlib import Path
 
-from smart_orchestrator import SmartOrchestrator
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from agents.orchestrators.smart import SmartOrchestrator
 from utils.document_loader import DocumentLoader
 from utils.config import Config
 

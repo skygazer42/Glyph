@@ -59,9 +59,9 @@ cp .env.example .env
 
 ```bash
 # .env 文件
-MODEL__API_KEY=your_api_key_here
-MODEL__BASE_URL=https://api.deepseek.com
-MODEL__MODEL_NAME=deepseek-chat
+LLM_API_KEY=your_api_key_here
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL_NAME=deepseek-chat
 
 # 可选：Neo4j配置
 DATABASE__NEO4J_URI=bolt://localhost:7687
@@ -96,7 +96,7 @@ VERBOSE_DEBUG=false
 
 ```bash
 # 加载政策文档并启动交互模式
-python main.py --load-docs /path/to/policies --interactive
+python scripts/smart_cli.py --load-docs /path/to/policies --interactive
 
 # 示例对话
 请输入您的问题: 2025年家电以旧换新的补贴标准是多少？
@@ -141,14 +141,14 @@ cat > queries.txt << EOF
 EOF
 
 # 批量处理
-python main.py --load-docs /path/to/policies --batch queries.txt
+python scripts/legacy_cli.py --load-docs /path/to/policies --batch queries.txt
 ```
 
 ### 3. 编程接口
 
 ```python
 import asyncio
-from orchestrator import PolicyQAOrchestrator
+from agents.orchestrators.legacy import PolicyQAOrchestrator
 from utils.config import Config
 
 async def main():
@@ -178,10 +178,9 @@ asyncio.run(main())
 
 ## 📊 系统组件
 
-### 1. VectorRetrieverAgent (向量检索Agent)
-- **功能**: 基于向量相似度的政策文档检索
-- **模型**: BAAI/bge-large-zh-v1.5
-- **存储**: FAISS向量数据库
+### 1. VectorRetrieverAgent (向量检索 Agent)
+- **功能**: 基于向量相似度的政策文档检索（默认使用 OpenAI Embeddings，可选 Ollama）
+- **存储**: FAISS 向量数据库
 
 ### 2. PolicyAnalyzerAgent (政策分析Agent)
 - **功能**: 深度解析政策文档，提取结构化信息
@@ -280,11 +279,14 @@ pip install lightrag
 ### 2) 配置环境（.env）
 
 ```bash
+# 初始化环境文件
+cp .env.example .env
+
 # 大模型（LLM）
-MODEL__API_KEY=your_api_key
-MODEL__BASE_URL=https://api.deepseek.com
-MODEL__MODEL_NAME=deepseek-chat
-MODEL__TEMPERATURE=0
+LLM_API_KEY=your_api_key
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL_NAME=deepseek-chat
+LLM_TEMPERATURE=0
 
 # 多轮对话（基础设施，非智能体）
 CONVERSATION__MAX_TURNS=20
@@ -299,6 +301,24 @@ EMBEDDING_MODEL=bge-m3:latest
 EMBEDDING_BINDING_HOST=http://localhost:11434
 EMBEDDING_DIM=1024
 MAX_EMBED_TOKENS=8192
+
+# 向量检索（KB）嵌入后端（避免强制安装 torch）
+# openai（默认，轻量）：使用 OpenAI Embeddings API
+# ollama：使用本地 Ollama 嵌入（需本地服务）
+EMBEDDING_BACKEND=openai
+EMBEDDING_MODEL=text-embedding-3-small
+
+# Reranker（可选：DashScope 文本排序）
+RERANKER_BACKEND=dashscope
+DASHSCOPE_API_KEY=your_dashscope_key
+RERANKER_MODEL=gte-rerank-v2
+RERANKER_TOP_N=5
+
+# Reranker 策略（可选）
+# replace：仅按重排分数排序；fuse：融合 FAISS 分数与重排分数
+RERANKER_STRATEGY=replace
+RERANK_WEIGHT=0.7
+FAISS_WEIGHT=0.3
 ```
 
 说明：
@@ -308,20 +328,26 @@ MAX_EMBED_TOKENS=8192
 
 ```bash
 # 将本地政策资料加载进向量库与 LightRAG 存储
-python smart_main.py --load-docs ./knowledge_base/documents --interactive
+python scripts/smart_cli.py --load-docs ./knowledge_base/documents --interactive
 ```
 
-### 4) 交互/演示/批量
+### 4) 交互/演示/批量 / 后端服务
 
 ```bash
 # 交互模式（推荐）
-python smart_main.py --interactive
+python scripts/smart_cli.py --interactive
 
 # 演示（内置示例）：
-python smart_main.py --demo
+python scripts/smart_cli.py --demo
 
 # 批量模式
-python smart_main.py --batch queries.txt
+python scripts/smart_cli.py --batch queries.txt
+
+# 启动后端 API（FastAPI）
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+# 例子：
+# POST http://localhost:8000/query  {"query":"申请汽车补贴需要什么条件？"}
 ```
 
 ### 5) 工作原理（按意图分支 + 按需并行）
@@ -342,7 +368,7 @@ python smart_main.py --batch queries.txt
 - LLM 意图路由：`agents/router/llm_classifier.py` 使用 `AssistantAgent` + `OpenAIChatCompletionClient`，按 `agents/router/prompt.py` 的 JSON 协议返回意图与链路。
 - 政策分析与答案生成（LLM 优先）：
   - `PolicyAnalyzer` 与 `AnswerGenerator` 在提供 `model_client` 时，使用 `AssistantAgent` 搭配缓冲上下文（`BufferedChatCompletionContext`）进行抽取与生成；失败时回退到规则/模板逻辑。
-  - 配置通过 `.env` 的 `MODEL__*` 注入。
+  - 配置通过 `.env` 的 `LLM_*` 注入。
 
 示例（模型客户端）：
 ```python
@@ -391,7 +417,7 @@ bash scripts/clean.sh --no-dry-run
   - 低置信/歧义：并行执行多链（如 kb_chain + graph_chain），采用早停或择优返回。
 
 环境变量：
-- MODEL__API_KEY / MODEL__BASE_URL / MODEL__MODEL_NAME 控制 LLM 接口（兼容 OpenAI 风格）。
+- LLM_API_KEY / LLM_BASE_URL / LLM_MODEL_NAME 控制 LLM 接口（兼容 OpenAI 风格）。
 
 ### 意图细化与链路映射
 
@@ -494,7 +520,6 @@ self.templates[QueryIntent.CUSTOM_INTENT] = self._custom_template
 - [AutoGen](https://github.com/microsoft/autogen) - 多Agent框架
 - [BGE](https://github.com/FlagOpen/FlagEmbedding) - 中文向量模型
 - [FAISS](https://github.com/facebookresearch/faiss) - 向量检索库
-- [Sentence Transformers](https://github.com/UKPLab/sentence-transformers) - 句子嵌入
 
 ## 📞 联系
 

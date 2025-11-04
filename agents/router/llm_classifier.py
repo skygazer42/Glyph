@@ -10,7 +10,10 @@ from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
 
 from .prompt import intent_system_instruction, intent_user_prompt
-from ..common.model_client import create_openai_client, create_buffered_context
+try:
+    from app.llm import model_client as GLOBAL_MODEL_CLIENT, model_context as GLOBAL_MODEL_CTX
+except Exception:
+    GLOBAL_MODEL_CLIENT, GLOBAL_MODEL_CTX = None, None
 
 
 class LLMIntentClassifier:
@@ -20,13 +23,13 @@ class LLMIntentClassifier:
 
     async def _ensure(self):
         if self._client is None:
-            self._client = create_openai_client()
+            self._client = GLOBAL_MODEL_CLIENT
         if self._assistant is None:
             self._assistant = AssistantAgent(
                 name="intent_router",
                 system_message=intent_system_instruction(),
                 model_client=self._client,
-                model_context=create_buffered_context(10),
+                model_context=GLOBAL_MODEL_CTX,
             )
 
     async def classify(self, query: str) -> Optional[Dict]:
@@ -44,4 +47,3 @@ class LLMIntentClassifier:
         except Exception:
             pass
         return None
-

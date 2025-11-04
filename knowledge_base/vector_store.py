@@ -1,5 +1,9 @@
 """
-Vector store for document embeddings and similarity search.
+Vector store for document embeddings and similarity search (no torch dependency).
+
+Supports backends:
+- openai (default): OpenAI Embeddings API
+- ollama: local embedding via lightrag.ollama
 """
 
 import os
@@ -7,7 +11,6 @@ import numpy as np
 import pickle
 import faiss
 from typing import List, Dict, Any, Tuple, Optional
-from sentence_transformers import SentenceTransformer
 
 from ..agents.base.types import PolicyDocument
 
@@ -17,15 +20,17 @@ class VectorStore:
 
     def __init__(
         self,
-        model_name: str = "all-MiniLM-L6-v2",
+        model_name: Optional[str] = None,
         index_path: str = "data/vector_store/faiss.index",
-        metadata_path: str = "data/vector_store/metadata.pkl"
+        metadata_path: str = "data/vector_store/metadata.pkl",
+        backend: Optional[str] = None
     ):
         """Initialize the vector store."""
-        self.model = SentenceTransformer(model_name)
+        self.backend = (backend or os.getenv("EMBEDDING_BACKEND") or "openai").lower()
+        self.model_name = model_name or os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
         self.index_path = index_path
         self.metadata_path = metadata_path
-        self.embedding_dim = self.model.get_sentence_embedding_dimension()
+        self.embedding_dim = self._infer_dim()
 
         # Create directories if they don't exist
         os.makedirs(os.path.dirname(index_path), exist_ok=True)
@@ -59,12 +64,7 @@ class VectorStore:
             texts.append(text)
 
         # Generate embeddings
-        embeddings = self.model.encode(
-            texts,
-            batch_size=32,
-            show_progress_bar=True,
-            convert_to_numpy=True
-        )
+        embeddings = self._embed_texts(texts)
 
         # Normalize for cosine similarity
         faiss.normalize_L2(embeddings)
@@ -150,3 +150,45 @@ class VectorStore:
             "embedding_dimension": self.embedding_dim,
             "index_path": self.index_path
         }
+
+    def _embed_texts(self, texts: List[str]) -> np.ndarray:
+        if self.backend == "openai":
+            from openai import OpenAI
+            api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+            base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+            if not api_key:
+                raise RuntimeError("OPENAI API Key 未配置，无法使用 openai 嵌入后端")
+            client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+            res = client.embeddings.create(model=self.model_name, input=texts)
+            vecs = np.array([d.embedding for d in res.data], dtype=np.float32)
+            # ensure index dim
+            if self.index is None or self.index.d != vecs.shape[1]:
+                self.embedding_dim = vecs.shape[1]
+                self.index = faiss.IndexFlatIP(self.embedding_dim)
+            faiss.normalize_L2(vecs)
+            return vecs
+        if self.backend == "ollama":
+            try:
+                from lightrag.llm.ollama import ollama_embed
+            except Exception as e:
+                raise RuntimeError("需要安装 lightrag 以使用 ollama 嵌入后端") from e
+            host = os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434")
+            model = self.model_name or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+            vecs = ollama_embed(texts, embed_model=model, host=host)
+            vecs = np.array(vecs, dtype=np.float32)
+            if self.index is None or self.index.d != vecs.shape[1]:
+                self.embedding_dim = vecs.shape[1]
+                self.index = faiss.IndexFlatIP(self.embedding_dim)
+            faiss.normalize_L2(vecs)
+            return vecs
+        # fallback zeros
+        return np.zeros((len(texts), self.embedding_dim), dtype=np.float32)
+
+    def _infer_dim(self) -> int:
+        if self.backend == "openai":
+            if "3-large" in (self.model_name or ""):
+                return 3072
+            return 1536
+        if self.backend == "ollama":
+            return int(os.getenv("EMBEDDING_DIM", "768"))
+        return 768

@@ -14,7 +14,10 @@ from autogen_core import (
     SingleThreadedAgentRuntime,
     MessageContext
 )
-from agents.common.model_client import create_openai_client
+try:
+    from app.llm import model_client as GLOBAL_MODEL_CLIENT
+except Exception:
+    GLOBAL_MODEL_CLIENT = None
 
 from models.base import (
     AgentType,
@@ -115,11 +118,8 @@ class SmartOrchestrator:
 
     def _create_model_client(self):
         """创建模型客户端"""
-        # 从环境变量创建 OpenAI 兼容客户端
-        try:
-            return create_openai_client()
-        except Exception:
-            return None
+        # 优先使用全局统一的 LLM 客户端
+        return GLOBAL_MODEL_CLIENT
 
     async def initialize(self):
         """初始化系统"""

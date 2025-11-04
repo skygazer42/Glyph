@@ -9,7 +9,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from gove import PolicyQAService
+from services.policy_service import PolicyQAService
 
 
 async def example_basic_usage():

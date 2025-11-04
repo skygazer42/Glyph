@@ -6,7 +6,8 @@ import asyncio
 import json
 from typing import Dict, Any, List, Optional
 import numpy as np
-from sentence_transformers import SentenceTransformer
+import os
+from typing import Optional
 
 from ..base.base_agent import BaseAgent
 from ..base.types import (
@@ -35,7 +36,9 @@ class PolicyRetriever(BaseAgent):
         self.graph_db = graph_db
         self.top_k = top_k
         self.similarity_threshold = similarity_threshold
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        # Embedding backend config（默认 openai，避免强制安装 torch）
+        self.embedding_backend = (os.getenv("EMBEDDING_BACKEND") or "openai").lower()
+        self.embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 
     def _get_default_system_message(self) -> str:
         """Get the default system message."""
@@ -93,8 +96,8 @@ class PolicyRetriever(BaseAgent):
         filters: Dict[str, Any]
     ) -> QueryResult:
         """Perform vector similarity search."""
-        # Encode the query
-        query_embedding = self.embedding_model.encode(query)
+        # Encode the query（按后端选择嵌入方式）
+        query_embedding = await self._embed_query(query)
 
         # Search in vector store
         if self.vector_store:
@@ -249,3 +252,36 @@ class PolicyRetriever(BaseAgent):
         ]
         mock_scores = [0.85, 0.72]
         return mock_docs, mock_scores
+
+    async def _embed_query(self, query: str) -> np.ndarray:
+        backend = self.embedding_backend
+        if backend == "openai":
+            try:
+                from openai import OpenAI
+            except Exception as e:
+                raise RuntimeError("openai 包未安装，无法使用 openai 嵌入后端") from e
+            api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+            base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+            model = self.embedding_model_name or "text-embedding-3-small"
+            if not api_key:
+                raise RuntimeError("未配置 LLM_API_KEY/OPENAI_API_KEY，无法使用 openai 嵌入后端")
+            client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+            res = client.embeddings.create(model=model, input=[query])
+            vecs = np.array([res.data[0].embedding], dtype=np.float32)
+            from faiss import normalize_L2
+            normalize_L2(vecs)
+            return vecs
+        if backend == "ollama":
+            try:
+                from lightrag.llm.ollama import ollama_embed
+            except Exception as e:
+                raise RuntimeError("需要安装 lightrag 以使用 ollama 嵌入后端") from e
+            host = os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434")
+            model = self.embedding_model_name or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+            vecs = ollama_embed([query], embed_model=model, host=host)
+            vecs = np.array(vecs, dtype=np.float32)
+            from faiss import normalize_L2
+            normalize_L2(vecs)
+            return vecs
+        # fallback zeros
+        return np.zeros((1, int(os.getenv("EMBEDDING_DIM", "768"))), dtype=np.float32)

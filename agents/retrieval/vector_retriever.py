@@ -1,14 +1,18 @@
 """
-Vector-based retrieval agent implementation.
+Vector-based retrieval agent (no torch dependency).
+
+Supported embedding backends:
+- openai (default): OpenAI Embeddings API（轻量）
+- ollama: 本地 Ollama 嵌入服务
 """
 
 import asyncio
+import os
 import numpy as np
 from typing import List, Dict, Any, Optional
 import time
 
 from autogen_core import MessageContext, TopicId
-from sentence_transformers import SentenceTransformer
 import faiss
 
 from ...models.base import (
@@ -30,10 +34,11 @@ class VectorRetrieverAgent(StatefulAgent):
 
     def __init__(
         self,
-        model_name: str = "BAAI/bge-large-zh-v1.5",
+        model_name: Optional[str] = None,
         index_path: str = "data/vector_store/policy_index.faiss",
         metadata_path: str = "data/vector_store/metadata.pkl",
-        embedding_dim: int = 1024,
+        embedding_dim: Optional[int] = None,
+        embedding_backend: Optional[str] = None,
         **kwargs
     ):
         """Initialize the vector retriever agent."""
@@ -44,13 +49,15 @@ class VectorRetrieverAgent(StatefulAgent):
             **kwargs
         )
 
-        self.model_name = model_name
+        # Embedding backend & model
+        self.embedding_backend = (embedding_backend or os.getenv("EMBEDDING_BACKEND") or "openai").lower()
+        self.model_name = model_name or os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
         self.index_path = index_path
         self.metadata_path = metadata_path
-        self.embedding_dim = embedding_dim
+        self.embedding_dim = embedding_dim or self._infer_embedding_dim(self.embedding_backend, self.model_name)
 
         # Initialize components
-        self.embedding_model = None
+        self.embedding_model = None  # backends无需预加载
         self.vector_index = None
         self.document_metadata: List[Dict] = []
         self._load_or_create_index()
@@ -60,10 +67,8 @@ class VectorRetrieverAgent(StatefulAgent):
         self.cache_size = 1000
 
     async def initialize(self):
-        """Initialize the agent and load models."""
-        self.logger.info("Loading embedding model...")
-        self.embedding_model = SentenceTransformer(self.model_name)
-        self.logger.info(f"Model loaded: {self.model_name}")
+        """No-op for openai/ollama backends (无需预加载)."""
+        self.logger.info(f"Embedding backend '{self.embedding_backend}' 无需预加载")
 
     def _load_or_create_index(self):
         """Load existing index or create new one."""
@@ -80,15 +85,14 @@ class VectorRetrieverAgent(StatefulAgent):
             self.logger.info(f"Loaded index with {len(self.document_metadata)} documents")
         else:
             # Create new index
+            if not self.embedding_dim:
+                self.embedding_dim = self._infer_embedding_dim(self.embedding_backend, self.model_name)
             self.vector_index = faiss.IndexFlatIP(self.embedding_dim)
             self.document_metadata = []
             self.logger.info("Created new vector index")
 
     async def add_documents(self, documents: List[PolicyDocument]):
         """Add documents to the vector store."""
-        if not self.embedding_model:
-            await self.initialize()
-
         self.logger.info(f"Adding {len(documents)} documents to vector store")
 
         # Prepare texts for embedding
@@ -98,25 +102,11 @@ class VectorRetrieverAgent(StatefulAgent):
             text = f"{doc.title} {doc.content} {' '.join(doc.keywords)}"
             texts.append(text)
 
-        # Generate embeddings in batches
-        batch_size = 32
-        all_embeddings = []
-
-        for i in range(0, len(texts), batch_size):
-            batch_texts = texts[i:i + batch_size]
-            embeddings = self.embedding_model.encode(
-                batch_texts,
-                batch_size=batch_size,
-                normalize_embeddings=True,
-                convert_to_numpy=True
-            )
-            all_embeddings.append(embeddings)
-
-        # Concatenate all embeddings
-        all_embeddings = np.vstack(all_embeddings)
+        # Generate embeddings via backend
+        all_embeddings = await self._embed_texts(texts)
 
         # Add to index
-        self.vector_index.add(all_embeddings)
+        self.vector_index.add(all_embeddings.astype(np.float32))
 
         # Store metadata
         for doc in documents:
@@ -162,6 +152,9 @@ class VectorRetrieverAgent(StatefulAgent):
             threshold=0.7
         )
 
+        # Optional rerank via DashScope if enabled and query text available
+        search_results = await self._maybe_rerank(query, search_results)
+
         # Create response
         return AgentMessage(
             type=MessageType.RETRIEVAL_RESULT,
@@ -193,6 +186,11 @@ class VectorRetrieverAgent(StatefulAgent):
             filters=filters
         )
 
+        # Optional rerank if query text provided in filters (filters.get('query') or 'query_text')
+        qtext = filters.get("query") or filters.get("query_text") if isinstance(filters, dict) else None
+        if qtext:
+            search_results = await self._maybe_rerank(qtext, search_results)
+
         return AgentMessage(
             type=MessageType.RETRIEVAL_RESULT,
             sender=self.agent_type,
@@ -215,16 +213,8 @@ class VectorRetrieverAgent(StatefulAgent):
             return self.embedding_cache[query]
 
         # Generate embedding
-        if not self.embedding_model:
-            await self.initialize()
-
-        embedding = self.embedding_model.encode(
-            query,
-            normalize_embeddings=True,
-            convert_to_numpy=True
-        )
-
-        embedding_list = embedding.tolist()
+        emb = await self._embed_texts([query])
+        embedding_list = emb[0].astype(float).tolist()
 
         # Update cache
         if len(self.embedding_cache) < self.cache_size:
@@ -280,6 +270,49 @@ class VectorRetrieverAgent(StatefulAgent):
             "scores": valid_scores,
             "search_time": search_time
         }
+
+    async def _maybe_rerank(self, query_text: str, search_results: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            if os.getenv("KB_RERANK_ENABLED", "true").lower() != "true":
+                return search_results
+            if os.getenv("RERANKER_BACKEND", "").lower() != "dashscope":
+                return search_results
+            from services.reranker.dashscope import reorder_by_rerank
+            docs = search_results.get("documents", [])
+            if not docs:
+                return search_results
+            # extract full content or fallback to title
+            texts = []
+            for d in docs:
+                # d is dict from PolicyDocument.dict()
+                texts.append(d.get("content") or d.get("title") or "")
+            ranking = reorder_by_rerank(query_text, texts, top_n=min(len(texts), int(os.getenv("RERANKER_TOP_N", "5"))))
+            # strategy: replace | fuse
+            strategy = os.getenv("RERANKER_STRATEGY", "replace").lower()
+            idx_map = [idx for idx, score in ranking]
+            rerank_scores = {idx: score for idx, score in ranking}
+            if strategy == "fuse":
+                faiss_scores = search_results.get("scores", [0.0] * len(docs))
+                alpha = float(os.getenv("RERANK_WEIGHT", "0.7"))
+                beta = float(os.getenv("FAISS_WEIGHT", "0.3"))
+                fused = []
+                for i in range(len(docs)):
+                    rr = rerank_scores.get(i, 0.0)
+                    fs = faiss_scores[i] if i < len(faiss_scores) else 0.0
+                    fused.append((i, alpha * rr + beta * fs))
+                fused.sort(key=lambda x: x[1], reverse=True)
+                idx_map = [i for i, _ in fused]
+                new_scores = [s for _, s in fused]
+            else:
+                new_scores = [score for _, score in ranking]
+            # reorder
+            new_docs = [docs[i] for i in idx_map]
+            search_results["documents"] = new_docs
+            search_results["scores"] = new_scores
+            return search_results
+        except Exception as e:
+            self.logger.warning(f"Reranker failed: {e}")
+            return search_results
 
     async def _passes_filters(self, doc_metadata: Dict, filters: Optional[Dict[str, Any]]) -> bool:
         """Check if document passes filters."""
@@ -349,5 +382,67 @@ class VectorRetrieverAgent(StatefulAgent):
             "index_size": self.vector_index.ntotal if self.vector_index else 0,
             "cache_size": len(self.embedding_cache),
             "model_name": self.model_name,
-            "embedding_dimension": self.embedding_dim
+            "embedding_dimension": self.embedding_dim,
+            "backend": self.embedding_backend,
         }
+
+    async def _embed_texts(self, texts: List[str]) -> np.ndarray:
+        """Embed a list of texts using the configured backend. Returns np.ndarray (n, d), L2-normalized."""
+        backend = self.embedding_backend
+        if backend == "openai":
+            return await self._embed_openai(texts)
+        if backend == "ollama":
+            return await self._embed_ollama(texts)
+        # Fallback zeros
+        self.logger.warning(f"Unknown embedding backend '{backend}', using zeros")
+        return self._l2_normalize(np.zeros((len(texts), self.embedding_dim), dtype=np.float32))
+
+    async def _embed_openai(self, texts: List[str]) -> np.ndarray:
+        try:
+            from openai import OpenAI
+        except Exception as e:
+            raise RuntimeError("openai 包未安装，无法使用 openai 嵌入后端") from e
+        api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+        base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+        model = self.model_name or "text-embedding-3-small"
+        if not api_key:
+            raise RuntimeError("未配置 LLM_API_KEY/OPENAI_API_KEY，无法使用 openai 嵌入后端")
+        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+        res = client.embeddings.create(model=model, input=texts)
+        vecs = np.array([d.embedding for d in res.data], dtype=np.float32)
+        # ensure index dim
+        if self.vector_index is None or self.vector_index.d != vecs.shape[1]:
+            self.embedding_dim = vecs.shape[1]
+            self.vector_index = faiss.IndexFlatIP(self.embedding_dim)
+        return self._l2_normalize(vecs)
+
+    async def _embed_ollama(self, texts: List[str]) -> np.ndarray:
+        try:
+            from lightrag.llm.ollama import ollama_embed
+        except Exception as e:
+            raise RuntimeError("需要安装 lightrag 以使用 ollama 嵌入后端") from e
+        host = os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434")
+        model = self.model_name or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+        vecs = ollama_embed(texts, embed_model=model, host=host)
+        if isinstance(vecs, list):
+            vecs = np.array(vecs, dtype=np.float32)
+        if self.vector_index is None or self.vector_index.d != vecs.shape[1]:
+            self.embedding_dim = vecs.shape[1]
+            self.vector_index = faiss.IndexFlatIP(self.embedding_dim)
+        return self._l2_normalize(vecs)
+
+    @staticmethod
+    def _l2_normalize(embs: np.ndarray) -> np.ndarray:
+        norms = np.linalg.norm(embs, axis=1, keepdims=True) + 1e-12
+        return (embs / norms).astype(np.float32)
+
+    @staticmethod
+    def _infer_embedding_dim(backend: str, model: Optional[str]) -> int:
+        b = (backend or "openai").lower()
+        if b == "openai":
+            if model and "3-large" in model:
+                return 3072
+            return 1536  # text-embedding-3-small 默认
+        if b == "ollama":
+            return int(os.getenv("EMBEDDING_DIM", "768"))
+        return 768

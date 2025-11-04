@@ -63,20 +63,12 @@ class GraphRetrieverAgent(StatefulAgent):
                 history_messages = history_messages or []
                 from lightrag.llm.openai import openai_complete_if_cache
                 return await openai_complete_if_cache(
-                    os.getenv("LLM_MODEL", os.getenv("MODEL__MODEL_NAME", "deepseek-chat")),
+                    os.getenv("LLM_MODEL_NAME", os.getenv("LLM_MODEL", "deepseek-chat")),
                     prompt,
                     system_prompt=system_prompt,
                     history_messages=history_messages,
-                    api_key=(
-                        os.getenv("LLM_BINDING_API_KEY")
-                        or os.getenv("OPENAI_API_KEY")
-                        or os.getenv("MODEL__API_KEY", "")
-                    ),
-                    base_url=(
-                        os.getenv("LLM_BINDING_HOST")
-                        or os.getenv("OPENAI_BASE_URL")
-                        or os.getenv("MODEL__BASE_URL", "https://api.deepseek.com")
-                    ),
+                    api_key=(os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""),
+                    base_url=(os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL") or "https://api.deepseek.com"),
                     **kwargs,
                 )
 
@@ -190,4 +182,3 @@ class GraphRetrieverAgent(StatefulAgent):
             total_searched=1,
             search_time=0.0,
         )
-

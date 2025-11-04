@@ -9,7 +9,11 @@ import logging
 import sys
 from pathlib import Path
 
-from enhanced_orchestrator import EnhancedPolicyQAOrchestrator
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from agents.orchestrators.enhanced import EnhancedPolicyQAOrchestrator
 from utils.config import Config
 
 

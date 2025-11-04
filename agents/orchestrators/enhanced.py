@@ -36,7 +36,10 @@ from agents.analysis.policy_comparator import PolicyComparatorAgent
 from agents.generation.answer_generator import AnswerGeneratorAgent
 from agents.verification.answer_verifier import AnswerVerifierAgent
 from agents.common import session_store
-from agents.common.model_client import create_openai_client
+try:
+    from app.llm import model_client as GLOBAL_MODEL_CLIENT
+except Exception:
+    GLOBAL_MODEL_CLIENT = None
 from knowledge_base.data_loader import DataLoader
 
 
@@ -139,10 +142,7 @@ class EnhancedPolicyQAOrchestrator:
 
     def _create_model_client(self):
         """创建模型客户端"""
-        try:
-            return create_openai_client()
-        except Exception:
-            return None
+        return GLOBAL_MODEL_CLIENT
 
     async def process_query(
         self,

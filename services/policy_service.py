@@ -4,8 +4,10 @@
 基于AutoGen框架的政策知识库智能问答系统
 """
 
-from .agents import AgentFactory, AgentTypes
-from .knowledge_base import VectorStore, KnowledgeGraph, DocumentProcessor
+from typing import Optional
+
+from agents import AgentFactory, AgentTypes
+from knowledge_base import VectorStore, KnowledgeGraph, DocumentProcessor
 
 
 class PolicyQAService:
