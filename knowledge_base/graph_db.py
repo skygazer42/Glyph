@@ -18,7 +18,7 @@ class KnowledgeGraph:
         self,
         uri: str = "bolt://localhost:7687",
         user: str = "neo4j",
-        password: str = "password",
+        password: str = "kdsoft2025",
         use_networkx: bool = True
     ):
         """Initialize the knowledge graph."""

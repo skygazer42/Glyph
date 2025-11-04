@@ -6,21 +6,18 @@ Supported embedding backends:
 - ollama: 本地 Ollama 嵌入服务
 """
 
-import asyncio
 import os
 import numpy as np
 from typing import List, Dict, Any, Optional
 import time
 
-from autogen_core import MessageContext, TopicId
+from autogen_core import MessageContext
 import faiss
 
 from ...models.base import (
     AgentType,
     MessageType,
     AgentMessage,
-    UserQuery,
-    QueryAnalysis,
     RetrievalRequest,
     RetrievalResult,
     PolicyDocument,
@@ -277,7 +274,7 @@ class VectorRetrieverAgent(StatefulAgent):
                 return search_results
             if os.getenv("RERANKER_BACKEND", "").lower() != "dashscope":
                 return search_results
-            from services.reranker.dashscope import reorder_by_rerank
+            from knowledge_base.reranker.dashscope import reorder_by_rerank
             docs = search_results.get("documents", [])
             if not docs:
                 return search_results

@@ -4,7 +4,7 @@
 基于AutoGen框架的政策知识库智能问答系统
 """
 
-from typing import Optional
+from typing import Optional,Dict,Any
 
 from agents import AgentFactory, AgentTypes
 from knowledge_base import VectorStore, KnowledgeGraph, DocumentProcessor

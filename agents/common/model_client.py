@@ -17,7 +17,7 @@ def create_openai_client(
     seed: Optional[int] = None,
 ):
     # Prefer LLM_* keys; optional fallback to OPENAI_*
-    model = model or os.getenv("LLM_MODEL_NAME") or "gpt-4o"
+    model = model or os.getenv("LLM_MODEL_NAME")
     base_url = base_url or os.getenv("LLM_BASE_URL")
     api_key = api_key or os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     temperature = (

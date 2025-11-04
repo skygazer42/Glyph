@@ -12,7 +12,7 @@ from collections import deque
 import os
 from autogen_core import MessageContext
 from autogen_agentchat.messages import TextMessage
-
+from pydantic_settings import BaseSettings
 from ..base.base_agent import PolicyAgentBase
 from ...models.base import (
     AgentType,
@@ -31,10 +31,10 @@ class SessionContext(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     last_active: datetime = Field(default_factory=datetime.now)
     query_count: int = 0
-    queries: List[Dict[str, Any]] = Field(default_factory=list)
-    answers: List[Dict[str, Any]] = Field(default_factory=list)
-    context: Dict[str, Any] = Field(default_factory=dict)
-    preferences: Dict[str, Any] = Field(default_factory=dict)
+    queries: List[Dict[str, Any]] = BaseSettings(default_factory=list)
+    answers: List[Dict[str, Any]] = BaseSettings(default_factory=list)
+    context: Dict[str, Any] = BaseSettings(default_factory=dict)
+    preferences: Dict[str, Any] = BaseSettings(default_factory=dict)
     summary: Optional[str] = None
 
 

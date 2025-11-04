@@ -12,47 +12,17 @@ import tempfile
 import subprocess
 import sys
 from datetime import datetime
+import requests
+from requests.exceptions import RequestException
+# LlamaIndex
+from llama_index.core import SimpleDirectoryReader
+from llama_index.readers.file import PDFReader
+from llama_index.readers.file import DocxReader, TextReader
+LLAMAINDEX_AVAILABLE = True
 
-# 导入基础库
-try:
-    import requests
-    from requests.exceptions import RequestException
-except ImportError:
-    requests = None
-    RequestException = None
-
-# 导入Docling (优先使用)
-try:
-    from docling.document_converter import DocumentConverter
-    from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
-    from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-    DOCLING_AVAILABLE = True
-except ImportError:
-    DOCLING_AVAILABLE = False
-
-# 导入LlamaIndex (备选)
-try:
-    from llama_index.core import SimpleDirectoryReader
-    from llama_index.core.readers import PDFReader
-    from llama_index.readers.file import DocxReader, TextReader
-    LLAMAINDEX_AVAILABLE = True
-except ImportError:
-    LLAMAINDEX_AVAILABLE = False
-
-# 导入原有的处理库作为后备
-try:
-    import PyPDF2
-except ImportError:
-    PyPDF2 = None
-
-try:
-    import docx
-except ImportError:
-    docx = None
-
+# 原有处理库
+import PyPDF2
 from ..config.settings import settings
-
 
 class EnhancedDocumentProcessor:
     """增强文档处理器 - 支持多种文档解析引擎"""
@@ -65,21 +35,6 @@ class EnhancedDocumentProcessor:
         self.mineru_enabled = self.config.get("mineru_enabled", True)
         self.mineru_base_url = self.config.get("mineru_base_url", settings.model.mineru_base_url)
         self.mineru_api_key = self.config.get("mineru_api_key", settings.model.mineru_api_key)
-
-        # 初始化Docling转换器
-        self.docling_enabled = self.config.get("docling_enabled", DOCLING_AVAILABLE)
-        if self.docling_enabled and DOCLING_AVAILABLE:
-            self.docling_converter = DocumentConverter(
-                format_options={
-                    InputFormat.PDF: PdfPipelineOptions(
-                        generate_table_images=True,
-                        generate_picture_images=True,
-                        do_ocr=True,
-                        ocr_options={"lang": ["zh", "en"]}
-                    )
-                }
-            )
-            self.logger.info("Docling converter initialized")
 
         # 初始化LlamaIndex读取器
         self.llamaindex_enabled = self.config.get("llamaindex_enabled", LLAMAINDEX_AVAILABLE)
@@ -135,17 +90,9 @@ class EnhancedDocumentProcessor:
             except Exception as e:
                 self.logger.warning(f"MinerU extraction failed: {e}")
 
-        # 备选：使用Docling
-        if self.docling_enabled and DOCLING_AVAILABLE:
-            try:
-                text = await self._extract_with_docling(file_path)
-                if text and len(text.strip()) > 100:
-                    self.logger.info(f"Successfully extracted with Docling from {file_path.name}")
-                    return text
-            except Exception as e:
-                self.logger.warning(f"Docling extraction failed: {e}")
 
-        # 备选：使用LlamaIndex
+
+        # 使用LlamaIndex
         if self.llamaindex_enabled and LLAMAINDEX_AVAILABLE:
             try:
                 text = await self._extract_with_llamaindex(file_path)
@@ -154,18 +101,6 @@ class EnhancedDocumentProcessor:
                     return text
             except Exception as e:
                 self.logger.warning(f"LlamaIndex extraction failed: {e}")
-
-        # 最后使用PyPDF2作为后备
-        if PyPDF2 is not None:
-            try:
-                text = await self._extract_with_pypdf2(file_path)
-                if text and len(text.strip()) > 0:
-                    self.logger.info(f"Successfully extracted with PyPDF2 from {file_path.name}")
-                    return text
-            except Exception as e:
-                self.logger.warning(f"PyPDF2 extraction failed: {e}")
-
-        self.logger.error(f"All PDF extraction methods failed for {file_path.name}")
         return None
 
     async def _extract_with_mineru(self, file_path: Path) -> Optional[str]:
@@ -212,22 +147,6 @@ class EnhancedDocumentProcessor:
             else:
                 raise Exception(f"MinerU API error: {result.get('error', 'Unknown error')}")
 
-    async def _extract_with_docling(self, file_path: Path) -> Optional[str]:
-        """使用Docling提取文档"""
-        if not DOCLING_AVAILABLE:
-            raise ImportError("Docling is not installed")
-
-        # Docling是同步的，使用线程池执行
-        loop = asyncio.get_event_loop()
-
-        def _process_with_docling():
-            result = self.docling_converter.convert(str(file_path))
-            if result.document:
-                # 导出为markdown
-                return result.document.export_to_markdown()
-            return None
-
-        return await loop.run_in_executor(None, _process_with_docling)
 
     async def _extract_with_llamaindex(self, file_path: Path) -> Optional[str]:
         """使用LlamaIndex提取文档"""
@@ -248,37 +167,10 @@ class EnhancedDocumentProcessor:
 
         return await loop.run_in_executor(None, _process_with_llamaindex)
 
-    async def _extract_with_pypdf2(self, file_path: Path) -> Optional[str]:
-        """使用PyPDF2提取PDF（后备方案）"""
-        if PyPDF2 is None:
-            raise ImportError("PyPDF2 is not installed")
-
-        loop = asyncio.get_event_loop()
-
-        def _process_with_pypdf2():
-            text = []
-            with open(file_path, "rb") as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                for page_num in range(len(pdf_reader.pages)):
-                    page = pdf_reader.pages[page_num]
-                    text.append(page.extract_text())
-            return "\n".join(text)
-
-        return await loop.run_in_executor(None, _process_with_pypdf2)
-
     async def _extract_from_docx(self, file_path: Path) -> Optional[str]:
         """从DOCX提取文本"""
 
-        # 优先使用Docling
-        if self.docling_enabled and DOCLING_AVAILABLE:
-            try:
-                text = await self._extract_with_docling(file_path)
-                if text:
-                    return text
-            except Exception as e:
-                self.logger.warning(f"Docling DOCX extraction failed: {e}")
-
-        # 备选：使用LlamaIndex
+        # 使用LlamaIndex
         if self.llamaindex_enabled and LLAMAINDEX_AVAILABLE:
             try:
                 text = await self._extract_with_llamaindex(file_path)
@@ -286,19 +178,6 @@ class EnhancedDocumentProcessor:
                     return text
             except Exception as e:
                 self.logger.warning(f"LlamaIndex DOCX extraction failed: {e}")
-
-        # 最后使用python-docx
-        if docx is not None:
-            loop = asyncio.get_event_loop()
-
-            def _process_with_docx():
-                doc = docx.Document(file_path)
-                text = []
-                for paragraph in doc.paragraphs:
-                    text.append(paragraph.text)
-                return "\n".join(text)
-
-            return await loop.run_in_executor(None, _process_with_docx)
 
         return None
 
@@ -391,10 +270,10 @@ class EnhancedDocumentProcessor:
         """获取支持的文件格式"""
         formats = [".txt", ".md"]
 
-        if self.mineru_enabled or self.docling_enabled or self.llamaindex_enabled or PyPDF2:
+        if self.mineru_enabled or self.llamaindex_enabled :
             formats.append(".pdf")
 
-        if self.docling_enabled or self.llamaindex_enabled or docx:
+        if self.llamaindex_enabled:
             formats.extend([".docx", ".doc"])
 
         return formats
@@ -403,10 +282,7 @@ class EnhancedDocumentProcessor:
         """测试各个引擎是否可用"""
         results = {
             "mineru": self._test_mineru(),
-            "docling": DOCLING_AVAILABLE and self.docling_enabled,
             "llamaindex": LLAMAINDEX_AVAILABLE and self.llamaindex_enabled,
-            "pypdf2": PyPDF2 is not None,
-            "docx": docx is not None
         }
 
         self.logger.info(f"Engine test results: {results}")

@@ -10,5 +10,6 @@ __all__ = [
     "ModelConfig",
     "VectorStoreConfig",
     "LoggingConfig",
-    "DocumentLoader"
+    "DocumentLoader",
+
 ]

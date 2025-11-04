@@ -7,7 +7,6 @@ import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import PyPDF2
-from docx import Document
 import re
 
 from ..agents.base.types import PolicyDocument

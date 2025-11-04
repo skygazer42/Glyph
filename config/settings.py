@@ -5,10 +5,10 @@ Gove项目配置设置
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings
+from pydantic import Field
 from dotenv import load_dotenv
 
-# 加载环境变量
 load_dotenv()
 
 class DatabaseSettings(BaseSettings):
@@ -57,6 +57,35 @@ class ModelSettings(BaseSettings):
     # Ollama (本地)
     ollama_base_url: str = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
     ollama_model: str = Field(default="llama2:7b", env="OLLAMA_MODEL")
+
+    # LlamaIndex settings
+    llm_model: str = Field(default="deepseek-chat", env="LLM_MODEL_NAME")
+    embedding_model: str = Field(default="text-embedding-3-small", env="EMBEDDING_MODEL")
+
+
+class RerankerSettings(BaseSettings):
+    """文本重排模型配置"""
+    # Reranker backend: dashscope, cohere, llm, custom
+    backend: str = Field(default="dashscope", env="RERANKER_BACKEND")
+    model_name: str = Field(default="gte-rerank-v2", env="RERANKER_MODEL")
+    api_key: Optional[str] = Field(default=None, env="DASHSCOPE_API_KEY")
+    base_url: str = Field(
+        default="https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank",
+        env="RERANKER_ENDPOINT",
+    )
+    top_n: int = Field(default=5, ge=1, env="RERANKER_TOP_N")
+    timeout: int = Field(default=30, ge=1, env="RERANKER_TIMEOUT")
+    return_documents: bool = Field(default=False, env="RERANKER_RETURN_DOCUMENTS")
+    normalize_scores: bool = Field(default=False, env="RERANKER_NORMALIZE_SCORES")
+
+    # DashScope specific settings
+    dashscope_api_key: Optional[str] = Field(default=None, env="DASHSCOPE_API_KEY")
+    dashscope_model: str = Field(default="gte-rerank-v2", env="DASHSCOPE_RERANK_MODEL")
+
+    # LlamaIndex rerank settings
+    llama_index_enabled: bool = Field(default=True, env="LLAMA_INDEX_RERANK_ENABLED")
+    similarity_top_k: int = Field(default=50, env="SIMILARITY_TOP_K")
+    rerank_top_k: int = Field(default=5, env="RERANK_TOP_K")
 
 
 class DocumentSettings(BaseSettings):
@@ -143,6 +172,7 @@ class Settings(BaseSettings):
     """主配置类"""
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     model: ModelSettings = Field(default_factory=ModelSettings)
+    reranker: RerankerSettings = Field(default_factory=RerankerSettings)
     document: DocumentSettings = Field(default_factory=DocumentSettings)
     mineru: MinerUSettings = Field(default_factory=MinerUSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
