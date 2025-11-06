@@ -22,12 +22,11 @@ class MinerUAdapter:
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
 
-        # API配置
-        self.base_url = self.config.get("base_url", settings.model.mineru_base_url)
-        self.api_key = self.config.get("api_key", settings.model.mineru_api_key)
-        self.model = self.config.get("model", settings.model.mineru_model)
-        self.temperature = self.config.get("temperature", settings.model.mineru_temperature)
-        self.max_tokens = self.config.get("max_tokens", settings.model.mineru_max_tokens)
+        # API配置 - 使用 settings.mineru
+        self.enabled = self.config.get("enabled", settings.mineru.enabled)
+        self.base_url = self.config.get("base_url", settings.mineru.api_base_url)
+        self.api_key = self.config.get("api_key", settings.mineru.api_key)
+        self.timeout = self.config.get("timeout", settings.mineru.timeout)
 
         # 处理选项
         self.ocr_all_images = self.config.get("ocr_all_images", settings.mineru.ocr_all_images)
@@ -55,13 +54,14 @@ class MinerUAdapter:
     async def _ensure_session(self):
         """确保会话存在"""
         if self.session is None or self.session.closed:
-            timeout = aiohttp.ClientTimeout(total=300)  # 5分钟超时
+            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            headers = {"Content-Type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+
             self.session = aiohttp.ClientSession(
                 timeout=timeout,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                }
+                headers=headers
             )
 
     async def close(self):

@@ -13,59 +13,89 @@ load_dotenv()
 
 class DatabaseSettings(BaseSettings):
     """数据库配置"""
-    neo4j_uri: str = Field(default="bolt://localhost:7687")
-    neo4j_user: str = Field(default="neo4j")
-    neo4j_password: str = Field(default="password")
-    use_neo4j: bool = Field(default=False)
+    # Neo4j 知识图谱
+    neo4j_uri: str = Field(default="bolt://localhost:7687", env="DATABASE__NEO4J_URI")
+    neo4j_user: str = Field(default="neo4j", env="DATABASE__NEO4J_USER")
+    neo4j_password: str = Field(default="password", env="DATABASE__NEO4J_PASSWORD")
+    use_neo4j: bool = Field(default=False, env="DATABASE__USE_NEO4J")
 
-    # Qdrant
-    qdrant_host: str = Field(default="localhost")
-    qdrant_port: int = Field(default=6333)
-    qdrant_api_key: Optional[str] = Field(default=None)
-
-    # ChromaDB
-    chroma_host: str = Field(default="localhost")
-    chroma_port: int = Field(default=8000)
-    chroma_api_key: Optional[str] = Field(default=None)
-
-    # Pinecone
-    pinecone_api_key: Optional[str] = Field(default=None)
-    pinecone_environment: str = Field(default="us-west1-gcp-free")
+    # Milvus 向量数据库
+    milvus_host: str = Field(default="localhost", env="DATABASE__MILVUS_HOST")
+    milvus_port: int = Field(default=19530, env="DATABASE__MILVUS_PORT")
+    milvus_user: Optional[str] = Field(default=None, env="DATABASE__MILVUS_USER")
+    milvus_password: Optional[str] = Field(default=None, env="DATABASE__MILVUS_PASSWORD")
+    milvus_db_name: str = Field(default="default", env="DATABASE__MILVUS_DB_NAME")
+    milvus_collection_name: str = Field(default="policy_documents", env="DATABASE__MILVUS_COLLECTION_NAME")
+    milvus_use_secure: bool = Field(default=False, env="DATABASE__MILVUS_USE_SECURE")
 
 
 class ModelSettings(BaseSettings):
-    """模型配置"""
-    # OpenAI
-    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
-    openai_base_url: str = Field(default="https://api.openai.com/v1")
-    openai_model: str = Field(default="gpt-4", env="OPENAI_MODEL")
-    openai_temperature: float = Field(default=0.1, ge=0, le=2)
-    openai_max_tokens: int = Field(default=4000)
+    """模型配置 - 使用 OpenAI 兼容接口"""
+    # LLM 主配置（支持所有 OpenAI 兼容的 API）
+    llm_api_key: Optional[str] = Field(default=None, env="LLM_API_KEY")
+    llm_base_url: str = Field(default="https://api.deepseek.com", env="LLM_BASE_URL")
+    llm_model_name: str = Field(default="deepseek-chat", env="LLM_MODEL_NAME")
+    llm_temperature: float = Field(default=0, env="LLM_TEMPERATURE")
+    llm_ctx_buffer_size: int = Field(default=10, env="LLM_CTX_BUFFER_SIZE")
 
-    # Anthropic Claude
-    anthropic_api_key: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
-    anthropic_model: str = Field(default="claude-3-sonnet-20240229", env="ANTHROPIC_MODEL")
-    anthropic_max_tokens: int = Field(default=4096)
 
-    # MinerU (vLLM)
-    mineru_api_key: str = Field(default="mineru")
-    mineru_base_url: str = Field(default="http://localhost:8000/v1", env="MINERU_BASE_URL")
-    mineru_model: str = Field(default="Qwen/Qwen2.5-7B-Instruct", env="MINERU_MODEL")
-    mineru_temperature: float = Field(default=0.1, ge=0, le=1)
-    mineru_max_tokens: int = Field(default=4096)
+class EmbeddingSettings(BaseSettings):
+    """Embedding API 配置"""
+    # Embedding 后端: openai, dashscope
+    backend: str = Field(default="openai", env="EMBEDDING_BACKEND")
 
-    # Ollama (本地)
-    ollama_base_url: str = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
-    ollama_model: str = Field(default="llama2:7b", env="OLLAMA_MODEL")
+    # OpenAI Embedding
+    openai_api_key: Optional[str] = Field(default=None, env="EMBEDDING_OPENAI_API_KEY")
+    openai_base_url: Optional[str] = Field(default=None, env="EMBEDDING_OPENAI_BASE_URL")
+    openai_model: str = Field(default="text-embedding-3-small", env="EMBEDDING_OPENAI_MODEL")
 
-    # LlamaIndex settings
-    llm_model: str = Field(default="deepseek-chat", env="LLM_MODEL_NAME")
-    embedding_model: str = Field(default="text-embedding-3-small", env="EMBEDDING_MODEL")
+    # DashScope Embedding（阿里云）
+    dashscope_api_key: Optional[str] = Field(default=None, env="EMBEDDING_DASHSCOPE_API_KEY")
+    dashscope_base_url: str = Field(
+        default="https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding",
+        env="EMBEDDING_DASHSCOPE_BASE_URL"
+    )
+    dashscope_model: str = Field(default="text-embedding-v3", env="EMBEDDING_DASHSCOPE_MODEL")
+    dashscope_dimension: Optional[int] = Field(default=None, env="EMBEDDING_DASHSCOPE_DIMENSION")
+    dashscope_output_type: str = Field(default="dense", env="EMBEDDING_DASHSCOPE_OUTPUT_TYPE")
+
+    # 通用配置
+    dimension: int = Field(default=1536, env="EMBEDDING_DIM")
+    batch_size: int = Field(default=32, env="EMBEDDING_BATCH_SIZE")
+    timeout: int = Field(default=30, env="EMBEDDING_TIMEOUT")
+
+
+class LlamaIndexSettings(BaseSettings):
+    """LlamaIndex 文档切块配置"""
+    # 切块策略: sentence, semantic, fixed
+    chunk_strategy: str = Field(default="sentence", env="LLAMAINDEX_CHUNK_STRATEGY")
+
+    # 切块大小配置
+    chunk_size: int = Field(default=1000, env="LLAMAINDEX_CHUNK_SIZE")
+    chunk_overlap: int = Field(default=200, env="LLAMAINDEX_CHUNK_OVERLAP")
+
+    # Sentence Splitter 配置
+    sentence_chunk_size: int = Field(default=1024, env="LLAMAINDEX_SENTENCE_CHUNK_SIZE")
+    sentence_chunk_overlap: int = Field(default=200, env="LLAMAINDEX_SENTENCE_CHUNK_OVERLAP")
+
+    # Semantic Splitter 配置
+    semantic_buffer_size: int = Field(default=1, env="LLAMAINDEX_SEMANTIC_BUFFER_SIZE")
+    semantic_breakpoint_threshold: float = Field(default=0.5, env="LLAMAINDEX_SEMANTIC_THRESHOLD")
+
+    # Token 配置
+    separator: str = Field(default=" ", env="LLAMAINDEX_SEPARATOR")
+    paragraph_separator: str = Field(default="\n\n", env="LLAMAINDEX_PARAGRAPH_SEPARATOR")
+
+    # 其他选项
+    include_metadata: bool = Field(default=True, env="LLAMAINDEX_INCLUDE_METADATA")
+    include_prev_next_rel: bool = Field(default=True, env="LLAMAINDEX_INCLUDE_PREV_NEXT")
 
 
 class RerankerSettings(BaseSettings):
     """文本重排模型配置"""
-    # Reranker backend: dashscope, cohere, llm, custom
+    model_config = {"protected_namespaces": ("settings_",)}
+
+    # Reranker backend: dashscope, xinference, llamaindex
     backend: str = Field(default="dashscope", env="RERANKER_BACKEND")
     model_name: str = Field(default="gte-rerank-v2", env="RERANKER_MODEL")
     api_key: Optional[str] = Field(default=None, env="DASHSCOPE_API_KEY")
@@ -80,55 +110,46 @@ class RerankerSettings(BaseSettings):
 
     # DashScope specific settings
     dashscope_api_key: Optional[str] = Field(default=None, env="DASHSCOPE_API_KEY")
-    dashscope_model: str = Field(default="gte-rerank-v2", env="DASHSCOPE_RERANK_MODEL")
+    dashscope_rerank_model: str = Field(default="gte-rerank-v2", env="DASHSCOPE_RERANK_MODEL")
 
     # LlamaIndex rerank settings
-    llama_index_enabled: bool = Field(default=True, env="LLAMA_INDEX_RERANK_ENABLED")
+    llama_index_rerank_enabled: bool = Field(default=True, env="LLAMA_INDEX_RERANK_ENABLED")
     similarity_top_k: int = Field(default=50, env="SIMILARITY_TOP_K")
     rerank_top_k: int = Field(default=5, env="RERANK_TOP_K")
 
 
 class DocumentSettings(BaseSettings):
     """文档处理配置"""
-    # OCR服务
-    ocr_api_key: Optional[str] = Field(default=None)
-    ocr_base_url: str = Field(default="https://api.ocr.space")
-
-    # 启用功能
-    enable_ocr: bool = Field(default=True)
-    enable_table_extraction: bool = Field(default=True)
-    enable_image_extraction: bool = Field(default=True)
-    enable_formula_extraction: bool = Field(default=True)
-
     # 文档限制
-    max_file_size_mb: int = Field(default=50)
-    max_pages: int = Field(default=100)
+    max_file_size_mb: int = Field(default=50, env="DOCUMENT__MAX_FILE_SIZE_MB")
+    max_pages: int = Field(default=100, env="DOCUMENT__MAX_PAGES")
     supported_formats: list = Field(
         default=[".pdf", ".docx", ".doc", ".txt", ".md", ".rtf", ".html", ".xml", ".json", ".csv"]
     )
 
 
 class MinerUSettings(BaseSettings):
-    """MinerU特定配置"""
-    # 文档理解
-    extract_images: bool = Field(default=True)
-    extract_tables: bool = Field(default=True)
-    extract_lists: bool = Field(default=True)
-    extract_formulas: bool = Field(default=True)
+    """MinerU 2.5 文档解析 API 配置"""
+    # API 接口配置
+    enabled: bool = Field(default=False, env="MINERU_ENABLED")
+    api_base_url: str = Field(default="http://localhost:8080", env="MINERU_API_BASE_URL")
+    api_key: Optional[str] = Field(default=None, env="MINERU_API_KEY")
+    timeout: int = Field(default=300, env="MINERU_TIMEOUT")
+
+    # 文档理解选项
+    extract_images: bool = Field(default=True, env="MINERU_EXTRACT_IMAGES")
+    extract_tables: bool = Field(default=True, env="MINERU_EXTRACT_TABLES")
+    extract_lists: bool = Field(default=True, env="MINERU_EXTRACT_LISTS")
+    extract_formulas: bool = Field(default=True, env="MINERU_EXTRACT_FORMULAS")
 
     # 处理选项
-    preserve_layout: bool = Field(default=True)
-    ocr_all_images: bool = Field(default=True)
-    ocr_dpi: int = Field(default=300)
+    preserve_layout: bool = Field(default=True, env="MINERU_PRESERVE_LAYOUT")
+    ocr_all_images: bool = Field(default=True, env="MINERU_OCR_ALL_IMAGES")
+    ocr_dpi: int = Field(default=300, env="MINERU_OCR_DPI")
 
     # 输出格式
-    output_format: str = Field(default="markdown")
-    include_raw_ocr: bool = Field(default=True)
-
-    # 分块配置
-    chunk_size: int = Field(default=1000)
-    chunk_overlap: int = Field(default=200)
-    min_chunk_length: int = Field(default=100)
+    output_format: str = Field(default="markdown", env="MINERU_OUTPUT_FORMAT")
+    include_raw_ocr: bool = Field(default=True, env="MINERU_INCLUDE_RAW_OCR")
 
 
 class PerformanceSettings(BaseSettings):
@@ -159,28 +180,47 @@ class SystemSettings(BaseSettings):
 
     # 调试选项
     debug: bool = Field(default=False, env="DEBUG")
-    verbose: bool = Field(default=False)
-    profile: bool = Field(default=False)
+    verbose: bool = Field(default=False, env="VERBOSE")
+    verbose_debug: bool = Field(default=False, env="VERBOSE_DEBUG")
 
-    # 开发选项
-    auto_reload: bool = Field(default=False)
-    enable_profiler: bool = Field(default=False)
-    enable_hot_reload: bool = Field(default=False)
+    # 日志配置
+    log_dir: str = Field(default=".", env="LOG_DIR")
+    log_max_bytes: int = Field(default=10485760, env="LOG_MAX_BYTES")
+    log_backup_count: int = Field(default=5, env="LOG_BACKUP_COUNT")
+
+    # 多轮对话配置
+    conversation_max_turns: int = Field(default=20, env="CONVERSATION__MAX_TURNS")
+    conversation_history_window: int = Field(default=5, env="CONVERSATION__HISTORY_WINDOW")
+
+    # 并行/早停配置
+    early_stop_conf: float = Field(default=0.80, env="EARLY_STOP_CONF")
+
+    # LightRAG 配置
+    lightrag_workdir: str = Field(default="data/lightrag", env="LIGHTRAG_WORKDIR")
+    max_embed_tokens: int = Field(default=8192, env="MAX_EMBED_TOKENS")
+
+    # LlamaIndex 配置
+    llama_index_embedding_model: str = Field(default="text-embedding-3-small", env="LLAMA_INDEX_EMBEDDING_MODEL")
+    llama_index_llm_model: str = Field(default="deepseek-chat", env="LLAMA_INDEX_LLM_MODEL")
 
 
 class Settings(BaseSettings):
     """主配置类"""
+    model_config = {
+        "extra": "ignore",
+        "env_file": ".env",
+        "case_sensitive": False
+    }
+
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     model: ModelSettings = Field(default_factory=ModelSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
+    llamaindex: LlamaIndexSettings = Field(default_factory=LlamaIndexSettings)
     reranker: RerankerSettings = Field(default_factory=RerankerSettings)
     document: DocumentSettings = Field(default_factory=DocumentSettings)
     mineru: MinerUSettings = Field(default_factory=MinerUSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     system: SystemSettings = Field(default_factory=SystemSettings)
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
 
 
 # 创建全局配置实例

@@ -12,8 +12,8 @@ import json
 from datetime import datetime
 from uuid import uuid4
 
-from .document_processor import DocumentProcessor
-from .enhanced_document_processor import EnhancedDocumentProcessor
+from .doc_processor import DocumentProcessor
+from .doc_enhanced import EnhancedDocumentProcessor
 from .mineru_adapter import MinerUAdapter
 from .vector_store import VectorStore
 from ..models.base import PolicyDocument, PolicyType, UUID

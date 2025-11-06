@@ -26,8 +26,11 @@ class VectorStore:
         backend: Optional[str] = None
     ):
         """Initialize the vector store."""
-        self.backend = (backend or os.getenv("EMBEDDING_BACKEND") or "openai").lower()
-        self.model_name = model_name or os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        from config.settings import settings
+
+        # 使用 settings.embedding 配置
+        self.backend = (backend or settings.embedding.backend).lower()
+        self.model_name = model_name or self._get_model_name_from_backend(settings)
         self.index_path = index_path
         self.metadata_path = metadata_path
         self.embedding_dim = self._infer_dim()
@@ -151,11 +154,22 @@ class VectorStore:
             "index_path": self.index_path
         }
 
+    def _get_model_name_from_backend(self, settings) -> str:
+        """根据后端获取模型名称"""
+        if self.backend == "openai":
+            return settings.embedding.openai_model
+        elif self.backend == "dashscope":
+            return settings.embedding.dashscope_model
+        return "text-embedding-3-small"
+
     def _embed_texts(self, texts: List[str]) -> np.ndarray:
+        from config.settings import settings
+
         if self.backend == "openai":
             from openai import OpenAI
-            api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-            base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+            # 使用 settings.embedding 配置
+            api_key = settings.embedding.openai_api_key or os.getenv("LLM_API_KEY")
+            base_url = settings.embedding.openai_base_url
             if not api_key:
                 raise RuntimeError("OPENAI API Key 未配置，无法使用 openai 嵌入后端")
             client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
@@ -167,28 +181,55 @@ class VectorStore:
                 self.index = faiss.IndexFlatIP(self.embedding_dim)
             faiss.normalize_L2(vecs)
             return vecs
-        if self.backend == "ollama":
-            try:
-                from lightrag.llm.ollama import ollama_embed
-            except Exception as e:
-                raise RuntimeError("需要安装 lightrag 以使用 ollama 嵌入后端") from e
-            host = os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434")
-            model = self.model_name or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-            vecs = ollama_embed(texts, embed_model=model, host=host)
-            vecs = np.array(vecs, dtype=np.float32)
+        elif self.backend == "dashscope":
+            import requests
+            api_key = settings.embedding.dashscope_api_key
+            if not api_key:
+                raise RuntimeError("DashScope API Key 未配置")
+
+            url = settings.embedding.dashscope_base_url
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+
+            all_vecs = []
+            for text in texts:
+                data = {
+                    "model": self.model_name,
+                    "input": {"texts": [text]}
+                }
+                # 添加可选参数
+                parameters = {}
+                if settings.embedding.dashscope_dimension:
+                    parameters["dimension"] = settings.embedding.dashscope_dimension
+                if settings.embedding.dashscope_output_type:
+                    parameters["output_type"] = settings.embedding.dashscope_output_type
+                if parameters:
+                    data["parameters"] = parameters
+
+                response = requests.post(url, headers=headers, json=data, timeout=settings.embedding.timeout)
+                response.raise_for_status()
+                result = response.json()
+                embedding = result["output"]["embeddings"][0]["embedding"]
+                all_vecs.append(embedding)
+
+            vecs = np.array(all_vecs, dtype=np.float32)
             if self.index is None or self.index.d != vecs.shape[1]:
                 self.embedding_dim = vecs.shape[1]
                 self.index = faiss.IndexFlatIP(self.embedding_dim)
             faiss.normalize_L2(vecs)
             return vecs
-        # fallback zeros
-        return np.zeros((len(texts), self.embedding_dim), dtype=np.float32)
+        else:
+            raise ValueError(f"Unsupported backend: {self.backend}. Supported: openai, dashscope")
 
     def _infer_dim(self) -> int:
+        from config.settings import settings
+
         if self.backend == "openai":
             if "3-large" in (self.model_name or ""):
                 return 3072
             return 1536
         if self.backend == "ollama":
-            return int(os.getenv("EMBEDDING_DIM", "768"))
-        return 768
+            return settings.embedding.dimension
+        return settings.embedding.dimension

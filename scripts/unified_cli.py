@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from services.agent_orchestrator_service import AgentOrchestratorService, ProcessingMode
+from services.orchestrator import AgentOrchestratorService, ProcessingMode
 from utils.config import Config
 
 

@@ -68,6 +68,15 @@ DATABASE__NEO4J_URI=bolt://localhost:7687
 DATABASE__NEO4J_USER=neo4j
 DATABASE__NEO4J_PASSWORD=your_password
 
+# 可选：Milvus向量数据库配置
+DATABASE__MILVUS_HOST=localhost
+DATABASE__MILVUS_PORT=19530
+DATABASE__MILVUS_USER=
+DATABASE__MILVUS_PASSWORD=
+DATABASE__MILVUS_DB_NAME=default
+DATABASE__MILVUS_COLLECTION_NAME=policy_documents
+DATABASE__MILVUS_USE_SECURE=false
+
 # 多轮对话配置（可选）
 CONVERSATION__MAX_TURNS=20
 CONVERSATION__HISTORY_WINDOW=5
@@ -75,9 +84,9 @@ CONVERSATION__HISTORY_WINDOW=5
 # LightRAG（图谱检索）配置（可选）
 # LLM
 LLM_MODEL=deepseek-chat
-LLM_BINDING_API_KEY=$OPENAI_API_KEY
+LLM_BINDING_API_KEY=$LLM_API_KEY
 LLM_BINDING_HOST=https://api.deepseek.com
-# Embedding（Ollama 服务）
+# Embedding
 EMBEDDING_MODEL=bge-m3:latest
 EMBEDDING_BINDING_HOST=http://localhost:11434
 EMBEDDING_DIM=1024
@@ -179,8 +188,10 @@ asyncio.run(main())
 ## 📊 系统组件
 
 ### 1. VectorRetrieverAgent (向量检索 Agent)
-- **功能**: 基于向量相似度的政策文档检索（默认使用 OpenAI Embeddings，可选 Ollama）
-- **存储**: FAISS 向量数据库
+- **功能**: 基于向量相似度的政策文档检索（支持 OpenAI、DashScope Embeddings）
+- **存储**:
+  - FAISS 向量数据库（本地，默认）
+  - Milvus 向量数据库（分布式，推荐生产环境）
 
 ### 2. PolicyAnalyzerAgent (政策分析Agent)
 - **功能**: 深度解析政策文档，提取结构化信息
@@ -209,7 +220,7 @@ asyncio.run(main())
 # config.yaml
 model:
   model_name: "deepseek-chat"
-  api_key: "${OPENAI_API_KEY}"
+  api_key: "${LLM_API_KEY}"
   base_url: "https://api.deepseek.com"
   temperature: 0.1
   max_tokens: 4000
@@ -235,12 +246,108 @@ database:
   use_neo4j: false
 ```
 
+## 🗄️ 使用 Milvus 向量数据库
+
+### 为什么选择 Milvus？
+- **分布式架构**: 支持大规模向量数据存储与检索
+- **高性能**: 毫秒级查询响应，支持十亿级向量
+- **生产就绪**: 支持持久化、备份、监控
+- **灵活部署**: Docker/K8s/云服务多种部署方式
+
+### 快速启动 Milvus
+
+#### 1. 使用 Docker 启动 Milvus Standalone
+
+```bash
+# 下载 docker-compose 配置
+wget https://github.com/milvus-io/milvus/releases/download/v2.4.0/milvus-standalone-docker-compose.yml -O docker-compose.yml
+
+# 启动 Milvus
+docker-compose up -d
+
+# 查看状态
+docker-compose ps
+```
+
+#### 2. 配置环境变量
+
+在 `.env` 文件中添加：
+
+```bash
+# Milvus 配置
+DATABASE__MILVUS_HOST=localhost
+DATABASE__MILVUS_PORT=19530
+DATABASE__MILVUS_COLLECTION_NAME=policy_documents
+```
+
+#### 3. 使用 MilvusRetrieverAgent
+
+```python
+from knowledge_base.milvus import MilvusStore
+from models.base import PolicyDocument
+
+# 初始化 Milvus 存储
+store = MilvusStore(
+    collection_name="policy_documents",
+    backend="openai",  # 或 "ollama"
+    model_name="text-embedding-3-small"
+)
+
+# 添加文档
+documents = [
+    PolicyDocument(
+        id="doc1",
+        title="政策标题",
+        content="政策内容...",
+        source="政府部门",
+        doc_type="补贴政策",
+        keywords=["补贴", "申请"],
+        regions=["济南市"],
+        target_groups=["企业"]
+    )
+]
+
+await store.add_documents(documents)
+
+# 查询
+documents, scores = await store.search(
+    query="政策查询文本",
+    top_k=10,
+    threshold=0.7
+)
+```
+
+#### 4. 切换到 Milvus（代码示例）
+
+在编排器或脚本中，将 `VectorRetrieverAgent` 替换为 `MilvusRetrieverAgent`：
+
+```python
+# 原来使用 FAISS
+# from knowledge_base import VectorStore
+# store = VectorStore(...)
+
+# 切换到 Milvus
+from knowledge_base import MilvusStore
+store = MilvusStore(
+    collection_name="policy_documents",
+    backend="openai"
+)
+```
+
+### Milvus 性能优化
+
+- **索引类型**: 默认使用 IVF_FLAT，可根据数据规模调整
+- **批量插入**: 建议批量添加文档以提高效率
+- **连接池**: 生产环境建议配置连接池
+- **监控**: 使用 Attu (Milvus GUI) 监控集合状态
+
 ## 📈 性能优化
 
 ### 1. 向量检索优化
 - 使用量化索引减少内存占用
 - 批量编码提高处理速度
 - 缓存常见查询结果
+- **推荐**: 生产环境使用 Milvus 替代 FAISS
 
 ### 2. 并发处理
 - 异步Agent通信

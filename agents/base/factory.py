@@ -8,7 +8,7 @@ from autogen import config_list_from_json
 
 from .types import AgentTypes
 from ..retrieval.policy_retriever import PolicyRetriever
-from ..generation.question_understander import QuestionUnderstander
+from ..generation.question import QuestionUnderstander
 from ..generation.policy_analyzer import PolicyAnalyzer
 from ..generation.answer_generator import AnswerGenerator
 from ..verification.answer_verifier import AnswerVerifier

@@ -2,7 +2,7 @@
 Generation agents for the policy QA system.
 """
 
-from .question_understander import QuestionUnderstander
+from .question import QuestionUnderstander
 from .policy_analyzer import PolicyAnalyzer
 from .answer_generator import AnswerGenerator
 

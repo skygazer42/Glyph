@@ -11,7 +11,7 @@ from pathlib import Path
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from knowledge_base.enhanced_document_processor import EnhancedDocumentProcessor
+from knowledge_base.doc_enhanced import EnhancedDocumentProcessor
 from knowledge_base.mineru_adapter import MinerUAdapter
 from config.settings import settings
 
