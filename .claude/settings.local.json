@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:microsoft.github.io)",
+      "WebSearch",
+      "WebFetch(domain:developers.llamaindex.ai)",
+      "WebFetch(domain:mp.weixin.qq.com)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(git mv:*)",
+      "Bash(xargs:*)",
+      "Bash(chmod:*)",
+      "Bash(bash scripts/milvus.sh:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(pip install:*)",
+      "Bash(tee:*)",
+      "Bash(unset:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
