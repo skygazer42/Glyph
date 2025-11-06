@@ -40,12 +40,12 @@ def find_markdown_files(data_dir: str) -> List[str]:
         print(f"❌ 数据目录不存在: {data_dir}")
         return []
 
-    print(f"📁 扫描目录: {data_dir}")
+    print(f"[扫描目录] {data_dir}")
 
     for md_file in data_path.rglob("*.md"):
         md_files.append(str(md_file))
 
-    print(f"✓ 找到 {len(md_files)} 个 Markdown 文件\n")
+    print(f"[完成] 找到 {len(md_files)} 个 Markdown 文件\n")
 
     # 显示前 10 个文件
     for i, file in enumerate(md_files[:10], 1):
@@ -66,10 +66,10 @@ def main():
     print()
 
     # 数据目录
-    data_dir = "/data/temp33/gov/data/process"
+    data_dir = "F:/pythonproject/gov/data/process"
     storage_dir = "./storage/policy_index"
 
-    print("📋 配置信息:")
+    print("[配置信息]")
     print(f"  - 数据目录: {data_dir}")
     print(f"  - 存储目录: {storage_dir}")
     print(f"  - LLM 模型: {settings.model.llm_model_name}")

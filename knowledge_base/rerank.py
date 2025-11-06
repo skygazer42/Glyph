@@ -27,14 +27,15 @@ class Reranker:
         self.local_type = None  # "flag" | "cross"
 
         if self.backend == "dashscope":
-            if not (self.s.dashscope_api_key or  self.s.api_key):
+            if not (getattr(self.s, 'dashscope_api_key', None) or getattr(self.s, 'api_key', None)):
                 raise RuntimeError("DashScope 需要 DASHSCOPE_API_KEY。")
+            api_key = getattr(self.s, 'dashscope_api_key', None) or getattr(self.s, 'api_key', None)
             self.session.headers.update({
-                "Authorization": f"Bearer {self.s.dashscope_api_key or self.s.api_key}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             })
-            self.base_url = self.s.base_url
-            self.model = self.s.dashscope_model or self.s.model_name
+            self.base_url = getattr(self.s, 'base_url', getattr(self.s, 'endpoint', ''))
+            self.model = self.s.model_name
             self.logger.info(f"[Rerank] dashscope model={self.model} url={self.base_url}")
 
         elif self.backend == "xinference":

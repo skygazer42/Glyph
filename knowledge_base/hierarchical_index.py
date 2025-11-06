@@ -64,14 +64,21 @@ IMAGE_RETRIEVAL_AVAILABLE = True
 @dataclass
 class ChunkConfig:
     """切块配置"""
+    # 切块策略: 'simple', 'sentence', 'keyword_aware'
+    chunking_strategy: str = 'sentence'
     # 中文推荐参数
-    chunk_size: int = 800  # 字符数
-    chunk_overlap: int = 100
+    chunk_size: int = 600  # tokens (对于sentence/keyword策略) 或 字符数 (对于simple策略)
+    chunk_overlap: int = 80
     # 章节摘要长度
     section_summary_size: int = 250
     # 是否包含表格和代码块
     include_tables: bool = True
     include_code_blocks: bool = True
+    # 关键词感知配置（仅当 chunking_strategy='keyword_aware' 时使用）
+    keywords: set = None
+    min_chunk_size: int = 200
+    max_chunk_size: int = 800
+    keyword_context_window: int = 80
 
 
 class HierarchicalMarkdownProcessor:
@@ -336,10 +343,39 @@ class HierarchicalMarkdownProcessor:
         return nodes
 
     def _split_into_chunks(self, text: str, section_id: str, path: str) -> List[str]:
-        """将文本切分为块（滑动窗口）"""
+        """
+        将文本切分为块
+
+        支持三种策略:
+        1. 'simple': 简单的字符级滑动窗口（保留旧逻辑）
+        2. 'sentence': 使用 LlamaIndex SentenceSplitter（推荐）
+        3. 'keyword_aware': 关键词感知切分（需要配置keywords）
+        """
         if not text:
             return []
 
+        strategy = self.config.chunking_strategy
+
+        # 策略1: 简单字符级滑动窗口
+        if strategy == 'simple':
+            return self._split_simple(text)
+
+        # 策略2: 句子级滑动窗口（推荐）
+        elif strategy == 'sentence':
+            return self._split_sentence(text)
+
+        # 策略3: 关键词感知切分
+        elif strategy == 'keyword_aware':
+            if not self.config.keywords:
+                print(f"  ⚠ 警告: 未配置关键词，回退到 sentence 策略")
+                return self._split_sentence(text)
+            return self._split_keyword_aware(text)
+
+        else:
+            raise ValueError(f"未知的切块策略: {strategy}")
+
+    def _split_simple(self, text: str) -> List[str]:
+        """简单的字符级滑动窗口切分（原有逻辑）"""
         chunks = []
         text_len = len(text)
         start = 0
@@ -361,10 +397,168 @@ class HierarchicalMarkdownProcessor:
             if chunk:
                 chunks.append(chunk)
 
-            # 滑动窗口
-            start = end - self.config.chunk_overlap
-            if start <= 0:
+            # 滑动窗口 - 确保窗口向前移动
+            new_start = end - self.config.chunk_overlap
+            if new_start <= start:
+                # 如果新起点没有向前移动，直接从end开始
                 start = end
+            else:
+                start = new_start
+
+        return chunks
+
+    def _split_sentence(self, text: str) -> List[str]:
+        """
+        使用 LlamaIndex SentenceSplitter 进行句子级切分
+
+        优势:
+        - 尊重句子边界
+        - 基于 token 数量切分（更准确）
+        - 自动处理重叠
+        """
+        from llama_index.core import Document
+        from llama_index.core.node_parser import SentenceSplitter
+
+        # 创建切分器
+        splitter = SentenceSplitter(
+            chunk_size=self.config.chunk_size,      # tokens
+            chunk_overlap=self.config.chunk_overlap  # tokens
+        )
+
+        # 创建临时文档
+        doc = Document(text=text)
+
+        # 执行切分
+        nodes = splitter.get_nodes_from_documents([doc])
+
+        # 提取文本
+        chunks = [node.get_content() for node in nodes]
+
+        return chunks
+
+    def _split_keyword_aware(self, text: str) -> List[str]:
+        """
+        关键词感知切分
+
+        工作流程:
+        1. 第一阶段: 使用 SentenceSplitter 初步切分
+        2. 第二阶段: 在关键词边界进行智能切分
+        """
+        from llama_index.core import Document
+        from llama_index.core.node_parser import SentenceSplitter
+
+        # 第一阶段: 初步切分
+        splitter = SentenceSplitter(
+            chunk_size=self.config.chunk_size,
+            chunk_overlap=self.config.chunk_overlap
+        )
+
+        doc = Document(text=text)
+        initial_nodes = splitter.get_nodes_from_documents([doc])
+
+        # 第二阶段: 关键词感知处理
+        final_chunks = []
+
+        for node in initial_nodes:
+            content = node.get_content()
+
+            # 检查是否包含关键词
+            has_keywords = any(kw in content for kw in self.config.keywords)
+
+            # 检查大小
+            content_len = len(content)
+
+            if not has_keywords or content_len <= self.config.max_chunk_size:
+                # 直接使用
+                final_chunks.append(content)
+            else:
+                # 需要基于关键词二次切分
+                sub_chunks = self._split_by_keywords(content)
+                final_chunks.extend(sub_chunks)
+
+        return final_chunks
+
+    def _split_by_keywords(self, text: str) -> List[str]:
+        """
+        根据关键词边界切分文本
+
+        策略:
+        1. 找到所有关键词位置
+        2. 在关键词之间寻找合适的切分点
+        3. 保证每个chunk包含完整的关键词上下文
+        """
+        keyword_positions = []
+        for keyword in self.config.keywords:
+            for match in re.finditer(re.escape(keyword), text):
+                keyword_positions.append((keyword, match.start(), match.end()))
+
+        # 按位置排序
+        keyword_positions.sort(key=lambda x: x[1])
+
+        if not keyword_positions:
+            return [text]
+
+        chunks = []
+        current_start = 0
+        text_len = len(text)
+
+        i = 0
+        while i < len(keyword_positions):
+            keyword, kw_start, kw_end = keyword_positions[i]
+
+            # 计算包含当前关键词的chunk范围
+            chunk_start = max(current_start, kw_start - self.config.keyword_context_window)
+
+            # 尝试向前延伸到句子边界
+            if chunk_start > current_start:
+                for sep in ['。', '\n', '！', '？', '. ', '! ', '? ']:
+                    sep_pos = text.rfind(sep, current_start, chunk_start)
+                    if sep_pos != -1:
+                        chunk_start = sep_pos + len(sep)
+                        break
+
+            # 尝试包含后续的关键词（如果它们很近）
+            chunk_end = kw_end + self.config.keyword_context_window
+            j = i + 1
+            while j < len(keyword_positions):
+                next_kw, next_start, next_end = keyword_positions[j]
+                if next_start - chunk_end < self.config.keyword_context_window:
+                    chunk_end = next_end + self.config.keyword_context_window
+                    j += 1
+                else:
+                    break
+
+            # 确保chunk不会太大
+            if chunk_end - chunk_start > self.config.max_chunk_size:
+                chunk_end = chunk_start + self.config.max_chunk_size
+
+            # 尝试在句子边界结束
+            if chunk_end < text_len:
+                for sep in ['。', '\n', '！', '？', '. ', '! ', '? ']:
+                    sep_pos = text.find(sep, chunk_end, min(chunk_end + 50, text_len))
+                    if sep_pos != -1:
+                        chunk_end = sep_pos + len(sep)
+                        break
+
+            chunk_end = min(chunk_end, text_len)
+
+            # 提取chunk
+            chunk_text = text[chunk_start:chunk_end].strip()
+            if len(chunk_text) >= self.config.min_chunk_size:
+                chunks.append(chunk_text)
+
+            # 更新位置
+            current_start = chunk_end
+            i = j
+
+        # 处理剩余文本
+        if current_start < text_len:
+            remaining = text[current_start:].strip()
+            if len(remaining) >= self.config.min_chunk_size:
+                chunks.append(remaining)
+            elif chunks:
+                # 如果剩余文本太短，合并到最后一个chunk
+                chunks[-1] += " " + remaining
 
         return chunks
 

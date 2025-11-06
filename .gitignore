@@ -1,7 +1,11 @@
-# Byte-compiled / cache
+# ============================================
+# Python
+# ============================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
 # Distribution / packaging
 .Python
@@ -9,10 +13,24 @@ build/
 develop-eggs/
 dist/
 downloads/
-*.egg-info/
+eggs/
 .eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 pip-wheel-metadata/
-*.whl
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
 
 # Unit test / coverage reports
 htmlcov/
@@ -23,39 +41,186 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
-pytest.xml
+*.cover
+*.py,cover
+.hypothesis/
 .pytest_cache/
+pytest.xml
 
-# IDEs/editors
+# ============================================
+# IDEs and Editors
+# ============================================
+# VSCode
 .vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
 .idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
 *.swo
+*~
 
-# Environments
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================
+# Environment Variables
+# ============================================
+# Environment files
 .env
-.env.*
+.env.local
+.env.*.local
 .venv/
 venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
+# ============================================
+# Logs and Databases
+# ============================================
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Local data caches
-data/vector_store/
-data/lightrag/
-**/.cache/
-**/tmp/
+# Local databases
+*.sqlite
+*.sqlite3
+*.db
 
-# OS files
+# ============================================
+# OS Files
+# ============================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# Jupyter
+# Linux
+.directory
+.Trash-*
+
+# ============================================
+# Jupyter Notebook
+# ============================================
 .ipynb_checkpoints/
+*.ipynb
 
-# Docker / PIDs
+# ============================================
+# Docker
+# ============================================
+# Docker files
 *.pid
+.dockerignore
+
+# Docker volumes data (但保留配置文件)
+volumes/
+docker-compose.override.yml
+
+# ============================================
+# Vector Databases & Storage
+# ============================================
+# Milvus data
+data/milvus/
+data/vector_store/
+milvus_data/
+volumes/milvus/
+
+# Neo4j data
+data/neo4j/
+volumes/neo4j/
+
+# LightRAG
+data/lightrag/
+
+# ============================================
+# LlamaIndex & AI Models
+# ============================================
+# LlamaIndex cache
+.llamaindex/
+storage/
+**/.llama_index/
+
+# Model cache
+models/
+*.ckpt
+*.pth
+*.pt
+*.bin
+*.safetensors
+
+# HuggingFace cache
+.cache/huggingface/
+.cache/torch/
+
+# ============================================
+# Project-Specific
+# ============================================
+# Temporary data
+**/tmp/
+**/.cache/
+temp/
+*.tmp
+
+# Large data files (可根据需要调整)
+*.parquet
+*.arrow
+*.feather
+
+# Processed data (保留原始数据，忽略处理后的)
+# data/processed/  # 取消注释如果不想提交处理后的数据
+# data/embeddings/ # 取消注释如果不想提交嵌入数据
+
+# Test outputs (保留测试报告，忽略临时输出)
+test_output/
+**/test_*.txt
+**/demo_output/
+
+# ============================================
+# Optional: 测试报告和文档
+# ============================================
+# 如果不想提交测试报告，取消下面的注释
+# 测试报告_*.md
+# 切块策略集成指南.md
+# 文档切片策略完整实现总结.md
+
+# ============================================
+# Optional: API Keys and Secrets
+# ============================================
+# 确保不提交敏感信息
+*.key
+*.pem
+*.crt
+secrets/
+credentials.json
+
+# ============================================
+# Backup Files
+# ============================================
+*.bak
+*.backup
+*.old
+*~
