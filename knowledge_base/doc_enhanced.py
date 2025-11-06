@@ -16,13 +16,12 @@ import requests
 from requests.exceptions import RequestException
 # LlamaIndex
 from llama_index.core import SimpleDirectoryReader
-from llama_index.readers.file import PDFReader
-from llama_index.readers.file import DocxReader, TextReader
+from llama_index.readers.file import PDFReader, DocxReader
 LLAMAINDEX_AVAILABLE = True
 
 # 原有处理库
 import PyPDF2
-from ..config.settings import settings
+from config.settings import settings
 
 class EnhancedDocumentProcessor:
     """增强文档处理器 - 支持多种文档解析引擎"""
@@ -43,8 +42,7 @@ class EnhancedDocumentProcessor:
                 ".pdf": PDFReader(),
                 ".docx": DocxReader(),
                 ".doc": DocxReader(),
-                ".txt": TextReader(),
-                ".md": TextReader()
+                # .txt 和 .md 使用原生 Python 读取
             }
             self.logger.info("LlamaIndex readers initialized")
 

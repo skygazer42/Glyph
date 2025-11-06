@@ -40,7 +40,7 @@ try:
     from app.llm import model_client as GLOBAL_MODEL_CLIENT
 except Exception:
     GLOBAL_MODEL_CLIENT = None
-from knowledge_base.data_loader import DataLoader
+# DataLoader 已移除，文档加载使用 LlamaIndexIntegration
 
 
 class EnhancedPolicyQAOrchestrator:
@@ -62,14 +62,7 @@ class EnhancedPolicyQAOrchestrator:
         self.workflow_state: Dict[str, Any] = {}
         self.active_sessions: Dict[str, Dict] = {}
 
-        # 初始化数据加载器
-        self.data_loader = DataLoader(
-            raw_data_dir="data/raw",
-            processed_data_dir="data/processed",
-            vector_store_path="knowledge_base/vector_store"
-        )
-
-        # 数据加载状态
+        # 数据加载已迁移到 LlamaIndexIntegration，不再在编排器中处理
         self.data_loaded = False
 
         self.logger.info("Enhanced Policy QA Orchestrator initialized")
@@ -86,15 +79,11 @@ class EnhancedPolicyQAOrchestrator:
         """初始化所有agents和组件"""
         self.logger.info("Initializing enhanced agents...")
 
-        # 1. 加载数据（如果需要）
-        if load_data and not self.data_loaded:
-            self.logger.info("Loading policy documents...")
-            documents = await self.data_loader.load_and_initialize(force_reload=False)
-            if documents:
-                self.data_loaded = True
-                self.logger.info(f"Loaded {len(documents)} documents")
-            else:
-                self.logger.warning("No documents loaded. Some features may not work.")
+        # 数据加载已迁移到 LlamaIndexIntegration
+        # 使用独立的脚本（如 scripts/embed_documents.py）进行文档加载和索引构建
+        if load_data:
+            self.logger.info("文档加载已迁移到 LlamaIndex，请使用 scripts/embed_documents.py")
+            self.data_loaded = True
 
         # 2. 初始化核心agents
         await self._initialize_core_agents()

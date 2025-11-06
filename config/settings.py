@@ -129,27 +129,71 @@ class DocumentSettings(BaseSettings):
 
 
 class MinerUSettings(BaseSettings):
-    """MinerU 2.5 文档解析 API 配置"""
-    # API 接口配置
-    enabled: bool = Field(default=False, env="MINERU_ENABLED")
-    api_base_url: str = Field(default="http://localhost:8080", env="MINERU_API_BASE_URL")
-    api_key: Optional[str] = Field(default=None, env="MINERU_API_KEY")
-    timeout: int = Field(default=300, env="MINERU_TIMEOUT")
+    """MinerU 文档解析配置
 
-    # 文档理解选项
+    支持两种运行模式：
+    1. 官方云服务 API (https://mineru.net) - 需要 API Key
+    2. 本地服务 API (http://localhost:30001) - 需要本地部署
+
+    使用 mode="auto" 可自动选择最佳模式
+    """
+    # 基础配置
+    enabled: bool = Field(default=False, env="MINERU_ENABLED")
+
+    # 运行模式: "official", "local", "auto"
+    mode: str = Field(default="auto", env="MINERU_MODE")
+
+    # 官方 API 配置
+    api_key: Optional[str] = Field(default=None, env="MINERU_API_KEY")
+    official_base_url: str = Field(
+        default="https://mineru.net/api/v4",
+        env="MINERU_OFFICIAL_BASE_URL"
+    )
+
+    # 本地服务配置
+    api_base_url: str = Field(default="http://localhost:30001", env="MINERU_API_BASE_URL")
+    backend: str = Field(default="vlm-http-client", env="MINERU_BACKEND")
+    vlm_server_url: Optional[str] = Field(default=None, env="MINERU_VLM_SERVER_URL")
+
+    # 通用配置
+    timeout: int = Field(default=600, env="MINERU_TIMEOUT")
+    language: str = Field(default="ch", env="MINERU_LANGUAGE")
+
+    # 文档解析选项
     extract_images: bool = Field(default=True, env="MINERU_EXTRACT_IMAGES")
     extract_tables: bool = Field(default=True, env="MINERU_EXTRACT_TABLES")
-    extract_lists: bool = Field(default=True, env="MINERU_EXTRACT_LISTS")
     extract_formulas: bool = Field(default=True, env="MINERU_EXTRACT_FORMULAS")
 
-    # 处理选项
-    preserve_layout: bool = Field(default=True, env="MINERU_PRESERVE_LAYOUT")
+    # OCR 配置
     ocr_all_images: bool = Field(default=True, env="MINERU_OCR_ALL_IMAGES")
-    ocr_dpi: int = Field(default=300, env="MINERU_OCR_DPI")
 
-    # 输出格式
+    # 批量处理配置
+    max_concurrent: int = Field(default=3, env="MINERU_MAX_CONCURRENT")
+
+    # 旧版兼容配置（保留用于向后兼容）
+    extract_lists: bool = Field(default=True, env="MINERU_EXTRACT_LISTS")
+    preserve_layout: bool = Field(default=True, env="MINERU_PRESERVE_LAYOUT")
+    ocr_dpi: int = Field(default=300, env="MINERU_OCR_DPI")
     output_format: str = Field(default="markdown", env="MINERU_OUTPUT_FORMAT")
     include_raw_ocr: bool = Field(default=True, env="MINERU_INCLUDE_RAW_OCR")
+
+    def get_effective_base_url(self) -> str:
+        """获取有效的基础 URL（根据模式）"""
+        if self.mode == "official":
+            return self.official_base_url
+        elif self.mode == "local":
+            return self.api_base_url
+        else:  # auto
+            # 有 API Key 使用官方，否则使用本地
+            if self.api_key:
+                return self.official_base_url
+            return self.api_base_url
+
+    def get_effective_mode(self) -> str:
+        """获取有效的运行模式"""
+        if self.mode == "auto":
+            return "official" if self.api_key else "local"
+        return self.mode
 
 
 class PerformanceSettings(BaseSettings):

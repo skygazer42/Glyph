@@ -8,7 +8,7 @@ Supports backends:
 
 import os
 import numpy as np
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, TYPE_CHECKING
 
 from pymilvus import (
     connections,
@@ -19,7 +19,8 @@ from pymilvus import (
     utility
 )
 
-from ..agents.base.types import PolicyDocument
+if TYPE_CHECKING:
+    from agents.base.types import PolicyDocument
 
 
 class MilvusStore:
@@ -100,7 +101,7 @@ class MilvusStore:
         self.collection.create_index(field_name="embedding", index_params=index_params)
         self.collection.load()
 
-    def add_documents(self, documents: List[PolicyDocument]):
+    def add_documents(self, documents: List["PolicyDocument"]):
         """Add documents to the store."""
         if not documents:
             return
@@ -133,7 +134,7 @@ class MilvusStore:
         top_k: int = 10,
         threshold: float = 0.7,
         filters: Optional[Dict[str, Any]] = None
-    ) -> Tuple[List[PolicyDocument], List[float]]:
+    ) -> Tuple[List["PolicyDocument"], List[float]]:
         """Search for similar documents."""
         # Generate query embedding
         query_emb = self._embed_texts([query])[0]
@@ -155,6 +156,7 @@ class MilvusStore:
         )
 
         # Process results
+        from agents.base.types import PolicyDocument
         documents = []
         scores = []
 

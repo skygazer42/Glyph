@@ -72,11 +72,10 @@ class AgentFactory:
     def create_all_agents(self):
         """Create all necessary agents for the policy QA system."""
         # Create knowledge base components
-        from ...knowledge_base.vector_store import VectorStore
-        from ...knowledge_base.graph_db import KnowledgeGraph
+        from ...knowledge_base.milvus import MilvusStore
 
-        self.vector_store = VectorStore()
-        self.graph_db = KnowledgeGraph()
+        self.vector_store = MilvusStore()
+        self.graph_db = None  # 已移除图数据库，使用 LlamaIndex 替代
 
         # Create agents
         question_understander = QuestionUnderstander(

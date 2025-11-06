@@ -281,9 +281,9 @@ class EnhancedQueryAnalyzerAgent(BaseAgent):
 
             elif agent_name == "policy_retriever":
                 if self.policy_retriever is None:
-                    # 延迟初始化
-                    from ..knowledge_base.vector_store import VectorStore
-                    # 这里需要实际的vector_store配置
+                    # 延迟初始化 - 使用 MilvusStore
+                    from knowledge_base.milvus import MilvusStore
+                    # 这里需要实际的 vector_store 配置
                     pass
                 # 实现政策检索
                 return None
