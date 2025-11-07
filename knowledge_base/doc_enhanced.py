@@ -29,6 +29,7 @@ class EnhancedDocumentProcessor:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
+        self.docling_enabled = False  # Docling support (TODO: implement)
 
         # 初始化MinerU客户端
         self.mineru_enabled = self.config.get("mineru_enabled", True)

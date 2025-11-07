@@ -71,6 +71,24 @@ class MilvusStore:
 
             if utility.has_collection(self.collection_name):
                 self.collection = Collection(self.collection_name)
+
+                # 验证维度是否匹配
+                existing_dim = None
+                for field in self.collection.schema.fields:
+                    if field.name == "embedding":
+                        existing_dim = field.params.get("dim")
+                        break
+
+                if existing_dim and existing_dim != self.embedding_dim:
+                    raise ValueError(
+                        f"Collection '{self.collection_name}' already exists with dimension {existing_dim}, "
+                        f"but current embedding model requires dimension {self.embedding_dim}. "
+                        f"Please either:\n"
+                        f"1. Drop the existing collection: utility.drop_collection('{self.collection_name}')\n"
+                        f"2. Use a different collection name\n"
+                        f"3. Switch to an embedding model with dimension {existing_dim}"
+                    )
+
                 self.collection.load()
             else:
                 self._create_collection()
@@ -156,7 +174,30 @@ class MilvusStore:
         )
 
         # Process results
-        from agents.base.types import PolicyDocument
+        try:
+            from agents.base.types import PolicyDocument
+        except (ImportError, ModuleNotFoundError):
+            # Fallback: 如果无法导入 PolicyDocument，创建简单的字典结果
+            documents = []
+            scores = []
+            for hits in results:
+                for hit in hits:
+                    if hit.score >= threshold:
+                        # 返回字典而不是 PolicyDocument 对象
+                        doc = type('SimpleDoc', (), {
+                            'id': hit.entity.get("id"),
+                            'title': hit.entity.get("title", ""),
+                            'content': hit.entity.get("content", ""),
+                            'source': hit.entity.get("source", ""),
+                            'doc_type': hit.entity.get("doc_type", ""),
+                            'keywords': [],
+                            'regions': [],
+                            'target_groups': []
+                        })()
+                        documents.append(doc)
+                        scores.append(float(hit.score))
+            return documents, scores
+
         documents = []
         scores = []
 
@@ -168,10 +209,7 @@ class MilvusStore:
                         title=hit.entity.get("title", ""),
                         content=hit.entity.get("content", ""),
                         source=hit.entity.get("source", ""),
-                        doc_type=hit.entity.get("doc_type", ""),
-                        keywords=[],
-                        regions=[],
-                        target_groups=[]
+                        doc_type=hit.entity.get("doc_type", "")
                     )
                     documents.append(doc)
                     scores.append(float(hit.score))
@@ -270,16 +308,41 @@ class MilvusStore:
         return (vecs / norms).astype(np.float32)
 
     def _infer_dim(self) -> int:
-        """Infer embedding dimension from backend and model."""
+        """Infer embedding dimension from backend and model.
+
+        Returns the correct dimension based on:
+        1. Explicit configuration (EMBEDDING_DASHSCOPE_DIMENSION or EMBEDDING_DIM)
+        2. Model-specific defaults
+        """
         from config.settings import settings
 
         if self.backend == "openai":
-            if self.model_name and "3-large" in self.model_name:
-                return 3072
-            return 1536
+            # OpenAI embedding dimensions
+            if self.model_name:
+                if "3-large" in self.model_name or "text-embedding-3-large" in self.model_name:
+                    return 3072
+                elif "3-small" in self.model_name or "text-embedding-3-small" in self.model_name:
+                    return 1536
+                elif "ada-002" in self.model_name:
+                    return 1536
+            # 默认使用配置值或1536
+            return settings.embedding.dimension if settings.embedding.dimension else 1536
+
         elif self.backend == "dashscope":
-            return settings.embedding.dimension
-        return settings.embedding.dimension
+            # DashScope text-embedding-v3 支持: 64, 128, 256, 512, 768, 1024
+            # 优先使用明确配置的维度
+            if settings.embedding.dashscope_dimension:
+                return settings.embedding.dashscope_dimension
+
+            # 如果配置了通用维度且在支持范围内，使用它
+            if settings.embedding.dimension in [64, 128, 256, 512, 768, 1024]:
+                return settings.embedding.dimension
+
+            # 默认使用1024（DashScope text-embedding-v3 的默认维度）
+            return 1024
+
+        # 其他后端使用配置值或默认1024
+        return settings.embedding.dimension if settings.embedding.dimension else 1024
 
     def get_stats(self) -> Dict[str, Any]:
         """Get store statistics."""

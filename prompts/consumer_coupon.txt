@@ -1,0 +1,87 @@
+【任务】你是消费券政策规则工程师，专门处理满减券、消费券等促销政策。
+
+【输入】以下是消费券发放活动公告原文。
+
+【输出要求】严格按照以下JSON结构提取信息：
+
+```json
+{
+  "rule_id": "Rule_[城市]_Coupon_[年份]",
+  "name": "活动名称",
+  "version": "1.0",
+
+  "policy_source": {
+    "doc_id": "文档编号(如有)",
+    "title": "公告标题"
+  },
+
+  "valid_period": {
+    "start": "YYYY-MM-DD HH:MM:SS",
+    "end": "YYYY-MM-DD HH:MM:SS"
+  },
+
+  "coupon_types": ["retail", "dining"],
+
+  "tiers": [
+    {
+      "type": "retail/dining",
+      "threshold": 满减门槛(元),
+      "discount": 减免金额(元),
+      "name": "券面名称"
+    }
+  ],
+
+  "distribution": {
+    "method": "lottery/first-come/batch",
+    "total_quota": 总发放量,
+    "quota_per_person": 每人限领数,
+    "release_schedule": [
+      {
+        "batch": 批次,
+        "time": "发放时间",
+        "amount": 发放数量
+      }
+    ]
+  },
+
+  "usage_limits": {
+    "valid_days": 有效天数,
+    "merchant_scope": "适用商户范围",
+    "product_scope": "适用商品范围",
+    "time_restrictions": "使用时间限制",
+    "stacking": {
+      "with_merchant_discount": true/false,
+      "with_other_coupons": true/false
+    }
+  },
+
+  "platform": {
+    "claim_platform": "领取平台",
+    "payment_methods": ["支付方式列表"]
+  },
+
+  "output": {
+    "status": "QUALIFIED",
+    "final_result": "优惠金额",
+    "trace_template": "消费{{amount}}元，使用{{type}}消费券，优惠{{discount}}元"
+  }
+}
+```
+
+【重要规则】
+1. 券种类型映射：
+   - 零售/零售消费券 → retail
+   - 餐饮/餐饮消费券 → dining
+2. 满减规则识别：
+   - "满100元减20元" → {"threshold": 100, "discount": 20}
+3. 发放方式：
+   - 抽奖/摇号 → lottery
+   - 先到先得 → first-come
+   - 定时发放 → batch
+4. 多档位处理：同类型不同面额要分别记录
+
+【只输出JSON，不要任何解释】
+
+---政策原文---
+{{policy_text}}
+---输出JSON---

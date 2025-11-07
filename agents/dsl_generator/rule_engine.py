@@ -12,6 +12,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, date
 import re
 
+from agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
+
 logger = logging.getLogger(__name__)
 
 
@@ -168,12 +170,7 @@ class PolicyEngine:
 
     def _execute_calculation(self, rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """执行规则计算"""
-        context = {
-            'inputs': inputs,
-            'user_state': user_state or {},
-            'limits': rule.get('limits', {}),
-            'tiers': rule.get('tiers', [])
-        }
+        context = self._build_eval_context(rule, inputs, user_state)
 
         # 执行计算逻辑
         calc_result = {}
@@ -251,7 +248,8 @@ class PolicyEngine:
             'bool': bool,
             'None': None,
             'True': True,
-            'False': False
+            'False': False,
+            'dsl_helpers': DSLRuntimeHelpers
         }
 
         # 合并上下文
@@ -264,6 +262,42 @@ class PolicyEngine:
         except:
             # 如果执行失败，尝试作为模板处理
             return self._eval_template(expr, context)
+
+    def _build_eval_context(self, rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Assemble the evaluation context exposed to DSL expressions."""
+        user_state = user_state or {}
+        ctx = {
+            'inputs': inputs,
+            'user_state': user_state,
+            'context': user_state,  # backwards compatible alias for helper callables
+            'limits': rule.get('limits', {}),
+            'tiers': rule.get('tiers', []),
+            'rule': rule
+        }
+
+        optional_sections = [
+            'windows',
+            'budget',
+            'matching',
+            'efficiency_rates',
+            'category_limits',
+            'special_rules',
+            'valid_period',
+            'distribution',
+            'usage_limits',
+            'coupon_types',
+            'platform',
+            'price_basis',
+            'policy_source'
+        ]
+
+        for key in optional_sections:
+            value = rule.get(key)
+            if key == 'special_rules':
+                value = value or {}
+            ctx[key] = value
+
+        return ctx
 
     def _eval_template(self, template_str: str, context: Dict[str, Any]) -> str:
         """使用 Jinja2 模板引擎求值"""

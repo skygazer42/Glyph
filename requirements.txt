@@ -16,7 +16,7 @@ pandas>=2.2.0
 pydantic>=2.9.0
 pydantic-settings>=2.6.0
 
-# Vector Store (生产级)
+# Vector Store
 pymilvus>=2.4.0
 llama-index-vector-stores-milvus>=0.1.0
 
@@ -46,3 +46,7 @@ rich>=13.9.0
 typer>=0.12.0
 pytest-asyncio>=0.24.0
 dashscope
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+pydantic>=2.0.0

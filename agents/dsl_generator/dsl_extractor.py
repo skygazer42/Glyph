@@ -1,15 +1,20 @@
 """
-DSL 提取器模块
-使用 LLM 从政策文本中提取结构化信息并生成 DSL
+DSL 提取器模块（优化版）
+使用项目配置中的 LLM 从政策文本中提取结构化信息并生成 DSL
 """
 
 import os
+import sys
 import json
 import yaml
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import re
+from pathlib import Path
+
+# 添加项目根目录到路径
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +22,25 @@ logger = logging.getLogger(__name__)
 class DSLExtractor:
     """使用 LLM 提取政策文本并生成 DSL"""
 
-    def __init__(self, api_key: Optional[str] = None, api_base: Optional[str] = None):
+    def __init__(self, use_project_config: bool = True):
         """
         初始化 DSL 提取器
 
         Args:
-            api_key: API密钥，如果不提供则从环境变量读取
-            api_base: API基础URL，默认使用OpenAI
+            use_project_config: 是否使用项目配置，默认为 True
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.api_base = api_base or os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-        self.model = os.getenv("LLM_MODEL", "gpt-4-turbo-preview")
+        self.use_project_config = use_project_config
+
+        if use_project_config:
+            # 使用项目配置
+            try:
+                from config.settings import settings
+                self.settings = settings
+                logger.info(f"使用项目配置: LLM={settings.model.llm_model_name}")
+            except ImportError:
+                logger.warning("无法导入项目配置，使用默认设置")
+                self.settings = None
+                self.use_project_config = False
 
     def extract(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -53,7 +66,7 @@ class DSLExtractor:
 
     def _build_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """构建 LLM 提示词"""
-        prompt = f"""你是一名政策规则工程师，任务是将自然语言政策文���，结构化提取为 JSON 格式的政策数据。
+        prompt = f"""你是一名政策规则工程师，任务是将自然语言政策文本，结构化提取为 JSON 格式的政策数据。
 
 请从以下政策文本中提取关键信息，并返回 JSON 格式：
 
@@ -90,35 +103,35 @@ class DSLExtractor:
 
     def _call_llm(self, prompt: str) -> str:
         """调用 LLM API"""
-        try:
-            # 尝试使用 OpenAI API (新版本)
-            from openai import OpenAI
+        if self.use_project_config and self.settings:
+            # 使用项目配置调用 LLM
+            try:
+                from openai import OpenAI
 
-            client = OpenAI(
-                api_key=self.api_key,
-                base_url=self.api_base
-            )
+                client = OpenAI(
+                    api_key=self.settings.model.llm_api_key,
+                    base_url=self.settings.model.llm_base_url
+                )
 
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "你是一个专业的政策规则提取专家。"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-                max_tokens=2000
-            )
+                response = client.chat.completions.create(
+                    model=self.settings.model.llm_model_name,
+                    messages=[
+                        {"role": "system", "content": "你是一个专业的政策规则提取专家，擅长从政策文本中提取结构化信息。"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=self.settings.model.llm_temperature or 0.1,
+                    max_tokens=2000
+                )
 
-            return response.choices[0].message.content
+                return response.choices[0].message.content
 
-        except ImportError:
-            # 如果没有安装 openai，使用内置的规则提取
-            logger.warning("OpenAI 库未安装，使用内置规则提取")
-            return self._extract_with_rules(prompt)
-
-        except Exception as e:
-            logger.error(f"LLM 调用失败: {e}")
-            # 降级到规则提取
+            except Exception as e:
+                logger.error(f"使用项目配置调用 LLM 失败: {e}")
+                # 降级到规则提取
+                return self._extract_with_rules(prompt)
+        else:
+            # 不使用项目配置，直接使用规则提取
+            logger.info("使用内置规则提取")
             return self._extract_with_rules(prompt)
 
     def _extract_with_rules(self, text: str) -> str:
@@ -135,7 +148,8 @@ class DSLExtractor:
             "tiers": [],
             "calc": {},
             "conditions": [],
-            "result": {}
+            "result": {},
+            "output": {}  # 添加 output 字段
         }
 
         # 提取文档编号
@@ -145,7 +159,7 @@ class DSLExtractor:
             result['doc_id'] = doc_id_match.group()
 
         # 提取标题
-        title_pattern = r'[《]([^》]+)[》]|^(.{1,50}(?:实施细则|管理办法|通知|公告|方案))'
+        title_pattern = r'[《]([^》]+)[》]|^(.{1,50}(?:实施细则|管理办法|通知|公告|方案|实施方案))'
         title_match = re.search(title_pattern, text, re.MULTILINE)
         if title_match:
             result['title'] = title_match.group(1) or title_match.group(2)
@@ -171,30 +185,61 @@ class DSLExtractor:
             result['limits']['per_item_cap'] = cap_value
 
         # 提取补贴比例
-        rate_pattern = r'补贴[比例率]?[为是]?(\d+(?:\.\d+)?)[%％]'
-        rate_match = re.search(rate_pattern, text)
-        if rate_match:
-            result['calc']['base_rate'] = float(rate_match.group(1)) / 100
+        rate_patterns = [
+            r'补贴[比例率]?[为是]?(\d+(?:\.\d+)?)[%％]',
+            r'补贴销售价格的(\d+(?:\.\d+)?)[%％]',
+            r'(\d+(?:\.\d+)?)[%％]的?补贴'
+        ]
+
+        for pattern in rate_patterns:
+            rate_match = re.search(pattern, text)
+            if rate_match:
+                result['calc']['base_rate'] = float(rate_match.group(1)) / 100
+                break
 
         # 提取分档信息
-        tier_pattern = r'(\d+(?:\.\d+)?)[万元]?[至到\-](\d+(?:\.\d+)?)[万元]?'
-        tier_matches = re.finditer(tier_pattern, text)
-        for match in tier_matches:
-            low = float(match.group(1))
-            high = float(match.group(2))
-            if '万' in match.group():
-                low *= 10000
-                high *= 10000
-            result['tiers'].append({
-                'range': [low, high],
-                'benefit': None
-            })
+        tier_patterns = [
+            r'(\d+(?:\.\d+)?)[万元]?[至到\-](\d+(?:\.\d+)?)[万元]?',
+            r'满(\d+)[元]?[减送](\d+)[元]?'
+        ]
+
+        for pattern in tier_patterns:
+            tier_matches = re.finditer(pattern, text)
+            for match in tier_matches:
+                low = float(match.group(1))
+                high = float(match.group(2))
+                if '万' in match.group():
+                    low *= 10000
+                    high *= 10000
+                result['tiers'].append({
+                    'range': [low, high],
+                    'benefit': high if '减' in text else None
+                })
 
         # 生成基本输入变量
         result['inputs'] = [
-            {"name": "price", "type": "float", "required": True},
-            {"name": "category", "type": "string", "required": True}
+            {"name": "price", "type": "float", "required": True, "description": "商品价格"},
+            {"name": "category", "type": "string", "required": True, "description": "商品类别"}
         ]
+
+        # 检查是否有能效相关内容
+        if '能效' in text or '等级' in text:
+            result['inputs'].append(
+                {"name": "energy_level", "type": "int", "required": False, "description": "能效等级"}
+            )
+
+        # 根据提取的信息改进 rule_id
+        city = self._extract_city(text)
+        policy_type = self._extract_policy_type(text)
+        year = datetime.now().year
+        result['rule_id'] = f"Rule_{city}_{policy_type}_{year}"
+
+        # 添加输出配置
+        result['output'] = {
+            'status': 'QUALIFIED',
+            'final_result': '{{ calc.subsidy }}' if 'base_rate' in result.get('calc', {}) else '{{ result }}',
+            'trace_template': '- 计算完成'
+        }
 
         return json.dumps(result, ensure_ascii=False)
 
@@ -228,11 +273,50 @@ class DSLExtractor:
         for field in required_fields:
             if field not in data:
                 if field == 'inputs':
-                    data[field] = []
-                elif field in ['limits', 'calc', 'output']:
+                    data[field] = [
+                        {"name": "price", "type": "float", "required": True},
+                        {"name": "category", "type": "string", "required": True}
+                    ]
+                elif field in ['limits', 'calc']:
                     data[field] = {}
+                elif field == 'output':
+                    data[field] = {
+                        'status': 'QUALIFIED',
+                        'final_result': '{{ result }}',
+                        'trace_template': ''
+                    }
                 else:
                     data[field] = None
+
+        # 确保 inputs 是列表，每个元素是字典
+        if 'inputs' in data:
+            if isinstance(data['inputs'], list):
+                # 修复每个输入变量，确保是字典
+                fixed_inputs = []
+                for inp in data['inputs']:
+                    if isinstance(inp, dict):
+                        # 确保有必要的字段
+                        if 'name' in inp and 'type' in inp:
+                            if 'required' not in inp:
+                                inp['required'] = True
+                            fixed_inputs.append(inp)
+                    elif isinstance(inp, str):
+                        # 如果是字符串，尝试转换为字典
+                        fixed_inputs.append({
+                            'name': inp,
+                            'type': 'string',
+                            'required': True
+                        })
+                data['inputs'] = fixed_inputs if fixed_inputs else [
+                    {"name": "price", "type": "float", "required": True},
+                    {"name": "category", "type": "string", "required": True}
+                ]
+            else:
+                # 如果不是列表，设为默认值
+                data['inputs'] = [
+                    {"name": "price", "type": "float", "required": True},
+                    {"name": "category", "type": "string", "required": True}
+                ]
 
         return data
 
@@ -280,9 +364,11 @@ class DSLExtractor:
         # 检查输入变量
         if 'inputs' in dsl_data:
             for i, input_var in enumerate(dsl_data['inputs']):
-                if 'name' not in input_var:
+                if not isinstance(input_var, dict):
+                    errors.append(f"输入变量 {i} 格式错误")
+                elif 'name' not in input_var:
                     errors.append(f"输入变量 {i} 缺少 name 字段")
-                if 'type' not in input_var:
+                elif 'type' not in input_var:
                     errors.append(f"输入变量 {i} 缺少 type 字段")
 
         # 检查日期格式

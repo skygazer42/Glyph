@@ -1,0 +1,110 @@
+rule_id: {{ rule_id }}
+name: {{ name }}
+version: {{ version }}
+
+policy_source:
+  doc_id: {{ policy_source.doc_id | default(null) }}
+  title: "{{ policy_source.title }}"
+
+# ===== 有效期 =====
+valid_period:
+  start: "{{ valid_period.start }}"
+  end: {{ valid_period.end | default(null) | tojson }}
+
+# ===== 券种类型 =====
+coupon_types: {{ coupon_types | tojson }}   # 例如 ["AMOUNT","PERCENT"]
+
+# ===== 满减/折扣档位 =====
+tiers:
+{% for tier in tiers %}
+  - type: {{ tier.type }}                   # AMOUNT: 满减; PERCENT: 折扣
+    threshold: {{ tier.threshold }}         # 门槛
+    discount: {{ tier.discount }}           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
+    {% if tier.cap is defined %}cap: {{ tier.cap }}{% endif %}   # PERCENT可选封顶金额
+    {% if tier.name %}name: "{{ tier.name }}"{% endif %}
+{% endfor %}
+
+# ===== 发放规则 =====
+distribution:
+  method: "{{ distribution.method }}"        # auto_claim / manual / code
+  total_quota: {{ distribution.total_quota | default(null) }}
+  quota_per_person: {{ distribution.quota_per_person | default(null) }}
+  {% if distribution.release_schedule %}
+  release_schedule:
+  {% for batch in distribution.release_schedule %}
+    - batch: {{ batch.batch }}
+      time: "{{ batch.time }}"               # ISO时间，<=该时刻方可使用
+      amount: {{ batch.amount }}
+  {% endfor %}
+  {% endif %}
+
+# ===== 使用限制 =====
+usage_limits:
+  valid_days: {{ usage_limits.valid_days | default(30) }}
+  merchant_scope: "{{ usage_limits.merchant_scope | default('参与活动商户') }}"
+  product_scope: "{{ usage_limits.product_scope | default('全品类') }}"
+  {% if usage_limits.time_restrictions %}
+  time_restrictions: "{{ usage_limits.time_restrictions }}"
+  {% endif %}
+  {% set stacking_cfg = usage_limits.stacking if usage_limits.stacking is defined else {'with_merchant_discount': true, 'with_other_coupons': true} %}
+  stacking:
+    with_merchant_discount: {{ stacking_cfg.with_merchant_discount | default(true) | tojson }}
+    with_other_coupons: {{ stacking_cfg.with_other_coupons | default(true) | tojson }}
+
+# ===== 平台信息 =====
+{% if platform %}
+platform:
+  claim_platform: "{{ platform.claim_platform }}"
+  payment_methods: {{ platform.payment_methods | tojson }}
+{% endif %}
+
+# ===== 输入参数 =====
+inputs:
+  - name: consumption_amount
+    type: float
+    required: true
+    description: "消费金额(>=0)"
+  - name: coupon_type
+    type: string
+    required: true
+    description: "券种类型，见 coupon_types"
+  - name: claim_time
+    type: string
+    required: true
+    description: "使用/核销时间(ISO 8601)"
+  - name: user_id
+    type: string
+    required: true
+    description: "用户ID(限额/去重)"
+  - name: merchant_id
+    type: string
+    required: false
+    description: "商户ID(范围校验)"
+  - name: product_id
+    type: string
+    required: false
+    description: "商品ID(范围校验)"
+  - name: using_other_coupon
+    type: boolean
+    required: false
+    description: "本单是否同时使用其他优惠券"
+  - name: has_merchant_discount
+    type: boolean
+    required: false
+    description: "本单是否叠加商户促销"
+
+# ===== 计算逻辑 =====
+calc:
+  result: "dsl_helpers.consumer_coupon(inputs, valid_period, tiers, distribution, usage_limits, coupon_types, user_state)"
+
+# ===== 输出配置 =====
+output:
+  status: "{{ '{{' }} calc.result.status {{ '}}' }}"
+  final_result: "{{ '{{' }} calc.result.discount {{ '}}' }}"
+  trace_template: |
+    - 消费金额：¥{{ '{{' }} calc.result.amount {{ '}}' }}
+    - 券种类型：{{ '{{' }} calc.result.coupon_type {{ '}}' }}
+    - 命中档位：{{ '{{' }} (calc.result.tier.name if (calc.result.tier and calc.result.tier.name) else (calc.result.tier.type if calc.result.tier else '-')) {{ '}}' }}
+    - 门槛/优惠：{{ '{{' }} (calc.result.tier.threshold if calc.result.tier else '-') {{ '}}' }} / {{ '{{' }} (calc.result.tier.discount if calc.result.tier else '-') {{ '}}' }}{{ '{{' }} (' (封顶¥'+str(calc.result.tier.cap)+')' if (calc.result.tier and calc.result.tier.cap is not none) else '' ) {{ '}}' }}
+    - 优惠金额：¥{{ '{{' }} calc.result.discount {{ '}}' }}，实付：¥{{ '{{' }} calc.result.final_amount {{ '}}' }}
+    - 到期时间：{{ '{{' }} calc.result.expire_at {{ '}}' }}

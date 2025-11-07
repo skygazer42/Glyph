@@ -4,7 +4,7 @@ Policy analysis agent for analyzing retrieved policy documents.
 
 import json
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List,Optional
 from datetime import datetime
 
 from ..base.base_agent import BaseAgent

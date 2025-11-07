@@ -1,0 +1,70 @@
+rule_id: {{ rule_id }}
+name: {{ name }}
+version: {{ version }}
+
+policy_source:
+  doc_id: {{ policy_source.doc_id | default(null) }}
+  title: "{{ policy_source.title }}"
+  {% if policy_source.clause %}clause: "{{ policy_source.clause }}"{% endif %}
+
+# ===== 有效期 =====
+valid_period:
+  start: "{{ valid_period.start }}"
+  end: {{ valid_period.end | default(null) | tojson }}
+
+# ===== 输入参数 =====
+inputs:
+  - name: price
+    type: float
+    required: true
+    description: "商品销售价格(>=0)"
+  - name: energy_level
+    type: integer   # 允许 1/2 或 null；null 代表无标识
+    required: false
+    description: "能效等级(1级/2级/无→null)"
+  - name: category
+    type: string
+    required: true
+    description: "家电类别"
+
+# ===== 能效补贴率 =====
+efficiency_rates:
+  base_rate: {{ efficiency_rates.base_rate | default(0.15) }}        # 2级及以上基础补贴
+  level_1_bonus: {{ efficiency_rates.level_1_bonus | default(0.05) }} # 1级额外补贴
+  no_label_rate: {{ efficiency_rates.no_label_rate | default(0.10) }} # 无标识产品，默认更低
+
+# ===== 类别限额（数量或金额，需按政策决定生效点）=====
+category_limits:
+  per_category:
+{% for category, limit in category_limits.per_category.items() %}
+    {{ category }}: {{ limit }}
+{% endfor %}
+  total_items: {{ category_limits.total_items | default(null) }}
+
+# ===== 单品补贴上限 =====
+per_item_cap: {{ per_item_cap }}
+
+# ===== 计算逻辑 =====
+calc:
+  result: "dsl_helpers.appliance_subsidy(inputs, efficiency_rates, per_item_cap, category_limits, rule.get('special_rules', {}), user_state)"
+
+# ===== 特殊规则 =====
+{% if special_rules %}
+special_rules:
+  trade_in_required: {{ special_rules.trade_in_required | default(false) | tojson }}
+  {% if special_rules.old_device_criteria %}
+  old_device_criteria: "{{ special_rules.old_device_criteria }}"
+  {% endif %}
+  stacking_allowed: {{ special_rules.stacking_allowed | default(true) | tojson }}
+{% endif %}
+
+# ===== 输出配置 =====
+output:
+  status: "{{ '{{' }} calc.result.status {{ '}}' }}"
+  final_result: "{{ '{{' }} calc.result.final_subsidy {{ '}}' }}"
+  trace_template: |
+    - 商品价格：¥{{ '{{' }} calc.result.price {{ '}}' }}
+    - 能效等级：{{ '{{' }} ('无' if calc.result.energy_level in (None, 0) else (str(calc.result.energy_level) + '级')) {{ '}}' }}
+    - 补贴比例：{{ '{{' }} (calc.result.rate * 100) {{ '}}' }}%
+    - 原始补贴：¥{{ '{{' }} calc.result.raw_subsidy {{ '}}' }}
+    - 封顶后补贴：¥{{ '{{' }} calc.result.final_subsidy {{ '}}' }}

@@ -20,13 +20,13 @@ class DSLGenerator:
     # DSL 模板
     DSL_TEMPLATE = """rule_id: {{ rule_id }}
 policy_source:
-  doc_id: "{{ doc_id }}"
-  title: "{{ title }}"
-  {% if clause %}clause: "{{ clause }}"{% endif %}
-{% if valid_start or valid_end %}
+  doc_id: "{{ policy_source.get('doc_id', '') }}"
+  title: "{{ policy_source.get('title', '未命名政策') }}"
+  {% if policy_source.get('clause') %}clause: "{{ policy_source.get('clause') }}"{% endif %}
+{% if valid_period %}
 valid_period:
-  {% if valid_start %}start: "{{ valid_start }}"{% endif %}
-  {% if valid_end %}end: "{{ valid_end }}"{% endif %}
+  {% if valid_period.get('start') %}start: "{{ valid_period.get('start') }}"{% endif %}
+  {% if valid_period.get('end') %}end: "{{ valid_period.get('end') }}"{% endif %}
 {% endif %}
 
 inputs:
@@ -64,11 +64,11 @@ calc:
 {% endif %}
 
 output:
-  status: "{{ output.status }}"
-  final_result: "{{ output.final_result }}"
-  {% if output.trace_template %}
+  status: "{{ output.get('status', 'QUALIFIED') }}"
+  final_result: "{{ output.get('final_result', '') }}"
+  {% if output.get('trace_template') %}
   trace_template: |
-    {{ output.trace_template | indent(4) }}
+    {{ output.get('trace_template') | indent(4) }}
   {% endif %}
 """
 
@@ -84,7 +84,7 @@ output:
         self.env = jinja2.Environment(
             loader=jinja2.BaseLoader(),
             autoescape=False,
-            undefined=jinja2.StrictUndefined
+            undefined=jinja2.ChainableUndefined
         )
         self.template = self.env.from_string(self.DSL_TEMPLATE)
 
@@ -121,37 +121,102 @@ output:
         if 'rule_id' not in processed:
             processed['rule_id'] = f"Rule_Generated_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-        if 'doc_id' not in processed:
-            processed['doc_id'] = ''
+        # 处理 policy_source 结构
+        if 'policy_source' not in processed:
+            processed['policy_source'] = {}
 
-        if 'title' not in processed:
-            processed['title'] = '未命名政策'
+        # 如果 doc_id 和 title 在顶层，迁移到 policy_source
+        if 'doc_id' in processed:
+            processed['policy_source']['doc_id'] = processed.pop('doc_id')
+        if 'title' in processed:
+            processed['policy_source']['title'] = processed.pop('title')
+        if 'clause' in processed:
+            processed['policy_source']['clause'] = processed.pop('clause')
+
+        # 确保 policy_source 有默认值
+        if 'doc_id' not in processed['policy_source']:
+            processed['policy_source']['doc_id'] = ''
+        if 'title' not in processed['policy_source']:
+            processed['policy_source']['title'] = '未命名政策'
+
+        # 处理 valid_period 结构
+        if 'valid_period' not in processed:
+            processed['valid_period'] = {}
+
+        # 如果 valid_start 和 valid_end 在顶层，迁移到 valid_period
+        if 'valid_start' in processed:
+            processed['valid_period']['start'] = processed.pop('valid_start')
+        if 'valid_end' in processed:
+            processed['valid_period']['end'] = processed.pop('valid_end')
 
         # 处理输入变量
         if 'inputs' not in processed:
             processed['inputs'] = []
         else:
-            # 确保每个输入都有必要的字段
-            for input_var in processed['inputs']:
-                if 'required' not in input_var:
-                    input_var['required'] = True
-                if 'type' not in input_var:
-                    input_var['type'] = 'string'
+            # 将字符串列表转换为字典列表
+            if processed['inputs'] and isinstance(processed['inputs'], list):
+                new_inputs = []
+                for item in processed['inputs']:
+                    if isinstance(item, str):
+                        # 字符串转换为字典
+                        new_inputs.append({
+                            'name': item,
+                            'type': 'string',
+                            'required': True,
+                            'description': f'输入参数: {item}'
+                        })
+                    elif isinstance(item, dict):
+                        # 确保字典有必要的字段
+                        if 'required' not in item:
+                            item['required'] = True
+                        if 'type' not in item:
+                            item['type'] = 'string'
+                        new_inputs.append(item)
+                processed['inputs'] = new_inputs
 
         # 处理输出
-        if 'output' not in processed:
+        if 'output' not in processed or not isinstance(processed.get('output'), dict):
             processed['output'] = {
                 'status': 'QUALIFIED',
                 'final_result': '{{ calc.result }}',
                 'trace_template': ''
             }
+        else:
+            # 确保 output 字典包含必要的字段
+            if 'status' not in processed['output']:
+                processed['output']['status'] = 'QUALIFIED'
+            if 'final_result' not in processed['output']:
+                processed['output']['final_result'] = '{{ calc.result }}'
+            if 'trace_template' not in processed['output']:
+                processed['output']['trace_template'] = ''
+
+        # 处理分档信息 (tiers)
+        if 'tiers' in processed and isinstance(processed['tiers'], list):
+            new_tiers = []
+            for tier in processed['tiers']:
+                if isinstance(tier, dict):
+                    # 确保有 range 字段
+                    if 'range' not in tier:
+                        # 尝试从其他字段推断
+                        if 'min' in tier and 'max' in tier:
+                            tier['range'] = [tier.pop('min'), tier.pop('max')]
+                        else:
+                            tier['range'] = [0, None]
+                    new_tiers.append(tier)
+            processed['tiers'] = new_tiers
 
         # 处理计算逻辑
-        if 'calc' in processed and isinstance(processed['calc'], dict):
-            # 将复杂的计算逻辑转换为多行字符串
-            for key, value in processed['calc'].items():
-                if isinstance(value, list):
-                    processed['calc'][key] = '\n'.join(value)
+        if 'calc' in processed:
+            if isinstance(processed['calc'], str):
+                # 如果 calc 是字符串，转换为字典
+                processed['calc'] = {
+                    'formula': processed['calc']
+                }
+            elif isinstance(processed['calc'], dict):
+                # 将复杂的计算逻辑转换为多行字符串
+                for key, value in processed['calc'].items():
+                    if isinstance(value, list):
+                        processed['calc'][key] = '\n'.join(value)
 
         return processed
 
@@ -162,13 +227,30 @@ output:
         except jinja2.exceptions.UndefinedError as e:
             logger.error(f"模板渲染失败，缺少必要字段: {e}")
             # 提供默认值再次尝试
-            data.setdefault('clause', None)
-            data.setdefault('valid_start', None)
-            data.setdefault('valid_end', None)
+            data.setdefault('policy_source', {})
+            data['policy_source'].setdefault('doc_id', '')
+            data['policy_source'].setdefault('title', '未命名政策')
+            data['policy_source'].setdefault('clause', None)
+
+            data.setdefault('valid_period', {})
             data.setdefault('limits', {})
             data.setdefault('tiers', [])
             data.setdefault('calc', {})
-            return self.template.render(**data)
+            data.setdefault('output', {
+                'status': 'QUALIFIED',
+                'final_result': '{{ calc.result }}',
+                'trace_template': ''
+            })
+            # 确保 output 是字典并包含必要字段
+            if isinstance(data.get('output'), dict):
+                data['output'].setdefault('status', 'QUALIFIED')
+                data['output'].setdefault('final_result', '{{ calc.result }}')
+                data['output'].setdefault('trace_template', '')
+            try:
+                return self.template.render(**data)
+            except Exception as e2:
+                logger.error(f"模板渲染再次失败: {e2}")
+                raise
 
     def _validate_yaml(self, yaml_content: str) -> List[str]:
         """验证生成的 YAML"""

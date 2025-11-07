@@ -1,6 +1,6 @@
 """
-DSL 转换系统主程序（优化版）
-使用项目配置的 LLM 将政策文档转换为 DSL
+DSL 转换系统主程序
+一键将政策文档转换为 DSL
 """
 
 import os
@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional, List
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from agents.dsl_generator.document_parser import DocumentParser
-from agents.dsl_generator.dsl_extractor_v2 import DSLExtractor  # 使用优化版
+from agents.dsl_generator.dsl_extractor import DSLExtractor
 from agents.dsl_generator.dsl_generator import DSLGenerator
 from agents.dsl_generator.rule_engine import PolicyEngine
 
@@ -27,40 +27,29 @@ logger = logging.getLogger(__name__)
 
 
 class DSLPipeline:
-    """DSL 转换管道（优化版）"""
+    """DSL 转换管道"""
 
     def __init__(self,
                  data_dir: str = "data/guize",
                  output_dir: str = "rules",
-                 use_project_config: bool = True):
+                 api_key: Optional[str] = None):
         """
         初始化 DSL 转换管道
 
         Args:
             data_dir: 输入文档目录
             output_dir: DSL 输出目录
-            use_project_config: 是否使用项目配置的 LLM
+            api_key: LLM API 密钥
         """
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
-        self.use_project_config = use_project_config
 
         # 初始化各模块
         self.parser = DocumentParser()
-        self.extractor = DSLExtractor(use_project_config=use_project_config)
+        self.extractor = DSLExtractor(api_key=api_key)
         self.generator = DSLGenerator(output_dir=str(output_dir))
         self.engine = PolicyEngine(rule_dir=str(output_dir))
-
-        # 如果使用项目配置，显示配置信息
-        if use_project_config:
-            try:
-                from config.settings import settings
-                logger.info(f"使用项目 LLM 配置:")
-                logger.info(f"  模型: {settings.model.llm_model_name}")
-                logger.info(f"  API: {settings.model.llm_base_url}")
-            except ImportError:
-                logger.warning("无法导入项目配置，将使用内置规则提取")
 
     def process_document(self, file_path: str, save: bool = True) -> Dict[str, Any]:
         """
@@ -81,49 +70,33 @@ class DSLPipeline:
         }
 
         try:
-            logger.info(f"开始��理文档: {file_path}")
+            logger.info(f"开始处理文档: {file_path}")
 
             # 1. 解析文档
             logger.info("步骤 1: 解析文档")
             text = self.parser.parse(file_path)
             processed = self.parser.preprocess_text(text)
-            logger.info(f"  提取到文本长度: {len(text)} 字符")
-
-            if processed['metadata'].get('title'):
-                logger.info(f"  识别到标题: {processed['metadata']['title']}")
 
             # 2. 提取规则
             logger.info("步骤 2: 提取结构化规则")
-            if self.use_project_config:
-                logger.info("  使用项目 LLM 进行智能提取...")
-            else:
-                logger.info("  使用规则引擎进行提取...")
-
             dsl_data = self.extractor.extract(text, processed['metadata'])
-
-            if dsl_data.get('rule_id'):
-                logger.info(f"  生成规则 ID: {dsl_data['rule_id']}")
 
             # 3. 验证提取的数据
             logger.info("步骤 3: 验证提取的数据")
             validation_errors = self.extractor.validate_dsl(dsl_data)
             if validation_errors:
-                logger.warning(f"  验证警告: {validation_errors}")
+                logger.warning(f"验证警告: {validation_errors}")
                 result['errors'].extend(validation_errors)
-            else:
-                logger.info("  数据验证通过")
 
             # 4. 生成 DSL YAML
             logger.info("步骤 4: 生成 DSL YAML")
             yaml_content = self.generator.generate(dsl_data)
-            logger.info(f"  生成 YAML 长度: {len(yaml_content)} 字符")
 
             # 5. 保存文件
             if save:
                 logger.info("步骤 5: 保存 DSL 文件")
                 dsl_file = self.generator.save(yaml_content)
                 result['dsl_file'] = str(dsl_file)
-                logger.info(f"  文件保存至: {dsl_file}")
 
             result['status'] = 'success'
             result['dsl_data'] = dsl_data
@@ -151,22 +124,14 @@ class DSLPipeline:
         dir_path = Path(directory) if directory else self.data_dir
         results = []
 
-        logger.info(f"批量处理目录: {dir_path}")
-
         # 支持的文件格式
         patterns = ['*.docx', '*.txt', '*.doc', '*.pdf']
 
-        file_count = 0
         for pattern in patterns:
             for file_path in dir_path.glob(pattern):
-                file_count += 1
-                logger.info(f"处理文件 [{file_count}]: {file_path.name}")
+                logger.info(f"处理文件: {file_path}")
                 result = self.process_document(str(file_path))
                 results.append(result)
-
-        logger.info(f"批量处理完成: 共处理 {file_count} 个文件")
-        success_count = sum(1 for r in results if r['status'] == 'success')
-        logger.info(f"成功: {success_count}/{file_count}")
 
         return results
 
@@ -181,19 +146,11 @@ class DSLPipeline:
         Returns:
             执行结果
         """
-        logger.info(f"测试规则: {rule_id}")
-        logger.info(f"测试输入: {test_inputs}")
-
         # 重新加载规则
         self.engine.reload_rules()
 
         # 执行规则
         result = self.engine.execute(rule_id, test_inputs)
-
-        if result.get('status') == 'QUALIFIED':
-            logger.info(f"测试通过，结果: {result.get('final_result')}")
-        else:
-            logger.info(f"测试状态: {result.get('status')}")
 
         return result
 
@@ -209,7 +166,6 @@ class DSLPipeline:
         """
         rule = self.engine.get_rule_info(rule_id)
         if not rule:
-            logger.warning(f"规则不存在: {rule_id}")
             return []
 
         test_cases = []
@@ -279,7 +235,6 @@ class DSLPipeline:
                     tier_case[name] = 1
             test_cases.append({'name': f'档位{i+1}测试', 'inputs': tier_case})
 
-        logger.info(f"生成了 {len(test_cases)} 个测试用例")
         return test_cases
 
     def run_full_test(self, rule_id: str) -> Dict[str, Any]:
@@ -292,8 +247,6 @@ class DSLPipeline:
         Returns:
             测试报告
         """
-        logger.info(f"运行完整测试: {rule_id}")
-
         report = {
             'rule_id': rule_id,
             'test_cases': [],
@@ -309,7 +262,6 @@ class DSLPipeline:
 
         # 执行每个测试用例
         for test_case in test_cases:
-            logger.info(f"执行测试用例: {test_case['name']}")
             result = self.test_rule(rule_id, test_case['inputs'])
 
             test_result = {
@@ -327,22 +279,20 @@ class DSLPipeline:
             else:
                 report['summary']['failed'] += 1
 
-        logger.info(f"测试完成: {report['summary']['passed']}/{report['summary']['total']} 通过")
         return report
 
 
 def main():
     """主程序入口"""
-    # 创建管道（使用项目配置）
+    # 创建管道
     pipeline = DSLPipeline(
         data_dir="F:/pythonproject/gov/data/guize",
-        output_dir="F:/pythonproject/gov/rules",
-        use_project_config=True  # 使用项目配置的 LLM
+        output_dir="F:/pythonproject/gov/rules"
     )
 
     # 处理所有文档
     print("=" * 50)
-    print("DSL 自动生成系统（使用项目配置）")
+    print("DSL 自动生成系统")
     print("=" * 50)
 
     results = pipeline.process_directory()
@@ -352,8 +302,8 @@ def main():
     print("-" * 50)
 
     for result in results:
-        status_mark = "[OK]" if result['status'] == 'success' else "[ERROR]"
-        print(f"{status_mark} {result['file']}")
+        status_emoji = "✅" if result['status'] == 'success' else "❌"
+        print(f"{status_emoji} {result['file']}")
 
         if result['dsl_file']:
             print(f"   生成: {result['dsl_file']}")
@@ -373,7 +323,7 @@ def main():
     rules = pipeline.engine.list_rules()
     print(f"\n找到 {len(rules)} 个规则:")
     for rule in rules:
-        active = "[ACTIVE]" if rule['is_active'] else "[INACTIVE]"
+        active = "✅" if rule['is_active'] else "⏸️"
         print(f"{active} {rule['rule_id']} - {rule['title']}")
 
     # 运行测试

@@ -27,7 +27,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+*.venv/
 # PyInstaller
 *.manifest
 *.spec
@@ -46,7 +46,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 pytest.xml
-
+*.volumes/
+*.node_modules/
 # ============================================
 # IDEs and Editors
 # ============================================

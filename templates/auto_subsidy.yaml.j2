@@ -1,0 +1,99 @@
+rule_id: {{ rule_id }}
+name: {{ name }}
+version: {{ version }}
+
+policy_source:
+  doc_id: {{ policy_source.doc_id | default(null) }}
+  title: "{{ policy_source.title }}"
+
+# ===== 时间窗口配置 =====
+windows:
+  time_basis: "{{ windows.time_basis }}"         # e.g. purchase_time / invoice_time / claim_time
+  purchase_window:
+    start: {{ windows.purchase_window.start | tojson }}
+    end: {{ windows.purchase_window.end | tojson }}
+  claim_window:
+    start: {{ windows.claim_window.start | tojson }}
+    end: {{ windows.claim_window.end | tojson }}
+  modify_window:
+    start: {{ windows.modify_window.start | tojson }}
+    end: {{ windows.modify_window.end | tojson }}
+
+# ===== 预算配置 =====
+budget:
+  total: {{ budget.total }}
+  currency: "{{ budget.currency }}"
+  allocation: "{{ budget.allocation }}"          # e.g. global / city / dealer
+
+# ===== 价格基准 =====
+price_basis: "{{ price_basis }}"                 # ex_tax / on_road / etc.
+
+# ===== 资格条件 =====
+eligibility:
+  buyer_type: "{{ eligibility.buyer_type }}"     # person/company/...
+  vehicle_scope: "{{ eligibility.vehicle_scope }}" # models/brands allowed
+  combinable_with_upper_policies: {{ eligibility.combinable_with_upper_policies | default(true) | tojson }}
+
+# ===== 分档匹配规则 =====
+matching:
+  powertrain_defs:
+    NEV: {{ matching.powertrain_defs.NEV | tojson }}
+    ICE: {{ matching.powertrain_defs.ICE | tojson }}
+
+  # open_interval 采用四种写法: "[]", "[)", "(]", "()"
+  tiers:
+{% for tier in matching.tiers %}
+    - powertrain: {{ tier.powertrain }}          # NEV / ICE
+      min_ex_tax: {{ tier.min_ex_tax }}
+      max_ex_tax: {{ tier.max_ex_tax | default(null) }}
+      open_interval: "{{ tier.open_interval | default('[)') }}"  # 默认左闭右开
+      subsidy: {{ tier.subsidy }}                # 定额金额（同币种）
+{% endfor %}
+
+# ===== 限制条件 =====
+limits:
+  per_person_max_cars: {{ limits.per_person_max_cars }}
+  dedupe_keys: {{ limits.dedupe_keys | tojson }} # ["vin","invoice_no","buyer_id"]
+
+# ===== 输入参数 =====
+inputs:
+  - name: invoice_no_tax
+    type: float
+    required: true
+    description: "不含税价，单位与 policy 一致"
+  - name: vehicle_type
+    type: string
+    required: false
+    description: "动力类型(NEV/ICE)。缺省则按 powertrain_defs 自动判定"
+  - name: purchase_time
+    type: string
+    required: true
+    description: "购车时间(ISO 8601)"
+  - name: claim_time
+    type: string
+    required: true
+    description: "申领时间(ISO 8601)"
+  - name: buyer_id
+    type: string
+    required: true
+    description: "申领人唯一标识"
+  - name: vin
+    type: string
+    required: false
+    description: "车架号(用于去重)"
+
+# ===== 计算逻辑 =====
+calc:
+  result: "dsl_helpers.auto_subsidy(inputs, windows, limits, matching, budget, eligibility, price_basis, user_state)"
+
+# ===== 输出配置 =====
+output:
+  status: "{{ '{{' }} calc.result.status {{ '}}' }}"
+  final_result: "{{ '{{' }} calc.result.subsidy {{ '}}' }}"
+  trace_template: |
+    - 动力类型：{{ '{{' }} calc.result.vehicle_type {{ '}}' }}
+    - 匹配档位：{{ '{{' }} (calc.result.tier.powertrain if calc.result.tier else '-') {{ '}}' }} / 区间 {{ '{{' }} (calc.result.tier.open_interval if calc.result.tier else '-') {{ '}}' }}
+    - 不含税价：{{ '{{' }} calc.result.invoice_no_tax {{ '}}' }}
+    - 档位范围：min={{ '{{' }} (calc.result.tier.min_ex_tax if calc.result.tier else '-') {{ '}}' }}, max={{ '{{' }} (calc.result.tier.max_ex_tax if calc.result.tier and calc.result.tier.max_ex_tax is not none else '∞') {{ '}}' }}
+    - 补贴金额：{{ '{{' }} calc.result.subsidy {{ '}}' }}
+    - 申领时间：{{ '{{' }} calc.result.claim_time {{ '}}' }}（购车：{{ '{{' }} calc.result.purchase_time {{ '}}' }}）

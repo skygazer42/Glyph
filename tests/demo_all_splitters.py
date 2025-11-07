@@ -36,7 +36,7 @@ print("="*70)
 # 初始化 LlamaIndex 全局设置
 if DASHSCOPE_API_KEY:
     try:
-        # 1. 配置 LLM (使用 DashScope 的 qwen-plus 模型)
+        #  配置 LLM (使用 DashScope 的 qwen-plus 模型)
         Settings.llm = OpenAI(
             model="qwen-plus",
             api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
