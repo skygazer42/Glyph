@@ -13,6 +13,12 @@ load_dotenv()
 
 class DatabaseSettings(BaseSettings):
     """数据库配置"""
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "extra": "allow"
+    }
+
     # Neo4j 知识图谱
     neo4j_uri: str = Field(default="bolt://localhost:7687", env="DATABASE__NEO4J_URI")
     neo4j_user: str = Field(default="neo4j", env="DATABASE__NEO4J_USER")
@@ -41,8 +47,14 @@ class ModelSettings(BaseSettings):
 
 class EmbeddingSettings(BaseSettings):
     """Embedding API 配置"""
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "extra": "allow"
+    }
+
     # Embedding 后端: openai, dashscope
-    backend: str = Field(default="openai", env="EMBEDDING_BACKEND")
+    backend: str = Field(default="openai", validation_alias="EMBEDDING_BACKEND")
 
     # OpenAI Embedding
     openai_api_key: Optional[str] = Field(default=None, env="EMBEDDING_OPENAI_API_KEY")

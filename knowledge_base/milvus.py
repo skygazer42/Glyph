@@ -99,11 +99,11 @@ class MilvusStore:
     def _create_collection(self):
         """Create Milvus collection with schema."""
         fields = [
-            FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=256),
+            FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=512),
             FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=self.embedding_dim),
-            FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=1024),
+            FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=2048),
             FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
-            FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=512),
+            FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=1024),
             FieldSchema(name="doc_type", dtype=DataType.VARCHAR, max_length=128),
         ]
 
@@ -134,11 +134,11 @@ class MilvusStore:
         entities = []
         for idx, doc in enumerate(documents):
             entities.append({
-                "id": str(doc.id),
+                "id": str(doc.id)[:512],  # 截断过长的ID
                 "embedding": embeddings[idx].tolist(),
-                "title": doc.title[:1024],
+                "title": doc.title[:2048],  # 增加到2048
                 "content": doc.content[:65535],
-                "source": doc.source[:512] if doc.source else "",
+                "source": doc.source[:1024] if doc.source else "",  # 增加到1024
                 "doc_type": doc.doc_type[:128] if doc.doc_type else "",
             })
 
@@ -185,11 +185,11 @@ class MilvusStore:
                     if hit.score >= threshold:
                         # 返回字典而不是 PolicyDocument 对象
                         doc = type('SimpleDoc', (), {
-                            'id': hit.entity.get("id"),
-                            'title': hit.entity.get("title", ""),
-                            'content': hit.entity.get("content", ""),
-                            'source': hit.entity.get("source", ""),
-                            'doc_type': hit.entity.get("doc_type", ""),
+                            'id': hit.entity.get('id') or hit.id,
+                            'title': hit.entity.get('title') or "",
+                            'content': hit.entity.get('content') or "",
+                            'source': hit.entity.get('source') or "",
+                            'doc_type': hit.entity.get('doc_type') or "",
                             'keywords': [],
                             'regions': [],
                             'target_groups': []
@@ -205,11 +205,11 @@ class MilvusStore:
             for hit in hits:
                 if hit.score >= threshold:
                     doc = PolicyDocument(
-                        id=hit.entity.get("id"),
-                        title=hit.entity.get("title", ""),
-                        content=hit.entity.get("content", ""),
-                        source=hit.entity.get("source", ""),
-                        doc_type=hit.entity.get("doc_type", "")
+                        id=hit.entity.get('id') or hit.id,
+                        title=hit.entity.get('title') or "",
+                        content=hit.entity.get('content') or "",
+                        source=hit.entity.get('source') or "",
+                        doc_type=hit.entity.get('doc_type') or ""
                     )
                     documents.append(doc)
                     scores.append(float(hit.score))
