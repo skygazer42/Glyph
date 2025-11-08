@@ -57,7 +57,7 @@ usage_limits:
 # ===== 平台信息 =====
 
 platform:
-  claim_platform: "None"
+  claim_platform: ""
   payment_methods: []
 
 

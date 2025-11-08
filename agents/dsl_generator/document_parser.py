@@ -3,11 +3,11 @@
 支持 .docx 和 .txt 格式的文档解析
 """
 
-import re
-import logging
-from pathlib import Path
-from typing import Dict, Any, List, Optional
 import json
+import logging
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +15,24 @@ logger = logging.getLogger(__name__)
 class DocumentParser:
     """文档解析器，支持多种格式"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        use_llama_index: bool = False,
+        llama_reader_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         self.supported_formats = ['.docx', '.txt', '.doc', '.pdf']
+        self.use_llama_index = use_llama_index
+        self.llama_reader_kwargs = llama_reader_kwargs or {}
+        self._llama_reader_cls = None
+
+        if self.use_llama_index:
+            try:
+                from llama_index.core import SimpleDirectoryReader
+                self._llama_reader_cls = SimpleDirectoryReader
+            except ImportError:
+                logger.warning("未安装 llama-index，改用内置解析器")
+                self.use_llama_index = False
+                self._llama_reader_cls = None
 
     def parse(self, file_path: str) -> str:
         """
@@ -35,6 +51,12 @@ class DocumentParser:
         suffix = path.suffix.lower()
         if suffix not in self.supported_formats:
             raise ValueError(f"不支持的文件格式: {suffix}")
+
+        if self.use_llama_index and self._llama_reader_cls:
+            try:
+                return self._parse_with_llama_reader(path)
+            except Exception as exc:
+                logger.warning("llama_index 解析失败，回退到内置解析器: %s", exc)
 
         if suffix == '.txt':
             return self._parse_txt(path)
@@ -284,3 +306,23 @@ class DocumentParser:
             })
 
         return rules
+
+    # ------------------------------------------------------------------
+    # LlamaIndex helpers
+    # ------------------------------------------------------------------
+
+    def _parse_with_llama_reader(self, path: Path) -> str:
+        """Use LlamaIndex SimpleDirectoryReader to extract text."""
+        if not self._llama_reader_cls:
+            raise RuntimeError("LlamaIndex 读取器未初始化")
+
+        reader = self._llama_reader_cls(
+            input_files=[str(path)],
+            filename_as_id=True,
+            recursive=False,
+            **self.llama_reader_kwargs,
+        )
+        documents = reader.load_data()
+        if not documents:
+            raise ValueError(f"llama_index 未能读取内容: {path}")
+        return "\n\n".join(getattr(doc, "text", "") for doc in documents if getattr(doc, "text", ""))
