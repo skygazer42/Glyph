@@ -84,7 +84,11 @@ async def generate_dsl(request: GenerateDSLRequest):
         print(f"DEBUG: DSL Data from extractor: {dsl_data}")
 
         # 生成YAML - 使用自动检测模板
-        yaml_content = dsl_generator.generate(dsl_data, auto_detect=True)
+        yaml_content = dsl_generator.generate(
+            dsl_data,
+            auto_detect=True,
+            context=processed.get('metadata', {})
+        )
 
         return {
             "success": True,

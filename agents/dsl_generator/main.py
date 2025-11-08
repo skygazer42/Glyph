@@ -115,7 +115,11 @@ class DSLPipeline:
 
             # 4. 生成 DSL YAML
             logger.info("步骤 4: 生成 DSL YAML")
-            yaml_content = self.generator.generate(dsl_data)
+            yaml_content = self.generator.generate(
+                dsl_data,
+                auto_detect=True,
+                context=processed.get('metadata', {})
+            )
             logger.info(f"  生成 YAML 长度: {len(yaml_content)} 字符")
 
             # 5. 保存文件

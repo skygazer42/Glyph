@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
+from .template_registry import TemplateRegistry
+
 logger = logging.getLogger(__name__)
 
 
@@ -104,8 +106,16 @@ output:
         # 内置模板
         self.builtin_template = self.env.from_string(self.DSL_TEMPLATE)
         self.template = self.builtin_template
+        self.template_registry = TemplateRegistry(self.template_dir)
 
-    def generate(self, data: Dict[str, Any], validate: bool = True, template_name: Optional[str] = None, auto_detect: bool = False) -> str:
+    def generate(
+        self,
+        data: Dict[str, Any],
+        validate: bool = True,
+        template_name: Optional[str] = None,
+        auto_detect: bool = False,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """
         生成 DSL YAML
 
@@ -118,14 +128,19 @@ output:
         Returns:
             生成的 YAML 字符串
         """
-        # 预处理数据
+        # 预处理结构化数据
         processed_data = self._preprocess_data(data)
 
-        # 自动检测模板类型
+        template_profile = None
+
         if auto_detect and not template_name:
-            template_name = self.detect_template_type(processed_data)
-            if template_name:
-                logger.info(f"自动检测到模板类型: {template_name}")
+            template_profile = self.template_registry.detect(processed_data, context)
+            if template_profile:
+                template_name = template_profile.template_name
+                logger.info(f"自动检测到模板类型: {template_profile.name}")
+
+        if template_name and not template_profile:
+            template_profile = self.template_registry.get_profile_by_template(template_name)
 
         # 选择模板
         if template_name:
@@ -135,9 +150,13 @@ output:
             except jinja2.TemplateNotFound:
                 logger.warning(f"模板文件不存在: {template_name}, 使用内置模板")
                 self.template = self.builtin_template
+                template_profile = None
         else:
             self.template = self.builtin_template
             logger.info("使用内置模板")
+
+        # 模板默认值补齐
+        processed_data = self.template_registry.apply_defaults(processed_data, template_profile)
 
         # 生成 YAML
         yaml_content = self._render_template(processed_data)
@@ -167,6 +186,16 @@ output:
             processed['policy_source']['doc_id'] = processed.pop('doc_id')
         if 'title' in processed:
             processed['policy_source']['title'] = processed.pop('title')
+
+        # 统一规则元数据
+        if not processed.get('name'):
+            processed['name'] = processed['policy_source'].get('title') or processed['rule_id']
+        if not processed.get('version'):
+            processed['version'] = '1.0'
+        if processed.get('template_hint') and 'policy_type' not in processed:
+            processed['policy_type'] = processed['template_hint']
+        if processed.get('policy_type') and 'template_hint' not in processed:
+            processed['template_hint'] = processed['policy_type']
         if 'clause' in processed:
             processed['policy_source']['clause'] = processed.pop('clause')
 
@@ -185,6 +214,9 @@ output:
             processed['valid_period']['start'] = processed.pop('valid_start')
         if 'valid_end' in processed:
             processed['valid_period']['end'] = processed.pop('valid_end')
+
+        processed['valid_period'].setdefault('start', None)
+        processed['valid_period'].setdefault('end', None)
 
         # 处理输入变量
         if 'inputs' not in processed:
@@ -257,31 +289,12 @@ output:
 
         return processed
 
-    def detect_template_type(self, data: Dict[str, Any]) -> Optional[str]:
+    def detect_template_type(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """
-        根据数据自动检测应该使用的模板类型
-
-        Args:
-            data: 结构化数据
-
-        Returns:
-            模板文件名,如果无法确定则返回None
+        根据数据和上下文自动检测最匹配的模板类型。
         """
-        title = data.get('title', '') or data.get('policy_source', {}).get('title', '') or ''
-
-        # 根据标题关键词判断模板类型
-        if any(keyword in title for keyword in ['消费券', '优惠券', '代金券', '零售', '餐饮']):
-            return 'consumer_coupon.yaml.j2'
-        elif any(keyword in title for keyword in ['汽车', '购车', '新车', '车辆']):
-            return 'auto_subsidy.yaml.j2'
-        elif any(keyword in title for keyword in ['家电', '以旧换新', '空调', '冰箱', '电视']):
-            return 'appliance_subsidy.yaml.j2'
-
-        # 根据数据结构特征判断
-        if 'coupon_types' in data or 'distribution' in data:
-            return 'consumer_coupon.yaml.j2'
-
-        return None
+        profile = self.template_registry.detect(data, context)
+        return profile.template_name if profile else None
 
     def _render_template(self, data: Dict[str, Any]) -> str:
         """渲染模板生成 YAML"""

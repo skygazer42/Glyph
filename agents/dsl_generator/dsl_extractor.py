@@ -365,9 +365,14 @@ class DSLExtractor:
 
         # 根据提取的信息改进 rule_id
         city = self._extract_city(text)
-        policy_type = self._extract_policy_type(text)
+        policy_label = self._extract_policy_type(text)
         year = datetime.now().year
-        result['rule_id'] = f"Rule_{city}_{policy_type}_{year}"
+        result['rule_id'] = f"Rule_{city}_{policy_label}_{year}"
+        result['name'] = result.get('title') or result['rule_id']
+        result['version'] = '1.0'
+        domain_hint = self._detect_policy_type(text)
+        result['policy_type'] = domain_hint
+        result['template_hint'] = domain_hint
 
         # 添加输出配置
         result['output'] = {
@@ -380,6 +385,17 @@ class DSLExtractor:
 
     def _parse_response(self, response: str, original_text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """解析 LLM 响应"""
+        metadata = metadata or {}
+
+        def normalize_date(value: Optional[str]) -> Optional[str]:
+            if not value:
+                return None
+            digits = re.findall(r'\d+', value)
+            if len(digits) >= 3:
+                year, month, day = digits[:3]
+                return f"{year}-{int(month):02d}-{int(day):02d}"
+            return None
+
         try:
             # 尝试解析 JSON
             data = json.loads(response)
@@ -405,6 +421,10 @@ class DSLExtractor:
 
         # 检测政策类型并补充必要字段
         policy_type = self._detect_policy_type(original_text)
+        if 'policy_type' not in data:
+            data['policy_type'] = policy_type
+        if 'template_hint' not in data:
+            data['template_hint'] = policy_type
 
         if policy_type == 'appliance':
             # 家电补贴必要字段
@@ -460,6 +480,29 @@ class DSLExtractor:
             data['policy_source'] = {}
         if 'valid_period' not in data:
             data['valid_period'] = {}
+
+        policy_source = data['policy_source']
+        if metadata.get('doc_id') and not policy_source.get('doc_id'):
+            policy_source['doc_id'] = metadata['doc_id']
+        if metadata.get('title') and not policy_source.get('title'):
+            policy_source['title'] = metadata['title']
+        if metadata.get('clause') and not policy_source.get('clause'):
+            policy_source['clause'] = metadata['clause']
+
+        if not data.get('name'):
+            data['name'] = policy_source.get('title') or data['rule_id']
+        if not data.get('version'):
+            data['version'] = metadata.get('version') or '1.0'
+
+        valid_period = data['valid_period']
+        meta_dates = metadata.get('dates') or []
+        if meta_dates:
+            start_hint = normalize_date(meta_dates[0])
+            if start_hint and not valid_period.get('start'):
+                valid_period['start'] = start_hint
+            end_hint = normalize_date(meta_dates[-1])
+            if end_hint and not valid_period.get('end'):
+                valid_period['end'] = end_hint
 
         # 确保 inputs 是正确格式的列表
         if 'inputs' in data and isinstance(data['inputs'], list):
