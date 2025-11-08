@@ -1,0 +1,51 @@
+{
+  "rule_id": "Rule_Test_Consumer_Coupon",
+  "status": "QUALIFIED",
+  "final_result": "40.0",
+  "policy_source": {
+    "doc_id": "test_doc_001",
+    "title": "2025年济南市零售餐饮消费券发放活动"
+  },
+  "explainability_trace": [
+    {
+      "step": 1,
+      "description": "消费金额：¥{{ calc.result.amount }}"
+    },
+    {
+      "step": 2,
+      "description": "券种类型：{{ calc.result.coupon_type }}"
+    },
+    {
+      "step": 3,
+      "description": "命中档位：{{ (calc.result.tier.name if (calc.result.tier and calc.result.tier.name) else (calc.result.tier.type if calc.result.tier else '-')) }}"
+    },
+    {
+      "step": 4,
+      "description": "门槛/优惠：{{ (calc.result.tier.threshold if calc.result.tier else '-') }} / {{ (calc.result.tier.discount if calc.result.tier else '-') }}{{ (' (封顶¥'+str(calc.result.tier.cap)+')' if (calc.result.tier and calc.result.tier.cap is not none) else '' ) }}"
+    },
+    {
+      "step": 5,
+      "description": "优惠金额：¥{{ calc.result.discount }}，实付：¥{{ calc.result.final_amount }}"
+    },
+    {
+      "step": 6,
+      "description": "到期时间：{{ calc.result.expire_at }}"
+    }
+  ],
+  "calculation_details": {
+    "result": {
+      "amount": 250.0,
+      "coupon_type": "AMOUNT",
+      "discount": 40.0,
+      "final_amount": 210.0,
+      "tier": {
+        "type": "AMOUNT",
+        "threshold": 200,
+        "discount": 40,
+        "name": "满200减40"
+      },
+      "expire_at": "2025-03-03T10:00:00+00:00",
+      "status": "QUALIFIED"
+    }
+  }
+}

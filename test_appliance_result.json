@@ -1,0 +1,34 @@
+{
+  "rule_id": "Rule_济南_家电补贴_2025",
+  "status": "",
+  "final_result": "",
+  "policy_source": {
+    "doc_id": "济商务字〔2025〕88号",
+    "title": "济南市2025年家电消费补贴实施方案"
+  },
+  "explainability_trace": [
+    {
+      "step": 1,
+      "description": "商品价格：¥{{ calc.result.price }}"
+    },
+    {
+      "step": 2,
+      "description": "能效等级：{{ ('无' if calc.result.energy_level in (None, 0) else (str(calc.result.energy_level) + '级')) }}"
+    },
+    {
+      "step": 3,
+      "description": "补贴比例：{{ (calc.result.rate * 100) }}%"
+    },
+    {
+      "step": 4,
+      "description": "原始补贴：¥{{ calc.result.raw_subsidy }}"
+    },
+    {
+      "step": 5,
+      "description": "封顶后补贴：¥{{ calc.result.final_subsidy }}"
+    }
+  ],
+  "calculation_details": {
+    "result": "dsl_helpers.appliance_subsidy(inputs, efficiency_rates, per_item_cap, category_limits, rule.get('special_rules', {}), user_state)"
+  }
+}

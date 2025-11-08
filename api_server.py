@@ -37,13 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 初始化模块（确保使用正确的环境变量）
-dsl_generator = DSLGenerator(output_dir="rules")
-# 传递 API 密钥和基础 URL 给 DSLExtractor
-dsl_extractor = DSLExtractor(
-    api_key=os.getenv("LLM_API_KEY"),
-    api_base=os.getenv("LLM_BASE_URL")
-)
+# 初始化模块（使用项目配置）
+dsl_generator = DSLGenerator(output_dir="rules", template_dir="templates")
+dsl_extractor = DSLExtractor(use_project_config=True)
 doc_parser = DocumentParser()
 policy_engine = PolicyEngine(rule_dir="rules")
 
@@ -87,8 +83,8 @@ async def generate_dsl(request: GenerateDSLRequest):
         # 添加调试日志
         print(f"DEBUG: DSL Data from extractor: {dsl_data}")
 
-        # 生成YAML
-        yaml_content = dsl_generator.generate(dsl_data)
+        # 生成YAML - 使用自动检测模板
+        yaml_content = dsl_generator.generate(dsl_data, auto_detect=True)
 
         return {
             "success": True,

@@ -72,35 +72,72 @@ output:
   {% endif %}
 """
 
-    def __init__(self, output_dir: str = "rules"):
+    def __init__(self, output_dir: str = "rules", template_dir: str = "templates"):
         """
         初始化 DSL 生成器
 
         Args:
             output_dir: DSL 文件输出目录
+            template_dir: Jinja2模板目录
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
-        self.env = jinja2.Environment(
-            loader=jinja2.BaseLoader(),
-            autoescape=False,
-            undefined=jinja2.ChainableUndefined
-        )
-        self.template = self.env.from_string(self.DSL_TEMPLATE)
 
-    def generate(self, data: Dict[str, Any], validate: bool = True) -> str:
+        self.template_dir = Path(template_dir)
+
+        # 设置Jinja2环境,支持加载外部模板
+        if self.template_dir.exists():
+            self.env = jinja2.Environment(
+                loader=jinja2.FileSystemLoader(str(self.template_dir)),
+                autoescape=False,
+                undefined=jinja2.ChainableUndefined
+            )
+            logger.info(f"使用外部模板目录: {self.template_dir}")
+        else:
+            self.env = jinja2.Environment(
+                loader=jinja2.BaseLoader(),
+                autoescape=False,
+                undefined=jinja2.ChainableUndefined
+            )
+            logger.warning(f"模板目录不存在: {self.template_dir}, 使用内置模板")
+
+        # 内置模板
+        self.builtin_template = self.env.from_string(self.DSL_TEMPLATE)
+        self.template = self.builtin_template
+
+    def generate(self, data: Dict[str, Any], validate: bool = True, template_name: Optional[str] = None, auto_detect: bool = False) -> str:
         """
         生成 DSL YAML
 
         Args:
             data: 结构化数据
             validate: 是否验证生成的 DSL
+            template_name: 外部模板文件名(如 "consumer_coupon.yaml.j2"),如果为None则使用内置模板
+            auto_detect: 是否自动检测模板类型
 
         Returns:
             生成的 YAML 字符串
         """
         # 预处理数据
         processed_data = self._preprocess_data(data)
+
+        # 自动检测模板类型
+        if auto_detect and not template_name:
+            template_name = self.detect_template_type(processed_data)
+            if template_name:
+                logger.info(f"自动检测到模板类型: {template_name}")
+
+        # 选择模板
+        if template_name:
+            try:
+                self.template = self.env.get_template(template_name)
+                logger.info(f"使用外部模板: {template_name}")
+            except jinja2.TemplateNotFound:
+                logger.warning(f"模板文件不存在: {template_name}, 使用内置模板")
+                self.template = self.builtin_template
+        else:
+            self.template = self.builtin_template
+            logger.info("使用内置模板")
 
         # 生成 YAML
         yaml_content = self._render_template(processed_data)
@@ -219,6 +256,32 @@ output:
                         processed['calc'][key] = '\n'.join(value)
 
         return processed
+
+    def detect_template_type(self, data: Dict[str, Any]) -> Optional[str]:
+        """
+        根据数据自动检测应该使用的模板类型
+
+        Args:
+            data: 结构化数据
+
+        Returns:
+            模板文件名,如果无法确定则返回None
+        """
+        title = data.get('title', '') or data.get('policy_source', {}).get('title', '') or ''
+
+        # 根据标题关键词判断模板类型
+        if any(keyword in title for keyword in ['消费券', '优惠券', '代金券', '零售', '餐饮']):
+            return 'consumer_coupon.yaml.j2'
+        elif any(keyword in title for keyword in ['汽车', '购车', '新车', '车辆']):
+            return 'auto_subsidy.yaml.j2'
+        elif any(keyword in title for keyword in ['家电', '以旧换新', '空调', '冰箱', '电视']):
+            return 'appliance_subsidy.yaml.j2'
+
+        # 根据数据结构特征判断
+        if 'coupon_types' in data or 'distribution' in data:
+            return 'consumer_coupon.yaml.j2'
+
+        return None
 
     def _render_template(self, data: Dict[str, Any]) -> str:
         """渲染模板生成 YAML"""

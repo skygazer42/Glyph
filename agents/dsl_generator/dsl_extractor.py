@@ -66,36 +66,171 @@ class DSLExtractor:
 
     def _build_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """构建 LLM 提示词"""
-        prompt = f"""你是一名政策规则工程师，任务是将自然语言政策文本，结构化提取为 JSON 格式的政策数据。
+        # 先检测政策类型
+        policy_type = self._detect_policy_type(text)
 
-请从以下政策文本中提取关键信息，并返回 JSON 格式：
+        if policy_type == 'appliance':
+            return self._build_appliance_prompt(text, metadata)
+        elif policy_type == 'auto':
+            return self._build_auto_prompt(text, metadata)
+        else:
+            return self._build_coupon_prompt(text, metadata)
+
+    def _detect_policy_type(self, text: str) -> str:
+        """检测政策类型"""
+        if any(keyword in text for keyword in ['家电', '以旧换新', '空调', '冰箱', '电视', '洗衣机', '能效']):
+            return 'appliance'
+        elif any(keyword in text for keyword in ['汽车', '购车', '新车', '车辆', '发票']):
+            return 'auto'
+        else:
+            return 'coupon'
+
+    def _build_appliance_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """构建家电补贴提示词"""
+        prompt = f"""你是一名政策规则工程师，任务是将家电补贴政策文本提取为JSON格式。
+
+请从以下政策文本中提取关键信息：
 
 ### 需要提取的字段：
-1. rule_id: 规则ID（格式：Rule_[城市]_[类型]_[年份]）
-2. doc_id: 文档编号
-3. title: 政策标题
-4. clause: 条款位置
-5. valid_start: 开始时间（YYYY-MM-DD）
-6. valid_end: 结束时间（YYYY-MM-DD）
-7. inputs: 输入变量列表
-8. limits: 限额限制
-9. tiers: 分档信息
-10. calc: 计算逻辑
-11. conditions: 条件判断
-12. result: 结果输出
+
+**基本信息:**
+1. rule_id: 规则ID（格式：Rule_[城市]_家电补贴_[年份]）
+2. name: 规则简短名称
+3. version: 版本号（默认 "1.0"）
+4. policy_source: {{doc_id, title}}
+
+**有效期:**
+5. valid_period: {{start, end}} (YYYY-MM-DD格式)
+
+**能效补贴率:**
+6. efficiency_rates: 能效补贴率配置
+   - base_rate: 基础补贴率（二级能效，如0.15表示15%）
+   - level_1_bonus: 一级能效额外补贴（如0.05表示额外5%）
+   - no_label_rate: 无能效标识补贴率（如0.10）
+
+**类别限额:**
+7. category_limits: 类别限制
+   - per_category: 每个类别的限购数量，如 {{"空调": 3, "冰箱": 2, "其他": 1}}
+   - total_items: 总限购数量（可选）
+
+**单品补贴上限:**
+8. per_item_cap: 单件商品最高补贴金额（数值，如2000）
+
+**输入参数:**
+9. inputs:
+   - price (float, required): 商品销售价格
+   - energy_level (integer, optional): 能效等级(1/2/null)
+   - category (string, required): 家电类别
 
 ### 政策文本：
 {text}
 
-### 额外信息：
-{json.dumps(metadata or {}, ensure_ascii=False, indent=2)}
+### 输出要求：
+1. 严格返回 JSON 格式
+2. 百分比转换为小数（如15%→0.15）
+3. 金额为数值类型
+4. 类别限额要提取每个类别的具体数量
+
+### 输出 JSON：
+"""
+        return prompt
+
+    def _build_auto_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """构建汽车补贴提示词"""
+        prompt = f"""你是一名政策规则工程师，任务是将汽车补贴政策文本提取为JSON格式。
+
+请从以下政策文本中提取关键信息：
+
+### 需要提取的字段：
+
+**基本信息:**
+1. rule_id, name, version, policy_source
+
+**有效期:**
+2. valid_period: {{start, end}}
+
+**分档信息:**
+3. tiers: 价格分档，每档包含:
+   - range: [最低价, 最高价] (最高价可以是null表示无上限)
+   - subsidy: 该档位的补贴金额
+   - name: 档位名称（可选）
+
+**输入参数:**
+4. inputs:
+   - invoice_no_tax (float, required): 发票不含税价格
+   - vehicle_type (string, required): 车辆类型
+
+### 政策文本：
+{text}
+
+### 输出 JSON：
+"""
+        return prompt
+
+    def _build_coupon_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """构建消费券提示词"""
+        prompt = f"""你是一名政策规则工程师，任务是将消费券政策文本提取为JSON格式。
+
+请从以下政策文本中提取关键信息：
+
+### 需要提取的字段：
+
+**基本信息:**
+1. rule_id: 规则ID（格式：Rule_[城市]_消费券_[年份]）
+2. name: 规则简短名称
+3. version: 版本号（默认 "1.0"）
+4. policy_source: {{doc_id, title}}
+
+**有效期:**
+5. valid_period: {{start, end}} (YYYY-MM-DD格式)
+
+**券种类型:**
+6. coupon_types: ["AMOUNT"] 或 ["PERCENT"]
+
+**分档信息:**
+7. tiers: 分档列表，每个档位:
+   - type: AMOUNT 或 PERCENT
+   - threshold: 门槛金额
+   - discount: 优惠金额或折扣比例
+   - name: 档位名称
+   - cap: 封顶金额（PERCENT类型可选）
+
+**发放规则:**
+8. distribution:
+   - method: auto_claim/manual/code
+   - total_quota: 总额度
+   - quota_per_person: 每人限领数量
+
+**使用限制:**
+9. usage_limits:
+   - valid_days: 有效天数
+   - merchant_scope: 商户范围
+   - product_scope: 商品范围
+   - stacking: {{with_merchant_discount, with_other_coupons}}
+
+**平台信息:**
+10. platform:
+   - claim_platform: 领取平台
+   - payment_methods: 支付方式列表
+
+**输入参数:**
+11. inputs:
+   - consumption_amount (float, required): 消费金额
+   - coupon_type (string, required): 券种类型
+   - claim_time (string, required): 使用时间
+   - user_id (string, required): 用户ID
+   - merchant_id (string, optional): 商户ID
+   - product_id (string, optional): 商品ID
+   - using_other_coupon (boolean, optional): 是否使用其他券
+   - has_merchant_discount (boolean, optional): 是否叠加商户优惠
+
+### 政策文本：
+{text}
 
 ### 输出要求：
-1. 严格返回 JSON 格式，不要包含任何其他说明
-2. 金额单位统一为"元"
-3. 百分比转换为小数（如 15% -> 0.15）
-4. 时间格式为 YYYY-MM-DD
-5. 如果某个字段无法确定，使用 null 值
+1. 严格返回 JSON 格式
+2. 百分比转换为小数（如15%→0.15）
+3. inputs中的type要准确
 
 ### 输出 JSON：
 """
@@ -268,55 +403,80 @@ class DSLExtractor:
             year = datetime.now().year
             data['rule_id'] = f"Rule_{city}_{policy_type}_{year}"
 
-        # 确保必要字段存在
-        required_fields = ['doc_id', 'title', 'inputs', 'limits', 'calc', 'output']
-        for field in required_fields:
-            if field not in data:
-                if field == 'inputs':
-                    data[field] = [
-                        {"name": "price", "type": "float", "required": True},
-                        {"name": "category", "type": "string", "required": True}
-                    ]
-                elif field in ['limits', 'calc']:
-                    data[field] = {}
-                elif field == 'output':
-                    data[field] = {
-                        'status': 'QUALIFIED',
-                        'final_result': '{{ result }}',
-                        'trace_template': ''
-                    }
-                else:
-                    data[field] = None
+        # 检测政策类型并补充必要字段
+        policy_type = self._detect_policy_type(original_text)
 
-        # 确保 inputs 是列表，每个元素是字典
-        if 'inputs' in data:
-            if isinstance(data['inputs'], list):
-                # 修复每个输入变量，确保是字典
-                fixed_inputs = []
-                for inp in data['inputs']:
-                    if isinstance(inp, dict):
-                        # 确保有必要的字段
-                        if 'name' in inp and 'type' in inp:
-                            if 'required' not in inp:
-                                inp['required'] = True
-                            fixed_inputs.append(inp)
-                    elif isinstance(inp, str):
-                        # 如果是字符串，尝试转换为字典
-                        fixed_inputs.append({
-                            'name': inp,
-                            'type': 'string',
-                            'required': True
-                        })
-                data['inputs'] = fixed_inputs if fixed_inputs else [
-                    {"name": "price", "type": "float", "required": True},
-                    {"name": "category", "type": "string", "required": True}
-                ]
-            else:
-                # 如果不是列表，设为默认值
+        if policy_type == 'appliance':
+            # 家电补贴必要字段
+            if 'efficiency_rates' not in data:
+                data['efficiency_rates'] = {
+                    'base_rate': 0.15,
+                    'level_1_bonus': 0.05,
+                    'no_label_rate': 0.10
+                }
+            if 'category_limits' not in data:
+                data['category_limits'] = {
+                    'per_category': {},
+                    'total_items': None
+                }
+            if 'per_item_cap' not in data:
+                data['per_item_cap'] = 2000
+
+            # 确保inputs正确
+            if 'inputs' not in data or not data['inputs']:
                 data['inputs'] = [
-                    {"name": "price", "type": "float", "required": True},
-                    {"name": "category", "type": "string", "required": True}
+                    {'name': 'price', 'type': 'float', 'required': True, 'description': '商品销售价格'},
+                    {'name': 'energy_level', 'type': 'integer', 'required': False, 'description': '能效等级(1/2/null)'},
+                    {'name': 'category', 'type': 'string', 'required': True, 'description': '家电类别'}
                 ]
+
+        elif policy_type == 'coupon':
+            # 消费券必要字段
+            required_fields = ['coupon_types', 'tiers', 'distribution', 'usage_limits', 'platform']
+            for field in required_fields:
+                if field not in data:
+                    if field == 'coupon_types':
+                        data[field] = ['AMOUNT']
+                    elif field == 'tiers':
+                        data[field] = []
+                    elif field == 'distribution':
+                        data[field] = {'method': 'auto_claim', 'total_quota': None, 'quota_per_person': None}
+                    elif field == 'usage_limits':
+                        data[field] = {'valid_days': 30, 'merchant_scope': None, 'product_scope': None, 'stacking': {}}
+                    elif field == 'platform':
+                        data[field] = {'claim_platform': None, 'payment_methods': []}
+
+            # 确保inputs正确
+            if 'inputs' not in data or not data['inputs']:
+                data['inputs'] = [
+                    {'name': 'consumption_amount', 'type': 'float', 'required': True},
+                    {'name': 'coupon_type', 'type': 'string', 'required': True},
+                    {'name': 'claim_time', 'type': 'string', 'required': True},
+                    {'name': 'user_id', 'type': 'string', 'required': True}
+                ]
+
+        # 确保基本字段存在
+        if 'policy_source' not in data:
+            data['policy_source'] = {}
+        if 'valid_period' not in data:
+            data['valid_period'] = {}
+
+        # 确保 inputs 是正确格式的列表
+        if 'inputs' in data and isinstance(data['inputs'], list):
+            fixed_inputs = []
+            for inp in data['inputs']:
+                if isinstance(inp, dict) and 'name' in inp and 'type' in inp:
+                    if 'required' not in inp:
+                        inp['required'] = True
+                    fixed_inputs.append(inp)
+                elif isinstance(inp, str):
+                    fixed_inputs.append({
+                        'name': inp,
+                        'type': 'string',
+                        'required': True
+                    })
+            if fixed_inputs:
+                data['inputs'] = fixed_inputs
 
         return data
 
