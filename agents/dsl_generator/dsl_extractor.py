@@ -1,4 +1,4 @@
-"""
+﻿"""
 DSL 提取器模块（优化版）
 使用项目配置中的 LLM 从政策文本中提取结构化信息并生成 DSL
 """
@@ -76,14 +76,17 @@ class DSLExtractor:
         else:
             return self._build_coupon_prompt(text, metadata)
 
+
     def _detect_policy_type(self, text: str) -> str:
         """检测政策类型"""
-        if any(keyword in text for keyword in ['家电', '以旧换新', '空调', '冰箱', '电视', '洗衣机', '能效']):
+        if any(keyword in text for keyword in ['家电', '以旧换新', '能效', '空调', '冰箱', '洗衣机']):
             return 'appliance'
-        elif any(keyword in text for keyword in ['汽车', '购车', '新车', '车辆', '发票']):
-            return 'auto'
-        else:
+        if any(keyword in text for keyword in ['消费券', '消费', '零售', '餐饮', '优惠券']):
             return 'coupon'
+        if any(keyword in text for keyword in ['汽车', '购车', '乘用车', '车辆', '发票']):
+            return 'auto'
+        return 'coupon'
+
 
     def _build_appliance_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """构建家电补贴提示词"""
@@ -474,6 +477,15 @@ class DSLExtractor:
                     {'name': 'claim_time', 'type': 'string', 'required': True},
                     {'name': 'user_id', 'type': 'string', 'required': True}
                 ]
+            needs_tiers = not data.get('tiers') or any(
+                isinstance(tier, dict) and 'discount' not in tier for tier in data.get('tiers', [])
+            )
+            if needs_tiers:
+                parsed_tiers = self._extract_coupon_tiers(original_text)
+                if parsed_tiers:
+                    data['tiers'] = parsed_tiers
+            if not data.get('coupon_types'):
+                data['coupon_types'] = ['AMOUNT']
 
         # 确保基本字段存在
         if 'policy_source' not in data:
@@ -503,6 +515,16 @@ class DSLExtractor:
             end_hint = normalize_date(meta_dates[-1])
             if end_hint and not valid_period.get('end'):
                 valid_period['end'] = end_hint
+        start_val = valid_period.get('start')
+        end_val = valid_period.get('end')
+        if start_val and end_val:
+            try:
+                start_dt = datetime.strptime(start_val, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_val, '%Y-%m-%d')
+                if start_dt > end_dt:
+                    valid_period['start'], valid_period['end'] = valid_period['end'], valid_period['start']
+            except ValueError:
+                pass
 
         # 确保 inputs 是正确格式的列表
         if 'inputs' in data and isinstance(data['inputs'], list):
@@ -531,20 +553,48 @@ class DSLExtractor:
                 return city
         return 'Unknown'
 
+    def _extract_coupon_tiers(self, text: str) -> List[Dict[str, Any]]:
+        """Parse patterns such as 满100减20 to build coupon tiers."""
+        pattern = r'(?:满)?(\d+(?:\.\d+)?)\s*元?\s*(?:减|抵)(\d+(?:\.\d+)?)\s*元'
+        tiers: List[Dict[str, Any]] = []
+        seen = set()
+        for match in re.finditer(pattern, text):
+            threshold = float(match.group(1))
+            discount = float(match.group(2))
+            key = (threshold, discount)
+            if key in seen:
+                continue
+            seen.add(key)
+            name = None
+            if threshold.is_integer() and discount.is_integer():
+                name = f"满{int(threshold)}减{int(discount)}"
+            tiers.append({
+                "type": "AMOUNT",
+                "threshold": threshold,
+                "discount": discount,
+                "name": name
+            })
+        return tiers
+
+
     def _extract_policy_type(self, text: str) -> str:
         """提取政策类型"""
-        types = {
-            '家电': 'Appliance',
-            '汽车': 'Car',
-            '消费': 'Consumption',
-            '以旧换新': 'TradeIn',
-            '补贴': 'Subsidy',
-            '优惠': 'Discount'
-        }
-        for keyword, policy_type in types.items():
-            if keyword in text:
-                return policy_type
+        checks = [
+            (['消费券', '代金券', '优惠券'], 'Consumption'),
+            (['家电', '以旧换新', '能效', '空调', '冰箱'], 'Appliance'),
+            (['汽车', '购车', '乘用车', '车辆', '新车'], 'Car'),
+            (['消费', '零售', '餐饮', '促销'], 'Consumption'),
+            (['以旧换新'], 'TradeIn'),
+            (['补贴'], 'Subsidy'),
+            (['优惠', '折扣'], 'Discount'),
+        ]
+        for keywords, label in checks:
+            for keyword in keywords:
+                if keyword in text:
+                    return label
         return 'General'
+
+
 
     def validate_dsl(self, dsl_data: Dict[str, Any]) -> List[str]:
         """
@@ -583,3 +633,4 @@ class DSLExtractor:
                     errors.append(f"{field} 日期格式错误，应为 YYYY-MM-DD")
 
         return errors
+

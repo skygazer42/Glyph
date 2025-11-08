@@ -1,0 +1,131 @@
+rule_id: Rule_济南_Car_2025
+name: 消费券发放活动公告
+version: 1.0
+
+policy_source:
+  doc_id: None
+  title: "消费券发放活动公告"
+
+# ===== 有效期 =====
+valid_period:
+  start: "2025-01-25"
+  end: "2025-04-30"
+
+# ===== 券种类型 =====
+coupon_types: ["AMOUNT"]   # 例如 ["AMOUNT","PERCENT"]
+
+# ===== 满减/折扣档位 =====
+tiers:
+
+  - type: AMOUNT                   # AMOUNT: 满减; PERCENT: 折扣
+    threshold: 100.0         # 门槛
+    discount: None           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
+       # PERCENT可选封顶金额
+    
+
+  - type: AMOUNT                   # AMOUNT: 满减; PERCENT: 折扣
+    threshold: 200.0         # 门槛
+    discount: None           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
+       # PERCENT可选封顶金额
+    
+
+  - type: AMOUNT                   # AMOUNT: 满减; PERCENT: 折扣
+    threshold: 300.0         # 门槛
+    discount: None           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
+       # PERCENT可选封顶金额
+    
+
+  - type: AMOUNT                   # AMOUNT: 满减; PERCENT: 折扣
+    threshold: 100.0         # 门槛
+    discount: None           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
+       # PERCENT可选封顶金额
+    
+
+  - type: AMOUNT                   # AMOUNT: 满减; PERCENT: 折扣
+    threshold: 200.0         # 门槛
+    discount: None           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
+       # PERCENT可选封顶金额
+    
+
+  - type: AMOUNT                   # AMOUNT: 满减; PERCENT: 折扣
+    threshold: 300.0         # 门槛
+    discount: None           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
+       # PERCENT可选封顶金额
+    
+
+
+# ===== 发放规则 =====
+distribution:
+  method: "auto_claim"        # auto_claim / manual / code
+  total_quota: None
+  quota_per_person: None
+  
+
+# ===== 使用限制 =====
+usage_limits:
+  valid_days: 30
+  merchant_scope: "参与活动商户"
+  product_scope: "全部商品"
+  
+  
+  stacking:
+    with_merchant_discount: true
+    with_other_coupons: true
+
+# ===== 平台信息 =====
+
+platform:
+  claim_platform: "None"
+  payment_methods: []
+
+
+# ===== 输入参数 =====
+inputs:
+  - name: consumption_amount
+    type: float
+    required: true
+    description: "消费金额(>=0)"
+  - name: coupon_type
+    type: string
+    required: true
+    description: "券种类型，见 coupon_types"
+  - name: claim_time
+    type: string
+    required: true
+    description: "使用/核销时间(ISO 8601)"
+  - name: user_id
+    type: string
+    required: true
+    description: "用户ID(限额/去重)"
+  - name: merchant_id
+    type: string
+    required: false
+    description: "商户ID(范围校验)"
+  - name: product_id
+    type: string
+    required: false
+    description: "商品ID(范围校验)"
+  - name: using_other_coupon
+    type: boolean
+    required: false
+    description: "本单是否同时使用其他优惠券"
+  - name: has_merchant_discount
+    type: boolean
+    required: false
+    description: "本单是否叠加商户促销"
+
+# ===== 计算逻辑 =====
+calc:
+  result: "dsl_helpers.consumer_coupon(inputs, valid_period, tiers, distribution, usage_limits, coupon_types, user_state)"
+
+# ===== 输出配置 =====
+output:
+  status: "{{ calc.result.status }}"
+  final_result: "{{ calc.result.discount }}"
+  trace_template: |
+    - 消费金额：¥{{ calc.result.amount }}
+    - 券种类型：{{ calc.result.coupon_type }}
+    - 命中档位：{{ (calc.result.tier.name if (calc.result.tier and calc.result.tier.name) else (calc.result.tier.type if calc.result.tier else '-')) }}
+    - 门槛/优惠：{{ (calc.result.tier.threshold if calc.result.tier else '-') }} / {{ (calc.result.tier.discount if calc.result.tier else '-') }}{{ (' (封顶¥'+str(calc.result.tier.cap)+')' if (calc.result.tier and calc.result.tier.cap is not none) else '' ) }}
+    - 优惠金额：¥{{ calc.result.discount }}，实付：¥{{ calc.result.final_amount }}
+    - 到期时间：{{ calc.result.expire_at }}

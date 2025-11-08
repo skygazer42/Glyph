@@ -34,6 +34,16 @@ class PolicyEngine:
             loader=jinja2.BaseLoader(),
             autoescape=False
         )
+        self.env.globals.update({
+            'str': str,
+            'int': int,
+            'float': float,
+            'len': len,
+            'min': min,
+            'max': max,
+            'round': round,
+            'abs': abs
+        })
         self._load_all_rules()
 
     def _load_all_rules(self):
@@ -81,7 +91,7 @@ class PolicyEngine:
         rule = self.rules[rule_id]
 
         # 检查规则有效期
-        if not self._is_valid_period(rule):
+        if not self._is_valid_period(rule, inputs):
             return {
                 'status': 'EXPIRED',
                 'message': '政策已过期',
@@ -111,27 +121,57 @@ class PolicyEngine:
                 'rule_id': rule_id
             }
 
-    def _is_valid_period(self, rule: Dict[str, Any]) -> bool:
+    def _is_valid_period(self, rule: Dict[str, Any], inputs: Dict[str, Any]) -> bool:
         """检查规则是否在有效期内"""
         valid_period = rule.get('valid_period')
         if not valid_period:
             return True
 
-        today = date.today()
+        ref_date = self._extract_reference_date(inputs) or date.today()
 
         # 检查开始时间
-        if 'start' in valid_period:
-            start_date = datetime.strptime(valid_period['start'], '%Y-%m-%d').date()
-            if today < start_date:
+        start_value = valid_period.get('start')
+        if start_value:
+            start_date = datetime.strptime(start_value, '%Y-%m-%d').date()
+            if ref_date < start_date:
                 return False
 
         # 检查结束时间
-        if 'end' in valid_period:
-            end_date = datetime.strptime(valid_period['end'], '%Y-%m-%d').date()
-            if today > end_date:
+        end_value = valid_period.get('end')
+        if end_value:
+            end_date = datetime.strptime(end_value, '%Y-%m-%d').date()
+            if ref_date > end_date:
                 return False
 
         return True
+
+    def _extract_reference_date(self, inputs: Dict[str, Any]) -> Optional[date]:
+        """从输入中提取与有效期相关的时间."""
+        candidates = ['claim_time', 'purchase_time', 'invoice_time', 'apply_time']
+        for key in candidates:
+            value = inputs.get(key)
+            if not value:
+                continue
+            if isinstance(value, datetime):
+                return value.date()
+            if isinstance(value, date):
+                return value
+            if isinstance(value, str):
+                parsed = self._parse_date_string(value)
+                if parsed:
+                    return parsed
+        return None
+
+    def _parse_date_string(self, value: str) -> Optional[date]:
+        """尝试解析 ISO 日期/时间."""
+        try:
+            return datetime.fromisoformat(value.replace('Z', '+00:00')).date()
+        except Exception:
+            pass
+        try:
+            return datetime.strptime(value[:10], '%Y-%m-%d').date()
+        except Exception:
+            return None
 
     def _validate_inputs(self, rule: Dict[str, Any], inputs: Dict[str, Any]) -> List[str]:
         """验证输入参数"""
@@ -281,6 +321,7 @@ class PolicyEngine:
             'matching',
             'efficiency_rates',
             'category_limits',
+            'per_item_cap',
             'special_rules',
             'valid_period',
             'distribution',

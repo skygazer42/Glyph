@@ -1,4 +1,4 @@
-"""
+﻿"""
 Template registry utilities for the DSL generator.
 
 This module knows how to:
@@ -13,6 +13,7 @@ import copy
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
+import re
 
 
 def _today_iso() -> str:
@@ -278,16 +279,21 @@ class TemplateRegistry:
         per_category = category_limits.get("per_category")
         if not isinstance(per_category, dict):
             category_limits["per_category"] = {}
+        category_limits["total_items"] = TemplateRegistry._normalize_number(
+            category_limits.get("total_items")
+        )
 
         cap = data.get("per_item_cap") or data.get("limits", {}).get("per_item_cap")
-        numeric_cap = _safe_float(cap)
+        numeric_cap = TemplateRegistry._normalize_number(cap)
         if numeric_cap is not None:
             data["per_item_cap"] = numeric_cap
+        else:
+            data["per_item_cap"] = 2000
 
         efficiency_rates = data.get("efficiency_rates", {})
         for key in ["base_rate", "level_1_bonus", "no_label_rate"]:
             if key in efficiency_rates:
-                rate = _safe_float(efficiency_rates[key])
+                rate = TemplateRegistry._normalize_number(efficiency_rates[key])
                 if rate is not None:
                     efficiency_rates[key] = rate
 
@@ -358,7 +364,7 @@ class TemplateRegistry:
             data["coupon_types"] = ["AMOUNT"]
 
         tiers = data.get("tiers") or []
-        normalized = []
+        normalized: List[Dict[str, Any]] = []
         for tier in tiers:
             entry = dict(tier)
             entry.setdefault("type", entry.get("tier_type", "AMOUNT"))
@@ -368,13 +374,22 @@ class TemplateRegistry:
                     entry["threshold"] = rng[0]
             if "discount" not in entry:
                 entry["discount"] = entry.get("amount") or entry.get("value")
+            entry["threshold"] = TemplateRegistry._normalize_number(entry.get("threshold")) or 0
+            entry["discount"] = TemplateRegistry._normalize_number(entry.get("discount")) or 0
+            entry["cap"] = TemplateRegistry._normalize_number(entry.get("cap"))
+            if entry.get("name"):
+                entry["name"] = TemplateRegistry._normalize_placeholder(entry["name"])
             normalized.append(entry)
         data["tiers"] = normalized
 
         distribution = data.setdefault("distribution", {})
         distribution.setdefault("method", distribution.get("method", "auto_claim"))
-        distribution.setdefault("total_quota", distribution.get("total_quota"))
-        distribution.setdefault("quota_per_person", distribution.get("quota_per_person"))
+        distribution["total_quota"] = TemplateRegistry._normalize_number(
+            distribution.get("total_quota")
+        )
+        distribution["quota_per_person"] = TemplateRegistry._normalize_number(
+            distribution.get("quota_per_person")
+        )
 
         release_schedule = distribution.get("release_schedule")
         if release_schedule and isinstance(release_schedule, list):
@@ -386,13 +401,15 @@ class TemplateRegistry:
                     {
                         "batch": batch.get("batch", idx),
                         "time": batch.get("time"),
-                        "amount": batch.get("amount"),
+                        "amount": TemplateRegistry._normalize_number(batch.get("amount")),
                     }
                 )
             distribution["release_schedule"] = cleaned
 
         usage_limits = data.setdefault("usage_limits", {})
-        usage_limits.setdefault("valid_days", usage_limits.get("valid_days", 30))
+        usage_limits["valid_days"] = TemplateRegistry._normalize_number(
+            usage_limits.get("valid_days", 30)
+        ) or 30
         usage_limits.setdefault("merchant_scope", usage_limits.get("merchant_scope", "参与活动商户"))
         usage_limits.setdefault("product_scope", usage_limits.get("product_scope", "全部商品"))
 
@@ -401,12 +418,15 @@ class TemplateRegistry:
         stacking.setdefault("with_other_coupons", True)
 
         platform = data.setdefault("platform", {})
-        platform.setdefault("claim_platform", platform.get("claim_platform"))
+        platform["claim_platform"] = TemplateRegistry._normalize_placeholder(
+            platform.get("claim_platform")
+        ) or ""
         payment_methods = platform.get("payment_methods")
         if not isinstance(payment_methods, list):
             platform["payment_methods"] = []
 
         return data
+
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -462,4 +482,42 @@ class TemplateRegistry:
                 push(context.get(ctx_key))
 
         return " ".join(parts)
+
+    @staticmethod
+    def _normalize_placeholder(value: Any) -> Any:
+        if isinstance(value, str):
+            text = value.strip()
+            if not text or text.lower() in {"none", "null", "无", "暂无", "na"}:
+                return None
+            return text
+        return value
+
+    @staticmethod
+    def _normalize_number(value: Any) -> Optional[float]:
+        value = TemplateRegistry._normalize_placeholder(value)
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            text = value.strip()
+            multiplier = 1
+            if text.endswith("万"):
+                multiplier = 10000
+                text = text[:-1]
+            text = re.sub(r"[^\d\.]", "", text)
+            if not text:
+                return None
+            try:
+                number = float(text) * multiplier
+                if number.is_integer():
+                    return int(number)
+                return number
+            except ValueError:
+                return None
+        return None
+
+
+
+
 

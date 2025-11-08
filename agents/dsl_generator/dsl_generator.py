@@ -173,6 +173,14 @@ output:
         """预处理数据，确保格式正确"""
         processed = data.copy()
 
+        def _sanitize(value: Any) -> Any:
+            if isinstance(value, str):
+                text = ' '.join(value.replace('\r', ' ').replace('\n', ' ').split())
+                if not text or text.lower() in {'none', 'null', '无', '暂无'}:
+                    return ''
+                return text
+            return value
+
         # 确保必填字段存在
         if 'rule_id' not in processed:
             processed['rule_id'] = f"Rule_Generated_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -190,6 +198,7 @@ output:
         # 统一规则元数据
         if not processed.get('name'):
             processed['name'] = processed['policy_source'].get('title') or processed['rule_id']
+        processed['name'] = _sanitize(processed['name'])
         if not processed.get('version'):
             processed['version'] = '1.0'
         if processed.get('template_hint') and 'policy_type' not in processed:
@@ -204,6 +213,9 @@ output:
             processed['policy_source']['doc_id'] = ''
         if 'title' not in processed['policy_source']:
             processed['policy_source']['title'] = '未命名政策'
+        for key in ('doc_id', 'title', 'clause'):
+            if key in processed['policy_source']:
+                processed['policy_source'][key] = _sanitize(processed['policy_source'][key])
 
         # 处理 valid_period 结构
         if 'valid_period' not in processed:
