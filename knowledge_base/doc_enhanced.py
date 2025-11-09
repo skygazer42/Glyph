@@ -21,7 +21,7 @@ LLAMAINDEX_AVAILABLE = True
 
 # 原有处理库
 import PyPDF2
-from config.settings import settings
+from config import settings
 
 class EnhancedDocumentProcessor:
     """增强文档处理器 - 支持多种文档解析引擎"""

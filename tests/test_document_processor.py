@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from knowledge_base.doc_enhanced import EnhancedDocumentProcessor
 from knowledge_base.mineru_adapter import MinerUAdapter
-from config.settings import settings
+from config import settings
 
 # 配置日志
 logging.basicConfig(

@@ -43,7 +43,7 @@ class DSLPipeline:
 
         if use_project_config:
             try:
-                from config.settings import settings  # type: ignore
+                from config import settings  # type: ignore
 
                 logger.info("使用项目 LLM 配置:")
                 logger.info("  模型: %s", settings.model.llm_model_name)

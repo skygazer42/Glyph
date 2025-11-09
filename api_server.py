@@ -328,6 +328,93 @@ async def get_stats():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==================== Agent 问答相关接口 ====================
+
+class ChatRequest(BaseModel):
+    message: str
+    stream: bool = False
+
+class ChatStreamRequest(BaseModel):
+    message: str
+
+@app.post("/api/agent/chat")
+async def agent_chat(request: ChatRequest):
+    """Agent问答接口（非流式）"""
+    try:
+        from models.llms import model_client
+        from autogen_agentchat.agents import AssistantAgent
+
+        # 创建Assistant Agent
+        agent = AssistantAgent(
+            name="PolicyAssistant",
+            model_client=model_client,
+            description="政策问答助手，能够回答各种政策相关问题",
+            system_message="你是一个专业的政策咨询助手，名叫小政。你能够回答用户关于政策的各种问题。请用简洁、专业的语言回答。"
+        )
+
+        # 执行问答
+        result = await agent.run(task=request.message)
+
+        # 提取回答内容
+        response_text = ""
+        if hasattr(result, 'messages') and result.messages:
+            # 获取最后一条消息
+            last_message = result.messages[-1]
+            if hasattr(last_message, 'content'):
+                response_text = last_message.content
+
+        return {
+            "success": True,
+            "message": response_text,
+            "metadata": {
+                "agent": "PolicyAssistant",
+                "model": "deepseek-chat"
+            }
+        }
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"ERROR: {error_detail}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi.responses import StreamingResponse
+import json
+
+@app.post("/api/agent/chat/stream")
+async def agent_chat_stream(request: ChatStreamRequest):
+    """Agent问答接口（流式）"""
+    async def generate():
+        try:
+            from models.llms import model_client
+            from autogen_agentchat.agents import AssistantAgent
+
+            # 创建Assistant Agent
+            agent = AssistantAgent(
+                name="PolicyAssistant",
+                model_client=model_client,
+                description="政策问答助手，能够回答各种政策相关问题",
+                system_message="你是一个专业的政策咨询助手，名叫小政。你能够回答用户关于政策的各种问题。请用简洁、专业的语言回答。"
+            )
+
+            # 流式执行
+            stream = agent.run_stream(task=request.message)
+
+            async for msg in stream:
+                if hasattr(msg, 'content'):
+                    # 发送内容片段
+                    yield f"data: {json.dumps({'content': msg.content, 'done': False}, ensure_ascii=False)}\n\n"
+
+            # 发送完成信号
+            yield f"data: {json.dumps({'content': '', 'done': True}, ensure_ascii=False)}\n\n"
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"ERROR: {error_detail}")
+            yield f"data: {json.dumps({'error': str(e), 'done': True}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 # ==================== 健康检查 ====================
 
 @app.get("/api/health")

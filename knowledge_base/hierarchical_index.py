@@ -54,7 +54,7 @@ from llama_index.core.indices.utils import embed_nodes
 LLAMA_INDEX_AVAILABLE = True
 
 # 直接导入项目配置（如果不存在会抛出错误，按你的要求不进行捕获）
-from config.settings import settings
+from config import settings
 
 # 直接导入图片检索模块（如果不存在会抛出错误，按你的要求不进行捕获）
 from .image_retrieval import ImageExtractor, ImageIndexer, ImageInfo

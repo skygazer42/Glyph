@@ -3,7 +3,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/dsl'
+    redirect: '/agent'
+  },
+  {
+    path: '/agent',
+    name: 'Agent',
+    component: () => import('@/views/AgentChat.vue')
   },
   {
     path: '/dsl',

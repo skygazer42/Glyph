@@ -208,6 +208,43 @@ class MinerUSettings(BaseSettings):
         return self.mode
 
 
+class AutoGenSettings(BaseSettings):
+    """AutoGen配置"""
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "extra": "allow"
+    }
+
+    # 基础配置
+    enabled: bool = Field(default=True, env="AUTOGEN_ENABLED")
+    cache_enabled: bool = Field(default=True, env="AUTOGEN_CACHE_ENABLED")
+    cache_duration: int = Field(default=3600, env="AUTOGEN_CACHE_DURATION")
+    max_rounds: int = Field(default=10, env="AUTOGEN_MAX_ROUNDS")
+    timeout: int = Field(default=300, env="AUTOGEN_TIMEOUT")
+
+    # 监控配置
+    enable_metrics: bool = Field(default=True, env="AUTOGEN_ENABLE_METRICS")
+
+    # 环境配置
+    environment: str = Field(default="development", env="ENVIRONMENT")
+
+    @property
+    def is_development(self) -> bool:
+        """是否为开发环境"""
+        return self.environment.lower() in ("development", "dev")
+
+    @property
+    def is_production(self) -> bool:
+        """是否为生产环境"""
+        return self.environment.lower() in ("production", "prod")
+
+    @property
+    def is_testing(self) -> bool:
+        """是否为测试环境"""
+        return self.environment.lower() in ("testing", "test")
+
+
 class PerformanceSettings(BaseSettings):
     """性能配置"""
     # 并发处理
@@ -275,6 +312,7 @@ class Settings(BaseSettings):
     reranker: RerankerSettings = Field(default_factory=RerankerSettings)
     document: DocumentSettings = Field(default_factory=DocumentSettings)
     mineru: MinerUSettings = Field(default_factory=MinerUSettings)
+    autogen: AutoGenSettings = Field(default_factory=AutoGenSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     system: SystemSettings = Field(default_factory=SystemSettings)
 

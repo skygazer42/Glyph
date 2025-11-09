@@ -19,7 +19,7 @@ sys.path.insert(0, str(project_root))
 from pymilvus import connections, Collection
 from llama_index.embeddings.dashscope import DashScopeEmbedding, DashScopeTextEmbeddingModels
 from openai import OpenAI
-from config.settings import settings
+from config import settings
 
 print("=" * 70)
 print(" 政策问答系统测试")

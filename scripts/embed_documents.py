@@ -24,7 +24,7 @@ for key in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from config.settings import settings
+from config import settings
 from knowledge_base.hierarchical_index import (
     HierarchicalIndexBuilder,
     build_index_from_directory

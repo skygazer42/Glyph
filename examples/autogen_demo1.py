@@ -7,6 +7,11 @@ from autogen_core import CancellationToken
 from autogen_ext.models.openai import  OpenAIChatCompletionClient
 from models.llms import model_client
 
+async  def web_search(city:str)->str:
+    """
+    搜索星系
+    """
+    return
 
 async  def main():
     agent=AssistantAgent(

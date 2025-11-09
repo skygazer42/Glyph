@@ -36,7 +36,7 @@ print(" 加载配置")
 print("=" * 70)
 print()
 
-from config.settings import settings
+from config import settings
 
 print("📋 配置信息:")
 print(f"  - LLM: {settings.model.llm_model_name}")

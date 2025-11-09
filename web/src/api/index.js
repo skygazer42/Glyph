@@ -141,3 +141,19 @@ export const systemApi = {
     return request.put('/system/config', config)
   }
 }
+
+// Agent相关API
+export const agentApi = {
+  // 发送消息（非流式）
+  chat(message) {
+    return request.post('/agent/chat', { message, stream: false })
+  },
+
+  // 发送消息（流式）
+  chatStream(message) {
+    // 返回EventSource对象用于流式接收
+    return new EventSource(
+      `${request.defaults.baseURL}/agent/chat/stream?message=${encodeURIComponent(message)}`
+    )
+  }
+}

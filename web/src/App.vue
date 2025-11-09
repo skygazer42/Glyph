@@ -9,6 +9,10 @@
             :default-active="$route.path"
             router
           >
+            <el-menu-item index="/agent">
+              <el-icon><ChatDotRound /></el-icon>
+              AI问答
+            </el-menu-item>
             <el-menu-item index="/dsl">
               <el-icon><Document /></el-icon>
               DSL生成
@@ -28,7 +32,7 @@
 </template>
 
 <script setup>
-import { Document, Collection } from '@element-plus/icons-vue'
+import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
 </script>
 
 <style>

@@ -16,8 +16,7 @@ from datetime import datetime
 from pydantic import ValidationError
 
 # 导入配置和模式
-from config.domain_config import domain_config
-from config.domain_schemas import SCHEMA_REGISTRY
+from domains import domain_config, SCHEMA_REGISTRY
 
 logger = logging.getLogger(__name__)
 

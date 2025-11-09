@@ -19,7 +19,7 @@ from datetime import datetime
 import aiohttp
 import aiofiles
 
-from config.settings import settings
+from config import settings
 
 
 class MinerUAdapter:

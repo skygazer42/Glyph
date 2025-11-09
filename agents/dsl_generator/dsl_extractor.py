@@ -34,7 +34,7 @@ class DSLExtractor:
         if use_project_config:
             # 使用项目配置
             try:
-                from config.settings import settings
+                from config import settings
                 self.settings = settings
                 logger.info(f"使用项目配置: LLM={settings.model.llm_model_name}")
             except ImportError:

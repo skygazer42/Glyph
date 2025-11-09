@@ -12,7 +12,7 @@ sys.path.insert(0, str(project_root))
 
 from pymilvus import connections, Collection
 from llama_index.embeddings.dashscope import DashScopeEmbedding, DashScopeTextEmbeddingModels
-from config.settings import settings
+from config import settings
 
 print("=" * 70)
 print(" 测试 Milvus 检索功能")

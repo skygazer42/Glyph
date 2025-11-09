@@ -4,7 +4,7 @@ import logging
 from typing import Any, List, Optional, Sequence, Tuple
 
 import requests
-from config.settings import settings
+from config import settings
 
 def _log() -> logging.Logger:
     logger = logging.getLogger("rerank")

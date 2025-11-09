@@ -38,7 +38,7 @@ class MilvusStore:
         db_name: Optional[str] = None
     ):
         """Initialize the Milvus store."""
-        from config.settings import settings
+        from config import settings
 
         # Embedding config - 优先使用 settings.embedding
         self.backend = backend or settings.embedding.backend
@@ -248,7 +248,7 @@ class MilvusStore:
     def _embed_openai(self, texts: List[str]) -> np.ndarray:
         """OpenAI embeddings."""
         from openai import OpenAI
-        from config.settings import settings
+        from config import settings
 
         # 使用 settings.embedding 配置
         api_key = settings.embedding.openai_api_key or os.getenv("LLM_API_KEY")
@@ -265,7 +265,7 @@ class MilvusStore:
     def _embed_dashscope(self, texts: List[str]) -> np.ndarray:
         """DashScope embeddings."""
         import requests
-        from config.settings import settings
+        from config import settings
 
         api_key = settings.embedding.dashscope_api_key
         if not api_key:
@@ -314,7 +314,7 @@ class MilvusStore:
         1. Explicit configuration (EMBEDDING_DASHSCOPE_DIMENSION or EMBEDDING_DIM)
         2. Model-specific defaults
         """
-        from config.settings import settings
+        from config import settings
 
         if self.backend == "openai":
             # OpenAI embedding dimensions

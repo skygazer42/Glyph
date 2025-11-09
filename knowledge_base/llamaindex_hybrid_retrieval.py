@@ -20,7 +20,7 @@ from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.vector_stores.milvus import MilvusVectorStore
 
-from config.settings import settings
+from config import settings
 
 
 class LlamaIndexHybridRetriever:

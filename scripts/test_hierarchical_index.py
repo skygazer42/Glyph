@@ -18,7 +18,7 @@ from knowledge_base.hierarchical_index import (
     HierarchicalRetriever,
     ChunkConfig
 )
-from config.settings import settings
+from config import settings
 
 # 清除代理环境变量
 for key in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']:
