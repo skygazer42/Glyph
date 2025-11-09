@@ -1,171 +1,160 @@
 """
-智能体工厂 - 基于ChatDB的工厂模式适配到Gove
+智能体工厂
+统一创建和注册智能体
 """
+from typing import Dict, Any, Callable, Optional
 
-from typing import Dict, Any, Optional, Type
-import logging
-import uuid
+from autogen_core import SingleThreadedAgentRuntime, ClosureAgent, TypeSubscription
 
-from .base_agent import BaseAgent
+from app.core.config import settings
+from app.core.llms import model_client
+from app.db.dbaccess import DBAccess
+from .base import StreamResponseCollector
+from .types import AgentTypes, TopicTypes
+from .schema_retriever import SchemaRetrieverAgent
+from .query_analyzer import QueryAnalyzerAgent
+from .sql_generator import SqlGeneratorAgent
+from .sql_explainer import SqlExplainerAgent
+from .sql_executor import SqlExecutorAgent
+from .visualization_recommender import VisualizationRecommenderAgent
 
 
 class AgentFactory:
-    """智能体工厂 - 管理所有智能体的创建和配置"""
+    """智能体工厂，负责创建和注册所有智能体"""
 
-    def __init__(self):
-        """初始化工厂"""
-        self.logger = logging.getLogger(__name__)
-        self._agent_classes: Dict[str, Type[BaseAgent]] = {}
-        self._agent_instances: Dict[str, BaseAgent] = {}
-        self._config: Dict[str, Any] = {}
+    def __init__(self, db_type: str = None, db_access: Optional[DBAccess] = None):
+        """初始化智能体工厂
 
-    def register_agent_class(
-        self,
-        name: str,
-        agent_class: Type[BaseAgent]
-    ) -> None:
-        """注册智能体类"""
-        self._agent_classes[name] = agent_class
-        self.logger.info(f"Registered agent class: {name}")
+        Args:
+            db_type: 数据库类型
+            db_access: 数据库访问对象
+        """
+        self.db_type = db_type
+        self.db_access = db_access
 
-    def create_agent(
-        self,
-        name: str,
-        agent_type: Optional[str] = None,
-        **kwargs
-    ) -> BaseAgent:
-        """创建智能体实例"""
-        if name not in self._agent_classes:
-            raise ValueError(f"Agent class '{name}' not registered")
+    async def register_all_agents(self, runtime: SingleThreadedAgentRuntime,
+                                collector: StreamResponseCollector, user_feedback_enabled: bool = False) -> None:
+        """注册所有智能体到运行时
 
-        # 获取配置
-        config = self.get_agent_config(name, agent_type, **kwargs)
+        Args:
+            runtime: 单线程智能体运行时
+            collector: 流式响应收集器
+            user_feedback_enabled: 是否启用用户反馈功能
+        """
+        # 注册表结构检索智能体
+        await self._register_schema_retriever(runtime)
 
-        # 创建实例
-        agent_class = self._agent_classes[name]
-        agent_id = f"{name}_{uuid.uuid4().hex[:8]}"
-        instance = agent_class(
-            agent_id=agent_id,
-            **config
+        # 注册查询分析智能体
+        await self._register_query_analyzer(runtime, collector, user_feedback_enabled)
+
+        # 注册SQL生成智能体（根据配置选择）
+        await self._register_sql_generator(runtime)
+
+        # 注册SQL解释智能体
+        await self._register_sql_explainer(runtime)
+
+        # 注册SQL执行智能体
+        await self._register_sql_executor(runtime)
+
+        # 注册可视化推荐智能体
+        await self._register_visualization_recommender(runtime)
+
+        # 注册消息收集器
+        await self._register_stream_collector(runtime, collector)
+
+    async def _register_schema_retriever(self, runtime: SingleThreadedAgentRuntime) -> None:
+        """注册表结构检索智能体"""
+        await SchemaRetrieverAgent.register(
+            runtime,
+            TopicTypes.SCHEMA_RETRIEVER.value,
+            lambda: SchemaRetrieverAgent(
+                model_client_instance=model_client,
+                db_type=self.db_type
+            )
         )
 
-        self.logger.info(f"Created agent instance: {agent_id}")
+    async def _register_query_analyzer(self, runtime: SingleThreadedAgentRuntime,
+                                     collector: StreamResponseCollector, user_feedback_enabled: bool = False) -> None:
+        """注册查询分析智能体"""
+        await QueryAnalyzerAgent.register(
+            runtime,
+            TopicTypes.QUERY_ANALYZER.value,
+            lambda: QueryAnalyzerAgent(
+                model_client_instance=model_client,
+                db_type=self.db_type,
+                input_func=collector.user_input if user_feedback_enabled else None
+            )
+        )
 
-        return instance
-
-    def get_or_create_agent(
-        self,
-        name: str,
-        agent_type: Optional[str] = None,
-        **kwargs
-    ) -> BaseAgent:
-        """获取或创建智能体实例（单例模式）"""
-        cache_key = f"{name}_{agent_type or 'default'}"
-
-        if cache_key not in self._agent_instances:
-            self._agent_instances[cache_key] = self.create_agent(
-                name, agent_type, **kwargs
+    async def _register_sql_generator(self, runtime: SingleThreadedAgentRuntime) -> None:
+        """注册SQL生成智能体（根据配置选择）"""
+        if settings.HYBRID_RETRIEVAL_ENABLED:
+            # 使用混合检索增强的SQL生成智能体
+            from .hybrid_sql_generator import HybridSqlGeneratorAgent
+            await HybridSqlGeneratorAgent.register(
+                runtime,
+                TopicTypes.SQL_GENERATOR.value,
+                lambda: HybridSqlGeneratorAgent(
+                    model_client_instance=model_client,
+                    db_type=self.db_type
+                )
+            )
+        else:
+            # 使用原始的SQL生成智能体
+            await SqlGeneratorAgent.register(
+                runtime,
+                TopicTypes.SQL_GENERATOR.value,
+                lambda: SqlGeneratorAgent(
+                    model_client_instance=model_client,
+                    db_type=self.db_type
+                )
             )
 
-        return self._agent_instances[cache_key]
+    async def _register_sql_explainer(self, runtime: SingleThreadedAgentRuntime) -> None:
+        """注册SQL解释智能体"""
+        await SqlExplainerAgent.register(
+            runtime,
+            TopicTypes.SQL_EXPLAINER.value,
+            lambda: SqlExplainerAgent(
+                model_client_instance=model_client,
+                db_type=self.db_type
+            )
+        )
 
-    def get_agent_config(
-        self,
-        name: str,
-        agent_type: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """获取智能体配置"""
-        config = self._config.get(name, {}).copy()
-        config.update(kwargs)
+    async def _register_sql_executor(self, runtime: SingleThreadedAgentRuntime) -> None:
+        """注册SQL执行智能体"""
+        await SqlExecutorAgent.register(
+            runtime,
+            TopicTypes.SQL_EXECUTOR.value,
+            lambda: SqlExecutorAgent(
+                model_client_instance=model_client,
+                db_type=self.db_type,
+                db_access=self.db_access
+            )
+        )
 
-        # 根据智能体类型添加特定配置
-        if agent_type:
-            type_config = self._config.get(f"{name}_{agent_type}", {})
-            config.update(type_config)
+    async def _register_visualization_recommender(self, runtime: SingleThreadedAgentRuntime) -> None:
+        """注册可视化推荐智能体"""
+        await VisualizationRecommenderAgent.register(
+            runtime,
+            TopicTypes.VISUALIZATION_RECOMMENDER.value,
+            lambda: VisualizationRecommenderAgent(
+                model_client_instance=model_client,
+                db_type=self.db_type
+            )
+        )
 
-        return config
-
-    def set_config(self, name: str, config: Dict[str, Any]) -> None:
-        """设置智能体配置"""
-        self._config[name] = config
-
-    def set_global_config(self, config: Dict[str, Any]) -> None:
-        """设置全局配置"""
-        self._config.update(config)
-
-    def list_registered_agents(self) -> List[str]:
-        """列出所有已注册的智能体"""
-        return list(self._agent_classes.keys())
-
-    def clear_cache(self) -> None:
-        """清空实例缓存"""
-        self._agent_instances.clear()
-        self.logger.info("Cleared agent instance cache")
-
-    def register_default_agents(self):
-        """注册默认的智能体"""
-        # 这里注册Gove系统需要的智能体
-        from ..specialized.chat_agent import ChatAgent
-        from ..specialized.calculation_agent import CalculationAgent
-        from ..retrieval.query_analyzer import QueryAnalyzerAgent
-        from ..analysis.policy_analyzer import PolicyAnalyzerAgent
-        from ..generation.answer_generator import AnswerGeneratorAgent
-
-        # 注册ChatDB风格的智能体
-        self.register_agent_class("ChatAgent", ChatAgent)
-        self.register_agent_class("CalculationAgent", CalculationAgent)
-        self.register_agent_class("QueryAnalyzerAgent", QueryAnalyzerAgent)
-        self.register_agent_class("PolicyAnalyzerAgent", PolicyAnalyzerAgent)
-        self.register_agent_class("AnswerGeneratorAgent", AnswerGeneratorAgent)
-
-        # 注册ChatDB原始智能体（稍后添加）
-        # self.register_agent_class("SchemaRetrieverAgent", SchemaRetrieverAgent)
-        # self.register_agent_class("SqlGeneratorAgent", SqlGeneratorAgent)
-        # self.register_agent_class("SqlExplainerAgent", SqlExplainerAgent)
-        # self.register_agent_class("SqlExecutorAgent", SqlExecutorAgent)
-        # self.register_agent_class("VisualizationRecommenderAgent", VisualizationRecommenderAgent)
-
-        self.logger.info("Registered default agents")
-
-    def create_agent_chain(
-        self,
-        chain_name: str,
-        agent_configs: List[Dict[str, Any]]
-    ) -> List[BaseAgent]:
-        """创建智能体链"""
-        agents = []
-        for config in agent_configs:
-            name = config.pop("name")
-            agent = self.create_agent(name, **config)
-            agents.append(agent)
-
-        self.logger.info(f"Created agent chain '{chain_name}' with {len(agents)} agents")
-        return agents
-
-    def get_metrics(self) -> Dict[str, Any]:
-        """获取工厂指标"""
-        return {
-            "registered_classes": len(self._agent_classes),
-            "active_instances": len(self._agent_instances),
-            "config_count": len(self._config)
-        }
-
-
-# 全局工厂实例
-agent_factory = AgentFactory()
-
-
-def get_agent_factory() -> AgentFactory:
-    """获取全局智能体工厂实例"""
-    return agent_factory
-
-
-def create_agent(name: str, **kwargs) -> BaseAgent:
-    """便捷函数：创建智能体"""
-    return agent_factory.create_agent(name, **kwargs)
-
-
-def get_agent(name: str, **kwargs) -> BaseAgent:
-    """便捷函数：获取智能体（单例）"""
-    return agent_factory.get_or_create_agent(name, **kwargs)
+    async def _register_stream_collector(self, runtime: SingleThreadedAgentRuntime,
+                                       collector: StreamResponseCollector) -> None:
+        """注册消息收集器"""
+        await ClosureAgent.register_closure(
+            runtime,
+            "stream_collector_agent",
+            collector.callback,
+            subscriptions=lambda: [
+                TypeSubscription(
+                    topic_type=TopicTypes.STREAM_OUTPUT.value,
+                    agent_type="stream_collector_agent"
+                )
+            ],
+        )

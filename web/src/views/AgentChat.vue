@@ -8,8 +8,18 @@
             <span class="title">AI 政策助手</span>
           </div>
           <div class="header-right">
+            <el-switch
+              v-model="useStreaming"
+              active-text="流式"
+              inactive-text="普通"
+              :disabled="loading"
+              style="margin-right: 10px"
+            />
             <el-tag :type="isConnected ? 'success' : 'danger'">
               {{ isConnected ? '已连接' : '未连接' }}
+            </el-tag>
+            <el-tag v-if="sessionId" type="info" size="small">
+              会话: {{ sessionId.substring(0, 8) }}...
             </el-tag>
             <el-button
               size="small"
@@ -145,6 +155,8 @@ const inputMessage = ref('')
 const loading = ref(false)
 const isConnected = ref(true)
 const messagesContainer = ref(null)
+const useStreaming = ref(true) // 是否使用流式响应
+const sessionId = ref(null) // 会话ID
 
 // 示例问题
 const exampleQuestions = [
@@ -175,6 +187,112 @@ const scrollToBottom = () => {
   })
 }
 
+// 发送消息（流式）
+const sendMessageStream = async (userMessage) => {
+  // 添加用户消息
+  messages.value.push({
+    role: 'user',
+    content: userMessage,
+    time: new Date().toLocaleTimeString()
+  })
+
+  // 添加空的助手消息（用于流式更新）
+  const assistantMessageIndex = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    time: new Date().toLocaleTimeString(),
+    metadata: null
+  })
+
+  scrollToBottom()
+  loading.value = true
+
+  try {
+    // 使用EventSource接收SSE流
+    const url = `/api/agent/chat/stream`
+    const payload = {
+      message: userMessage,
+      session_id: sessionId.value
+    }
+
+    // 使用fetch发送POST请求并接收SSE
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      throw new Error('请求失败')
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // 保留不完整的行
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.substring(6)
+          try {
+            const parsed = JSON.parse(data)
+
+            if (parsed.error) {
+              throw new Error(parsed.error)
+            }
+
+            // 更新会话ID
+            if (parsed.session_id && !sessionId.value) {
+              sessionId.value = parsed.session_id
+            }
+
+            // 更新消息内容
+            if (parsed.content) {
+              messages.value[assistantMessageIndex].content += parsed.content
+              scrollToBottom()
+            }
+
+            // 处理完成信号
+            if (parsed.done) {
+              if (parsed.metadata) {
+                messages.value[assistantMessageIndex].metadata = parsed.metadata
+              }
+              break
+            }
+          } catch (e) {
+            console.error('解析SSE数据失败:', e, data)
+          }
+        }
+      }
+    }
+
+    // 如果没有收到任何内容，显示错误
+    if (!messages.value[assistantMessageIndex].content) {
+      messages.value[assistantMessageIndex].content = '抱歉，没有收到回复。'
+    }
+
+  } catch (error) {
+    console.error('流式发送消息失败:', error)
+    ElMessage.error('发送消息失败: ' + (error.message || '未知错误'))
+
+    // 更新错误消息
+    messages.value[assistantMessageIndex].content = '抱歉，我遇到了一些问题，请稍后再试。'
+  } finally {
+    loading.value = false
+    scrollToBottom()
+  }
+}
+
 // 发送消息
 const sendMessage = async () => {
   if (!inputMessage.value.trim() || loading.value) return
@@ -182,6 +300,16 @@ const sendMessage = async () => {
   const userMessage = inputMessage.value.trim()
   inputMessage.value = ''
 
+  // 根据设置选择流式或非流式
+  if (useStreaming.value) {
+    await sendMessageStream(userMessage)
+  } else {
+    await sendMessageNonStream(userMessage)
+  }
+}
+
+// 发送消息（非流式）
+const sendMessageNonStream = async (userMessage) => {
   // 添加用户消息
   messages.value.push({
     role: 'user',
@@ -194,9 +322,14 @@ const sendMessage = async () => {
 
   try {
     // 调用API
-    const response = await agentApi.chat(userMessage)
+    const response = await agentApi.chat(userMessage, sessionId.value)
 
     if (response.success) {
+      // 更新会话ID
+      if (response.session_id) {
+        sessionId.value = response.session_id
+      }
+
       // 添加助手回复
       messages.value.push({
         role: 'assistant',
@@ -226,6 +359,7 @@ const sendMessage = async () => {
 // 清空对话
 const clearChat = () => {
   messages.value = []
+  sessionId.value = null  // 清除会话ID
   ElMessage.success('对话已清空')
 }
 
