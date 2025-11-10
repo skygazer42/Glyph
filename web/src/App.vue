@@ -8,8 +8,8 @@
           <div class="header-logo">
             <span class="logo-icon">🏛️</span>
             <h1 class="logo-title">
-              <span class="hide-mobile">政策DSL生成和知识库管理系统</span>
-              <span class="hide-desktop">政策系统</span>
+              <span class="hide-mobile">智策通 - AI政策咨询智能体</span>
+              <span class="hide-desktop">智策通</span>
             </h1>
           </div>
 
@@ -20,13 +20,17 @@
             :default-active="$route.path"
             router
           >
-            <el-menu-item index="/agent">
-              <el-icon><ChatDotRound /></el-icon>
-              <span>AI问答</span>
+            <el-menu-item index="/">
+              <el-icon><HomeFilled /></el-icon>
+              <span>首页</span>
             </el-menu-item>
-            <el-menu-item index="/dsl">
-              <el-icon><Document /></el-icon>
-              <span>DSL生成</span>
+            <el-menu-item index="/chat">
+              <el-icon><ChatDotRound /></el-icon>
+              <span>智能问答</span>
+            </el-menu-item>
+            <el-menu-item index="/calculator">
+              <el-icon><Calculator /></el-icon>
+              <span>政策计算</span>
             </el-menu-item>
             <el-menu-item index="/knowledge">
               <el-icon><Collection /></el-icon>
@@ -41,13 +45,17 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="/agent" :class="{ 'is-active': $route.path === '/agent' }">
-                  <el-icon><ChatDotRound /></el-icon>
-                  AI问答
+                <el-dropdown-item command="/" :class="{ 'is-active': $route.path === '/' }">
+                  <el-icon><HomeFilled /></el-icon>
+                  首页
                 </el-dropdown-item>
-                <el-dropdown-item command="/dsl" :class="{ 'is-active': $route.path === '/dsl' }">
-                  <el-icon><Document /></el-icon>
-                  DSL生成
+                <el-dropdown-item command="/chat" :class="{ 'is-active': $route.path === '/chat' }">
+                  <el-icon><ChatDotRound /></el-icon>
+                  智能问答
+                </el-dropdown-item>
+                <el-dropdown-item command="/calculator" :class="{ 'is-active': $route.path === '/calculator' }">
+                  <el-icon><Calculator /></el-icon>
+                  政策计算
                 </el-dropdown-item>
                 <el-dropdown-item command="/knowledge" :class="{ 'is-active': $route.path === '/knowledge' }">
                   <el-icon><Collection /></el-icon>
@@ -73,7 +81,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { Document, Collection, ChatDotRound, Menu } from '@element-plus/icons-vue'
+import { Document, Collection, ChatDotRound, Menu, HomeFilled, Calculator } from '@element-plus/icons-vue'
 
 const router = useRouter()
 
