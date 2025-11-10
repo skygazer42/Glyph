@@ -1,31 +1,48 @@
 <template>
   <div id="app">
-    <el-container style="height: 100vh">
-      <el-header>
+    <el-container class="app-container">
+      <el-header class="app-header">
         <div class="header-content">
-          <h1>🏛️ 政策DSL生成和知识库管理系统</h1>
+          <div class="logo-section">
+            <div class="logo-icon">🏛️</div>
+            <div class="logo-info">
+              <h1 class="logo-text">政府政策智能分析平台</h1>
+              <div class="subtitle">Government Policy Analysis System</div>
+            </div>
+          </div>
           <el-menu
+            class="nav-menu"
             mode="horizontal"
             :default-active="$route.path"
             router
           >
-            <el-menu-item index="/agent">
+            <el-menu-item index="/agent" class="nav-item">
               <el-icon><ChatDotRound /></el-icon>
-              AI问答
+              <span>AI问答</span>
             </el-menu-item>
-            <el-menu-item index="/dsl">
+            <el-menu-item index="/dsl" class="nav-item">
               <el-icon><Document /></el-icon>
-              DSL生成
+              <span>DSL生成</span>
             </el-menu-item>
-            <el-menu-item index="/knowledge">
+            <el-menu-item index="/knowledge" class="nav-item">
               <el-icon><Collection /></el-icon>
-              知识库管理
+              <span>知识库</span>
             </el-menu-item>
           </el-menu>
+          <div class="header-actions">
+            <ThemeToggle />
+            <MobileMenu class="mobile-only" />
+          </div>
         </div>
       </el-header>
-      <el-main>
-        <router-view />
+      <el-main class="app-main">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+        <AppFooter />
+        <BackToTop />
       </el-main>
     </el-container>
   </div>
@@ -33,57 +50,199 @@
 
 <script setup>
 import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
+import AppFooter from '@/components/AppFooter.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
+import MobileMenu from '@/components/MobileMenu.vue'
+import BackToTop from '@/components/BackToTop.vue'
 </script>
 
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+<style scoped>
+.app-container {
+  height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
+  transition: background var(--transition-base);
 }
 
-#app {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+/* 暗色模式背景 */
+[data-theme="dark"] .app-container {
+  background: linear-gradient(135deg, #0f1419 0%, #1a1d23 100%);
 }
 
-.el-header {
-  background-color: #545c64;
+.app-header {
+  background: linear-gradient(135deg, #c8232c 0%, #0052d9 100%);
   color: white;
   padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 82, 217, 0.2);
+  position: relative;
+  z-index: 100;
+  border-bottom: 3px solid #c8232c;
 }
 
 .header-content {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: 100%;
-  padding: 0 20px;
+  padding: 0 var(--spacing-xl);
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
-.header-content h1 {
-  font-size: 20px;
-  margin-right: 30px;
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.logo-icon {
+  font-size: 2rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.logo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logo-text {
+  font-size: 1.375rem;
+  font-weight: 700;
   white-space: nowrap;
-}
-
-.el-menu.el-menu--horizontal {
-  border-bottom: none;
-  background-color: transparent;
-}
-
-.el-menu--horizontal > .el-menu-item {
-  color: rgba(255, 255, 255, 0.8);
-  border-bottom: 2px solid transparent;
-}
-
-.el-menu--horizontal > .el-menu-item:hover,
-.el-menu--horizontal > .el-menu-item.is-active {
   color: white;
-  border-bottom-color: white;
-  background-color: rgba(255, 255, 255, 0.1);
+  letter-spacing: 1px;
+  line-height: 1.2;
 }
 
-.el-main {
-  padding: 20px;
-  background-color: #f5f5f5;
+.subtitle {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 400;
+}
+
+.nav-menu {
+  border: none;
+  background-color: transparent;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.nav-menu :deep(.el-menu-item) {
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 3px solid transparent;
+  padding: 0 var(--spacing-lg);
+  margin: 0 var(--spacing-xs);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  font-weight: 500;
+  transition: all var(--transition-base);
+}
+
+.nav-menu :deep(.el-menu-item:hover) {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-bottom-color: rgba(255, 255, 255, 0.5);
+}
+
+.nav-menu :deep(.el-menu-item.is-active) {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-bottom-color: white;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-menu :deep(.el-menu-item .el-icon) {
+  font-size: 1.125rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.mobile-only {
+  display: none;
+}
+
+.app-main {
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 页面切换动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .header-content {
+    padding: 0 var(--spacing-md);
+  }
+
+  .logo-section {
+    flex: 1;
+  }
+
+  .logo-text {
+    font-size: 1rem;
+  }
+
+  .nav-menu {
+    display: none;
+  }
+
+  .mobile-only {
+    display: block;
+  }
+
+  .app-main {
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-text {
+    font-size: 0.9rem;
+  }
+
+  .subtitle {
+    display: none;
+  }
+
+  .nav-menu :deep(.el-menu-item span) {
+    display: none;
+  }
+
+  .nav-menu :deep(.el-menu-item) {
+    padding: 0 var(--spacing-sm);
+  }
 }
 </style>
+

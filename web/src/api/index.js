@@ -1,30 +1,22 @@
 import request from './request'
 
-// DSL相关API - 优化版本
+// DSL相关API（匹配后端实际API）
 export const dslApi = {
-  // 从文本生成DSL（支持元数据）
+  // 从文本生成DSL
   generateFromText(text, metadata = {}) {
-    return request.post('/dsl/generate', { text, metadata })
+    return request.post('/dsl/generate', { text, ...metadata })
   },
 
-  // 从文件生成DSL
-  generateFromFile(formData) {
-    return request.post('/dsl/generate-from-file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+  // 保存DSL到文件
+  saveDSL(data) {
+    return request.post('/dsl/save', {
+      rule_id: data.rule_id,
+      yaml_content: data.yaml_content,
+      filename: data.filename
     })
   },
 
-  // 批量生成DSL
-  batchGenerate(documents) {
-    return request.post('/dsl/batch-generate', { documents })
-  },
-
-  // 保存DSL
-  saveDSL(dslData) {
-    return request.post('/dsl/save', dslData)
-  },
-
-  // 获取DSL列表（支持分页和过滤）
+  // 获取DSL列表
   listDSL(params = {}) {
     return request.get('/dsl/list', { params })
   },
@@ -37,85 +29,41 @@ export const dslApi = {
   // 获取DSL详情
   getDSL(ruleId) {
     return request.get(`/dsl/${ruleId}`)
-  },
-
-  // 更新DSL
-  updateDSL(ruleId, dslData) {
-    return request.put(`/dsl/${ruleId}`, dslData)
-  },
-
-  // 删除DSL
-  deleteDSL(ruleId) {
-    return request.delete(`/dsl/${ruleId}`)
-  },
-
-  // 导出DSL
-  exportDSL(ruleIds) {
-    return request.post('/dsl/export', { rule_ids: ruleIds }, {
-      responseType: 'blob'
-    })
-  },
-
-  // 导入DSL
-  importDSL(formData) {
-    return request.post('/dsl/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
   }
 }
 
-// 知识库相关API - 优化版本
+// 知识库相关API（匹配后端实际API）
 export const knowledgeApi = {
-  // 上传文档（支持批量）
+  // 上传单个文档
   uploadDocument(formData) {
     return request.post('/knowledge/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
 
-  // 嵌入文档到向量库（支持批量）
-  embedDocument(docIds) {
-    const payload = Array.isArray(docIds) ? { doc_ids: docIds } : { doc_id: docIds }
-    return request.post('/knowledge/embed', payload)
+  // 嵌入文档到向量库
+  embedDocument(docId) {
+    return request.post('/knowledge/embed', { doc_id: docId })
   },
 
-  // 搜索知识库（增强选项）
+  // 搜索知识库
   search(query, options = {}) {
-    const { topK = 10, filters = {}, rerank = false } = options
+    const { topK = 10, threshold = 0.7 } = options
     return request.post('/knowledge/search', {
       query,
       top_k: topK,
-      filters,
-      rerank
+      threshold
     })
   },
 
-  // 混合搜索（BM25 + 向量）
-  hybridSearch(query, options = {}) {
-    return request.post('/knowledge/hybrid-search', { query, ...options })
-  },
-
-  // 获取文档列表（支持分页）
+  // 获取文档列表
   listDocuments(params = {}) {
     return request.get('/knowledge/documents', { params })
   },
 
-  // 删除文档（支持批量）
-  deleteDocument(docIds) {
-    if (Array.isArray(docIds)) {
-      return request.delete('/knowledge/documents/batch', { data: { doc_ids: docIds } })
-    }
-    return request.delete(`/knowledge/documents/${docIds}`)
-  },
-
-  // 获取文档详情
-  getDocument(docId) {
-    return request.get(`/knowledge/documents/${docId}`)
-  },
-
-  // 重建索引
-  rebuildIndex() {
-    return request.post('/knowledge/rebuild-index')
+  // 删除单个文档
+  deleteDocument(docId) {
+    return request.delete(`/knowledge/documents/${docId}`)
   },
 
   // 获取统计信息
@@ -142,18 +90,39 @@ export const systemApi = {
   }
 }
 
-// Agent相关API
+// Agent相关API（匹配后端实际API）
 export const agentApi = {
-  // 发送消息（非流式）
-  chat(message) {
-    return request.post('/agent/chat', { message, stream: false })
+  // 发送消息（非流式）- 支持会话和数据库连接
+  chat(message, sessionId = null, connectionId = null) {
+    return request.post('/agent/chat', {
+      message,
+      session_id: sessionId,
+      connection_id: connectionId
+    })
   },
 
-  // 发送消息（流式）
-  chatStream(message) {
-    // 返回EventSource对象用于流式接收
-    return new EventSource(
-      `${request.defaults.baseURL}/agent/chat/stream?message=${encodeURIComponent(message)}`
-    )
+  // 发送消息（流式）- 通过POST发送，使用SSE接收
+  // 注意：不使用EventSource，而是在组件中直接fetch
+  chatStreamUrl: '/agent/chat/stream',
+
+  // 获取会话信息
+  getSession(sessionId) {
+    return request.get(`/agent/sessions/${sessionId}`)
+  },
+
+  // 获取所有会话列表
+  listSessions() {
+    return request.get('/agent/sessions')
+  },
+
+  // 删除会话
+  deleteSession(sessionId) {
+    return request.delete(`/agent/sessions/${sessionId}`)
+  },
+
+  // 获取会话消息历史
+  getSessionMessages(sessionId, limit = null) {
+    const params = limit ? { limit } : {}
+    return request.get(`/agent/sessions/${sessionId}/messages`, { params })
   }
 }
