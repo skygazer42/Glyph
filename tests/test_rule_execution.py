@@ -15,7 +15,7 @@ load_dotenv()
 # 添加项目路径
 sys.path.append(str(Path(__file__).parent))
 
-from agents.dsl_generator.rule_engine import PolicyEngine
+from app.agents.dsl_generator.rule_engine import PolicyEngine
 
 
 def test_rule_execution():

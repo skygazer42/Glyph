@@ -9,13 +9,13 @@ from pathlib import Path
 # 添加项目路径
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from agents.dsl_generator import (
+from app.agents.dsl_generator import (
     DocumentParser,
     DSLExtractor,
     DSLGenerator,
     PolicyEngine
 )
-from agents.dsl_generator.main import DSLPipeline
+from app.agents.dsl_generator.main import DSLPipeline
 
 
 def test_document_parser():

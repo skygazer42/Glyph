@@ -18,7 +18,7 @@ sys.path.insert(0, str(project_root))
 import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-from config import settings
+from app.config import settings
 from llama_index.core import Settings as LISettings
 from llama_index.embeddings.openai import OpenAIEmbedding
 

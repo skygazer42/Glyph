@@ -13,9 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from agents.orchestrators.smart import SmartOrchestrator
-from utils.document_loader import DocumentLoader
-from utils.config import Config
+from app.agents.orchestrators.smart import SmartOrchestrator
+from app.utils.document_loader import DocumentLoader
+from app.utils.config import Config
 
 
 async def interactive_mode(orchestrator: SmartOrchestrator):

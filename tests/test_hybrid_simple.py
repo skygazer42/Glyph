@@ -14,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from knowledge_base.milvus import MilvusStore
-from knowledge_base.rerank import Reranker
+from app.knowledge.milvus import MilvusStore
+from app.knowledge.rerank import Reranker
 from dataclasses import dataclass
 from typing import List
 

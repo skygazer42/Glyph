@@ -11,8 +11,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # 直接使用我们的简化模块
-from agents.modules.base_module import BaseAgentModule
-from agents.modules.manager import AgentManager
+from app.agents.modules.base_module import BaseAgentModule
+from app.agents.modules.manager import AgentManager
 
 
 # 创建一个简单的查询分析Agent

@@ -13,7 +13,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from pymilvus import connections, Collection, utility
-from config import settings
+from app.config import settings
 
 
 def check_milvus_connection():

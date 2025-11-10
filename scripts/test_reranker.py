@@ -18,7 +18,7 @@ sys.path.insert(0, str(project_root))
 
 from pymilvus import connections, Collection
 from llama_index.embeddings.dashscope import DashScopeEmbedding, DashScopeTextEmbeddingModels
-from config import settings
+from app.config import settings
 import requests
 
 print("=" * 70)

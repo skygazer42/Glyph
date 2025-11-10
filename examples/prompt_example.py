@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from prompts import PromptManager, get_prompt, get_prompt_manager
+from app.prompts import PromptManager, get_prompt, get_prompt_manager
 
 
 async def example_basic_usage():
@@ -72,7 +72,7 @@ async def example_prompt_management():
 
     # 3. 添加自定义提示词
     print("3. 添加自定义提示词:")
-    from prompts.prompt_manager import PromptConfig
+    from app.prompts.prompt_manager import PromptConfig
     custom_prompt = PromptConfig(
         name="custom.greeting",
         content="你好！我是政策助手，很高兴为您服务。{time}",

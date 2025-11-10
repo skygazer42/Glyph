@@ -5,7 +5,7 @@ from autogen_agentchat.messages import  StructuredMessage,TextMessage
 from autogen_agentchat.ui import  Console
 from autogen_core import CancellationToken
 from autogen_ext.models.openai import  OpenAIChatCompletionClient
-from models.llms import model_client
+from app.models.llms import model_client
 
 async  def web_search(city:str)->str:
     """

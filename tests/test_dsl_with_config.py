@@ -10,7 +10,7 @@ from pathlib import Path
 # 添加项目路径
 sys.path.append(str(Path(__file__).parent))
 
-from agents.dsl_generator.main_v2 import DSLPipeline
+from app.agents.dsl_generator.main_v2 import DSLPipeline
 
 
 def test_with_project_config():
@@ -21,7 +21,7 @@ def test_with_project_config():
 
     # 检查项目配置
     try:
-        from config import settings
+        from app.config import settings
         print("\n[项目配置信息]")
         print(f"  LLM 模型: {settings.model.llm_model_name}")
         print(f"  API 地址: {settings.model.llm_base_url}")

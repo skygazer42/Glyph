@@ -11,7 +11,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from knowledge_base.hierarchical_index import HierarchicalRetriever
+from app.knowledge.hierarchical_index import HierarchicalRetriever
 
 
 def demo_image_search():

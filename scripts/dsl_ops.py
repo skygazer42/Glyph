@@ -3,7 +3,7 @@
 Enterprise-grade CLI entry for DSL operations.
 """
 
-from agents.dsl_generator.main import app
+from app.agents.dsl_generator.main import app
 
 
 if __name__ == "__main__":

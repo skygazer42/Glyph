@@ -20,7 +20,7 @@ os.environ["EMBEDDING_DASHSCOPE_DIMENSION"] = "1024"
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
-from knowledge_base.milvus import MilvusStore
+from app.knowledge.milvus import MilvusStore
 
 # 加载环境变量
 load_dotenv(override=True)

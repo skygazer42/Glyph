@@ -10,7 +10,7 @@ from pathlib import Path
 # 添加项目路径
 sys.path.append(str(Path(__file__).parent.parent))
 
-from agents.dsl_generator.main import DSLPipeline
+from app.agents.dsl_generator.main import DSLPipeline
 
 
 def example_basic_usage():
@@ -113,7 +113,7 @@ def example_template_generation():
     print("示例4: 使用模板 - 快速生成标准规则")
     print("=" * 60)
 
-    from agents.dsl_generator import DSLGenerator
+    from app.agents.dsl_generator import DSLGenerator
 
     generator = DSLGenerator(output_dir="rules")
 
@@ -143,7 +143,7 @@ def example_custom_processing():
     print("示例5: 自定义处理 - 完整控制流程")
     print("=" * 60)
 
-    from agents.dsl_generator import (
+    from app.agents.dsl_generator import (
         DocumentParser,
         DSLExtractor,
         DSLGenerator,

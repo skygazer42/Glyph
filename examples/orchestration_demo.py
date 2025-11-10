@@ -16,8 +16,8 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core import SingleThreadedAgentRuntime
 
 # 项目导入
-from agents.coordination.coordinator import Coordinator
-from agents.orchestrators.smart import SmartOrchestrator
+from app.agents.coordination.coordinator import Coordinator
+from app.agents.orchestrators.smart import SmartOrchestrator
 
 
 async def demo_round_robin():
@@ -164,7 +164,7 @@ async def demo_parallel_execution():
     )
 
     # 模拟并行处理
-    from models.base import UserQuery, QueryIntent
+    from app.models.base import UserQuery, QueryIntent
     from datetime import datetime
 
     query = UserQuery(

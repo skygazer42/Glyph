@@ -10,12 +10,12 @@ from autogen_agentchat.teams import DiGraphBuilder, GraphFlow
 from autogen_core import SingleThreadedAgentRuntime, TopicId, ClosureContext, MessageContext, CancellationToken
 from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
 
-from c_app.core.llms import model_client
-from c_app.schemas.text2sql import (
+from app.core.llms import model_client
+from app.schemas.text2sql import (
     Text2SQLResponse, ResponseMessage, QueryMessage, SqlMessage,
     SqlExplanationMessage, SqlResultMessage, AnalysisMessage
 )
-from c_app.db.dbaccess import DBAccess
+from app.persistence.db.dbaccess import DBAccess
 
 # 定义主题类型 - 保持与原始服务相同，用于消息发布
 stream_output_topic_type = "stream_output"

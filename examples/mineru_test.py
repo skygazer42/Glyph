@@ -10,7 +10,7 @@ from pathlib import Path
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from knowledge_base.mineru_adapter import MinerUAdapter
+from app.knowledge.mineru_adapter import MinerUAdapter
 
 
 async def test_health_check():

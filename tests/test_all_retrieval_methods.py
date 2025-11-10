@@ -17,9 +17,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from knowledge_base.milvus import MilvusStore
-from knowledge_base.rerank import Reranker
-from knowledge_base.hybrid_retrieval import HybridRetriever, create_hybrid_retriever_from_files
+from app.knowledge.milvus import MilvusStore
+from app.knowledge.rerank import Reranker
+from app.knowledge.hybrid_retrieval import HybridRetriever, create_hybrid_retriever_from_files
 
 
 @dataclass
@@ -295,7 +295,7 @@ def test_method_3_hybrid_bm25_vector(data_dir, queries):
     try:
         # 创建增强版混合检索器
         print("正在初始化增强版混合检索器（带查询增强和类型加权）...")
-        from knowledge_base.hybrid_retrieval import create_enhanced_hybrid_retriever_from_files
+        from app.knowledge.hybrid_retrieval import create_enhanced_hybrid_retriever_from_files
 
         retriever = create_enhanced_hybrid_retriever_from_files(
             data_dir,

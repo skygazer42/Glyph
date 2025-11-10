@@ -23,9 +23,9 @@ load_dotenv()
 # 添加项目路径
 sys.path.append(str(Path(__file__).parent))
 
-from knowledge_base.milvus import MilvusStore
-from agents.base.types import PolicyDocument
-from agents.dsl_generator.document_parser import DocumentParser
+from app.knowledge.milvus import MilvusStore
+from app.agents.base.types import PolicyDocument
+from app.agents.dsl_generator.document_parser import DocumentParser
 
 
 class KnowledgeBaseTest:

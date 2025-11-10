@@ -20,8 +20,8 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-from config import settings
-from knowledge_base.rerank import Reranker
+from app.config import settings
+from app.knowledge.rerank import Reranker
 
 print("="*70)
 print("问答功能测试 (加入Reranker)")

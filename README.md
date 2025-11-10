@@ -451,7 +451,7 @@ python scripts/smart_cli.py --demo
 python scripts/smart_cli.py --batch queries.txt
 
 # 启动后端 API（FastAPI）
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # 例子：
 # POST http://localhost:8000/query  {"query":"申请汽车补贴需要什么条件？"}

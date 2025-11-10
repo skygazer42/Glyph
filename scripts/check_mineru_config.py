@@ -11,7 +11,7 @@ from pathlib import Path
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import settings
+from app.config import settings
 
 
 def check_basic_config():
@@ -214,7 +214,7 @@ def print_summary(results):
         print("\n下一步：")
         print("  1. 运行测试: python examples/mineru_test.py")
         print("  2. 查看文档: docs/MINERU_ADAPTER_USAGE.md")
-        print("  3. 开始使用: from knowledge_base.mineru_adapter import MinerUAdapter")
+        print("  3. 开始使用: from app.knowledge.mineru_adapter import MinerUAdapter")
     else:
         print(f"\n⚠️  {total - passed} 项检查未通过，请查看上述详情并修正")
         print("\n参考文档：")

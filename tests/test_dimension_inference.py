@@ -19,7 +19,7 @@ def test_dimension_inference():
     print("  Milvus 维度推断测试")
     print("=" * 80)
 
-    from knowledge_base.milvus import MilvusStore
+    from app.knowledge.milvus import MilvusStore
 
     # 测试 1: DashScope backend，使用默认配置
     print("\n测试 1: DashScope backend（当前 .env 配置）")

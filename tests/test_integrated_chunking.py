@@ -17,7 +17,7 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from knowledge_base.hierarchical_index import (
+from app.knowledge.hierarchical_index import (
     HierarchicalMarkdownProcessor,
     ChunkConfig
 )
@@ -212,7 +212,7 @@ print("✅ 测试完成！")
 print("="*70)
 print("\n📝 使用方法:\n")
 print("```python")
-print("from knowledge_base.hierarchical_index import ChunkConfig, HierarchicalMarkdownProcessor")
+print("from app.knowledge.hierarchical_index import ChunkConfig, HierarchicalMarkdownProcessor")
 print()
 print("# 方式1: 使用句子切分（推荐）")
 print("config = ChunkConfig(")

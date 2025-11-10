@@ -1,0 +1,343 @@
+domains:
+  auto_subsidy: |-
+    【任务】你是汽车补贴政策规则工程师，专门处理政府汽车消费补贴政策。
+
+    【输入】以下是汽车消费补贴公告原文。
+
+    【输出要求】严格按照以下JSON结构提取信息：
+
+    ```json
+    {
+      "rule_id": "Rule_[城市]_Car_[年份]",
+      "name": "政策名称",
+      "version": "1.0",
+
+      "policy_source": {
+        "doc_id": "文档编号(如有)",
+        "title": "政策标题"
+      },
+
+      "windows": {
+        "time_basis": "invoice_time",
+        "purchase_window": {
+          "start": "YYYY-MM-DD HH:MM:SS",
+          "end": "YYYY-MM-DD HH:MM:SS"
+        },
+        "claim_window": {
+          "start": "YYYY-MM-DD HH:MM:SS",
+          "end": "YYYY-MM-DD HH:MM:SS"
+        },
+        "modify_window": {
+          "start": "YYYY-MM-DD HH:MM:SS",
+          "end": "YYYY-MM-DD HH:MM:SS"
+        }
+      },
+
+      "budget": {
+        "total": 数字(元),
+        "currency": "CNY",
+        "allocation": "first-come-first-serve"
+      },
+
+      "price_basis": "ex_tax",
+
+      "eligibility": {
+        "buyer_type": "resident_person",
+        "vehicle_scope": "passenger_car",
+        "combinable_with_upper_policies": true/false
+      },
+
+      "matching": {
+        "powertrain_defs": {
+          "NEV": ["新能源车型特征列表"],
+          "ICE": ["燃油车特征"]
+        },
+        "tiers": [
+          {
+            "powertrain": "NEV/ICE",
+            "min_ex_tax": 最低价(元),
+            "max_ex_tax": 最高价(元)或null,
+            "open_interval": "[min, max)"或"[min, +∞)",
+            "subsidy": 补贴金额(元)
+          }
+        ]
+      },
+
+      "limits": {
+        "per_person_max_cars": 每人限购数,
+        "dedupe_keys": ["consumer_id", "vin", "invoice_no"]
+      },
+
+      "output": {
+        "status_qualified": "QUALIFIED",
+        "trace_template": "补贴计算过程说明模板"
+      },
+
+      "notes": "其他注意事项"
+    }
+    ```
+
+    【重要规则】
+    1. 时间格式：24:00 转换为次日 00:00:00
+    2. 金额单位：万元转换为元（×10000）
+    3. 动力类型映射：
+       - NEV：新能源、纯电动、插电式混合动力、插混、增程式、燃料电池、绿牌、行驶证标注"新能源"
+       - ICE：燃油车、汽油车、柴油车、传统动力
+    4. 价格基准：不含税价、裸车价 → ex_tax
+    5. 分配方式：先到先得 → first-come-first-serve
+    6. 分档区间：[10万, 30万) 转换为 [100000, 300000)
+
+    【只输出JSON，不要任何解释】
+
+    ---政策原文---
+    {{policy_text}}
+    ---输出JSON---
+
+  appliance_subsidy: |-
+    【任务】你是家电补贴政策规则工程师，专门处理家电消费补贴和以旧换新政策。
+
+    【输入】以下是家电补贴政策原文。
+
+    【输出要求】严格按照以下JSON结构提取信息：
+
+    ```json
+    {
+      "rule_id": "Rule_[城市]_Appliance_[年份]",
+      "name": "政策名称",
+      "version": "1.0",
+
+      "policy_source": {
+        "doc_id": "文档编号(如有)",
+        "title": "政策标题",
+        "clause": "相关条款"
+      },
+
+      "valid_period": {
+        "start": "YYYY-MM-DD",
+        "end": "YYYY-MM-DD"
+      },
+
+      "efficiency_rates": {
+        "base_rate": 基础补贴率(小数),
+        "level_2_rate": 0.15,
+        "level_1_bonus": 0.05,
+        "no_label_rate": 无标识产品补贴率
+      },
+
+      "category_limits": {
+        "per_category": {
+          "空调": 每类限购数,
+          "冰箱": 限购数,
+          "洗衣机": 限购数,
+          "热水器": 限购数,
+          "电视": 限购数,
+          "default": 默认限购数
+        },
+        "total_items": 总限购数
+      },
+
+      "per_item_cap": 单件补贴上限(元),
+
+      "calc": {
+        "formula": "计算公式描述",
+        "steps": [
+          "1. 根据能效等级确定补贴率",
+          "2. 计算原始补贴 = 销售价格 × 补贴率",
+          "3. 应用单件上限 = min(原始补贴, 单件上限)"
+        ]
+      },
+
+      "special_rules": {
+        "trade_in_required": true/false,
+        "old_device_criteria": "旧品回收标准",
+        "stacking_allowed": true/false
+      },
+
+      "output": {
+        "status": "QUALIFIED",
+        "final_result": "补贴金额",
+        "trace_template": "能效{{level}}级，补贴率{{rate}}%，补贴{{amount}}元"
+      }
+    }
+    ```
+
+    【重要规则】
+    1. 能效等级识别："一级能效"→ level_1, "二级能效"→ level_2。
+    2. 百分比转换：统一转换为小数形式。
+    3. 金额统一为人民币元。
+    4. 标记是否需要以旧换新。
+
+    【只输出JSON，不要任何解释】
+
+    ---政策原文---
+    {{policy_text}}
+    ---输出JSON---
+
+  consumer_coupon: |-
+    【任务】你是消费券政策规则工程师，专门处理满减券、消费券等促销政策。
+
+    【输入】以下是消费券发放活动公告原文。
+
+    【输出要求】严格按照以下JSON结构提取信息：
+
+    ```json
+    {
+      "rule_id": "Rule_[城市]_Coupon_[年份]",
+      "name": "活动名称",
+      "version": "1.0",
+
+      "policy_source": {
+        "doc_id": "文档编号(如有)",
+        "title": "公告标题"
+      },
+
+      "valid_period": {
+        "start": "YYYY-MM-DD HH:MM:SS",
+        "end": "YYYY-MM-DD HH:MM:SS"
+      },
+
+      "coupon_types": ["retail", "dining"],
+
+      "tiers": [
+        {
+          "type": "retail/dining",
+          "threshold": 满减门槛(元),
+          "discount": 减免金额(元),
+          "name": "券面名称"
+        }
+      ],
+
+      "distribution": {
+        "method": "lottery/first-come/batch",
+        "total_quota": 总发放量,
+        "quota_per_person": 每人限领数,
+        "release_schedule": [
+          {
+            "batch": 批次,
+            "time": "发放时间",
+            "amount": 发放数量
+          }
+        ]
+      },
+
+      "usage_limits": {
+        "valid_days": 有效天数,
+        "merchant_scope": "适用商户范围",
+        "product_scope": "适用商品范围",
+        "time_restrictions": "使用时间限制",
+        "stacking": {
+          "with_merchant_discount": true/false,
+          "with_other_coupons": true/false
+        }
+      },
+
+      "platform": {
+        "claim_platform": "领取平台",
+        "payment_methods": ["支付方式列表"]
+      },
+
+      "output": {
+        "status": "QUALIFIED",
+        "final_result": "优惠金额",
+        "trace_template": "消费{{amount}}元，使用{{type}}消费券，优惠{{discount}}元"
+      }
+    }
+    ```
+
+    【重要规则】
+    1. 券种类型映射：零售→ retail，餐饮→ dining。
+    2. 满减表达统一解析为 threshold/discount。
+    3. 发放方式：抽奖→ lottery，先到先得→ first-come，定时批次→ batch。
+
+    【只输出JSON，不要任何解释】
+
+    ---政策原文---
+    {{policy_text}}
+    ---输出JSON---
+
+  trade_in: |-
+    【任务】你是以旧换新政策提取专家，负责解析旧设备回收换新补贴政策。
+
+    【输出JSON模板】
+    ```json
+    {
+      "rule_id": "Rule_[城市]_TradeIn_[年份]",
+      "name": "政策名称",
+      "valid_period": {
+        "start": "YYYY-MM-DD",
+        "end": "YYYY-MM-DD"
+      },
+      "eligible_old_items": ["旧设备类型列表"],
+      "new_item_scope": "可换新产品范围",
+      "subsidy_logic": {
+        "base_rate": 补贴比例(小数),
+        "max_amount": 单件封顶(元),
+        "extra_bonus": "特殊加成描述"
+      },
+      "requirements": {
+        "need_recycle_certificate": true/false,
+        "designated_channels": "回收或购买渠道说明"
+      },
+      "stacking": {
+        "with_state_policy": true/false,
+        "with_local_policy": true/false
+      },
+      "output": {
+        "status": "QUALIFIED",
+        "trace_template": "旧机{{old_type}}换购{{new_type}}，按{{rate}}补贴，封顶{{cap}}元"
+      }
+    }
+    ```
+
+    【规则】
+    - 统一金额单位为元。
+    - 若出现“最高不超过”“单件封顶”，填入 max_amount。
+    - 回收凭证/指定商家均写入 requirements。
+
+    ---政策原文---
+    {{policy_text}}
+    ---输出JSON---
+
+  insurance_subsidy: |-
+    【任务】你是保险补贴政策工程师，负责提取车险/商业险补贴细则。
+
+    【输出JSON模板】
+    ```json
+    {
+      "rule_id": "Rule_[城市]_Insurance_[年份]",
+      "name": "政策名称",
+      "coverage": {
+        "compulsory": true/false,
+        "commercial": true/false,
+        "first_insurance_only": true/false
+      },
+      "subsidy": {
+        "type": "cash/discount/voucher",
+        "amount": 金额(元)或折扣描述,
+        "cap": 上限金额(如有)
+      },
+      "eligibility": {
+        "vehicle_scope": "适用车型",
+        "buyer_type": "个人/企业",
+        "other_requirements": "如购车日期、新能源限定等"
+      },
+      "claim_process": {
+        "apply_channel": "申请渠道",
+        "deadline": "截止日期",
+        "required_docs": ["材料列表"]
+      },
+      "output": {
+        "status": "QUALIFIED",
+        "trace_template": "购买{{coverage}}保险，补贴{{amount}}元"
+      }
+    }
+    ```
+
+    【规则】
+    - 将“首保”“首次投保”标记为 first_insurance_only。
+    - “购车后30天内投保”写入 other_requirements。
+    - 折扣类补贴保留原文描述。
+
+    ---政策原文---
+    {{policy_text}}
+    ---输出JSON---

@@ -21,7 +21,7 @@ async def main():
     """主函数 - 演示如何使用Agent模块"""
 
     # 1. 创建Agent管理器
-    from agents.modules.manager import create_default_manager
+    from app.agents.modules.manager import create_default_manager
     manager = await create_default_manager()
 
     print("=" * 60)

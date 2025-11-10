@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from knowledge_base.llamaindex_hybrid_retrieval import (
+from app.knowledge.llamaindex_hybrid_retrieval import (
     LlamaIndexHybridRetriever,
     load_documents_from_dir
 )

@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 load_dotenv()
 sys.path.append(str(Path(__file__).parent))
 
-from agents.dsl_generator.dsl_extractor import DSLExtractor
-from agents.dsl_generator.dsl_generator import DSLGenerator
-from agents.dsl_generator.document_parser import DocumentParser
+from app.agents.dsl_generator.dsl_extractor import DSLExtractor
+from app.agents.dsl_generator.dsl_generator import DSLGenerator
+from app.agents.dsl_generator.document_parser import DocumentParser
 
 # 初始化组件
 extractor = DSLExtractor(use_project_config=True)

@@ -20,9 +20,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 导入 endpoint 路由
-from api.endpoints import agent, dsl, knowledge
-from api.schemas import HealthResponse
-from api.deps import get_session_manager
+from app.api.endpoints import agent, dsl, knowledge
+from app.api.schemas import HealthResponse
+from app.api.deps import get_session_manager
 
 
 # 生命周期管理

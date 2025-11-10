@@ -157,7 +157,7 @@ def test_full_pipeline():
 
     # 导入知识库模块
     try:
-        from knowledge_base.milvus import MilvusStore
+        from app.knowledge.milvus import MilvusStore
         print("[OK] 成功导入 MilvusStore")
     except Exception as e:
         print(f"[FAIL] 导入失败: {e}")
@@ -190,7 +190,7 @@ def test_full_pipeline():
 
     # 转换为 PolicyDocument
     try:
-        from agents.base.types import PolicyDocument
+        from app.agents.base.types import PolicyDocument
 
         policy_docs = []
         for doc in documents:

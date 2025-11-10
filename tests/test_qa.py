@@ -20,7 +20,7 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-from config import settings
+from app.config import settings
 
 print("="*70)
 print("问答功能测试")
@@ -50,7 +50,7 @@ if not storage_path.exists():
 
 print(f"\n[1] 加载索引: {storage_dir}")
 try:
-    from knowledge_base.hierarchical_index import HierarchicalRetriever
+    from app.knowledge.hierarchical_index import HierarchicalRetriever
 
     # 配置LlamaIndex embedding (即使出错也继续)
     try:

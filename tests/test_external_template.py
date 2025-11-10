@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 sys.path.append(str(Path(__file__).parent))
 
-from agents.dsl_generator.dsl_generator import DSLGenerator
+from app.agents.dsl_generator.dsl_generator import DSLGenerator
 
 # 测试数据 - 消费券
 test_data_coupon = {

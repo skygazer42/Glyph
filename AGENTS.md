@@ -1,9 +1,9 @@
 ﻿# Repository Guidelines
 
 ## Project Structure & Module Organization
-- `agents/` hosts AutoGen agents (router, retrieval, DSL generation, monitoring); add new roles under the closest domain module.
-- Runtime entry points live in `app.py`, `api_server.py`, and `services/`, while CLIs stay in `scripts/` (embedding, Milvus maintenance, smart CLI).
-- Persist datasets in `data/`, rules/templates in `rules/` + `templates/`, knowledge artifacts in `knowledge_base/`/`models/`, and UI code in `web/`.
+- `app/agents/` hosts AutoGen agents plus the new `AgentService`/toolkit; add roles under the closest domain module.
+- Runtime entry points live in `app/main.py`, `api_server.py`, and `app/services/`, while CLIs stay in `scripts/` (embedding, Milvus maintenance, smart CLI).
+- Persist datasets in `data/`, rules/templates in `rules/` + `templates/`, knowledge artifacts in `app/knowledge/`/`app/models/`, and UI code in `web/`.
 - Tests live in `tests/` plus root-level `test_*.py`; colocate fixtures beside the feature they validate.
 
 ## Build, Test & Development Commands
@@ -29,6 +29,6 @@
 - Reference issue IDs and detail affected `rule_id`/dataset names when touching `rules/`, `templates/`, or `knowledge_base/`.
 
 ## Configuration & Security
-- Copy `.env.example` -> `.env`, inject keys locally, and keep shared defaults in `config/settings.py`.
+- Copy `.env.example` -> `.env`, inject keys locally, and keep shared defaults in `app/config/app_config.py`.
 - Keep Milvus/Neo4j endpoints private and scrub uploads before committing anything under `uploads/` or `knowledge_base/`.
 - Run `scripts/check_config.py` plus `scripts/check_mineru_config.py` before PRs to ensure environment parity and schema sync.

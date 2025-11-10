@@ -18,10 +18,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from agents.orchestrators.legacy import PolicyQAOrchestrator
-from models.base import PolicyDocument, PolicyType, AgentType
-from utils.document_loader import DocumentLoader
-from utils.config import Config
+from app.agents.orchestrators.legacy import PolicyQAOrchestrator
+from app.models.base import PolicyDocument, PolicyType, AgentType
+from app.utils.document_loader import DocumentLoader
+from app.utils.config import Config
 
 console = Console()
 

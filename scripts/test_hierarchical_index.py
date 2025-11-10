@@ -13,12 +13,12 @@ from typing import List, Dict
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from knowledge_base.hierarchical_index import (
+from app.knowledge.hierarchical_index import (
     HierarchicalIndexBuilder,
     HierarchicalRetriever,
     ChunkConfig
 )
-from config import settings
+from app.config import settings
 
 # 清除代理环境变量
 for key in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']:

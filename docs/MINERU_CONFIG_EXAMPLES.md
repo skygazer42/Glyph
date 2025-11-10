@@ -282,7 +282,7 @@ MINERU_OCR_ALL_IMAGES=false
 export ENV_FILE=.env.development
 
 # 或在代码中指定
-python app.py --env-file .env.development
+python -m uvicorn app.main:app --env-file .env.development
 ```
 
 ---

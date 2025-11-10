@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def test_settings_loading():
     """测试 settings 加载"""
-    from config import settings
+    from app.config import settings
 
     print("=" * 60)
     print("📋 配置加载测试")
@@ -80,14 +80,14 @@ def test_settings_loading():
 
 def test_vector_store():
     """测试 VectorStore 使用 settings"""
-    from config import settings
+    from app.config import settings
 
     print("\n" + "=" * 60)
     print("📦 VectorStore 配置测试")
     print("=" * 60)
 
     try:
-        from knowledge_base import VectorStore
+        from app.knowledge import VectorStore
 
         store = VectorStore()
 
@@ -106,14 +106,14 @@ def test_vector_store():
 
 def test_milvus_store():
     """测试 MilvusStore 使用 settings"""
-    from config import settings
+    from app.config import settings
 
     print("\n" + "=" * 60)
     print("🗄️ MilvusStore 配置测试")
     print("=" * 60)
 
     try:
-        from knowledge_base import MilvusStore
+        from app.knowledge import MilvusStore
         store = MilvusStore()
 
         print(f"\n配置来源验证:")
@@ -133,7 +133,7 @@ def test_milvus_store():
 
 def test_mineru_adapter():
     """测试 MinerU Adapter 使用 settings"""
-    from config import settings
+    from app.config import settings
 
     print("\n" + "=" * 60)
     print("📄 MinerU Adapter 配置测试")
@@ -145,7 +145,7 @@ def test_mineru_adapter():
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).parent.parent))
 
-        from knowledge_base.mineru_adapter import MinerUAdapter
+        from app.knowledge.mineru_adapter import MinerUAdapter
 
         adapter = MinerUAdapter()
 
