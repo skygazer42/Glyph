@@ -267,9 +267,9 @@ class PerformanceSettings(BaseSettings):
 class SystemSettings(BaseSettings):
     """系统配置"""
     # 项目路径
-    project_root: Path = Field(default=Path(__file__).parent)
-    data_dir: Path = Field(default=Path(__file__).parent / "resources" / "data")
-    logs_dir: Path = Field(default=Path(__file__).parent / "resources" / "logs")
+    project_root: Path = Field(default=Path(__file__).parent.parent)
+    data_dir: Path = Field(default=Path(__file__).parent.parent / "resources" / "data")
+    logs_dir: Path = Field(default=Path(__file__).parent.parent / "resources" / "logs")
 
     # 调试选项
     debug: bool = Field(default=False, env="DEBUG")
@@ -289,7 +289,7 @@ class SystemSettings(BaseSettings):
     early_stop_conf: float = Field(default=0.80, env="EARLY_STOP_CONF")
 
     # LightRAG 配置
-    lightrag_workdir: str = Field(default="data/lightrag", env="LIGHTRAG_WORKDIR")
+    lightrag_workdir: str = Field(default="resources/data/lightrag", env="LIGHTRAG_WORKDIR")
     max_embed_tokens: int = Field(default=8192, env="MAX_EMBED_TOKENS")
 
     # LlamaIndex 配置

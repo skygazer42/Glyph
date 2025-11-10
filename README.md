@@ -92,7 +92,7 @@ EMBEDDING_BINDING_HOST=http://localhost:11434
 EMBEDDING_DIM=1024
 MAX_EMBED_TOKENS=8192
 # 工作目录与日志
-LIGHTRAG_WORKDIR=data/lightrag
+LIGHTRAG_WORKDIR=resources/data/lightrag
 LOG_DIR=.
 LOG_MAX_BYTES=10485760
 LOG_BACKUP_COUNT=5
@@ -228,8 +228,8 @@ model:
 
 vector_store:
   model_name: "BAAI/bge-large-zh-v1.5"
-  index_path: "data/vector_store/policy_index.faiss"
-  metadata_path: "data/vector_store/metadata.pkl"
+  index_path: "resources/data/vector_store/policy_index.faiss"
+  metadata_path: "resources/data/vector_store/metadata.pkl"
   embedding_dim: 1024
   similarity_threshold: 0.7
   top_k: 10
@@ -403,7 +403,7 @@ CONVERSATION__HISTORY_WINDOW=5
 EARLY_STOP_CONF=0.80
 
 # LightRAG（可选，用于图谱检索链）
-LIGHTRAG_WORKDIR=data/lightrag
+LIGHTRAG_WORKDIR=resources/data/lightrag
 EMBEDDING_MODEL=bge-m3:latest
 EMBEDDING_BINDING_HOST=http://localhost:11434
 EMBEDDING_DIM=1024

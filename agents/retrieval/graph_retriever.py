@@ -40,7 +40,7 @@ class GraphRetrieverAgent(StatefulAgent):
             **kwargs,
         )
 
-        self.working_dir = working_dir or os.getenv("LIGHTRAG_WORKDIR", "data/lightrag")
+        self.working_dir = working_dir or os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag")
         self.default_mode = os.getenv("LIGHTRAG_QUERY_MODE", default_mode)
 
         # Lazy init members

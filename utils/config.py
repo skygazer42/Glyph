@@ -21,8 +21,8 @@ class ModelConfig(BaseSettings):
 class VectorStoreConfig(BaseSettings):
     """Vector store configuration."""
     model_name: str = Field(default="BAAI/bge-large-zh-v1.5", description="Embedding model")
-    index_path: str = Field(default="data/vector_store/policy_index.faiss")
-    metadata_path: str = Field(default="data/vector_store/metadata.pkl")
+    index_path: str = Field(default="resources/data/vector_store/policy_index.faiss")
+    metadata_path: str = Field(default="resources/data/vector_store/metadata.pkl")
     embedding_dim: int = Field(default=1024)
     similarity_threshold: float = Field(default=0.7, ge=0, le=1)
     top_k: int = Field(default=10, ge=1, le=100)

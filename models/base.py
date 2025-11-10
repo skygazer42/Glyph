@@ -8,7 +8,8 @@ from enum import Enum
 from pydantic import BaseModel, Field, validator
 from uuid import UUID, uuid4
 from pydantic_settings import BaseSettings
-
+from sqlalchemy.ext.declarative import as_declarative, declared_attr
+from sqlalchemy import Any
 class AgentType(str, Enum):
     """Agent type enumeration."""
     QUERY_ANALYZER = "query_analyzer"
@@ -210,3 +211,14 @@ class AgentMessage(BaseModel):
     correlation_id: Optional[UUID] = Field(None, description="关联ID")
     requires_response: bool = Field(False, description="是否需要响应")
     response_topic: Optional[str] = Field(None, description="响应主题")
+
+
+@as_declarative()
+class Base:
+    id: Any
+    __name__: str
+
+    # Generate __tablename__ automatically
+    @declared_attr
+    def __tablename__(cls) -> str:
+        return cls.__name__.lower()

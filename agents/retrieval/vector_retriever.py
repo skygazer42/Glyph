@@ -32,8 +32,8 @@ class VectorRetrieverAgent(StatefulAgent):
     def __init__(
         self,
         model_name: Optional[str] = None,
-        index_path: str = "data/vector_store/policy_index.faiss",
-        metadata_path: str = "data/vector_store/metadata.pkl",
+        index_path: str = "resources/data/vector_store/policy_index.faiss",
+        metadata_path: str = "resources/data/vector_store/metadata.pkl",
         embedding_dim: Optional[int] = None,
         embedding_backend: Optional[str] = None,
         **kwargs

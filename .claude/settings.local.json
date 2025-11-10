@@ -18,7 +18,9 @@
       "Bash(unset:*)",
       "Bash(rm:*)",
       "Bash(mkdir:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(mv:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

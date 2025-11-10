@@ -145,17 +145,17 @@ docker-compose.override.yml
 # Vector Databases & Storage
 # ============================================
 # Milvus data
-data/milvus/
-data/vector_store/
+resources/data/milvus/
+resources/data/vector_store/
 milvus_data/
 volumes/milvus/
 
 # Neo4j data
-data/neo4j/
+resources/data/neo4j/
 volumes/neo4j/
 
 # LightRAG
-data/lightrag/
+resources/data/lightrag/
 
 # ============================================
 # LlamaIndex & AI Models
