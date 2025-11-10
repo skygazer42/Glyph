@@ -3,22 +3,32 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/agent'
+    name: 'Home',
+    component: () => import('@/views/Dashboard.vue')
   },
   {
-    path: '/agent',
-    name: 'Agent',
-    component: () => import('@/views/AgentChat.vue')
+    path: '/chat',
+    name: 'Chat',
+    component: () => import('@/views/ChatConsultation.vue')
   },
   {
-    path: '/dsl',
-    name: 'DSL',
-    component: () => import('@/views/DSLGenerator.vue')
+    path: '/calculator',
+    name: 'Calculator',
+    component: () => import('@/views/PolicyCalculator.vue')
   },
   {
     path: '/knowledge',
     name: 'Knowledge',
     component: () => import('@/views/KnowledgeBase.vue')
+  },
+  // 保留旧路由以保持兼容
+  {
+    path: '/agent',
+    redirect: '/chat'
+  },
+  {
+    path: '/dsl',
+    redirect: '/calculator'
   }
 ]
 
