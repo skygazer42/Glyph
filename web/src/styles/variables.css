@@ -66,12 +66,31 @@
   --text-4xl: 2.25rem;
 }
 
-/* 暗色主题 */
+/* 暗色主题（政务风格） */
 [data-theme="dark"] {
-  --text-primary: #f9fafb;
-  --text-secondary: #d1d5db;
-  --text-tertiary: #9ca3af;
+  /* 背景色 */
+  --bg-color: #1a1d23;
+  --bg-secondary: #24272e;
+
+  /* 文字颜色 */
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+
+  /* 边框颜色 */
   --border-color: #374151;
-  --bg-color: #111827;
-  --bg-secondary: #1f2937;
+
+  /* 卡片背景 */
+  --card-bg: #1f2937;
+
+  /* 政务色保持不变，但调整透明度 */
+  --primary-color: #3d7fff;
+  --primary-light: #5b93ff;
+  --secondary-color: #e34d59;
+
+  /* 阴影（暗色模式下更柔和） */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
 }

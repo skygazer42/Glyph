@@ -29,6 +29,7 @@
               <span>知识库</span>
             </el-menu-item>
           </el-menu>
+          <ThemeToggle />
         </div>
       </el-header>
       <el-main class="app-main">
@@ -46,6 +47,7 @@
 <script setup>
 import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
 import AppFooter from '@/components/AppFooter.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 </script>
 
 <style scoped>
