@@ -99,6 +99,7 @@ async def get_agent_service() -> AgentService:
 # ==================== 会话管理依赖 ====================
 
 from app.agents.framework.common.session_manager import SessionManager
+from app.agents.service.chat_history_store import ChatHistoryStore
 
 _session_manager: Optional[SessionManager] = None
 
@@ -107,5 +108,6 @@ def get_session_manager() -> SessionManager:
     """获取会话管理器实例"""
     global _session_manager
     if _session_manager is None:
-        _session_manager = SessionManager()
+        history_store = ChatHistoryStore()
+        _session_manager = SessionManager(history_store=history_store)
     return _session_manager

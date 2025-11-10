@@ -7,7 +7,7 @@ from typing import Dict, List, Any
 import json
 import yaml
 
-from app.prompts.domain_catalog import get_domain_prompt
+from app.domains.prompt_catalog import get_domain_prompt
 
 class DomainConfig:
     """领域配置管理器"""

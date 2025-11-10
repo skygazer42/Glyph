@@ -39,10 +39,17 @@ async def agent_chat(
     """
     try:
         # 获取或创建会话
-        session = session_manager.get_or_create_session(request.session_id)
+        session = session_manager.get_or_create_session(
+            request.session_id, connection_id=request.connection_id
+        )
 
         # 添加用户消息到会话
-        session_manager.add_message(session.session_id, "user", request.message)
+        session_manager.add_message(
+            session.session_id,
+            "user",
+            request.message,
+            metadata={"connection_id": request.connection_id},
+        )
 
         # 调用统一 AgentService
         final = await agent_service.process_query(
@@ -52,7 +59,12 @@ async def agent_chat(
         )
 
         # 添加助手消息到会话
-        session_manager.add_message(session.session_id, "assistant", final.answer)
+        session_manager.add_message(
+            session.session_id,
+            "assistant",
+            final.answer,
+            metadata=final.metadata,
+        )
 
         logger.info(f"会话 {session.session_id} 完成问答，路由：{final.metadata.get('route')}")
 
@@ -96,11 +108,18 @@ async def agent_chat_stream(
         """事件生成器"""
         try:
             # 获取或创建会话
-            session = session_manager.get_or_create_session(request.session_id)
+            session = session_manager.get_or_create_session(
+                request.session_id, connection_id=request.connection_id
+            )
             session_id = session.session_id
 
             # 添加用户消息到会话
-            session_manager.add_message(session_id, "user", request.message)
+            session_manager.add_message(
+                session_id,
+                "user",
+                request.message,
+                metadata={"connection_id": request.connection_id},
+            )
 
             # 发送会话信息
             yield {
@@ -135,7 +154,12 @@ async def agent_chat_stream(
             }
 
             # 添加助手完整响应到会话
-            session_manager.add_message(session_id, "assistant", final.answer)
+            session_manager.add_message(
+                session_id,
+                "assistant",
+                final.answer,
+                metadata=final.metadata,
+            )
 
             # 发送完成信号
             done_chunk = ChatStreamChunk(
