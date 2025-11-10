@@ -317,3 +317,336 @@ body {
     --spacing-xl: 24px;
   }
 }
+
+/* ========================================
+   暗色模式完善样式
+   ======================================== */
+
+[data-theme="dark"] {
+  /* 滚动条暗色 */
+  &::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #4a5568;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #718096;
+  }
+
+  /* Element Plus 组件暗色适配 */
+
+  /* 卡片 */
+  .el-card {
+    background: var(--bg-secondary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .el-card__header {
+    background: linear-gradient(to bottom, #2d3748, #1a202c);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* 按钮 */
+  .el-button {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+  }
+
+  .el-button:hover {
+    background-color: #4b5563;
+    border-color: #6b7280;
+  }
+
+  .el-button--primary {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 2px 4px rgba(61, 127, 255, 0.3);
+  }
+
+  .el-button--primary:hover,
+  .el-button--primary:focus {
+    background: var(--primary-light);
+    border-color: var(--primary-light);
+    box-shadow: 0 4px 8px rgba(61, 127, 255, 0.4);
+  }
+
+  .el-button--danger {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: white;
+  }
+
+  .el-button--danger:hover {
+    background: #b91c1c;
+  }
+
+  .el-button--success {
+    background: #059669;
+    border-color: #059669;
+  }
+
+  .el-button--success:hover {
+    background: #047857;
+  }
+
+  /* 输入框 */
+  .el-input__wrapper {
+    background-color: #1f2937;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  .el-input__inner {
+    color: #e5e7eb;
+  }
+
+  .el-textarea__inner {
+    background-color: #1f2937;
+    color: #e5e7eb;
+    border-color: #374151;
+  }
+
+  .el-input__wrapper:hover,
+  .el-textarea__inner:hover {
+    border-color: #4b5563;
+  }
+
+  .el-input__wrapper.is-focus,
+  .el-textarea__inner:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(61, 127, 255, 0.2);
+  }
+
+  /* 标签 */
+  .el-tag {
+    background-color: rgba(75, 85, 99, 0.5);
+    border-color: #4b5563;
+    color: #d1d5db;
+  }
+
+  .el-tag--success {
+    background-color: rgba(5, 150, 105, 0.2);
+    border-color: rgba(5, 150, 105, 0.4);
+    color: #10b981;
+  }
+
+  .el-tag--primary {
+    background-color: rgba(61, 127, 255, 0.2);
+    border-color: rgba(61, 127, 255, 0.4);
+    color: #3d7fff;
+  }
+
+  .el-tag--danger {
+    background-color: rgba(220, 38, 38, 0.2);
+    border-color: rgba(220, 38, 38, 0.4);
+    color: #f87171;
+  }
+
+  .el-tag--warning {
+    background-color: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+  }
+
+  .el-tag--info {
+    background-color: rgba(107, 114, 128, 0.2);
+    border-color: rgba(107, 114, 128, 0.4);
+    color: #9ca3af;
+  }
+
+  /* 表格 */
+  .el-table {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .el-table th.el-table__cell {
+    background: linear-gradient(to bottom, #2d3748, #1a202c);
+    color: #e5e7eb;
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .el-table tr {
+    background-color: var(--bg-secondary);
+  }
+
+  .el-table tr:hover > td {
+    background-color: rgba(61, 127, 255, 0.1) !important;
+  }
+
+  .el-table td.el-table__cell {
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+  }
+
+  /* 对话框 */
+  .el-dialog {
+    background-color: var(--bg-secondary);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .el-dialog__header {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .el-dialog__title {
+    color: var(--text-primary);
+  }
+
+  .el-dialog__footer {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* 下拉菜单 */
+  .el-select-dropdown {
+    background-color: #1f2937;
+    border-color: #374151;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .el-select-dropdown__item {
+    color: #e5e7eb;
+  }
+
+  .el-select-dropdown__item:hover {
+    background-color: rgba(61, 127, 255, 0.2);
+  }
+
+  .el-select-dropdown__item.selected {
+    color: var(--primary-color);
+    background-color: rgba(61, 127, 255, 0.15);
+  }
+
+  /* 菜单 */
+  .el-menu {
+    background-color: transparent;
+    border-right-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .el-menu-item {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .el-menu-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .el-menu-item.is-active {
+    background-color: rgba(61, 127, 255, 0.2);
+    color: var(--primary-light);
+  }
+
+  /* 消息提示 */
+  .el-message {
+    background-color: #1f2937;
+    border-color: #374151;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .el-message__content {
+    color: #e5e7eb;
+  }
+
+  /* 开关 */
+  .el-switch {
+    --el-switch-on-color: var(--primary-color);
+    --el-switch-off-color: #4b5563;
+  }
+
+  /* 滑块 */
+  .el-slider__runway {
+    background-color: #374151;
+  }
+
+  .el-slider__button {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(61, 127, 255, 0.2);
+  }
+
+  /* 空状态 */
+  .el-empty__description {
+    color: var(--text-secondary);
+  }
+
+  /* 分页 */
+  .el-pagination button,
+  .el-pager li {
+    background-color: #374151;
+    color: #e5e7eb;
+  }
+
+  .el-pagination button:hover:not(:disabled),
+  .el-pager li:hover {
+    background-color: #4b5563;
+  }
+
+  .el-pager li.is-active {
+    background-color: var(--primary-color);
+    color: white;
+  }
+
+  /* 抽屉 */
+  .el-drawer {
+    background-color: var(--bg-secondary);
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .el-drawer__header {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+  }
+
+  /* Alert 提示 */
+  .el-alert {
+    background-color: rgba(55, 65, 81, 0.5);
+    border-color: #4b5563;
+  }
+
+  .el-alert--info {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+
+  .el-alert--success {
+    background-color: rgba(5, 150, 105, 0.15);
+    border-color: rgba(5, 150, 105, 0.3);
+  }
+
+  .el-alert--warning {
+    background-color: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  .el-alert--error {
+    background-color: rgba(220, 38, 38, 0.15);
+    border-color: rgba(220, 38, 38, 0.3);
+  }
+
+  /* 描述列表 */
+  .el-descriptions {
+    background-color: transparent;
+  }
+
+  .el-descriptions__label,
+  .el-descriptions__content {
+    color: var(--text-primary);
+  }
+
+  .el-descriptions__body .el-descriptions__table {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .el-descriptions__body .el-descriptions__table .el-descriptions__cell {
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+
+  /* 玻璃效果（暗色） */
+  .glass-effect {
+    background: rgba(31, 41, 55, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
