@@ -5,7 +5,10 @@
         <div class="header-content">
           <div class="logo-section">
             <div class="logo-icon">🏛️</div>
-            <h1 class="logo-text">政策智能分析系统</h1>
+            <div class="logo-info">
+              <h1 class="logo-text">政府政策智能分析平台</h1>
+              <div class="subtitle">Government Policy Analysis System</div>
+            </div>
           </div>
           <el-menu
             class="nav-menu"
@@ -34,6 +37,7 @@
             <component :is="Component" />
           </transition>
         </router-view>
+        <AppFooter />
       </el-main>
     </el-container>
   </div>
@@ -41,6 +45,7 @@
 
 <script setup>
 import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
+import AppFooter from '@/components/AppFooter.vue'
 </script>
 
 <style scoped>
@@ -50,12 +55,13 @@ import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
 }
 
 .app-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #c8232c 0%, #0052d9 100%);
   color: white;
   padding: 0;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 82, 217, 0.2);
   position: relative;
   z-index: 100;
+  border-bottom: 3px solid #c8232c;
 }
 
 .header-content {
@@ -88,14 +94,27 @@ import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
   }
 }
 
+.logo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .logo-text {
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.375rem;
+  font-weight: 700;
   white-space: nowrap;
-  background: linear-gradient(to right, #ffffff, #f0f9ff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: white;
+  letter-spacing: 1px;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 400;
 }
 
 .nav-menu {
@@ -136,6 +155,9 @@ import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
   padding: var(--spacing-xl);
   overflow-y: auto;
   background: transparent;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* 页面切换动画 */
@@ -186,6 +208,10 @@ import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
 
 @media (max-width: 480px) {
   .logo-text {
+    font-size: 0.9rem;
+  }
+
+  .subtitle {
     display: none;
   }
 

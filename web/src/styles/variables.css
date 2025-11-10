@@ -1,15 +1,15 @@
-/* 全局CSS变量 - 设计系统 */
+/* 全局CSS变量 - 设计系统（政务风格） */
 
 :root {
-  /* 主色调 - 现代蓝紫渐变 */
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --primary-color: #667eea;
-  --primary-light: #8b9ff8;
-  --primary-dark: #5568d3;
+  /* 主色调 - 政务红蓝渐变 */
+  --primary-gradient: linear-gradient(135deg, #c8232c 0%, #0052d9 100%);
+  --primary-color: #0052d9;
+  --primary-light: #3d7fff;
+  --primary-dark: #003cab;
 
-  /* 辅助色 */
-  --secondary-color: #764ba2;
-  --accent-color: #f093fb;
+  /* 辅助色 - 中国红 */
+  --secondary-color: #c8232c;
+  --accent-color: #e34d59;
 
   /* 功能色 */
   --success-color: #10b981;
