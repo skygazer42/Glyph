@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - `app/agents/` hosts AutoGen agents plus the new `AgentService` helpers; add roles under the closest domain module.
-- Runtime entry points live in `app/main.py`, `api_server.py`, and the unified `app/agents/service.py` (shared by API/CLI); CLIs stay in `scripts/` (embedding, Milvus maintenance, smart CLI).
+- Runtime entry points live in `app/main.py`, `api_server.py`, and the unified `app/agents/service/` package（API/CLI 共用）；CLIs stay in `scripts/` (embedding, Milvus maintenance, smart CLI).
 - Persist datasets in `data/`, rules/templates in `rules/` + `templates/`, knowledge artifacts in `app/knowledge/` + `knowledge_base/`, and UI code in `web/`.
 - Tests live in `tests/` plus root-level `test_*.py`; colocate fixtures beside the feature they validate.
 

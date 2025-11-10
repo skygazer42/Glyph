@@ -12,13 +12,18 @@
 
 ```
 app/agents/
+├── ag_builder.py         # 轻量 AG 组合器 Demo（原 simple_controller）
+├── ag_prompt.py          # Workflow 共用的提示词
+├── ag_workflow.py        # AutoGen Workflow Demo（原 ag_orchestrator）
 ├── framework/            # AutoGen Core 抽象：BaseAgent、会话、监控、安全等
 ├── packs/                # 「一个 Agent = 一个目录」的实现，示例：chat_agent、graph_retriever
 ├── pipeline/             # AgentService 使用的业务流水线代理（Rewrite/Knowledge/Graph/Rule/Text2SQL）
 ├── dsl_generator/        # DSL 生成&执行引擎（PolicyEngine 等）
 ├── chatdb/               # Text2SQL 相关 Agent + 服务化工具
-├── service_tools.py      # 轻量工具集：IntentDetectionTool、KnowledgeTool
-├── service.py            # ✅ 唯一对外 orchestrator，整合所有 Agent
+├── service/
+│   ├── __init__.py
+│   ├── agent_service.py  # ✅ 唯一对外 orchestrator，整合所有 Agent
+│   └── tools.py          # 轻量工具集：IntentDetectionTool、KnowledgeTool
 └── README.md             # 当前说明
 ```
 
@@ -33,10 +38,10 @@ app/agents/
    - 使用 LLM 对原始输入进行语义重写，补全主体、口语化纠正。
 
 2. **IntentDetectionTool**  
-   - 位于 `service_tools.py`  
+   - 位于 `service/tools.py`  
    - 输出 `intent`、`chains` 等标签，用于后续路由。
 
-3. **路由策略**（实现于 `service.py`）  
+3. **路由策略**（实现在 `service/agent_service.py`）  
    - `dialogue`：ChatAgent（闲聊/寒暄）  
    - `clarify`：ClarifierAgent（追问信息）  
    - `knowledge`：KnowledgeAgent（Milvus 向量检索 + 摘要）  
@@ -69,7 +74,7 @@ packs/<agent_name>/
 | `graph_retriever/` | LightRAG 检索/知识图谱接口 |
 | `policy_analysis/`、`policy_reviewer/` | 深度政策解析/对比（保留以备高级流程） |
 
-> **继承要求**：若多个 Agent 共用基类，请放在 `framework/base/`；复用型工具集中维护在 `service_tools.py`，避免继续扩散新的“common”目录。
+> **继承要求**：若多个 Agent 共用基类，请放在 `framework/base/`；复用型工具集中维护在 `service/tools.py`，避免继续扩散新的“common”目录。
 
 ## Text2SQL 与 DSL
 
@@ -84,7 +89,7 @@ packs/<agent_name>/
 ## 知识库 / RAG
 
 - `KnowledgeService` (`app/knowledge/service.py`) 统一负责 Milvus 入库与检索。  
-- `KnowledgeAgent` 只依赖 `KnowledgeTool`（位于 `service_tools.py`），因此可以被 GraphAgent、外部脚本直接复用。  
+- `KnowledgeAgent` 只依赖 `KnowledgeTool`（位于 `service/tools.py`），因此可以被 GraphAgent、外部脚本直接复用。  
 - 如需引入 LlamaIndex/LightRAG，自行封装在 pack 中，再由 `AgentService` 路由，而不是回到旧的 service 目录。
 
 ## API / CLI 的使用方式
@@ -103,7 +108,7 @@ print(answer.answer, answer.metadata)
 ```
 
 - FastAPI (`app/main.py`、`app/api/endpoints/agent.py`) 与 CLI (`scripts/unified_cli.py`) 均直接依赖 `AgentService`。
-- 文档/示例中若仍提到 `app/services/*`，请更新为 `app/agents/service.py`。
+- 文档/示例中若仍提到 `app/services/*`，请更新为 `app/agents/service/`。
 
 ## 常见扩展指引
 

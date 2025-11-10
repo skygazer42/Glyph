@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from autogen_core.models import UserMessage
 
-from app.agents.service_tools import KnowledgeTool
+from app.agents.service.tools import KnowledgeTool
 from app.core.llms import model_client
 from app.models.base import FinalAnswer, PolicyDocument
 

@@ -1,6 +1,4 @@
-"""
-基于AutoGen的编排器 - 展示AutoGen的编排能力
-"""
+"""示例 AG Workflow：演示如何用 AutoGen 组装轻量团队。"""
 
 import asyncio
 from typing import Dict, Any, List, Optional
@@ -12,11 +10,20 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core import SingleThreadedAgentRuntime, MessageContext
 import logging
 
+from app.agents.ag_prompt import (
+    POLICY_ANSWER_PROMPT,
+    POLICY_COMPARATOR_PROMPT,
+    POLICY_QUERY_ANALYZER_PROMPT,
+    POLICY_RETRIEVER_PROMPT,
+    POLICY_SELECTOR_PROMPT,
+    POLICY_SUMMARY_PROMPT,
+)
+
 logger = logging.getLogger(__name__)
 
 
-class AutoGenOrchestrator:
-    """使用AutoGen原生编排功能的编排器"""
+class AGWorkflow:
+    """使用 AutoGen 搭建的演示级 Workflow（原 AutoGenOrchestrator）。"""
 
     def __init__(self, model_client: OpenAIChatCompletionClient):
         self.model_client = model_client
@@ -126,67 +133,41 @@ class AutoGenOrchestrator:
         # 添加专门的政策Agent
         self.add_agent(
             name="query_analyzer",
-            system_message="""你是一个政策查询分析专家。你的任务是：
-1. 分析用户的问题
-2. 识别用户意图（补贴查询、资格条件、申请流程等）
-3. 提取关键信息（企业类型、地区、金额等）
-4. 将分析结果传递给下一个Agent
-
-请简洁地回答，只输出分析结果。""",
-            description="分析用户查询意图"
+            system_message=POLICY_QUERY_ANALYZER_PROMPT,
+            description="分析用户查询意图",
         )
 
         self.add_agent(
             name="policy_retriever",
-            system_message="""你是一个政策检索专家。你的任务是：
-1. 根据查询分析结果，检索相关政策
-2. 提取政策的关键信息
-3. 评估政策的适用性
-4. 将检索结果传递给下一个Agent
-
-请提供准确的政策信息。""",
-            description="检索相关政策信息"
+            system_message=POLICY_RETRIEVER_PROMPT,
+            description="检索相关政策信息",
         )
 
         self.add_agent(
             name="answer_generator",
-            system_message="""你是一个政策答案生成专家。你的任务是：
-1. 综合查询分析和检索结果
-2. 生成清晰、准确的答案
-3. 提供具体的操作建议
-4. 如果信息不足，说明需要补充的内容
-
-生成答案后，请说"任务完成，TERMINATE"来结束对话。""",
-            description="生成最终答案"
+            system_message=POLICY_ANSWER_PROMPT,
+            description="生成最终答案",
         )
 
         # 创建选择器团队，智能选择发言者
-        selector_prompt = """请根据当前对话内容，选择最合适的下一个发言者：
-
-1. 如果需要分析用户问题，选择 query_analyzer
-2. 如果需要检索政策信息，选择 policy_retriever
-3. 如果需要生成最终答案，选择 answer_generator
-
-请只回答选择的Agent名称。"""
-
         self.create_selector_team(
             team_name="policy_qa",
             agent_names=["query_analyzer", "policy_retriever", "answer_generator"],
-            selector_prompt=selector_prompt
+            selector_prompt=POLICY_SELECTOR_PROMPT,
         )
 
     async def create_comparison_team(self):
         """创建政策比较团队"""
         self.add_agent(
             name="policy_comparator",
-            system_message="""你是政策比较专家。分析并对比多个政策的异同点。""",
-            description="比较不同政策"
+            system_message=POLICY_COMPARATOR_PROMPT,
+            description="比较不同政策",
         )
 
         self.add_agent(
             name="summary_generator",
-            system_message="""你是总结专家。总结对比结果，给出建议。完成后说"总结完成，TERMINATE"。""",
-            description="生成总结"
+            system_message=POLICY_SUMMARY_PROMPT,
+            description="生成总结",
         )
 
         # 创建轮询团队
@@ -209,7 +190,7 @@ async def example_usage():
     )
 
     # 创建编排器
-    orchestrator = AutoGenOrchestrator(model_client)
+    orchestrator = AGWorkflow(model_client)
     await orchestrator.initialize()
 
     try:

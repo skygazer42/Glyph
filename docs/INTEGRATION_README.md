@@ -64,7 +64,7 @@
 - 输出 `FinalAnswer`，方便 AgentService 汇总 metadata
 
 ### 4. AgentService
-位置：`/app/agents/service.py`
+位置：`/app/agents/service/`
 
 **新增功能**：
 - 统一的改写 → 意图 → 路由流水线

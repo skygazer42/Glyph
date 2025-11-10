@@ -15,7 +15,7 @@ from app.agents.pipeline import (
     RuleEngineAgent,
     Text2SQLAgent,
 )
-from app.agents.service_tools import IntentDetectionTool, KnowledgeTool
+from .tools import IntentDetectionTool, KnowledgeTool
 from app.core import logging_manager
 from app.knowledge.service import KnowledgeService
 from app.utils.config import Config

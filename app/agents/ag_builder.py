@@ -1,6 +1,4 @@
-"""
-简化的Agent控制器 - 更清晰的架构设计
-"""
+"""AGBuilder：用于演示的轻量 Agent 组合器。"""
 
 import asyncio
 from typing import Dict, Any, List, Optional, Callable
@@ -12,7 +10,7 @@ from app.models.base import AgentType, MessageType
 logger = logging.getLogger(__name__)
 
 
-class SimpleAgent:
+class AGModule:
     """简化的Agent基类"""
 
     def __init__(self, name: str, agent_type: AgentType):
@@ -35,7 +33,7 @@ class SimpleAgent:
         logger.info(f"Agent {self.name} stopped")
 
 
-class MessageQueue:
+class AGMessageBus:
     """简单的消息队列"""
 
     def __init__(self):
@@ -76,16 +74,16 @@ class MessageQueue:
             return None
 
 
-class AgentHub:
+class AGBuilder:
     """Agent中心 - 管理所有Agent"""
 
     def __init__(self):
-        self.agents: Dict[str, SimpleAgent] = {}
-        self.message_queue = MessageQueue()
+        self.agents: Dict[str, AGModule] = {}
+        self.message_queue = AGMessageBus()
         self.workflows: Dict[str, List[str]] = {}
         self.running = False
 
-    def register(self, agent: SimpleAgent):
+    def register(self, agent: AGModule):
         """注册Agent"""
         self.agents[agent.name] = agent
         logger.info(f"Registered agent: {agent.name}")
@@ -130,22 +128,22 @@ class AgentHub:
         self.running = True
         for agent in self.agents.values():
             await agent.start()
-        logger.info("AgentHub started")
+        logger.info("AGBuilder started")
 
     async def stop(self):
         """停止所有Agent"""
         self.running = False
         for agent in self.agents.values():
             await agent.stop()
-        logger.info("AgentHub stopped")
+        logger.info("AGBuilder stopped")
 
-    def get_agent(self, name: str) -> Optional[SimpleAgent]:
+    def get_agent(self, name: str) -> Optional[AGModule]:
         """获取Agent实例"""
         return self.agents.get(name)
 
 
 # 示例Agent实现
-class QueryAnalyzer(SimpleAgent):
+class QueryAnalyzer(AGModule):
     """查询分析Agent"""
 
     def __init__(self):
@@ -186,7 +184,7 @@ class QueryAnalyzer(SimpleAgent):
         return data
 
 
-class PolicyRetriever(SimpleAgent):
+class PolicyRetriever(AGModule):
     """政策检索Agent"""
 
     def __init__(self):
@@ -224,7 +222,7 @@ class PolicyRetriever(SimpleAgent):
         return data
 
 
-class AnswerGenerator(SimpleAgent):
+class AnswerGenerator(AGModule):
     """答案生成Agent"""
 
     def __init__(self):
@@ -267,7 +265,7 @@ class AnswerGenerator(SimpleAgent):
 async def main():
     """主函数 - 演示如何使用"""
     # 创建Agent中心
-    hub = AgentHub()
+    hub = AGBuilder()
 
     # 注册Agent
     hub.register(QueryAnalyzer())
