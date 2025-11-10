@@ -564,12 +564,14 @@ onMounted(() => {
 
 <style scoped>
 .dsl-generator {
-  padding: 20px;
+  animation: fadeIn 0.4s ease;
 }
 
 .page-card {
-  background-color: var(--el-bg-color);
-  border-radius: var(--el-border-radius-medium);
+  background: white;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  border: none;
 }
 
 .page-header {
@@ -580,9 +582,12 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .page-actions {
@@ -627,12 +632,13 @@ onMounted(() => {
 }
 
 .example-content {
-  margin: 12px 0 0 0;
-  padding: 12px;
-  background-color: var(--el-fill-color-lighter);
-  border-radius: var(--el-border-radius-small);
-  font-family: 'Monaco', 'Menlo', monospace;
-  font-size: 13px;
+  margin: var(--spacing-md) 0 0 0;
+  padding: var(--spacing-md);
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   line-height: 1.6;
   white-space: pre-wrap;
 }
@@ -645,11 +651,12 @@ onMounted(() => {
 
 .trace-content {
   margin: 0;
-  padding: 12px;
-  background-color: var(--el-fill-color-lighter);
-  border-radius: var(--el-border-radius-small);
-  font-family: 'Monaco', 'Menlo', monospace;
-  font-size: 12px;
+  padding: var(--spacing-md);
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   line-height: 1.5;
   max-height: 400px;
   overflow-y: auto;
@@ -657,12 +664,19 @@ onMounted(() => {
 
 /* Table styles */
 :deep(.el-table) {
-  font-size: 14px;
+  font-size: var(--text-sm);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 :deep(.el-table th) {
   font-weight: 600;
-  background-color: var(--el-fill-color-lighter);
+  background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+}
+
+:deep(.el-table tbody tr):hover {
+  background-color: rgba(102, 126, 234, 0.03) !important;
 }
 
 /* Responsive design */
