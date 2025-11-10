@@ -18,6 +18,7 @@ from app.agents.ag_prompt import (
     POLICY_SELECTOR_PROMPT,
     POLICY_SUMMARY_PROMPT,
 )
+from app.core import logging_manager
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +119,31 @@ class AGWorkflow:
         text_message = TextMessage(content=message, source="user")
 
         # 运行团队
+        logging_manager.log_message_event(
+            payload=message,
+            sender="user",
+            receiver=team_name,
+        )
+
         message_stream = team.run_stream(task=text_message)
 
-        # 收集所有消息
         messages = []
-        async for message in message_stream:
-            messages.append(message)
-            logger.info(f"Message from {message.source}: {message.content[:100]}...")
+        try:
+            async for item in message_stream:
+                messages.append(item)
+                logging_manager.log_message_event(
+                    payload=item.content,
+                    sender=item.source,
+                    receiver=team_name,
+                )
+                logger.info("Message from %s: %s", item.source, item.content[:100])
+        except Exception as exc:
+            logging_manager.log_handler_exception(
+                payload=message,
+                handling_agent=team_name,
+                exception=exc,
+            )
+            raise
 
         return messages
 

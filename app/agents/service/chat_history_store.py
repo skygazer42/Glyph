@@ -52,7 +52,7 @@ class ChatHistoryStore:
                 if connection_id is not None and existing.connection_id != connection_id:
                     updates["connection_id"] = connection_id
                 if updates:
-                chat_session_crud.update(db, db_obj=existing, obj_in=updates)
+                    chat_session_crud.update(db, db_obj=existing, obj_in=updates)
             else:
                 chat_session_crud.create(
                     db,

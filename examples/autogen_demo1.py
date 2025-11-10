@@ -19,7 +19,9 @@ async  def main():
         model_client=model_client,
         description="An agent that provides assistance with ability to use tools.", # name和描述决定智能体干嘛的
         system_message="你是小可，回答一切问题",
-        model_client_stream=True
+        model_client_stream=True,
+        tools=[web_search]
+
 
     )
     #流式
