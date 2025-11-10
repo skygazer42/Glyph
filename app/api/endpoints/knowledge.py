@@ -23,7 +23,7 @@ from app.api.schemas import (
 from app.api.deps import get_milvus_store, get_document_parser
 from app.knowledge.milvus import MilvusStore
 from app.agents.dsl_generator.document_parser import DocumentParser
-from app.agents.base.types import PolicyDocument
+from app.agents.framework.base.types import PolicyDocument
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

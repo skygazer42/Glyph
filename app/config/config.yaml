@@ -52,10 +52,6 @@ agents:
     name: "AnswerGenerator"
     model_temperature: 0.2
 
-  answer_verifier:
-    name: "AnswerVerifier"
-    confidence_threshold: 0.8
-
 # Logging Configuration
 logging:
   level: "INFO"

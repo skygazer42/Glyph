@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-轻量后端入口（FastAPI）：统一通过 SmartOrchestrator 提供问答接口。
+轻量后端入口（FastAPI）：统一通过 AgentService 提供问答接口。
 
 启动示例：
   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -21,6 +21,9 @@ class QueryRequest(BaseModel):
     query: str = Field(..., description="用户问题")
     session_id: Optional[str] = Field(None)
     user_id: Optional[str] = Field(None)
+    connection_id: Optional[int] = Field(
+        None, description="Text2SQL 场景下使用的数据库连接ID"
+    )
 
 
 class QueryResponse(BaseModel):
@@ -55,12 +58,8 @@ def create_app() -> FastAPI:
 
     @application.on_event("shutdown")
     async def on_shutdown():
-        service: AgentService = getattr(application.state, "agent_service", None)  # type: ignore[attr-defined]
-        if service:
-            orchestrator = getattr(service, "orchestrator", None)
-            shutdown = getattr(orchestrator, "shutdown", None)
-            if callable(shutdown):
-                await shutdown()
+        # 当前 AgentService 无需特殊释放资源
+        application.state.agent_service = None  # type: ignore[attr-defined]
 
     @application.get("/health")
     async def health():
@@ -70,7 +69,12 @@ def create_app() -> FastAPI:
     async def query(req: QueryRequest):
         try:
             service: AgentService = application.state.agent_service
-            final = await service.process_query(req.query, session_id=req.session_id, user_id=req.user_id)
+            final = await service.process_query(
+                req.query,
+                session_id=req.session_id,
+                user_id=req.user_id,
+                connection_id=req.connection_id,
+            )
             sources = []
             for s in final.sources or []:
                 try:

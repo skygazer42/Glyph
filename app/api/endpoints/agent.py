@@ -8,7 +8,6 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sse_starlette.sse import EventSourceResponse
-from autogen_agentchat.agents import AssistantAgent
 
 from app.api.schemas import (
     ChatRequest,
@@ -19,8 +18,9 @@ from app.api.schemas import (
     SessionResponse,
     ListSessionsResponse
 )
-from app.api.deps import get_model_client, get_session_manager
-from app.services.session_manager import SessionManager
+from app.api.deps import get_session_manager, get_agent_service
+from app.agents.framework.common.session_manager import SessionManager
+from app.agents.service import AgentService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 @router.post("/chat", response_model=ChatResponse)
 async def agent_chat(
     request: ChatRequest,
-    session_manager: SessionManager = Depends(get_session_manager)
+    session_manager: SessionManager = Depends(get_session_manager),
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Agent 问答接口（非流式）
@@ -43,41 +44,33 @@ async def agent_chat(
         # 添加用户消息到会话
         session_manager.add_message(session.session_id, "user", request.message)
 
-        # 获取模型客户端
-        model_client = get_model_client()
-
-        # 创建 Assistant Agent
-        agent = AssistantAgent(
-            name="PolicyAssistant",
-            model_client=model_client,
-            description="政策问答助手，能够回答各种政策相关问题",
-            system_message="你是一个专业的政策咨询助手，名叫小政。你能够回答用户关于政策的各种问题。请用简洁、专业的语言回答。"
+        # 调用统一 AgentService
+        final = await agent_service.process_query(
+            request.message,
+            session_id=session.session_id,
+            connection_id=request.connection_id,
         )
 
-        # 执行问答
-        result = await agent.run(task=request.message)
-
-        # 提取回答内容
-        response_text = ""
-        if hasattr(result, 'messages') and result.messages:
-            last_message = result.messages[-1]
-            if hasattr(last_message, 'content'):
-                response_text = last_message.content
-
         # 添加助手消息到会话
-        session_manager.add_message(session.session_id, "assistant", response_text)
+        session_manager.add_message(session.session_id, "assistant", final.answer)
 
-        logger.info(f"会话 {session.session_id} 完成问答")
+        logger.info(f"会话 {session.session_id} 完成问答，路由：{final.metadata.get('route')}")
+
+        metadata = final.metadata or {}
+        metadata.update(
+            {
+                "confidence": final.confidence,
+                "message_count": session.message_count,
+            }
+        )
+
+        session_id = metadata.get("session_id") or session.session_id
 
         return ChatResponse(
             success=True,
-            message=response_text,
-            session_id=session.session_id,
-            metadata={
-                "agent": "PolicyAssistant",
-                "model": "deepseek-chat",
-                "message_count": session.message_count
-            }
+            message=final.answer,
+            session_id=session_id,
+            metadata=metadata,
         )
 
     except Exception as e:
@@ -90,13 +83,13 @@ async def agent_chat(
 @router.post("/chat/stream")
 async def agent_chat_stream(
     request: ChatStreamRequest,
-    session_manager: SessionManager = Depends(get_session_manager)
+    session_manager: SessionManager = Depends(get_session_manager),
+    agent_service: AgentService = Depends(get_agent_service)
 ):
     """
     Agent 问答接口（SSE 流式响应）
 
-    使用 Server-Sent Events 实时推送 Agent 响应
-    支持多轮对话
+    使用 Server-Sent Events 推送 AgentService 的处理结果
     """
 
     async def event_generator():
@@ -118,43 +111,31 @@ async def agent_chat_stream(
                 }, ensure_ascii=False)
             }
 
-            # 获取模型客户端
-            model_client = get_model_client()
-
-            # 创建 Assistant Agent
-            agent = AssistantAgent(
-                name="PolicyAssistant",
-                model_client=model_client,
-                description="政策问答助手，能够回答各种政策相关问题",
-                system_message="你是一个专业的政策咨询助手，名叫小政。你能够回答用户关于政策的各种问题。请用简洁、专业的语言回答。"
+            logger.info(f"会话 {session_id} 开始流式问答")
+            final = await agent_service.process_query(
+                request.message,
+                session_id=session_id,
+                connection_id=request.connection_id,
             )
 
-            # 流式执行
-            logger.info(f"会话 {session_id} 开始流式问答")
-            stream = agent.run_stream(task=request.message)
-
-            # 收集完整响应
-            full_response = ""
-
-            async for msg in stream:
-                if hasattr(msg, 'content'):
-                    content = msg.content
-                    full_response += content
-
-                    # 发送内容片段
-                    chunk = ChatStreamChunk(
-                        content=content,
-                        done=False,
-                        session_id=session_id
-                    )
-
-                    yield {
-                        "event": "message",
-                        "data": chunk.model_dump_json(ensure_ascii=False)
-                    }
+            # 发送内容片段（一次性推送最终答案）
+            chunk = ChatStreamChunk(
+                content=final.answer,
+                done=False,
+                session_id=session_id,
+                metadata={
+                    "route": final.metadata.get("route"),
+                    "intent": final.metadata.get("intent"),
+                    "confidence": final.confidence,
+                }
+            )
+            yield {
+                "event": "message",
+                "data": chunk.model_dump_json(ensure_ascii=False)
+            }
 
             # 添加助手完整响应到会话
-            session_manager.add_message(session_id, "assistant", full_response)
+            session_manager.add_message(session_id, "assistant", final.answer)
 
             # 发送完成信号
             done_chunk = ChatStreamChunk(
@@ -162,10 +143,8 @@ async def agent_chat_stream(
                 done=True,
                 session_id=session_id,
                 metadata={
-                    "agent": "PolicyAssistant",
-                    "model": "deepseek-chat",
                     "message_count": session.message_count,
-                    "total_length": len(full_response)
+                    "total_length": len(final.answer),
                 }
             )
 

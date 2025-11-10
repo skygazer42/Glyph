@@ -10,6 +10,7 @@ from app.agents.dsl_generator.dsl_extractor import DSLExtractor
 from app.agents.dsl_generator.dsl_generator import DSLGenerator
 from app.agents.dsl_generator.document_parser import DocumentParser
 from app.agents.dsl_generator.rule_engine import PolicyEngine
+from app.agents.service import AgentService
 from app.knowledge.milvus import MilvusStore
 from app.models.llms import model_client
 
@@ -24,6 +25,9 @@ _policy_engine: Optional[PolicyEngine] = None
 
 # 知识库
 _milvus_store: Optional[MilvusStore] = None
+
+# Agent Service
+_agent_service: Optional[AgentService] = None
 
 
 # ==================== DSL 相关依赖 ====================
@@ -83,9 +87,18 @@ def get_model_client():
     return model_client
 
 
+async def get_agent_service() -> AgentService:
+    """获取统一 AgentService 实例"""
+    global _agent_service
+    if _agent_service is None:
+        _agent_service = AgentService()
+        await _agent_service.initialize()
+    return _agent_service
+
+
 # ==================== 会话管理依赖 ====================
 
-from app.services.session_manager import SessionManager
+from app.agents.framework.common.session_manager import SessionManager
 
 _session_manager: Optional[SessionManager] = None
 

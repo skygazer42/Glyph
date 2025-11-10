@@ -90,7 +90,8 @@ class DomainConfig:
             text: 政策文本
 
         Returns:
-            检测到的领域名称，如果无法识别返回None
+            检测到的领域名称，如果无法识别返回None.
+
         """
         # 统计各领域关键词匹配数
         scores = {}

@@ -50,7 +50,7 @@ Web框架: FastAPI
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                   编排层 (Orchestration Layer)               │
-│     SmartOrchestrator | EnhancedOrchestrator | Workflows     │
+│     AgentService | AgentService | Workflows     │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -820,7 +820,7 @@ def with_cache(ttl: float = 300.0):
 
 ### 4. 推荐的智能体架构
 
-#### 方案一：SmartOrchestrator（推荐用于生产环境）
+#### 方案一：AgentService（推荐用于生产环境）
 
 **优势：**
 - ✅ 智能路由，自动选择最优处理链
@@ -837,57 +837,28 @@ def with_cache(ttl: float = 300.0):
 
 **示例代码：**
 ```python
-# /data/temp33/gov/examples/smart_orchestrator_example.py
-
 import asyncio
-from agents.orchestrators.smart import SmartOrchestrator
-from agents.security.gateway import SecurityGateway
-from agents.monitoring.monitor import SystemMonitor
+import time
+
+from app.agents.service import AgentService
 
 async def main():
-    # 初始化组件
-    security = SecurityGateway()
-    monitor = SystemMonitor()
-    orchestrator = SmartOrchestrator()
+    service = AgentService()
+    await service.initialize()
 
-    # 用户请求
-    request = {
-        'token': 'user_jwt_token',
-        'query': '济南市家电以旧换新补贴政策有哪些要求？',
-        'ip_address': '192.168.1.100',
-        'user_agent': 'Mozilla/5.0'
-    }
+    start = time.time()
+    result = await service.process_query("济南市家电以旧换新补贴政策有哪些要求？")
+    duration = time.time() - start
 
-    try:
-        # 安全检查
-        validated_request = await security.process_request(request)
-
-        # 记录开始时间
-        start_time = time.time()
-
-        # 执行查询
-        result = await orchestrator.process(
-            query=validated_request['query'],
-            session_id=validated_request['user'].id
-        )
-
-        # 记录指标
-        duration = time.time() - start_time
-        await monitor.record_metric('query.duration', duration)
-        await monitor.record_metric('query.success', 1)
-
-        print("答案:", result['answer'])
-        print("置信度:", result['confidence'])
-
-    except Exception as e:
-        await monitor.record_metric('query.error', 1)
-        print(f"错误: {e}")
+    print("答案:", result.answer)
+    print("置信度:", f"{result.confidence:.1%}")
+    print("耗时:", f"{duration:.2f}s")
 
 if __name__ == '__main__':
     asyncio.run(main())
 ```
 
-#### 方案二：EnhancedOrchestrator（推荐用于复杂场景）
+#### 方案二：AgentService（推荐用于复杂场景）
 
 **优势：**
 - ✅ 固定7步流程，可控性强
@@ -906,43 +877,27 @@ if __name__ == '__main__':
 结合两者优势：
 
 ```python
-# /data/temp33/gov/agents/orchestrators/hybrid.py
-
-class HybridOrchestrator:
-    """混合编排器 - 结合Smart和Enhanced的优势"""
+class AgentServiceRouter:
+    """根据复杂度选择不同 AgentService 配置的示例"""
 
     def __init__(self):
-        self.smart = SmartOrchestrator()
-        self.enhanced = EnhancedOrchestrator()
+        self.standard = AgentService()
+        self.heavy = AgentService()
         self.router = IntentRouter()
 
-    async def process(self, query: str, session_id: str = None):
-        # 分析查询复杂度
+    async def process(self, query: str, session_id: str | None = None):
         intent = await self.router.analyze_intent(query)
         complexity = self._calculate_complexity(intent)
 
-        # 简单查询用SmartOrchestrator（快速）
         if complexity < 0.5:
-            return await self.smart.process(query, session_id)
+            return await self.standard.process_query(query, session_id=session_id)
+        return await self.heavy.process_query(query, session_id=session_id)
 
-        # 复杂查询用EnhancedOrchestrator（准确）
-        else:
-            return await self.enhanced.run_workflow(query, session_id)
-
-    def _calculate_complexity(self, intent: Dict) -> float:
-        """计算查询复杂度"""
-        score = 0.0
-
-        # 实体数量
-        score += len(intent.get('entities', [])) * 0.1
-
-        # 意图类型
-        if intent.get('intent') in ['comparison', 'recommendation']:
+    def _calculate_complexity(self, intent: Dict[str, Any]) -> float:
+        score = len(intent.get("entities", [])) * 0.1
+        if intent.get("intent") in ["comparison", "recommendation"]:
             score += 0.3
-
-        # 查询长度
-        score += min(len(intent.get('query', '')) / 100, 0.2)
-
+        score += min(len(intent.get("query", "")) / 100, 0.2)
         return min(score, 1.0)
 ```
 
@@ -1291,8 +1246,7 @@ rate_limit:
   per_hour: 1000
   per_day: 10000
 
-orchestrator:
-  type: "smart"  # smart | enhanced | hybrid
+agent_service:
   timeout_seconds: 30
   max_retries: 3
   parallel_chains: true
@@ -1447,9 +1401,9 @@ async def process_query(query: str):
 ### Q1: 如何选择编排器？
 **A:**
 - 简单场景 → SimpleController
-- 一般场景 → SmartOrchestrator
-- 复杂场景 → EnhancedOrchestrator
-- 混合需求 → HybridOrchestrator
+- 一般场景 → AgentService
+- 复杂场景 → AgentService
+- 混合需求 → AgentService
 
 ### Q2: 如何提高响应速度？
 **A:**
@@ -1461,7 +1415,7 @@ async def process_query(query: str):
 
 ### Q3: 如何保证答案准确性？
 **A:**
-- 使用EnhancedOrchestrator
+- 使用AgentService
 - 启用答案验证
 - 提高检索阈值
 - 增加文档数量

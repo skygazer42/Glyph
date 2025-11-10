@@ -7,7 +7,7 @@ from typing import Dict, Any, Tuple
 from autogen_core import message_handler, MessageContext, TopicId, type_subscription
 
 from app.persistence.db.session import SessionLocal
-from app.services.text2sql_service import retrieve_relevant_schema, get_value_mappings
+from app.agents.chatdb.text2sql_service import retrieve_relevant_schema, get_value_mappings
 from app.schemas.text2sql import QueryMessage, SchemaContextMessage
 from .base import BaseAgent
 from .types import AgentTypes, AGENT_NAMES, TopicTypes

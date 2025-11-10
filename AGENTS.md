@@ -1,15 +1,15 @@
 ﻿# Repository Guidelines
 
 ## Project Structure & Module Organization
-- `app/agents/` hosts AutoGen agents plus the new `AgentService`/toolkit; add roles under the closest domain module.
-- Runtime entry points live in `app/main.py`, `api_server.py`, and `app/services/`, while CLIs stay in `scripts/` (embedding, Milvus maintenance, smart CLI).
-- Persist datasets in `data/`, rules/templates in `rules/` + `templates/`, knowledge artifacts in `app/knowledge/`/`app/models/`, and UI code in `web/`.
+- `app/agents/` hosts AutoGen agents plus the new `AgentService` helpers; add roles under the closest domain module.
+- Runtime entry points live in `app/main.py`, `api_server.py`, and the unified `app/agents/service.py` (shared by API/CLI); CLIs stay in `scripts/` (embedding, Milvus maintenance, smart CLI).
+- Persist datasets in `data/`, rules/templates in `rules/` + `templates/`, knowledge artifacts in `app/knowledge/` + `knowledge_base/`, and UI code in `web/`.
 - Tests live in `tests/` plus root-level `test_*.py`; colocate fixtures beside the feature they validate.
 
 ## Build, Test & Development Commands
 - `python -m venv .venv && .venv\Scripts\activate; pip install -r requirements.txt` - create and hydrate the backend env.
 - `python -m uvicorn api_server:app --reload --env-file .env` - FastAPI service for DSL and knowledge operations.
-- `python scripts/smart_cli.py --load-docs data/policies --interactive` - multi-agent CLI session against a local corpus.
+- `python scripts/unified_cli.py --load-docs data/policies --interactive` - multi-agent CLI session against a local corpus.
 - `npm --prefix web install && npm --prefix web run dev` - Vue 3 dashboard pointing at localhost:8000.
 - `pytest tests -q && pytest test_api_dsl.py -k regression` - full suite plus a DSL smoke; ensure `PYTHONPATH=.`.
 

@@ -24,7 +24,7 @@ load_dotenv()
 sys.path.append(str(Path(__file__).parent))
 
 from app.knowledge.milvus import MilvusStore
-from app.agents.base.types import PolicyDocument
+from app.agents.framework.base.types import PolicyDocument
 from app.agents.dsl_generator.document_parser import DocumentParser
 
 

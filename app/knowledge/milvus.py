@@ -20,7 +20,7 @@ from pymilvus import (
 )
 
 if TYPE_CHECKING:
-    from app.agents.base.types import PolicyDocument
+    from app.agents.framework.base.types import PolicyDocument
 
 
 class MilvusStore:
@@ -175,7 +175,7 @@ class MilvusStore:
 
         # Process results
         try:
-            from app.agents.base.types import PolicyDocument
+            from app.agents.framework.base.types import PolicyDocument
         except (ImportError, ModuleNotFoundError):
             # Fallback: 如果无法导入 PolicyDocument，创建简单的字典结果
             documents = []

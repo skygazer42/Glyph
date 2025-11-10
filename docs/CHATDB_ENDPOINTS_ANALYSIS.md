@@ -196,7 +196,7 @@ async def stream_response(
     background_tasks.add_task(cleanup_session, session_id)
 
     # 异步处理
-    result = await orchestrator.process_query(...)
+    result = await agent_service.process_query(...)
     return result
 ```
 
@@ -209,31 +209,25 @@ async def stream_response(
 
 ### 7. **智能体编排模式** ⭐⭐⭐⭐⭐
 **特点**：
-- AgentOrchestrator 协调多个智能体
-- 清晰的智能体职责划分
-- 消息路由机制
+- `AgentService` 统一协调所有 packs
+- 清晰的智能体职责划分，按需加载
+- 元数据中附带路由/意图/耗时
 
 **示例**：
 ```python
-from app.services.agent_orchestrator import AgentOrchestrator
-from app.agents.types import AGENT_NAMES
+from app.agents.service import AgentService
 
-orchestrator = AgentOrchestrator()
-result = await orchestrator.process_query(
-    query,
-    collector,
-    connection_id
+service = AgentService()
+await service.initialize()
+
+result = await service.process_query(
+    query="申请家电补贴需要什么条件？",
+    session_id="cli-demo",
+    connection_id=None
 )
 
-# 智能体名称映射
-AGENT_NAMES = {
-    "schema_retriever": "表结构检索智能体",
-    "query_analyzer": "查询分析智能体",
-    "sql_generator": "SQL生成智能体",
-    "sql_explainer": "SQL解释智能体",
-    "sql_executor": "SQL执行智能体",
-    "visualization_recommender": "可视化推荐智能体"
-}
+print(result.answer)
+print(result.metadata["route"])  # knowledge / graph / rule_engine / text2sql / dialogue ...
 ```
 
 **优势**：
@@ -374,7 +368,7 @@ api/
 
 **建议实现**：
 ```python
-# services/session_manager.py
+# app/agents/framework/common/session_manager.py
 class SessionManager:
     def __init__(self):
         self.sessions = {}
@@ -475,7 +469,7 @@ async def chat_stream(
 
 ### 阶段三：会话管理
 ```python
-# services/session_manager.py
+# app/agents/framework/common/session_manager.py
 class SessionManager:
     # 会话生命周期管理
     # 自动清理
@@ -515,7 +509,7 @@ class SessionManager:
 | Endpoint组织 | 模块化(11个文件) | 单文件(api_server.py) | ⭐⭐⭐⭐⭐ 拆分 |
 | 流式响应 | SSE | 无 | ⭐⭐⭐⭐⭐ 添加 |
 | 会话管理 | 完善 | 无 | ⭐⭐⭐⭐ 添加 |
-| 智能体编排 | AgentOrchestrator | 简单调用 | ⭐⭐⭐ 优化 |
+| 智能体编排 | AgentService 流水线 | 简单调用 | ⭐⭐⭐ 优化 |
 | 数据验证 | Pydantic全面 | 部分使用 | ⭐⭐⭐⭐ 扩展 |
 
 ---

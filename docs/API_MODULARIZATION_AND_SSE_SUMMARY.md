@@ -20,9 +20,8 @@ Glyph/
 │       ├── agent.py           # Agent 问答端点 (249行)
 │       ├── dsl.py             # DSL 相关端点 (175行)
 │       └── knowledge.py       # 知识库端点 (244行)
-├── services/
-│   ├── __init__.py
-│   └── session_manager.py     # 会话管理器 (345行)
+├── agents/
+│   └── framework/common/session_manager.py  # 会话管理器 (345行)
 ├── api_server.py              # 主应用 (97行，精简80%)
 └── web/
     └── src/
@@ -133,7 +132,7 @@ async def agent_chat(
 
 ### 4. 会话管理器 ⭐⭐⭐⭐⭐
 
-**文件**: `services/session_manager.py` (345行)
+**文件**: `app/agents/framework/common/session_manager.py` (345行)
 
 **核心功能**:
 ```python
@@ -407,7 +406,7 @@ const reader = response.body.getReader()
 
 ### 会话管理配置
 ```python
-# services/session_manager.py
+# app/agents/framework/common/session_manager.py
 SessionManager(
     timeout=3600,        # 会话超时时间（秒）
     cleanup_interval=300 # 清理检查间隔（秒）
@@ -455,8 +454,7 @@ app.add_middleware(
 - `api/endpoints/agent.py` (249行)
 - `api/endpoints/dsl.py` (175行)
 - `api/endpoints/knowledge.py` (244行)
-- `services/__init__.py` (5行)
-- `services/session_manager.py` (345行)
+- `app/agents/framework/common/session_manager.py` (345行)
 - `test_api.py` (76行)
 
 **新增总计**: 1,423 行
@@ -464,7 +462,7 @@ app.add_middleware(
 ### 修改文件
 - `api_server.py`: 431行 → 97行 (↓334行)
 - `web/src/views/AgentChat.vue`: 444行 → 520行 (+76行)
-- `agents/base/__init__.py`: 禁用 AgentFactory 导入
+- `app/agents/framework/base/__init__.py`: 禁用 AgentFactory 导入
 
 ### 总代码变更
 - 新增: +1,423 行

@@ -1,12 +1,5 @@
-"""
-Agents module for the policy QA system.
-"""
+"""Top-level namespace for the policy QA agent system."""
 
-# 避免自动导入，只在需要时导入
-# from .base import BaseAgent, AgentFactory, AgentTypes
-# from .retrieval import PolicyRetriever
-# from .generation import QuestionUnderstander, PolicyAnalyzer, AnswerGenerator
-# from .verification import AnswerVerifier
-# from .coordination import Coordinator
+from . import framework, packs
 
-__all__ = []
+__all__ = ["framework", "packs"]

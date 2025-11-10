@@ -9,7 +9,7 @@ import asyncio
 
 # 延迟导入，避免循环依赖
 if TYPE_CHECKING:
-    from app.agents.base.types import PolicyDocument
+    from app.agents.framework.base.types import PolicyDocument
 
 from app.knowledge.hierarchical_index import (
     HierarchicalIndexBuilder,
@@ -119,7 +119,7 @@ class LlamaIndexIntegration:
             )
 
             # 转换为 PolicyDocument
-            from app.agents.base.types import PolicyDocument
+            from app.agents.framework.base.types import PolicyDocument
             documents = []
             scores = []
 

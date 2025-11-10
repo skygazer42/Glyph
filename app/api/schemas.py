@@ -149,6 +149,10 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="用户消息")
     session_id: Optional[str] = Field(None, description="会话ID（用于多轮对话）")
     stream: bool = Field(default=False, description="是否使用流式响应")
+    connection_id: Optional[int] = Field(
+        default=None,
+        description="Text2SQL 场景使用的数据库连接ID"
+    )
 
 
 class ChatResponse(BaseModel):
@@ -163,6 +167,10 @@ class ChatStreamRequest(BaseModel):
     """流式聊天请求"""
     message: str = Field(..., description="用户消息")
     session_id: Optional[str] = Field(None, description="会话ID（用于多轮对话）")
+    connection_id: Optional[int] = Field(
+        default=None,
+        description="Text2SQL 场景使用的数据库连接ID"
+    )
 
 
 class ChatStreamChunk(BaseModel):

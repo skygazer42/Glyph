@@ -190,7 +190,7 @@ def test_full_pipeline():
 
     # 转换为 PolicyDocument
     try:
-        from app.agents.base.types import PolicyDocument
+        from app.agents.framework.base.types import PolicyDocument
 
         policy_docs = []
         for doc in documents:

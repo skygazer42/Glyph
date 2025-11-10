@@ -87,16 +87,9 @@ class HybridSqlGeneratorAgent(BaseAgent):
     async def _ensure_initialized(self):
         """确保混合检索引擎已初始化"""
         if not self._initialized and settings.system.hybrid_retrieval_enabled:
-            try:
-                # 延迟导入避免循环依赖
-                from app.services.hybrid_retrieval_service import HybridRetrievalEngine
-                self.hybrid_engine = HybridRetrievalEngine()
-                await self.hybrid_engine.initialize()
-                self._initialized = True
-                await self.send_response("混合检索引擎初始化成功\n\n")
-            except Exception as e:
-                await self.send_response(f"混合检索引擎初始化失败: {str(e)}")
-                self._initialized = False
+            await self.send_response("混合检索引擎尚未配置，暂使用标准模式。\n\n")
+            self.hybrid_engine = None
+            self._initialized = False
 
     @message_handler
     async def handle_analysis_message(self, message: AnalysisMessage, ctx: MessageContext) -> None:
@@ -275,49 +268,12 @@ class HybridSqlGeneratorAgent(BaseAgent):
     async def _learn_qa_pair(self, question: str, sql: str,
                            schema_context: Dict, connection_id: int):
         """学习新的问答对"""
+        if not self.hybrid_engine:
+            return
+
         try:
-            if not self.hybrid_engine:
-                return
-
-            # 延迟导入避免循环依赖
-            from app.services.hybrid_retrieval_service import (
-                QAPairWithContext, extract_tables_from_sql,
-                extract_entities_from_question, clean_sql, generate_qa_id
-            )
-
-            # 提取SQL中使用的表
-            used_tables = extract_tables_from_sql(sql)
-
-            # 分析查询类型和难度
-            query_type = self._classify_query_type(question)
-            difficulty = self._estimate_difficulty(sql)
-
-            # 提取实体
-            entities = extract_entities_from_question(question)
-
-            # 创建问答对对象
-            qa_pair = QAPairWithContext(
-                id=generate_qa_id(),
-                question=question,
-                sql=clean_sql(sql),
-                connection_id=connection_id or 0,
-                difficulty_level=difficulty,
-                query_type=query_type,
-                success_rate=0.0,
-                verified=False,
-                created_at=datetime.now(),
-                used_tables=used_tables,
-                used_columns=[],
-                query_pattern=query_type,
-                mentioned_entities=entities
-            )
-
-            # 异步存储（不阻塞主流程）
-            await self.hybrid_engine.store_qa_pair(qa_pair, schema_context)
-            await self.send_response("已学习当前问答对，将用于未来的智能推荐")
-
+            await self.send_response("混合检索学习功能未启用\n")
         except Exception as e:
-            # 学习失败不应该影响主流程
             logger.error(f"学习问答对时出错: {str(e)}")
 
     def _classify_query_type(self, question: str) -> str:

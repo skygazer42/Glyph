@@ -1,230 +1,122 @@
-# Gove Agent系统架构说明
+﻿# Agent 模块指南
 
-## 概述
+## 目标
 
-本文档描述了gove政策智能问答系统的agent架构优化方案。参考003项目chatdb模块的模块化设计，我们将实现一个更加清晰、可维护、可扩展的agent系统。
+为了满足“所有智能体逻辑集中在 `app/agents/`、统一的路由服务、可复用的 pack 模式”这三个要求，我们将原有的多层 orchestration 与 `app/services` 目录全部收敛到以下结构，确保：
 
-## 目录结构
+1. **单一入口**：`AgentService` 提供改写 → 意图识别 → 路由执行的标准流水线，API/CLI 全部调用它。
+2. **轻量 packs**：每个智能体打包在 `packs/<agent_name>/`，统一 `node.py + prompt.py + utils.py`（可选），目录清晰。
+3. **复用内核**：`framework/` 保留 AutoGen 基座能力，`pipeline/` 封装对外暴露的服务级 Agent（Rewrite/Knowledge/Text2SQL 等）。
+
+## 目录总览
 
 ```
-agents/
-├── __init__.py              # 模块导出
-├── README.md               # 本文档
-├── base/                   # 基础模块
-│   ├── __init__.py
-│   ├── base_agent.py       # 基础agent类
-│   ├── factory.py          # Agent工厂
-│   └── types.py            # 类型定义
-├── retrieval/              # 检索模块
-│   ├── __init__.py
-│   ├── query_analyzer.py   # 查询理解agent
-│   ├── policy_retriever.py # 政策检索agent
-│   ├── vector_retriever.py # 向量检索agent
-│   └── embedding_manager.py # 嵌入管理器
-├── analysis/               # 分析模块
-│   ├── __init__.py
-│   ├── policy_analyzer.py  # 政策分析agent
-│   ├── requirement_extractor.py # 需求提取agent
-│   └── policy_comparator.py # 政策比较agent
-├── generation/             # 生成模块
-│   ├── __init__.py
-│   ├── answer_generator.py # 答案生成agent
-│   ├── question_understander.py # 问题理解agent
-│   └── template_manager.py # 模板管理器
-├── verification/           # 验证模块
-│   ├── __init__.py
-│   ├── answer_verifier.py  # 答案验证agent
-│   ├── fact_checker.py     # 事实核查agent
-│   └── consistency_checker.py # 一致性检查agent
-├── coordination/           # 协调模块
-│   ├── __init__.py
-│   ├── coordinator.py      # 协调器
-│   ├── session_manager.py  # 会话管理器
-│   └── workflow_manager.py # 工作流管理器
-└── monitoring/             # 监控模块（新增）
-    ├── __init__.py
-    ├── metrics_collector.py # 指标收集器
-    ├── performance_monitor.py # 性能监控器
-    └── error_tracker.py    # 错误追踪器
+app/agents/
+├── framework/            # AutoGen Core 抽象：BaseAgent、会话、监控、安全等
+├── packs/                # 「一个 Agent = 一个目录」的实现，示例：chat_agent、graph_retriever
+├── pipeline/             # AgentService 使用的业务流水线代理（Rewrite/Knowledge/Graph/Rule/Text2SQL）
+├── dsl_generator/        # DSL 生成&执行引擎（PolicyEngine 等）
+├── chatdb/               # Text2SQL 相关 Agent + 服务化工具
+├── service_tools.py      # 轻量工具集：IntentDetectionTool、KnowledgeTool
+├── service.py            # ✅ 唯一对外 orchestrator，整合所有 Agent
+└── README.md             # 当前说明
 ```
 
-## Agent职责说明
+> **提示**：老的 `app/services/`、`app/agents/core` 等目录已经废弃，所有 orchestration 逻辑都在本目录完成。
 
-### 1. 查询理解层（Query Understanding Layer）
+## AgentService 流水线
 
-#### QueryAnalyzerAgent
-- **职责**: 分析用户查询，识别意图
-- **输入**: 用户查询文本
-- **输出**: QueryAnalysis（意图、实体、关键词）
-- **功能**:
-  - 意图识别（ELIGIBILITY_CHECK, BENEFIT_CALCULATION等）
-  - 实体提取（部门、地区、时间等）
-  - 关键词提取
-  - 查询扩展
+`AgentService.process_query()` 将任意用户问题标准化后，依次执行以下步骤：
 
-### 2. 检索层（Retrieval Layer）
+1. **RewriteAgent**  
+   - 位于 `pipeline/rewrite_agent.py`  
+   - 使用 LLM 对原始输入进行语义重写，补全主体、口语化纠正。
 
-#### PolicyRetrieverAgent
-- **职责**: 根据分析结果检索相关政策
-- **输入**: QueryAnalysis
-- **输出**: RetrievalResult（相关文档列表）
-- **功能**:
-  - 向量检索
-  - 关键词检索
-  - 混合检索
-  - 结果排序和过滤
+2. **IntentDetectionTool**  
+   - 位于 `service_tools.py`  
+   - 输出 `intent`、`chains` 等标签，用于后续路由。
 
-#### VectorRetrieverAgent
-- **职责**: 管理向量索引和检索
-- **功能**:
-  - 文档向量化
-  - FAISS索引管理
-  - 相似度计算
-  - 批量处理
+3. **路由策略**（实现于 `service.py`）  
+   - `dialogue`：ChatAgent（闲聊/寒暄）  
+   - `clarify`：ClarifierAgent（追问信息）  
+   - `knowledge`：KnowledgeAgent（Milvus 向量检索 + 摘要）  
+   - `graph`：GraphAgent（LightRAG，可回落到知识库）  
+   - `rule_engine`：RuleEngineAgent（DSL PolicyEngine 计算）  
+   - `text2sql`：Text2SQLAgent（ChatDB pipeline，需要 `connection_id`）  
 
-### 3. 分析层（Analysis Layer）
+4. **结果包装**  
+   - 所有 Agent 返回 `FinalAnswer`，`AgentService` 统一补充 `route / intent / session_id / latency` 等 metadata，方便 API、CLI、SSE 直接使用。
 
-#### PolicyAnalyzerAgent
-- **职责**: 深度分析政策文档内容
-- **输入**: 政策文档和查询上下文
-- **输出**: PolicyAnalysis
-- **功能**:
-  - 提取申请条件
-  - 提取补贴标准
-  - 提取申请流程
-  - 提取时间节点
-  - 提取联系方式
+## packs 规范
 
-#### PolicyComparatorAgent（新增）
-- **职责**: 比较多个政策文件的差异
-- **功能**:
-  - 并行分析多个文档
-  - 识别相同点和不同点
-  - 生成对比表格
-  - 提供比较摘要
+每个智能体目录遵循“**三件套**”：
 
-### 4. 生成层（Generation Layer）
-
-#### AnswerGeneratorAgent
-- **职责**: 基于分析结果生成答案
-- **输入**: 分析结果集合
-- **输出**: GeneratedAnswer
-- **功能**:
-  - 模板化答案生成
-  - 多意图处理
-  - 引用管理
-  - 置信度评估
-
-### 5. 验证层（Verification Layer）
-
-#### AnswerVerifierAgent
-- **职责**: 验证答案的准确性和一致性
-- **功能**:
-  - 事实核查
-  - 一致性检查
-  - 置信度验证
-  - 质量评分
-
-### 6. 协调层（Coordination Layer）
-
-#### CoordinatorAgent
-- **职责**: 协调各agent的工作流程
-- **功能**:
-  - Agent间通信
-  - 工作流编排
-  - 错误处理
-  - 状态管理
-
-#### SessionManagerAgent（新增）
-- **职责**: 管理用户会话和上下文
-- **功能**:
-  - 会话状态维护
-  - 上下文管理
-  - 历史记录
-  - 多轮对话支持
-
-### 7. 监控层（Monitoring Layer）- 新增
-
-#### MetricsCollectorAgent
-- **职责**: 收集系统运行指标
-- **功能**:
-  - 性能指标收集
-  - 使用统计
-  - 错误率统计
-  - 生成报告
-
-## 工作流程
-
-```mermaid
-graph TD
-    A[用户查询] --> B[QueryAnalyzerAgent]
-    B --> C[QueryAnalysis]
-    C --> D[PolicyRetrieverAgent]
-    D --> E[RetrievalResult]
-    E --> F[PolicyAnalyzerAgent]
-    F --> G[PolicyAnalysis]
-    G --> H[AnswerGeneratorAgent]
-    H --> I[GeneratedAnswer]
-    I --> J[AnswerVerifierAgent]
-    J --> K[FinalAnswer]
-
-    K --> L[SessionManagerAgent]
-    L --> M[MetricsCollectorAgent]
-
-    N[PolicyComparatorAgent] -.-> F
-    N -.-> G
+```
+packs/<agent_name>/
+├── __init__.py           # 暴露类
+├── node.py               # 继承 PolicyAgentBase / ReactiveAgent 的核心逻辑
+├── prompt.py             # 该 Agent 独有的 prompt 模板
+└── utils.py (可选)       # 仅该 Agent 使用的辅助函数
 ```
 
-## 设计原则
+当前重点 packs：
 
-1. **单一职责**: 每个agent只负责一个特定功能
-2. **松耦合**: Agent间通过消息通信，不直接依赖
-3. **高内聚**: 相关功能集中在同一模块
-4. **可扩展**: 易于添加新的agent类型
-5. **可测试**: 每个agent可独立测试
-6. **可监控**: 完整的日志和指标收集
+| 目录 | 功能 |
+|------|------|
+| `chat_agent/` | 日常问候/闲聊，模板化回复 |
+| `clarifier/` | 追问缺失信息，输出结构化澄清 |
+| `intent_router/` | LLM + 规则的意图路由辅助 |
+| `graph_retriever/` | LightRAG 检索/知识图谱接口 |
+| `policy_analysis/`、`policy_reviewer/` | 深度政策解析/对比（保留以备高级流程） |
 
-## 配置管理
+> **继承要求**：若多个 Agent 共用基类，请放在 `framework/base/`；复用型工具集中维护在 `service_tools.py`，避免继续扩散新的“common”目录。
 
-通过config.yaml管理agent配置：
+## Text2SQL 与 DSL
 
-```yaml
-agents:
-  query_analyzer:
-    enabled: true
-    model: deepseek-chat
-    max_tokens: 1000
-    temperature: 0.1
+- **Text2SQL**  
+  - 核心位于 `chatdb/`：`schema_retriever`, `hybrid_sql_generator`, `text2sql_service` 等。  
+  - `pipeline/text2sql_agent.py` 将它们封装成 `FinalAnswer`，`AgentService` 通过 `connection_id` 自动激活。
 
-  policy_retriever:
-    enabled: true
-    top_k: 10
-    threshold: 0.7
-    retrieval_method: hybrid
+- **DSL 规则计算**  
+  - `dsl_generator/` 存放 DSL 模板、解析、引擎。  
+  - `RuleEngineAgent`（`pipeline/rule_agent.py`）通过 `PolicyEngine` 执行 YAML 规则，保证所有计算场景统一复用 DSL。
 
-  answer_generator:
-    enabled: true
-    templates_path: templates/
-    max_sources: 5
+## 知识库 / RAG
+
+- `KnowledgeService` (`app/knowledge/service.py`) 统一负责 Milvus 入库与检索。  
+- `KnowledgeAgent` 只依赖 `KnowledgeTool`（位于 `service_tools.py`），因此可以被 GraphAgent、外部脚本直接复用。  
+- 如需引入 LlamaIndex/LightRAG，自行封装在 pack 中，再由 `AgentService` 路由，而不是回到旧的 service 目录。
+
+## API / CLI 的使用方式
+
+```python
+from app.agents.service import AgentService
+
+service = AgentService()
+await service.initialize()
+answer = await service.process_query(
+    "申请家电补贴需要什么条件？",
+    session_id="demo",
+    connection_id=None,
+)
+print(answer.answer, answer.metadata)
 ```
 
-## 性能优化
+- FastAPI (`app/main.py`、`app/api/endpoints/agent.py`) 与 CLI (`scripts/unified_cli.py`) 均直接依赖 `AgentService`。
+- 文档/示例中若仍提到 `app/services/*`，请更新为 `app/agents/service.py`。
 
-1. **并发处理**: 异步执行多个agent
-2. **缓存机制**: 缓存常见查询结果
-3. **批量处理**: 支持批量文档分析
-4. **流式处理**: 支持流式响应输出
+## 常见扩展指引
 
-## 错误处理
+1. **新增 Agent**  
+   - 在 `packs/<name>/` 新建目录 → 在 `node.py` 继承 `PolicyAgentBase`。  
+   - 若需加入主流程，在 `pipeline/` 新增包装类，并在 `AgentService` 的路由表中调用。
 
-1. **优雅降级**: 单个agent失败不影响整体流程
-2. **重试机制**: 支持自动重试
-3. **错误追踪**: 完整的错误日志和追踪
-4. **用户友好**: 提供清晰的错误提示
+2. **新增 DSL 规则**  
+   - 使用 `dsl_generator` 生成 YAML → 放入 `rules/` → `PolicyEngine` 会自动加载。  
+   - 如需测试，调用 `RuleEngineAgent.compute()`。
 
-## 测试策略
+3. **知识库扩展**  
+   - 通过 `AgentService.ingest_paths()` / `KnowledgeService.index_documents()` 完成增量入库。  
+   - 如要接入 LightRAG，自行在 `GraphAgent` 内扩展，保持 `KnowledgeAgent` 为默认回退。
 
-1. **单元测试**: 每个agent独立测试
-2. **集成测试**: 测试agent间协作
-3. **端到端测试**: 测试完整流程
-4. **性能测试**: 测试响应时间和吞吐量
+通过以上约束，`agents/` 目录保持“packs = 具体 Agent、pipeline = 服务包装、service = 单一入口”的清晰结构，方便 Docker 打包与自动化部署。欢迎在新增模块前先更新本文件，保持团队对目录语义的一致理解。

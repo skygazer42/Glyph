@@ -55,81 +55,83 @@
 - 支持Gove特有的配置
 - 添加便捷函数
 
-### 3. EnhancedQueryAnalyzerAgent
-位置：`/agents/enhanced/query_analyzer.py`
+### 3. Text2SQLAgent（封装 ChatDB 流水线）
+位置：`/app/agents/pipeline/text2sql_agent.py`
 
 **新增功能**：
-- 集成意图路由器
-- 支持并行分析
-- 智能策略选择
-- 执行计划生成
+- 统一驱动 ChatDB 的 Schema → Query → SQL → Execute 全流程
+- 自动依赖 ORM (`app/persistence`) 查询连接信息
+- 输出 `FinalAnswer`，方便 AgentService 汇总 metadata
 
-### 4. AgentOrchestratorService
-位置：`/services/agent_orchestrator_service.py`
+### 4. AgentService
+位置：`/app/agents/service.py`
 
 **新增功能**：
-- 统一的智能体编排
-- 多种处理模式（单例、串行、并行、自适应）
-- 会话管理集成
-- 指标收集
+- 统一的改写 → 意图 → 路由流水线
+- 内置知识库/图谱/DSL/Text2SQL 调用
+- 元数据与诊断信息统一封装
+- 兼容 CLI / API / 脚本调用
 
 ## 智能体映射
 
-### ChatDB → GovE 映射表
+### ChatDB → AgentService 复用关系
 
-| ChatDB智能体 | GovE对应 | 功能描述 |
-|----------------|----------|----------|
-| SchemaRetrieverAgent | PolicyRetrieverAgent | 检索相关数据 |
-| QueryAnalyzerAgent | EnhancedQueryAnalyzerAgent | 分析用户查询 |
-| SqlGeneratorAgent | PolicyAnalyzerAgent | 生成分析结果 |
-| SqlExplainerAgent | AnswerGeneratorAgent | 生成最终答案 |
-| SqlExecutorAgent | 未直接映射 | 执行查询/检索 |
-| VisualizationRecommenderAgent | PolicyComparatorAgent | 比较分析 |
+| ChatDB 组件 | 现存放位置 | 在统一流水线中的作用 |
+|-------------|------------|------------------------|
+| `SchemaRetrieverAgent` | `app/agents/chatdb/schema_retriever.py` | Text2SQLAgent 解析 Neo4j 表结构 |
+| `QueryAnalyzerAgent` | `app/agents/chatdb/query_analyzer.py` | Text2SQL 语义分析/实体提取 |
+| `HybridSqlGeneratorAgent` | `app/agents/chatdb/hybrid_sql_generator.py` | 结合示例/Schema 生成 SQL |
+| `SqlExplainerAgent` | `app/agents/chatdb/sql_explainer.py` | 解释 SQL 及执行计划 |
+| `SqlExecutorAgent` | `app/agents/chatdb/sql_executor.py` | 执行 SQL，返回结果 |
+| `VisualizationRecommenderAgent` | `app/agents/chatdb/visualization_recommender.py` | 给出可视化建议（可选） |
+
+这些组件现在由 `pipeline/Text2SQLAgent` 统一调用，再通过 `AgentService` 的 `text2sql` 路由返回 `FinalAnswer`。
 
 ## 新增智能体
 
-### 来自Gove的智能体
-- **ChatAgent** - 处理日常对话
-- **CalculationAgent** - 处理补贴计算
-- **SessionManagerAgent** - 管理会话状态
+### AgentService 新增的统一智能体
+- **RewriteAgent** - 口语改写，便于业务理解
+- **IntentDetectionTool** - LLM + 规则意图识别
+- **KnowledgeAgent** - Milvus 检索 + LLM 摘要
+- **GraphAgent** - LightRAG / Neo4j 关系推理，可自动降级为知识检索
+- **RuleEngineAgent** - 基于 DSL `PolicyEngine` 的补贴计算
+- **Text2SQLAgent** - 封装 ChatDB 流水线，需提供 `connection_id`
+- **Dialogue / Clarifier Agents** - 负责寒暄与追问，保持体验一致
 
 ## 使用方式
 
-### 1. 使用统一主程序
+### 1. 使用统一 CLI
 ```bash
 # 交互模式
-python unified_main.py --interactive
+python scripts/unified_cli.py --interactive
 
 # 演示模式
-python unified_main.py --demo
+python scripts/unified_cli.py --demo
 
 # 批量处理
-python unified_main.py --batch queries.txt
+python scripts/unified_cli.py --batch queries.txt
 
 # 查看系统指标
-python unified_main.py --metrics
+python scripts/unified_cli.py --metrics
 ```
 
 ### 2. 直接使用智能体
 ```python
-from services.agent_orchestrator_service import AgentOrchestratorService
+from app.agents.service import AgentService
 
 # 创建编排服务
-orchestrator = AgentOrchestratorService()
+service = AgentService()
 
 # 处理查询
-response = await orchestrator.process_query("我想申请补贴")
+response = await service.process_query("我想申请补贴")
 ```
 
-### 3. 使用工厂创建智能体
+### 3. （可选）直接通过工厂创建 ChatDB Agent
 ```python
-from agents.chatdb.factory import get_agent_factory
+from app.agents.chatdb.factory import get_agent_factory
 
-# 获取工厂
 factory = get_agent_factory()
-
-# 创建智能体
-chat_agent = factory.create_agent("ChatAgent")
+sql_generator = factory.create_agent("HybridSqlGeneratorAgent")
 ```
 
 ## 配置选项
@@ -137,31 +139,37 @@ chat_agent = factory.create_agent("ChatAgent")
 ### 智能体配置
 ```yaml
 agents:
-  ChatAgent:
-    response_style: "friendly"
-    enable_memory: true
+  rewrite:
+    max_length: 256
 
-  CalculationAgent:
-    default_rules: "latest"
-    fallback_enabled: true
+  rule_engine:
+    rule_dir: "rules"
+    max_rules: 5
 
-  PolicyAnalyzerAgent:
-    analysis_depth: "deep"
-    include_recommendations: true
+  knowledge:
+    top_k: 5
+    threshold: 0.6
+
+  graph:
+    enable_lightrag: true
+
+  text2sql:
+    enable_examples: true
 ```
 
-### 处理链配置
+### 路由配置
 ```yaml
-processing_chains:
-  simple_query:
-    mode: "sequential"
-    timeout: 30
-    retry_count: 3
-
-  complex_query:
-    mode: "parallel"
-    timeout: 60
-    max_parallel: 3
+routes:
+  knowledge:
+    enabled: true
+  graph:
+    enabled: true
+    fallback_to_knowledge: true
+  rule_engine:
+    enabled: true
+  text2sql:
+    enabled: true
+    requires_connection_id: true
 ```
 
 ## 优势总结
@@ -236,8 +244,8 @@ custom_chain = {
     "parallel": True
 }
 
-# 在orchestrator中使用
-result = await orchestrator._execute_processing_chain(
+# 在 AgentService 中使用
+result = await service.process_query(
     user_query,
     analysis,
     custom_chain

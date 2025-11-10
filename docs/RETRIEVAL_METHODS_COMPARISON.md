@@ -93,7 +93,7 @@ results = retriever.retrieve(query="补贴申请条件")
 ---
 
 ### 4. **图检索 (Graph Search)**
-**位置**: `agents/retrieval/graph_retriever.py`
+**位置**: `app/agents/packs/graph_retriever/node.py`
 
 **原理**:
 - 使用知识图谱（Neo4j）存储政策关系
@@ -124,7 +124,7 @@ results = await agent.process_message({
 ---
 
 ### 5. **Agent 混合检索 (Agent Hybrid Search)**
-**位置**: `agents/retrieval/policy_retriever.py`
+**位置**: `app/agents/packs/policy_retriever/node.py`
 
 **原理**:
 - 集成向量检索和图检索

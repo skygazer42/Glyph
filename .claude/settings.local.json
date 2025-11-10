@@ -20,7 +20,8 @@
       "Bash(mkdir:*)",
       "Bash(curl:*)",
       "Bash(mv:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(gh pr list:*)"
     ],
     "deny": [],
     "ask": []

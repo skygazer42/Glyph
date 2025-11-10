@@ -105,7 +105,7 @@ VERBOSE_DEBUG=false
 
 ```bash
 # 加载政策文档并启动交互模式
-python scripts/smart_cli.py --load-docs /path/to/policies --interactive
+python scripts/unified_cli.py --load-docs /path/to/policies --interactive
 
 # 示例对话
 请输入您的问题: 2025年家电以旧换新的补贴标准是多少？
@@ -150,37 +150,31 @@ cat > queries.txt << EOF
 EOF
 
 # 批量处理
-python scripts/legacy_cli.py --load-docs /path/to/policies --batch queries.txt
+python scripts/unified_cli.py --load-docs /path/to/policies --batch queries.txt
 ```
 
 ### 3. 编程接口
 
 ```python
 import asyncio
-from agents.orchestrators.legacy import PolicyQAOrchestrator
-from utils.config import Config
+from app.agents.service import AgentService
+from app.utils.config import Config
 
 async def main():
     # 加载配置
     config = Config.from_env()
 
-    # 初始化系统
-    async with PolicyQAOrchestrator(
-        model_config=config.model,
-        vector_store_config=config.vector_store
-    ) as orchestrator:
-        # 加载文档
-        await orchestrator.load_documents([
-            "/path/to/policy/documents"
-        ])
+    service = AgentService(config=config)
+    await service.initialize()
 
-        # 查询
-        response = await orchestrator.process_query(
-            "新能源汽车补贴标准是什么？"
-        )
+    # 可选：加载文档
+    await service.ingest_paths(["/path/to/policy/documents"])
 
-        print(response.answer)
-        print(f"置信度: {response.confidence:.1%}")
+    # 查询
+    response = await service.process_query("新能源汽车补贴标准是什么？")
+
+    print(response.answer)
+    print(f"置信度: {response.confidence:.1%}")
 
 asyncio.run(main())
 ```
@@ -372,7 +366,7 @@ pytest tests/integration/
 python tests/performance.py
 ```
 
-## 🧭 运行指南（Smart Orchestrator）
+## 🧭 运行指南（AgentService）
 
 ### 1) 安装依赖
 
@@ -435,26 +429,26 @@ FAISS_WEIGHT=0.3
 
 ```bash
 # 将本地政策资料加载进向量库与 LightRAG 存储
-python scripts/smart_cli.py --load-docs ./knowledge_base/documents --interactive
+python scripts/unified_cli.py --load-docs ./resources/knowledge_base/documents --interactive
 ```
 
 ### 4) 交互/演示/批量 / 后端服务
 
 ```bash
 # 交互模式（推荐）
-python scripts/smart_cli.py --interactive
+python scripts/unified_cli.py --interactive
 
 # 演示（内置示例）：
-python scripts/smart_cli.py --demo
+python scripts/unified_cli.py --demo
 
 # 批量模式
-python scripts/smart_cli.py --batch queries.txt
+python scripts/unified_cli.py --batch queries.txt
 
 # 启动后端 API（FastAPI）
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # 例子：
-# POST http://localhost:8000/query  {"query":"申请汽车补贴需要什么条件？"}
+# POST http://localhost:8000/query  {"query":"申请汽车补贴需要什么条件？","connection_id":1}
 ```
 
 ### 5) 工作原理（按意图分支 + 按需并行）
@@ -463,16 +457,28 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
   - greeting/farewell/chit_chat/general_query → chat_chain
   - calculation → calculation_chain（必要时补检索）
   - policy_inquiry.{eligibility|process|deadline|documents|contact} → kb_chain
-  - summary（概括/主题/关系） → graph_chain（LightRAG）
-  - comparison → comparison_chain
-  - clarification → clarification_chain（澄清问题）
+- summary（概括/主题/关系） → graph_chain（LightRAG）
+- comparison → comparison_chain
+- clarification → clarification_chain（澄清问题）
 - 低置信或含混 → hybrid：并行 kb_chain + graph_chain，先达到阈值（EARLY_STOP_CONF）早停；否则择优（最高置信）。
 - 分析并发：对候选文档并发抽取结构化要素（Semaphore 限流）。
+
+### 6) Agent Pipeline（新版）
+1. **RewriteAgent**：先对用户原始问题做业务化改写，补齐主体/关键词。
+2. **IntentRouter**：基于改写后的问题识别意图，返回 `intent + chains`。
+3. **路由分发**：
+   - `dialogue` → DialogueAgent（问候/闲聊/告别）
+   - `clarify` → ClarifierAgent（追问上下文）
+   - `calculation` → RuleEngineAgent（调用 `dsl_generator` 的 PolicyEngine 执行 YAML 规则）
+   - `summary`/graph 需求 → GraphAgent（LightRAG，若不可用则回落知识库）
+   - SQL/数据库问题（含关键词且提供 `connection_id`）→ Text2SQLAgent（ChatDB）
+   - 其余 → KnowledgeAgent（Milvus + LLM 总结）
+4. **聚合返回**：所有 Agent 统一产出 `FinalAnswer`，`metadata` 中包含 `route/intents/rewritten_query`，便于追踪。
 - 多轮对话：基础设施层缓存最近 N 轮历史，不作为智能体参与路由。
 
 ### 7) 基于 Autogen 的智能体实现
 
-- LLM 意图路由：`agents/router/llm_classifier.py` 使用 `AssistantAgent` + `OpenAIChatCompletionClient`，按 `agents/router/prompt.py` 的 JSON 协议返回意图与链路。
+- LLM 意图路由：`app/agents/packs/intent_router/utils.py` 使用 `AssistantAgent` + `OpenAIChatCompletionClient`，按 `app/agents/packs/intent_router/prompt.py` 的 JSON 协议返回意图与链路。
 - 政策分析与答案生成（LLM 优先）：
   - `PolicyAnalyzer` 与 `AnswerGenerator` 在提供 `model_client` 时，使用 `AssistantAgent` 搭配缓冲上下文（`BufferedChatCompletionContext`）进行抽取与生成；失败时回退到规则/模板逻辑。
   - 配置通过 `.env` 的 `LLM_*` 注入。
@@ -516,10 +522,10 @@ bash scripts/clean.sh --no-dry-run
 
 ### 意图路由（LLM + 规则，按需并行）
 
-新增 LLM 意图路由（agents/router/prompt.py + IntentRouterAgent）：
+新增 LLM 意图路由（`app/agents/packs/intent_router/prompt.py` + `IntentRouterAgent`）：
 - 先用大模型根据提示分类意图与推荐处理链（chat/calculation/comparison/kb/graph/hybrid），并给出是否需要并行（requires_parallel）。
 - 若 LLM 不可用或失败，回退到规则分类（关键词+正则）。
-- Orchestrator 接收路由结果：
+- AgentService 接收路由结果：
   - 单链：只执行该链（最小必要路径）。
   - 低置信/歧义：并行执行多链（如 kb_chain + graph_chain），采用早停或择优返回。
 
@@ -603,7 +609,7 @@ class QueryIntent(str, Enum):
     # ... 现有意图
     CUSTOM_INTENT = "custom_intent"
 
-# agents/generation/answer_generator.py
+# app/agents/packs/answer_generator/node.py
 self.templates[QueryIntent.CUSTOM_INTENT] = self._custom_template
 ```
 

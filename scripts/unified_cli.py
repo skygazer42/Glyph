@@ -13,8 +13,33 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from app.services.orchestrator import AgentOrchestratorService, ProcessingMode
+from app.agents.service import AgentService
 from app.utils.config import Config
+
+
+class AgentOrchestratorService:
+    """Compatibility wrapper that exposes AgentService via the old orchestrator interface."""
+
+    def __init__(self, config: Config):
+        self._service = AgentService(config=config)
+        self._initialized = False
+
+    async def _ensure_initialized(self):
+        if not self._initialized:
+            await self._service.initialize()
+            self._initialized = True
+
+    async def process_query(self, query: str, session_id: str | None = None):
+        await self._ensure_initialized()
+        return await self._service.process_query(query, session_id=session_id)
+
+    async def get_metrics(self):
+        await self._ensure_initialized()
+        return {
+            "total_agents": 5,
+            "processing_chains": ["dialogue", "knowledge", "graph", "rule_engine", "text2sql"],
+            "agent_metrics": {},
+        }
 
 
 async def interactive_mode(orchestrator: AgentOrchestratorService):
@@ -266,9 +291,6 @@ async def main():
     parser.add_argument('--metrics', '-m', action='store_true', help='显示系统指标')
     parser.add_argument('--debug', action='store_true', help='调试模式')
     parser.add_argument('--log-level', default='INFO', help='日志级别')
-    parser.add_argument('--mode', choices=['single', 'sequential', 'parallel', 'adaptive'],
-                        help='处理模式', default='adaptive')
-
     args = parser.parse_args()
 
     # 设置日志
