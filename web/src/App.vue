@@ -29,7 +29,10 @@
               <span>知识库</span>
             </el-menu-item>
           </el-menu>
-          <ThemeToggle />
+          <div class="header-actions">
+            <ThemeToggle />
+            <MobileMenu class="mobile-only" />
+          </div>
         </div>
       </el-header>
       <el-main class="app-main">
@@ -39,6 +42,7 @@
           </transition>
         </router-view>
         <AppFooter />
+        <BackToTop />
       </el-main>
     </el-container>
   </div>
@@ -48,12 +52,20 @@
 import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
 import AppFooter from '@/components/AppFooter.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import MobileMenu from '@/components/MobileMenu.vue'
+import BackToTop from '@/components/BackToTop.vue'
 </script>
 
 <style scoped>
 .app-container {
   height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
+  transition: background var(--transition-base);
+}
+
+/* 暗色模式背景 */
+[data-theme="dark"] .app-container {
+  background: linear-gradient(135deg, #0f1419 0%, #1a1d23 100%);
 }
 
 .app-header {
@@ -153,6 +165,16 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
   font-size: 1.125rem;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.mobile-only {
+  display: none;
+}
+
 .app-main {
   padding: var(--spacing-xl);
   overflow-y: auto;
@@ -182,7 +204,6 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 @media (max-width: 768px) {
   .header-content {
     padding: 0 var(--spacing-md);
-    flex-wrap: wrap;
   }
 
   .logo-section {
@@ -194,13 +215,11 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
   }
 
   .nav-menu {
-    flex: 1 1 100%;
-    margin-top: var(--spacing-sm);
+    display: none;
   }
 
-  .nav-menu :deep(.el-menu-item) {
-    padding: 0 var(--spacing-md);
-    font-size: 0.875rem;
+  .mobile-only {
+    display: block;
   }
 
   .app-main {
