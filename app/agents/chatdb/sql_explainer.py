@@ -97,6 +97,7 @@ class SqlExplainerAgent(BaseAgent):
 
             agent = AssistantAgent(
                 name="sql_explainer",
+                description="Explains generated SQL statements in natural language.",
                 model_client=self.model_client,
                 system_message=system_message,
                 model_client_stream=True,

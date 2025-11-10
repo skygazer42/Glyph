@@ -195,6 +195,7 @@ class VisualizationRecommenderAgent(BaseAgent):
             # 创建智能体并执行任务
             agent = AssistantAgent(
                 name="visualization_recommender",
+                description="Recommends visualization configs based on SQL results.",
                 model_client=self.model_client,
                 system_message=self._prompt,
                 model_client_stream=True,

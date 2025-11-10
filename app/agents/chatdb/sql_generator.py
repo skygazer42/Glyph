@@ -88,6 +88,7 @@ class SqlGeneratorAgent(BaseAgent):
 
             agent = AssistantAgent(
                 name="sql_generator",
+                description="Generates SQL statements based on schema context.",
                 model_client=self.model_client,
                 system_message=system_message,
                 memory=[memory],

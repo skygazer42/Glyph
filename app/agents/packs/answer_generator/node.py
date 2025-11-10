@@ -589,6 +589,7 @@ class AnswerGeneratorAgent(StatefulAgent):
         if self._assistant is None:
             self._assistant = AssistantAgent(
                 name="answer_gen_llm",
+                description="LLM-backed policy answer composer.",
                 system_message=generation_system_prompt(),
                 model_client=self.model_client,
                 model_context=create_buffered_context(10),

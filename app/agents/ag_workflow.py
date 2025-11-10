@@ -49,6 +49,7 @@ class AGWorkflow:
         """添加Agent到编排器"""
         agent = AssistantAgent(
             name=name,
+            description=description or f"{name} agent inside AG workflow",
             model_client=self.model_client,
             system_message=system_message
         )
@@ -252,6 +253,7 @@ class AdvancedOrchestrator:
         # 创建路由Agent
         router = AssistantAgent(
             name="router",
+            description="Routes user queries to appropriate processing paths.",
             model_client=self.model_client,
             system_message="""你是路由Agent。根据用户问题，选择处理路径：
 - 如果是补贴金额问题，路由到 calculation_path
@@ -284,6 +286,7 @@ class AdvancedOrchestrator:
             if name not in self.agents:
                 self.agents[name] = AssistantAgent(
                     name=name,
+                    description=f"{path_name} worker: {name}",
                     model_client=self.model_client,
                     system_message=f"你是{name}专家，专门处理相关任务。"
                 )

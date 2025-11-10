@@ -27,6 +27,7 @@ class LLMIntentClassifier:
         if self._assistant is None:
             self._assistant = AssistantAgent(
                 name="intent_router",
+                description="Classifies user intent for routing decisions.",
                 system_message=intent_system_instruction(),
                 model_client=self._client,
                 model_context=GLOBAL_MODEL_CTX,

@@ -408,6 +408,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
         if self._assistant is None:
             self._assistant = AssistantAgent(
                 name="policy_analyzer_llm",
+                description="Extracts structured policy facts via LLM.",
                 system_message=nlp_extraction_system_prompt(),
                 model_client=self.model_client,
                 model_context=create_buffered_context(10),

@@ -170,6 +170,7 @@ WHERE [筛选条件]
             # 创建agent并执行任务
             agent = AssistantAgent(
                 name="query_analyzer",
+                description="Analyzes natural language query intent and required tables.",
                 model_client=self.model_client,
                 system_message=self._system_message,
                 model_client_stream=True,

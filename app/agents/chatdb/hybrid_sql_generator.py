@@ -149,6 +149,7 @@ class HybridSqlGeneratorAgent(BaseAgent):
             # 生成SQL
             agent = AssistantAgent(
                 name="hybrid_sql_generator",
+                description="Generates SQL using hybrid retrieval context.",
                 model_client=self.model_client,
                 system_message=system_message,
                 memory=[memory],
