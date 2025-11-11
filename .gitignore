@@ -166,7 +166,7 @@ storage/
 **/.llama_index/
 
 # Model cache
-models/
+.claude/
 *.ckpt
 *.pth
 *.pt
