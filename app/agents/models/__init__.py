@@ -3,17 +3,19 @@ Agent Models Module
 """
 
 from .base import (
+    BaseModel,
     UserQuery,
     FinalAnswer,
     AgentResponse,
     PolicyDocument,
-    RetrievalResult
+    RetrievalResult,
 )
 
 __all__ = [
-    'UserQuery',
-    'FinalAnswer',
-    'AgentResponse',
-    'PolicyDocument',
-    'RetrievalResult'
+    "BaseModel",
+    "UserQuery",
+    "FinalAnswer",
+    "AgentResponse",
+    "PolicyDocument",
+    "RetrievalResult",
 ]

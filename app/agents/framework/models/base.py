@@ -68,3 +68,12 @@ class WorkflowState(BaseModel):
     pending_steps: List[str] = Field(default_factory=list, description="待处理步骤")
     context: Dict[str, Any] = Field(default_factory=dict, description="上下文")
     timestamp: datetime = Field(default_factory=datetime.now, description="更新时间")
+
+
+class ResponseModel(BaseModel):
+    """通用响应模型（为了兼容历史测试脚本）"""
+
+    success: bool = Field(default=True, description="是否成功")
+    data: Any = Field(default=None, description="响应数据")
+    message: str = Field(default="", description="提示信息")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="额外元数据")
