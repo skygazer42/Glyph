@@ -44,11 +44,15 @@ async def agent_chat(
         )
 
         # 添加用户消息到会话
+        user_metadata = {"connection_id": request.connection_id}
+        if request.attachments:
+            user_metadata["attachments"] = [att.model_dump() for att in request.attachments]
+
         session_manager.add_message(
             session.session_id,
             "user",
             request.message,
-            metadata={"connection_id": request.connection_id},
+            metadata=user_metadata,
         )
 
         # 调用统一 AgentService
@@ -56,6 +60,7 @@ async def agent_chat(
             request.message,
             session_id=session.session_id,
             connection_id=request.connection_id,
+            attachments=request.attachments,
         )
 
         # 添加助手消息到会话
@@ -112,13 +117,16 @@ async def agent_chat_stream(
                 request.session_id, connection_id=request.connection_id
             )
             session_id = session.session_id
+            user_metadata = {"connection_id": request.connection_id}
+            if request.attachments:
+                user_metadata["attachments"] = [att.model_dump() for att in request.attachments]
 
             # 添加用户消息到会话
             session_manager.add_message(
                 session_id,
                 "user",
                 request.message,
-                metadata={"connection_id": request.connection_id},
+                metadata=user_metadata,
             )
 
             # 发送会话信息
@@ -135,6 +143,7 @@ async def agent_chat_stream(
                 request.message,
                 session_id=session_id,
                 connection_id=request.connection_id,
+                attachments=request.attachments,
             )
 
             # 发送内容片段（一次性推送最终答案）

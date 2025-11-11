@@ -6,6 +6,7 @@ from .graph_agent import GraphAgent
 from .rule_agent import RuleEngineAgent
 from .text2sql_agent import Text2SQLAgent
 from .dialog_agent import DialogueAgent, ClarifierAgent
+from .workflow_agent import WorkflowAgent
 
 __all__ = [
     "RewriteAgent",
@@ -15,4 +16,5 @@ __all__ = [
     "Text2SQLAgent",
     "DialogueAgent",
     "ClarifierAgent",
+    "WorkflowAgent",
 ]

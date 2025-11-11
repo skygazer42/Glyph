@@ -39,6 +39,8 @@ llama-index-postprocessor-dashscope-rerank
 requests>=2.31.0
 fastapi>=0.111.0
 uvicorn>=0.30.0
+# Web Search
+tavily-python>=0.3.3
 # Utilities
 python-dotenv>=1.0.0
 loguru>=0.7.2

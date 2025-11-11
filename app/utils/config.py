@@ -2,8 +2,7 @@
 Configuration management for the policy QA system.
 """
 
-import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pydantic import BaseSettings, Field
 from pydantic_settings import SettingsConfigDict
 
@@ -44,6 +43,37 @@ class ConversationConfig(BaseSettings):
     history_window: int = Field(default=5, ge=1, description="How many recent turns to include in context")
 
 
+class VisionConfig(BaseSettings):
+    """Vision / multimodal model configuration."""
+
+    enabled: bool = Field(default=False, description="Enable multimodal vision reasoning")
+    model: str = Field(default="gpt-4o-mini", description="Vision-capable model name")
+    api_key: str = Field(default="", description="API key for the vision model")
+    base_url: str = Field(default="", description="Optional custom base URL for the vision model")
+    prompt_template: str = Field(
+        default="请结合用户问题，描述图片中的关键信息（地点、票据、金额、日期、主体等），并输出结构化要点。",
+        description="Prompt template used when asking the vision model to describe attachments.",
+    )
+    max_images: int = Field(default=2, ge=1, le=5, description="Maximum number of images to inspect per request")
+    max_output_tokens: int = Field(
+        default=800, ge=100, le=2000, description="Maximum output tokens for a single vision call"
+    )
+
+
+class WebSearchConfig(BaseSettings):
+    """Fallback web search configuration."""
+
+    enabled: bool = Field(default=False, description="Enable fallback web search via external APIs")
+    provider: str = Field(default="tavily", description="Search provider identifier")
+    tavily_api_key: str = Field(default="", description="API key for Tavily")
+    search_depth: str = Field(default="basic", description="Tavily search depth, e.g., basic/advanced")
+    max_results: int = Field(default=3, ge=1, le=10, description="Maximum number of web results to request")
+    site_filter: str = Field(
+        default="",
+        description="Optional site/domain limiter, e.g., gov.cn (will be appended as site:gov.cn).",
+    )
+
+
 class DatabaseConfig(BaseSettings):
     """Database configuration."""
     neo4j_uri: str = Field(default="bolt://localhost:7687")
@@ -66,6 +96,13 @@ class Config(BaseSettings):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     conversation: ConversationConfig = Field(default_factory=ConversationConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    vision: VisionConfig = Field(default_factory=VisionConfig)
+    web_search: WebSearchConfig = Field(default_factory=WebSearchConfig)
+    user_profile_db_path: str = Field(
+        default="resources/data/user_profiles.json",
+        description="Path to the mock user profile database (JSON).",
+        alias="USER_PROFILE_DB_PATH",
+    )
 
     @classmethod
     def from_file(cls, file_path: str) -> 'Config':
@@ -87,5 +124,8 @@ class Config(BaseSettings):
             "vector_store": self.vector_store.dict(),
             "logging": self.logging.dict(),
             "conversation": self.conversation.dict(),
-            "database": self.database.dict()
+            "database": self.database.dict(),
+            "vision": self.vision.dict(),
+            "web_search": self.web_search.dict(),
+            "user_profile_db_path": self.user_profile_db_path,
         }

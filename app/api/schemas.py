@@ -5,6 +5,7 @@ API 请求/响应模型
 
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
+from app.models.base import Attachment as AttachmentModel
 
 
 # ==================== DSL 相关模型 ====================
@@ -153,6 +154,10 @@ class ChatRequest(BaseModel):
         default=None,
         description="Text2SQL 场景使用的数据库连接ID"
     )
+    attachments: Optional[List[AttachmentModel]] = Field(
+        default=None,
+        description="可选附件列表，例如图片路径/URL，用于多模态任务",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -170,6 +175,10 @@ class ChatStreamRequest(BaseModel):
     connection_id: Optional[int] = Field(
         default=None,
         description="Text2SQL 场景使用的数据库连接ID"
+    )
+    attachments: Optional[List[AttachmentModel]] = Field(
+        default=None,
+        description="可选附件列表，例如图片路径/URL，用于多模态任务",
     )
 
 

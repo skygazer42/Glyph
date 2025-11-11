@@ -68,6 +68,29 @@ class QueryIntent(str, Enum):
     GENERAL_INQUIRY = "general_inquiry"  # 一般咨询
 
 
+class Attachment(BaseModel):
+    """User attachment metadata (image, file, url)."""
+
+    type: str = Field(default="file", description="Attachment type, e.g., image/file/audio")
+    path: Optional[str] = Field(
+        default=None, description="Server-accessible local path for the attachment (if uploaded)."
+    )
+    url: Optional[str] = Field(default=None, description="Remote URL pointing to the attachment resource.")
+    mime_type: Optional[str] = Field(default=None, description="Optional MIME type hint.")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary metadata supplied by the client.")
+
+    def is_image(self) -> bool:
+        """Return True if the attachment looks like an image."""
+        mime = (self.mime_type or "").lower()
+        if mime.startswith("image/"):
+            return True
+        if self.path:
+            return any(self.path.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp"])
+        if self.url:
+            return any(self.url.lower().split("?")[0].endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp"])
+        return False
+
+
 class PolicyDocument(BaseModel):
     """Policy document model."""
     id: UUID = Field(default_factory=uuid4)
