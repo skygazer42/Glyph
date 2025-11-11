@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -112,26 +114,30 @@ class AgentService:
             logging_manager.warning("LightRAG 种子目录不存在：%s", seed_dir)
             return
 
-        try:
-            has_supported_files = any(
-                file.is_file() and file.suffix.lower() in self._loader.supported_extensions
-                for file in seed_path.rglob("*")
-            )
-        except Exception:
-            has_supported_files = False
-
-        if not has_supported_files:
+        current_manifest = self._collect_seed_manifest(seed_path)
+        if not current_manifest:
             logging_manager.warning("LightRAG 种子目录中没有可解析的文档：%s", seed_dir)
             return
 
-        workdir = Path(os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag"))
-        if workdir.exists():
-            try:
-                if any(workdir.iterdir()):
-                    logging_manager.info("LightRAG 工作目录 %s 已存在数据，跳过自动导入。", workdir)
-                    return
-            except Exception:
-                pass
+        workdir = self._get_lightrag_workdir()
+        manifest_path = workdir / "seed_manifest.json"
+        existing_manifest = self._load_seed_manifest(manifest_path)
+        workdir_has_data = self._workdir_has_data(workdir, manifest_path)
+
+        same_seed = (
+            existing_manifest is not None
+            and existing_manifest.get("seed_dir") == str(seed_path.resolve())
+            and existing_manifest.get("files") == current_manifest
+        )
+
+        if workdir_has_data and same_seed:
+            logging_manager.info("LightRAG 种子目录未变化，且工作目录已有数据，跳过自动导入。")
+            return
+
+        if not workdir_has_data and not manifest_path.exists():
+            logging_manager.info("LightRAG 工作目录为空，开始自动导入种子数据。")
+        elif not same_seed:
+            logging_manager.info("检测到 LightRAG 种子目录内容发生变化，触发重新导入。")
 
         try:
             documents = self._loader.load_from_directory(seed_dir)
@@ -145,11 +151,76 @@ class AgentService:
 
         try:
             await self.graph_agent.ingest(documents)
+            self._write_seed_manifest(manifest_path, seed_path, current_manifest)
             logging_manager.info(
                 "已自动将 %s 篇文档导入 LightRAG（目录：%s）。", len(documents), seed_dir
             )
         except Exception as exc:
             logging_manager.warning("LightRAG 自动导入失败：%s", exc)
+
+    def _get_lightrag_workdir(self) -> Path:
+        configured = os.getenv("LIGHTRAG_WORKDIR")
+        if configured:
+            return Path(configured)
+        return Path("resources/data/lightrag")
+
+    def _collect_seed_manifest(self, seed_path: Path) -> Dict[str, Dict[str, int]]:
+        manifest: Dict[str, Dict[str, int]] = {}
+        try:
+            for file in seed_path.rglob("*"):
+                if file.is_file() and file.suffix.lower() in self._loader.supported_extensions:
+                    try:
+                        stat = file.stat()
+                        rel_path = str(file.relative_to(seed_path))
+                        manifest[rel_path] = {
+                            "size": int(stat.st_size),
+                            "mtime": int(stat.st_mtime),
+                        }
+                    except OSError:
+                        continue
+        except Exception:
+            return {}
+        return manifest
+
+    def _load_seed_manifest(self, manifest_path: Path) -> Optional[Dict[str, Any]]:
+        if not manifest_path.exists():
+            return None
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _write_seed_manifest(
+        self,
+        manifest_path: Path,
+        seed_path: Path,
+        manifest_data: Dict[str, Dict[str, int]],
+    ) -> None:
+        payload = {
+            "seed_dir": str(seed_path.resolve()),
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "files": manifest_data,
+        }
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    def _workdir_has_data(self, workdir: Path, manifest_path: Path) -> bool:
+        if not workdir.exists():
+            return False
+        try:
+            manifest_real = manifest_path.resolve() if manifest_path.exists() else None
+            for item in workdir.iterdir():
+                try:
+                    if manifest_real and item.resolve() == manifest_real:
+                        continue
+                except FileNotFoundError:
+                    continue
+                return True
+        except Exception:
+            return False
+        return False
 
     async def process_query(
         self,
