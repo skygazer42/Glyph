@@ -38,6 +38,7 @@ class MessageTypes(Enum):
     VERIFICATION_REPORT = "verification_report"
     FINAL_ANSWER = "final_answer"
     ERROR = "error"
+    DATA = "data"  # 用于框架内部的通用数据传递
 
 
 class RetrievalMethod(Enum):

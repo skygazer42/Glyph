@@ -41,7 +41,8 @@ LLAMAINDEX_STORAGE_DIR=resources/storage/hierarchical
 1. 准备解析后的 Markdown / 文本（推荐使用 `MinerUAdapter` + `HierarchicalMarkdownProcessor`）。
 2. 运行示例脚本（如 `scripts/embed_documents.py` 或 `scripts/batch_process.py`），它会调用 `HierarchicalIndexBuilder.build_from_markdown_files(...)`，并将索引写入 `LLAMAINDEX_STORAGE_DIR`。
 3. 检查输出：目录下应包含 `doc_index/`, `section_index/`, `chunk_index/`, `summary_index/` 等子目录。
-4. 服务重启后，`KnowledgeService` 会自动检测 `storage_dir` 是否存在索引，从而开启分级检索。
+4. 在线增量：当 API 调用 `KnowledgeService.index_documents()` 时，会自动转写当前批 `PolicyDocument` 为临时 Markdown、刷新分级索引（通过 `LlamaIndexIntegration.build_index_from_documents`）。如果线上 ingest 激增，可考虑改为离线任务。
+5. 服务重启后，`KnowledgeService` 会自动检测 `storage_dir` 是否存在索引，从而开启分级检索。
 
 ## 4. 检索策略细节
 

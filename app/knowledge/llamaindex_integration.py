@@ -126,7 +126,7 @@ class LlamaIndexIntegration:
             documents = []
             scores = []
 
-            for node in nodes:
+            for idx, node in enumerate(nodes):
                 # 从元数据重建 PolicyDocument
                 doc = PolicyDocument(
                     id=node.metadata.get('doc_id', node.id_),
@@ -145,9 +145,11 @@ class LlamaIndexIntegration:
                 )
                 documents.append(doc)
 
-                # 计算相似度分数（简化版本）
-                score = 1.0 - (nodes.index(node) * 0.1)  # 根据排名递减
-                scores.append(max(score, threshold))
+                score = getattr(node, "score", None)
+                if score is None:
+                    # Fallback：按照排名提供轻量分数，但避免超过1
+                    score = max(0.0, 1.0 - 0.05 * idx)
+                scores.append(float(score))
 
             return documents, scores
 

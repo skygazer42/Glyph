@@ -1,11 +1,23 @@
 """Shared LLM client helpers."""
 
+import os
+
 from app.config import settings
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 
 def _setup_model_client():
     """Construct the default model client from Settings."""
+    for key in (
+        "ALL_PROXY",
+        "all_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+    ):
+        os.environ.pop(key, None)
+
     model_cfg = settings.model
     model_config = {
         "model": model_cfg.llm_model_name,

@@ -6,12 +6,10 @@ import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 import re
-import jieba
 from datetime import datetime
-
+import jieba
 from autogen_core import MessageContext
 from autogen_agentchat.messages import TextMessage
-
 from app.agents.framework.base.base_agent import PolicyAgentBase
 from app.models.base import (
     AgentType,
@@ -204,8 +202,12 @@ class QueryAnalyzerAgent(PolicyAgentBase):
             matches = re.findall(pattern, text)
             entities.extend(matches)
 
-        # 使用jieba分词提取其他可能的实体
-        words = jieba.cut(text)
+        # 使用 jieba 分词提取其他可能的实体
+        if jieba:
+            words = jieba.cut(text)
+        else:
+            self.logger.debug("jieba 未安装，使用空格分词退化处理")
+            words = text.split()
         for word in words:
             # 过滤掉太短的词和常见停用词
             if len(word) > 1 and word not in ["的", "是", "在", "有", "和", "与", "或"]:

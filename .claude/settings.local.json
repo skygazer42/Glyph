@@ -22,7 +22,8 @@
       "Bash(mv:*)",
       "Bash(tree:*)",
       "Bash(gh pr list:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(/home/user/ENTER/envs/gov/bin/python -m pytest:*)"
     ],
     "deny": [],
     "ask": []

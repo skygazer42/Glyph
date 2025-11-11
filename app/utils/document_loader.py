@@ -8,8 +8,12 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 from datetime import datetime
 import PyPDF2
-from docx import Document
 import re
+
+try:  # python-docx 可能未安装
+    from docx import Document  # type: ignore
+except Exception:  # pragma: no cover
+    Document = None
 
 from app.models.base import PolicyDocument, PolicyType
 
@@ -82,6 +86,9 @@ class DocumentLoader:
             if extension == '.pdf':
                 return self._extract_from_pdf(file_path)
             elif extension == '.docx':
+                if Document is None:
+                    print("python-docx 未安装，跳过 DOCX 文件解析")
+                    return None
                 return self._extract_from_docx(file_path)
             elif extension in ['.txt', '.md']:
                 return self._extract_from_text(file_path)

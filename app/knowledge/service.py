@@ -50,9 +50,11 @@ class KnowledgeService:
             return 0
         self.vector_store.add_documents(documents)
         if self.hierarchical_store:
-            logger.info(
-                "KnowledgeService: hierarchical index存在，但未自动重建（请运行数据构建脚本以避免覆盖既有索引）。"
-            )
+            try:
+                await self.hierarchical_store.build_index_from_documents(documents)
+                logger.info("KnowledgeService: hierarchical index refreshed with %s docs", len(documents))
+            except Exception as exc:
+                logger.warning("KnowledgeService: hierarchical index rebuild failed: %s", exc)
         return len(documents)
 
     async def search(

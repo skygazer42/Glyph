@@ -3,8 +3,8 @@ Configuration management for the policy QA system.
 """
 
 from typing import Dict, Any
-from pydantic import BaseSettings, Field
-from pydantic_settings import SettingsConfigDict
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ModelConfig(BaseSettings):

@@ -10,7 +10,6 @@ from datetime import datetime
 import difflib
 from collections import defaultdict
 from pydantic import Field
-from pydantic_settings import  BaseSettings
 from uuid import UUID
 from autogen_core import MessageContext
 
@@ -29,8 +28,8 @@ class PolicyComparison(BaseModel):
     query_id: UUID
     documents: List[UUID]  # 比较的文档ID列表
     comparison_type: str  # 比较类型：benefits, eligibility, process, etc.
-    similarities: List[str] = BaseSettings(default_factory=list)
-    differences: List[Dict[str, Any]] = BaseSettings(default_factory=list)
+    similarities: List[str] = Field(default_factory=list)
+    differences: List[Dict[str, Any]] = Field(default_factory=list)
     summary: Optional[str] = None
     comparison_table: Optional[Dict[str, List[Any]]] = None
     confidence: float = Field(default=0.0, ge=0, le=1)

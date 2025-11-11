@@ -3,8 +3,8 @@ name: {{ name }}
 version: {{ version }}
 
 policy_source:
-  doc_id: {{ policy_source.doc_id | default(null) }}
-  title: "{{ policy_source.title }}"
+  doc_id: {{ policy_source.doc_id | default(null) | tojson }}
+  title: {{ policy_source.title | default(null) | tojson }}
 
 # ===== 有效期 =====
 valid_period:

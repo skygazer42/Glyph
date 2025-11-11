@@ -54,3 +54,6 @@ python-multipart>=0.0.6
 pydantic>=2.0.0
 docx2txt
 sse-starlette>=2.0.0
+pymysql
+sqlparse
+jieba

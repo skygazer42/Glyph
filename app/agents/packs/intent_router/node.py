@@ -23,12 +23,8 @@ from app.models.base import (
     BaseModel,
     Field
 )
+import jieba
 
-# 尝试导入jieba
-try:
-    import jieba
-except ImportError:
-    jieba = None
 
 
 class IntentClassification(BaseModel):
