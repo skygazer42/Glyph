@@ -93,6 +93,7 @@ EMBEDDING_DIM=1024
 MAX_EMBED_TOKENS=8192
 # 工作目录与日志
 LIGHTRAG_WORKDIR=resources/data/lightrag
+LIGHTRAG_SEED_DATA_DIR=resources/data/process
 LOG_DIR=.
 LOG_MAX_BYTES=10485760
 LOG_BACKUP_COUNT=5
@@ -493,6 +494,7 @@ ctx = create_buffered_context(10)
 ### 6) LightRAG 说明（可选）
 
 - 首次运行会在 `LIGHTRAG_WORKDIR` 初始化存储。
+- 如果设置了 `LIGHTRAG_SEED_DATA_DIR`，后端会在 LightRAG 存储为空时自动导入该目录下支持的文档（默认指向 `resources/data/process`）。
 - `--load-docs` 会自动将文档内容注入 LightRAG 存储（需要本地嵌入服务）。
 - 图谱检索链（graph_chain）适合“概括/主题/关系/脉络”类问题。
 

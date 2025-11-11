@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.agents.framework.base.types import PolicyDocument
@@ -84,11 +87,69 @@ class AgentService:
             rule_agent=self.rule_agent,
             user_profile_tool=self.user_profile_tool,
         )
-        self._initialized = True  # no heavy bootstrap step anymore
+        self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     async def initialize(self) -> None:
-        # 保留兼容接口，未来如需预热可在此实现
-        self._initialized = True
+        if self._initialized:
+            return
+        async with self._init_lock:
+            if self._initialized:
+                return
+            await self._maybe_seed_lightrag()
+            self._initialized = True
+
+    async def _maybe_seed_lightrag(self) -> None:
+        seed_dir = getattr(self.config, "lightrag_seed_data_dir", None)
+        if not seed_dir:
+            return
+        if not getattr(self.graph_agent, "_graph_agent", None):
+            logging_manager.info("LightRAG 未启用，跳过自动导入。")
+            return
+
+        seed_path = Path(seed_dir)
+        if not seed_path.exists():
+            logging_manager.warning("LightRAG 种子目录不存在：%s", seed_dir)
+            return
+
+        try:
+            has_supported_files = any(
+                file.is_file() and file.suffix.lower() in self._loader.supported_extensions
+                for file in seed_path.rglob("*")
+            )
+        except Exception:
+            has_supported_files = False
+
+        if not has_supported_files:
+            logging_manager.warning("LightRAG 种子目录中没有可解析的文档：%s", seed_dir)
+            return
+
+        workdir = Path(os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag"))
+        if workdir.exists():
+            try:
+                if any(workdir.iterdir()):
+                    logging_manager.info("LightRAG 工作目录 %s 已存在数据，跳过自动导入。", workdir)
+                    return
+            except Exception:
+                pass
+
+        try:
+            documents = self._loader.load_from_directory(seed_dir)
+        except FileNotFoundError:
+            logging_manager.warning("LightRAG 种子目录无法读取：%s", seed_dir)
+            return
+
+        if not documents:
+            logging_manager.warning("LightRAG 种子目录未加载到任何有效文档：%s", seed_dir)
+            return
+
+        try:
+            await self.graph_agent.ingest(documents)
+            logging_manager.info(
+                "已自动将 %s 篇文档导入 LightRAG（目录：%s）。", len(documents), seed_dir
+            )
+        except Exception as exc:
+            logging_manager.warning("LightRAG 自动导入失败：%s", exc)
 
     async def process_query(
         self,

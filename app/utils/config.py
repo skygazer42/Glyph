@@ -2,7 +2,7 @@
 Configuration management for the policy QA system.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -102,6 +102,11 @@ class Config(BaseSettings):
         default="resources/data/user_profiles.json",
         description="Path to the mock user profile database (JSON).",
         alias="USER_PROFILE_DB_PATH",
+    )
+    lightrag_seed_data_dir: Optional[str] = Field(
+        default=None,
+        description="Optional directory containing seed documents for LightRAG.",
+        alias="LIGHTRAG_SEED_DATA_DIR",
     )
 
     @classmethod

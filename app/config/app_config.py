@@ -302,6 +302,7 @@ class SystemSettings(BaseSettings):
 
     # LightRAG 配置
     lightrag_workdir: str = Field(default="resources/data/lightrag", env="LIGHTRAG_WORKDIR")
+    lightrag_seed_data_dir: Optional[str] = Field(default=None, env="LIGHTRAG_SEED_DATA_DIR")
     max_embed_tokens: int = Field(default=8192, env="MAX_EMBED_TOKENS")
 
     # LlamaIndex 配置
