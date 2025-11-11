@@ -21,7 +21,8 @@
       "Bash(curl:*)",
       "Bash(mv:*)",
       "Bash(tree:*)",
-      "Bash(gh pr list:*)"
+      "Bash(gh pr list:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": [],
     "ask": []
