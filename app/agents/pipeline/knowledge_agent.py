@@ -40,6 +40,16 @@ class KnowledgeAgent:
         focus = emphasis or (intent or {}).get("sub_intent") or "general"
 
         if docs:
+            doc_origins = [
+                getattr(doc, "retrieval_origin", "knowledge_base") for doc in docs
+            ]
+            if doc_origins and all(origin == doc_origins[0] for origin in doc_origins):
+                dominant_origin = doc_origins[0]
+            elif "hierarchical_index" in doc_origins:
+                dominant_origin = "hierarchical_index"
+            else:
+                dominant_origin = "knowledge_base"
+
             formatted_context = self._format_documents(docs)
             summary_prompt = self._build_summary_prompt(
                 query, focus, formatted_context, context_label="参考资料"
@@ -56,7 +66,8 @@ class KnowledgeAgent:
                     "route": "knowledge",
                     "focus": focus,
                     "doc_count": len(docs),
-                    "origin": "knowledge_base",
+                    "origin": dominant_origin,
+                    "doc_origins": doc_origins,
                 },
                 total_processing_time=0.0,
             )
@@ -81,6 +92,7 @@ class KnowledgeAgent:
                     "focus": focus,
                     "doc_count": 0,
                     "origin": "web_search",
+                    "doc_origins": ["web_search"],
                     "web_results": [
                         {
                             "title": item.get("title", ""),
@@ -193,6 +205,6 @@ class KnowledgeAgent:
             sources=[],
             confidence=0.2,
             verification_passed=False,
-            metadata={"route": "knowledge", "reason": reason},
+            metadata={"route": "knowledge", "reason": reason, "doc_origins": []},
             total_processing_time=0.0,
         )

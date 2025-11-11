@@ -175,9 +175,9 @@ def test_no_hardcoded_env():
 
     # 检查知识库模块
     files_to_check = [
-        "knowledge_base/milvus.py",
-        "knowledge_base/vector_store.py",
-        "knowledge_base/mineru_adapter.py"
+        "app/knowledge/milvus.py",
+        "app/knowledge/vector_store.py",
+        "app/knowledge/mineru_adapter.py"
     ]
 
     issues = []

@@ -108,6 +108,11 @@ class LlamaIndexSettings(BaseSettings):
     # 其他选项
     include_metadata: bool = Field(default=True, env="LLAMAINDEX_INCLUDE_METADATA")
     include_prev_next_rel: bool = Field(default=True, env="LLAMAINDEX_INCLUDE_PREV_NEXT")
+    storage_dir: str = Field(
+        default="resources/storage/hierarchical",
+        env="LLAMAINDEX_STORAGE_DIR",
+        description="Hierarchical index storage directory",
+    )
 
 
 class RerankerSettings(BaseSettings):
@@ -335,3 +340,4 @@ settings = Settings()
 # 确保必要的目录存在
 settings.system.data_dir.mkdir(parents=True, exist_ok=True)
 settings.system.logs_dir.mkdir(parents=True, exist_ok=True)
+Path(settings.llamaindex.storage_dir).mkdir(parents=True, exist_ok=True)

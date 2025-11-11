@@ -115,6 +115,7 @@ packs/<agent_name>/
 ## 知识库 / RAG
 
 - `KnowledgeService` (`app/knowledge/service.py`) 统一负责 Milvus 入库与检索。  
+- 当 `SYSTEM__HYBRID_RETRIEVAL_ENABLED=true` 且存在 `LLAMAINDEX_STORAGE_DIR` 索引时，`KnowledgeService` 会优先使用 LlamaIndex 的分级检索（章节/块），不足部分再回退 Milvus，相关元信息会写入 `metadata.doc_origins`。参考 `docs/knowledge_indexing.md`。  
 - `KnowledgeAgent` 依赖 `KnowledgeTool`（位于 `service/tools.py`），并可选挂载 `WebSearchTool`（Tavily）在知识库为空时自动联网兜底，因此 GraphAgent、外部脚本可以按需复用。  
 - 通过 `.env` 中的 `WEB_SEARCH__*`（例如 `WEB_SEARCH__SITE_FILTER`）可限制联网兜底的域名范围，方便锚定官方站点。
 - 如需引入 LlamaIndex/LightRAG，自行封装在 pack 中，再由 `AgentService` 路由，而不是回到旧的 service 目录。

@@ -2,6 +2,7 @@
 LlamaIndex 集成模块 - 将分级索引集成到现有系统
 """
 
+
 import os
 from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
 from pathlib import Path
@@ -16,13 +17,15 @@ from app.knowledge.hierarchical_index import (
     HierarchicalRetriever,
     ChunkConfig
 )
+from app.config import settings
 
 
 class LlamaIndexIntegration:
     """LlamaIndex 分级索引集成"""
 
-    def __init__(self, storage_dir: str = "/data/temp33/gov/storage/hierarchical"):
-        self.storage_dir = Path(storage_dir)
+    def __init__(self, storage_dir: Optional[str] = None):
+        resolved_dir = storage_dir or settings.llamaindex.storage_dir
+        self.storage_dir = Path(resolved_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         # 检查是否已有索引
@@ -197,7 +200,7 @@ class EnhancedVectorRetrieverAgent:
 
     def __init__(self,
                  use_llamaindex: bool = True,
-                 llamaindex_storage: str = "/data/temp33/gov/storage/hierarchical"):
+                 llamaindex_storage: Optional[str] = None):
 
         self.use_llamaindex = use_llamaindex
 

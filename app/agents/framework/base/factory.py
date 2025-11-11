@@ -71,7 +71,7 @@ class AgentFactory:
     def create_all_agents(self):
         """Create all necessary agents for the policy QA system."""
         # Create knowledge base components
-        from ...knowledge_base.milvus import MilvusStore
+        from app.knowledge.milvus import MilvusStore
 
         self.vector_store = MilvusStore()
         self.graph_db = None  # 已移除图数据库，使用 LlamaIndex 替代
