@@ -121,8 +121,9 @@ class PolicyEngine:
                 'rule_id': rule_id
             }
 
-    def _is_valid_period(self, rule: Dict[str, Any], inputs: Dict[str, Any]) -> bool:
+    def _is_valid_period(self, rule: Dict[str, Any], inputs: Optional[Dict[str, Any]] = None) -> bool:
         """检查规则是否在有效期内"""
+        inputs = inputs or {}
         valid_period = rule.get('valid_period')
         if not valid_period:
             return True
@@ -408,7 +409,7 @@ class PolicyEngine:
                 'title': rule.get('policy_source', {}).get('title', '未命名'),
                 'doc_id': rule.get('policy_source', {}).get('doc_id', ''),
                 'valid_period': rule.get('valid_period', {}),
-                'is_active': self._is_valid_period(rule)
+                'is_active': self._is_valid_period(rule, inputs={})
             })
         return rules_list
 
@@ -416,6 +417,6 @@ class PolicyEngine:
         """获取规则详细信息"""
         if rule_id in self.rules:
             rule = self.rules[rule_id].copy()
-            rule['is_active'] = self._is_valid_period(rule)
+            rule['is_active'] = self._is_valid_period(rule, inputs={})
             return rule
         return None

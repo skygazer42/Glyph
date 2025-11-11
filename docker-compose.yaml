@@ -55,8 +55,30 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
+  mysql:
+    image: mysql:8.0
+    command:
+      - mysqld
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: policy_db
+      MYSQL_USER: glyph
+      MYSQL_PASSWORD: glyph
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-hmysql", "-uroot", "-pmysql"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+
 volumes:
   etcd_data:
   minio_data:
   milvus_data:
   redis_data:
+  mysql_data:

@@ -5,7 +5,7 @@ Base models and data structures for the policy QA system.
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from uuid import UUID, uuid4
 from pydantic_settings import BaseSettings
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
@@ -212,6 +212,7 @@ class ConsistencyCheck(BaseModel):
 
 class FinalAnswer(BaseModel):
     """Final answer model."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     query_id: UUID
     answer: str = Field(..., description="最终答案")
     sources: List[PolicyDocument] = Field(..., description="来源文档")
