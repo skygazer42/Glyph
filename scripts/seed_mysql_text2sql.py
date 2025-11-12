@@ -83,6 +83,9 @@ def apply_schema(conn: pymysql.connections.Connection) -> None:
             continue  # 索引对示例数据不是必需
         if upper_stmt.startswith("CREATE VIEW") or upper_stmt.startswith("DROP VIEW"):
             continue  # 视图语法与SQLite差异较大，跳过
+        if upper_stmt.startswith("CREATE TABLE"):
+            if "CHARSET" not in upper_stmt:
+                stmt = f"{stmt} DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         statements.append(stmt)
     with conn.cursor() as cursor:
         for stmt in statements:

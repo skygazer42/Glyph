@@ -7,7 +7,7 @@ Environment is configured via .env; no extra state is persisted here beyond Ligh
 
 import os
 import inspect
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 from autogen_core import MessageContext
 
@@ -22,6 +22,7 @@ from app.models.base import (
     PolicyType,
 )
 from app.agents.framework.base.base_agent import StatefulAgent
+from app.config import settings
 
 
 class GraphRetrieverAgent(StatefulAgent):
@@ -42,6 +43,13 @@ class GraphRetrieverAgent(StatefulAgent):
 
         self.working_dir = working_dir or os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag")
         self.default_mode = os.getenv("LIGHTRAG_QUERY_MODE", default_mode)
+        self.embedding_backend = (settings.embedding.backend or "dashscope").lower()
+        if self.embedding_backend not in {"dashscope", "openai"}:
+            raise ValueError(
+                "LightRAG 需使用 dashscope 或 openai 嵌入，请将 EMBEDDING_BACKEND 设置为这两者之一。"
+            )
+        self.embedding_model = self._resolve_embedding_model()
+        self.embedding_dim = self._infer_embedding_dim()
 
         # Lazy init members
         self._rag = None
@@ -73,16 +81,11 @@ class GraphRetrieverAgent(StatefulAgent):
                 )
 
             from lightrag.utils import EmbeddingFunc
-            from lightrag.llm.ollama import ollama_embed
 
             embedding_func = EmbeddingFunc(
-                embedding_dim=int(os.getenv("EMBEDDING_DIM", "1024")),
+                embedding_dim=self.embedding_dim,
                 max_token_size=int(os.getenv("MAX_EMBED_TOKENS", "8192")),
-                func=lambda texts: ollama_embed(
-                    texts,
-                    embed_model=os.getenv("EMBEDDING_MODEL", "bge-m3:latest"),
-                    host=os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434"),
-                ),
+                func=self._embedding_callable(),
             )
 
             from lightrag import LightRAG
@@ -107,6 +110,92 @@ class GraphRetrieverAgent(StatefulAgent):
         except Exception as e:
             self.logger.error(f"Failed to initialize LightRAG: {e}")
             raise
+
+    def _resolve_embedding_model(self) -> str:
+        if self.embedding_backend == "openai":
+            return settings.embedding.openai_model
+        return settings.embedding.dashscope_model
+
+    def _infer_embedding_dim(self) -> int:
+        if self.embedding_backend == "openai":
+            model = self.embedding_model or ""
+            if "3-large" in model:
+                return 3072
+            if "3-small" in model or "ada-002" in model:
+                return 1536
+            return settings.embedding.dimension or 1536
+        # dashscope
+        if settings.embedding.dashscope_dimension:
+            return settings.embedding.dashscope_dimension
+        if settings.embedding.dimension in [64, 128, 256, 512, 768, 1024]:
+            return settings.embedding.dimension
+        return 1024
+
+    def _embedding_callable(self) -> Callable[[List[str]], List[List[float]]]:
+        if self.embedding_backend == "openai":
+            return self._embed_openai
+        return self._embed_dashscope
+
+    def _embed_openai(self, texts: List[str]) -> List[List[float]]:
+        from openai import OpenAI
+
+        api_key = settings.embedding.openai_api_key or os.getenv("LLM_API_KEY")
+        base_url = settings.embedding.openai_base_url or os.getenv("OPENAI_BASE_URL")
+        if not api_key:
+            raise ValueError("Missing API key for OpenAI embeddings (set EMBEDDING_OPENAI_API_KEY or LLM_API_KEY)")
+        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+        attempts = int(os.getenv("LIGHTRAG_EMBED_RETRY", "1"))
+        last_error: Optional[BaseException] = None
+        for _ in range(max(1, attempts)):
+            try:
+                response = client.embeddings.create(model=self.embedding_model, input=texts)
+                return [item.embedding for item in response.data]
+            except Exception as exc:  # pragma: no cover - network call
+                last_error = exc
+                self.logger.warning("OpenAI embedding 调用失败（重试中）: %s", exc)
+        self.logger.error("OpenAI embedding 调用失败，已重试 %s 次", attempts)
+        raise last_error  # type: ignore[misc]
+
+    def _embed_dashscope(self, texts: List[str]) -> List[List[float]]:
+        import requests
+
+        api_key = settings.embedding.dashscope_api_key
+        if not api_key:
+            raise ValueError("Missing DashScope API key (set EMBEDDING_DASHSCOPE_API_KEY)")
+        url = settings.embedding.dashscope_base_url
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        vectors: List[List[float]] = []
+        attempts = int(os.getenv("LIGHTRAG_EMBED_RETRY", "1"))
+        for text in texts:
+            payload: Dict[str, Any] = {
+                "model": self.embedding_model,
+                "input": {"texts": [text]},
+            }
+            parameters: Dict[str, Any] = {}
+            if settings.embedding.dashscope_dimension:
+                parameters["dimension"] = settings.embedding.dashscope_dimension
+            if settings.embedding.dashscope_output_type:
+                parameters["output_type"] = settings.embedding.dashscope_output_type
+            if parameters:
+                payload["parameters"] = parameters
+            last_error: Optional[requests.RequestException] = None
+            for _ in range(max(1, attempts)):
+                try:
+                    resp = requests.post(url, headers=headers, json=payload, timeout=settings.embedding.timeout)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    vectors.append(data["output"]["embeddings"][0]["embedding"])
+                    break
+                except requests.RequestException as exc:
+                    last_error = exc
+                    self.logger.warning("DashScope embedding 调用失败（重试中）: %s", exc)
+            else:
+                self.logger.error("DashScope embedding 调用失败，已重试 %s 次", attempts)
+                raise last_error
+        return vectors
 
     async def add_texts(self, texts: List[str]):
         """Insert raw texts into LightRAG store."""

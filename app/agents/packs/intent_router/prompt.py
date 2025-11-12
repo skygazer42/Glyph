@@ -5,7 +5,7 @@
 必须包含以下字段（键名为英文固定写法）：
 {
   "intent": "greeting|farewell|chit_chat|calculation|comparison|summary|policy_inquiry|clarification",
-  "sub_intent": "eligibility|process|deadline|documents|contact|null",
+  "sub_intent": "eligibility|benefit|process|deadline|documents|contact|region|limit|exception|null",
   "confidence": 0.0-1.0,
   "chains": ["chat_chain"|"calculation_chain"|"comparison_chain"|"kb_chain"|"graph_chain"|"hybrid_chain"],
   "requires_parallel": true|false
@@ -30,7 +30,7 @@ def intent_system_instruction() -> str:
         "你是一个政策问答系统的意图路由器。阅读用户问题，仅输出严格的 JSON 对象，"
         "键名必须是 intent, sub_intent, confidence, chains, requires_parallel。"
         "intent 必须从：greeting, farewell, chit_chat, calculation, comparison, summary, policy_inquiry, clarification 中选择其一。"
-        "若 intent 为 policy_inquiry，sub_intent 必须从：eligibility, process, deadline, documents, contact 中选择；否则为 null。"
+        "若 intent 为 policy_inquiry，sub_intent 必须从：eligibility, benefit, process, deadline, documents, contact, region, limit, exception 中选择；否则为 null。"
         "confidence 为 0~1 的浮点数。chains 为数组，成员只能是：chat_chain, calculation_chain, comparison_chain, kb_chain, graph_chain, hybrid_chain。"
         "requires_parallel 仅在置信度较低或需要同时使用 KB 与 Graph 时为 true；否则为 false。"
         "请严格输出 JSON，不要输出任何 JSON 之外的文字。"

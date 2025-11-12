@@ -37,7 +37,7 @@ class _LRUCache(OrderedDict):
             self.popitem(last=False)
 
 
-QUERY_ANALYSIS_CACHE_SIZE = int(os.getenv("TEXT2SQL_QUERY_CACHE_SIZE", "256"))
+QUERY_ANALYSIS_CACHE_SIZE = int(os.getenv("TEXT2SQL_QUERY_CACHE_SIZE", settings.performance.cache_ttl if settings.performance.cache_ttl else 256))
 query_analysis_cache = _LRUCache(QUERY_ANALYSIS_CACHE_SIZE)
 
 

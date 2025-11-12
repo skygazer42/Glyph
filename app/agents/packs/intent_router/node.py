@@ -79,7 +79,10 @@ class IntentRouterAgent(PolicyAgentBase):
                     "process": ["怎么申请", "流程", "步骤", "如何", "办理"],
                     "deadline": ["截止", "时间", "什么时候", "日期", "期限"],
                     "documents": ["材料", "证件", "文件", "需要什么"],
-                    "contact": ["电话", "地址", "联系", "咨询", "哪里"]
+                    "contact": ["电话", "地址", "联系", "咨询", "客服电话"],
+                    "region": ["地区", "城市", "区域", "适用范围", "哪里", "哪些地方"],
+                    "limit": ["限制", "上限", "不得", "不可", "门槛", "约束", "排除"],
+                    "exception": ["例外", "不适用", "除外", "特殊情况", "豁免"]
                 },
                 "processing_chains": {
                     "kb_chain": ["knowledge_retriever", "policy_analyzer", "answer_generator"],

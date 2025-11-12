@@ -71,13 +71,20 @@ def create_app() -> FastAPI:
         agent_service = AgentService()
         await agent_service.initialize()
         application.state.agent_service = agent_service
-        redis = await aioredis.from_url(
-            settings.security.rate_limit_redis_url,
-            encoding="utf-8",
-            decode_responses=True,
-        )
-        await FastAPILimiter.init(redis)
-        application.state.redis = redis
+        if not settings.security.rate_limit_disable:
+            try:
+                redis = await aioredis.from_url(
+                    settings.security.rate_limit_redis_url,
+                    encoding="utf-8",
+                    decode_responses=True,
+                )
+                await FastAPILimiter.init(redis)
+                application.state.redis = redis
+            except Exception as exc:
+                application.state.redis = None
+                application.logger.warning("Rate limiter init failed, continuing without limits: %s", exc)
+        else:
+            application.state.redis = None
 
     @application.on_event("shutdown")
     async def on_shutdown():
@@ -95,14 +102,17 @@ def create_app() -> FastAPI:
     async def health():
         return {"status": "ok"}
 
-    query_rate_limiter = RateLimiter(
-        times=settings.security.rate_limit_query_times,
-        seconds=settings.security.rate_limit_query_seconds,
-    )
-    docs_rate_limiter = RateLimiter(
-        times=settings.security.rate_limit_docs_times,
-        seconds=settings.security.rate_limit_docs_seconds,
-    )
+    query_rate_limiter = None
+    docs_rate_limiter = None
+    if not settings.security.rate_limit_disable:
+        query_rate_limiter = RateLimiter(
+            times=settings.security.rate_limit_query_times,
+            seconds=settings.security.rate_limit_query_seconds,
+        )
+        docs_rate_limiter = RateLimiter(
+            times=settings.security.rate_limit_docs_times,
+            seconds=settings.security.rate_limit_docs_seconds,
+        )
 
     @application.post("/auth/login", response_model=TokenResponse)
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -116,10 +126,13 @@ def create_app() -> FastAPI:
         token = create_access_token({"sub": user.username})
         return TokenResponse(access_token=token)
 
+    query_dependencies = []
+    if query_rate_limiter:
+        query_dependencies.append(Depends(query_rate_limiter))
     @application.post(
         "/query",
         response_model=QueryResponse,
-        dependencies=[Depends(query_rate_limiter)],
+        dependencies=query_dependencies,
     )
     async def query(
         req: QueryRequest,
@@ -149,9 +162,12 @@ def create_app() -> FastAPI:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    docs_dependencies = []
+    if docs_rate_limiter:
+        docs_dependencies.append(Depends(docs_rate_limiter))
     @application.post(
         "/load-docs",
-        dependencies=[Depends(docs_rate_limiter)],
+        dependencies=docs_dependencies,
     )
     async def load_docs(
         req: LoadDocsRequest,
