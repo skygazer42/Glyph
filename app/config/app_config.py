@@ -315,6 +315,22 @@ class SystemSettings(BaseSettings):
     max_examples_per_query: int = Field(default=5, env="SYSTEM__MAX_EXAMPLES_PER_QUERY")
 
 
+class SecuritySettings(BaseSettings):
+    """API 安全配置"""
+    jwt_secret_key: str = Field(default="dev-secret", env="SECURITY__JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", env="SECURITY__JWT_ALGORITHM")
+    jwt_access_token_exp_minutes: int = Field(default=60, env="SECURITY__JWT_EXP_MINUTES")
+    api_default_username: str = Field(default="admin", env="SECURITY__API_DEFAULT_USERNAME")
+    api_default_password: str = Field(default="admin123", env="SECURITY__API_DEFAULT_PASSWORD")
+    api_default_fullname: str = Field(default="Administrator", env="SECURITY__API_DEFAULT_FULLNAME")
+    rate_limit_query_times: int = Field(default=30, env="SECURITY__RATE_LIMIT_QUERY_TIMES")
+    rate_limit_query_seconds: int = Field(default=60, env="SECURITY__RATE_LIMIT_QUERY_SECONDS")
+    rate_limit_docs_times: int = Field(default=5, env="SECURITY__RATE_LIMIT_DOCS_TIMES")
+    rate_limit_docs_seconds: int = Field(default=60, env="SECURITY__RATE_LIMIT_DOCS_SECONDS")
+    rate_limit_redis_url: str = Field(default="redis://localhost:6379/0", env="SECURITY__RATE_LIMIT_REDIS_URL")
+    disable_auth: bool = Field(default=False, env="SECURITY__DISABLE_AUTH")
+
+
 class Settings(BaseSettings):
     """主配置类"""
     model_config = {
@@ -333,6 +349,7 @@ class Settings(BaseSettings):
     autogen: AutoGenSettings = Field(default_factory=AutoGenSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     system: SystemSettings = Field(default_factory=SystemSettings)
+    security: SecuritySettings = Field(default_factory=SecuritySettings)
 
 
 # 创建全局配置实例

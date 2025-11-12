@@ -10,11 +10,22 @@
 
 from typing import List, Optional, Any, Dict
 
-from fastapi import FastAPI, HTTPException
+import redis.asyncio as aioredis
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
 from pydantic import BaseModel, Field
 
 from app.agents.service import AgentService
+from app.core.auth import (
+    APIUser,
+    authenticate_user,
+    create_access_token,
+    get_current_user_or_dummy,
+)
+from app.core.config import settings
 
 
 class QueryRequest(BaseModel):
@@ -38,6 +49,11 @@ class LoadDocsRequest(BaseModel):
     paths: List[str] = Field(..., description="待加载的文件/目录列表")
 
 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 def create_app() -> FastAPI:
     """Factory to build the FastAPI application."""
     application = FastAPI(title="Policy QA Backend", version="1.0.0")
@@ -55,18 +71,60 @@ def create_app() -> FastAPI:
         agent_service = AgentService()
         await agent_service.initialize()
         application.state.agent_service = agent_service
+        redis = await aioredis.from_url(
+            settings.security.rate_limit_redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+        )
+        await FastAPILimiter.init(redis)
+        application.state.redis = redis
 
     @application.on_event("shutdown")
     async def on_shutdown():
         # 当前 AgentService 无需特殊释放资源
         application.state.agent_service = None  # type: ignore[attr-defined]
+        redis = getattr(application.state, "redis", None)
+        if redis:
+            await redis.close()
+        try:
+            await FastAPILimiter.close()
+        except Exception:
+            pass
 
     @application.get("/health")
     async def health():
         return {"status": "ok"}
 
-    @application.post("/query", response_model=QueryResponse)
-    async def query(req: QueryRequest):
+    query_rate_limiter = RateLimiter(
+        times=settings.security.rate_limit_query_times,
+        seconds=settings.security.rate_limit_query_seconds,
+    )
+    docs_rate_limiter = RateLimiter(
+        times=settings.security.rate_limit_docs_times,
+        seconds=settings.security.rate_limit_docs_seconds,
+    )
+
+    @application.post("/auth/login", response_model=TokenResponse)
+    async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+        user = authenticate_user(form_data.username, form_data.password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        token = create_access_token({"sub": user.username})
+        return TokenResponse(access_token=token)
+
+    @application.post(
+        "/query",
+        response_model=QueryResponse,
+        dependencies=[Depends(query_rate_limiter)],
+    )
+    async def query(
+        req: QueryRequest,
+        current_user: APIUser = Depends(get_current_user_or_dummy),
+    ):
         try:
             service: AgentService = application.state.agent_service
             final = await service.process_query(
@@ -91,8 +149,14 @@ def create_app() -> FastAPI:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @application.post("/load-docs")
-    async def load_docs(req: LoadDocsRequest):
+    @application.post(
+        "/load-docs",
+        dependencies=[Depends(docs_rate_limiter)],
+    )
+    async def load_docs(
+        req: LoadDocsRequest,
+        current_user: APIUser = Depends(get_current_user_or_dummy),
+    ):
         try:
             service: AgentService = application.state.agent_service
             stats = await service.ingest_paths(req.paths)

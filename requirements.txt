@@ -57,3 +57,6 @@ sse-starlette>=2.0.0
 pymysql
 sqlparse
 jieba
+python-jose[cryptography]>=3.3.0
+fastapi-limiter>=0.1.6
+redis>=5.0.0
