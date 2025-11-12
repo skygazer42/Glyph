@@ -41,7 +41,8 @@
       "Bash(findstr:*)",
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []
