@@ -30,6 +30,7 @@ from .tools import (
 )
 from app.core import logging_manager
 from app.knowledge.service import KnowledgeService
+from app.knowledge.faq_responder import FAQResponder
 from app.utils.config import Config
 from app.utils.document_loader import DocumentLoader
 from app.models.base import Attachment
@@ -89,6 +90,7 @@ class AgentService:
             rule_agent=self.rule_agent,
             user_profile_tool=self.user_profile_tool,
         )
+        self.faq_responder = FAQResponder()
         self._initialized = False
         self._init_lock = asyncio.Lock()
 
@@ -236,29 +238,39 @@ class AgentService:
         attachments = attachments or []
 
         rewritten_query = await self.rewrite_agent.rewrite(query)
-        intent_result = await self.intent_tool.detect(rewritten_query)
-        route = self._resolve_route(intent_result, rewritten_query, connection_id, attachments)
+        faq_final = self.faq_responder.maybe_answer(rewritten_query)
+        if faq_final:
+            intent_result = {
+                "intent": "faq_cache",
+                "confidence": faq_final.confidence,
+                "processing_chain": ["faq_cache"],
+            }
+            route = "faq_cache"
+            final = faq_final
+        else:
+            intent_result = await self.intent_tool.detect(rewritten_query)
+            route = self._resolve_route(intent_result, rewritten_query, connection_id, attachments)
 
-        if route == "dialogue":
-            final = self.dialogue_agent.respond(intent_result.get("intent", "chit_chat"))
-        elif route == "clarify":
-            final = self.clarifier_agent.ask(rewritten_query)
-        elif route == "rule_engine":
-            final = await self.rule_agent.compute(rewritten_query, intent=intent_result)
-        elif route == "text2sql":
-            final = await self.text2sql_agent.answer(
-                rewritten_query, connection_id=connection_id
-            )
-        elif route == "graph":
-            final = await self.graph_agent.answer(rewritten_query, intent=intent_result)
-        elif route == "workflow":
-            final = await self.workflow_agent.answer(
-                rewritten_query,
-                attachments=attachments,
-                intent=intent_result,
-            )
-        else:  # knowledge 默认
-            final = await self.knowledge_agent.answer(rewritten_query, intent=intent_result)
+            if route == "dialogue":
+                final = self.dialogue_agent.respond(intent_result.get("intent", "chit_chat"))
+            elif route == "clarify":
+                final = self.clarifier_agent.ask(rewritten_query)
+            elif route == "rule_engine":
+                final = await self.rule_agent.compute(rewritten_query, intent=intent_result)
+            elif route == "text2sql":
+                final = await self.text2sql_agent.answer(
+                    rewritten_query, connection_id=connection_id
+                )
+            elif route == "graph":
+                final = await self.graph_agent.answer(rewritten_query, intent=intent_result)
+            elif route == "workflow":
+                final = await self.workflow_agent.answer(
+                    rewritten_query,
+                    attachments=attachments,
+                    intent=intent_result,
+                )
+            else:  # knowledge 默认
+                final = await self.knowledge_agent.answer(rewritten_query, intent=intent_result)
 
         metadata = final.metadata or {}
         metadata.update(

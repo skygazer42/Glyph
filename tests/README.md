@@ -36,13 +36,6 @@
 
 - **test_rule_execution.py** - 规则执行示例
 
-### 旧版/已废弃测试
-
-- **test_dsl_generation.py** - 早期DSL生成测试
-- **test_external_template.py** - 外部模板测试
-- **test_dsl_generator.py** - 生成器基础测试
-- **test_dsl_with_config.py** - 配置化DSL测试
-
 ## 知识库相关测试
 
 ### 主要测试文件

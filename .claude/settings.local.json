@@ -23,7 +23,16 @@
       "Bash(tree:*)",
       "Bash(gh pr list:*)",
       "Bash(docker compose:*)",
-      "Bash(/home/user/ENTER/envs/gov/bin/python -m pytest:*)"
+      "Bash(/home/user/ENTER/envs/gov/bin/python -m pytest:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker container prune:*)",
+      "Bash(docker volume prune:*)",
+      "Bash(sudo lsof:*)",
+      "Bash(lsof:*)",
+      "Bash(netstat:*)",
+      "Bash(systemctl status:*)",
+      "Bash(service mysql status:*)",
+      "Bash(docker-compose logs:*)"
     ],
     "deny": [],
     "ask": []
