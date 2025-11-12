@@ -42,7 +42,9 @@
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",
       "Bash(dir:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(timeout /t 20)",
+      "Bash(set:*)"
     ],
     "deny": [],
     "ask": []
