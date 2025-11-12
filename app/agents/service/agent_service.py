@@ -261,6 +261,8 @@ class AgentService:
             final = faq_final
         else:
             intent_result = await self.intent_tool.detect(rewritten_query)
+            # 保存原始查询供路由逻辑使用
+            intent_result["raw_query"] = query
             route = self._resolve_route(intent_result, rewritten_query, connection_id, attachments)
 
             if route == "dialogue":
@@ -368,6 +370,15 @@ class AgentService:
     ) -> str:
         intent = (intent_result or {}).get("intent", "policy_inquiry")
         sub_intent = (intent_result or {}).get("sub_intent")
+        original_query = (
+            (intent_result or {}).get("raw_query")
+            or (intent_result or {}).get("original_query")
+            or ""
+        )
+        def looks_like_graph() -> bool:
+            return self._looks_like_graph_question(rewritten_query, sub_intent) or (
+                original_query and self._looks_like_graph_question(original_query, sub_intent)
+            )
         if attachments and any(att.is_image() for att in attachments):
             if self.vision_tool.enabled:
                 return "workflow"
@@ -382,7 +393,7 @@ class AgentService:
         if intent == "summary":
             return "graph"
         if intent == "comparison":
-            if self._looks_like_graph_question(rewritten_query):
+            if looks_like_graph():
                 return "graph"
             return "knowledge"
 
@@ -399,7 +410,7 @@ class AgentService:
         if "calculation_chain" in chains:
             return "rule_engine"
 
-        if intent == "policy_inquiry" and self._looks_like_graph_question(rewritten_query):
+        if intent == "policy_inquiry" and looks_like_graph():
             if connection_id is None:
                 return "graph"
 
@@ -425,7 +436,7 @@ class AgentService:
         q_lower = query.lower()
         return any(kw in query or kw in q_lower for kw in keywords)
 
-    def _looks_like_graph_question(self, query: str) -> bool:
+    def _looks_like_graph_question(self, query: str, sub_intent: Optional[str] = None) -> bool:
         """
         Detect questions that ask for relationships, responsible parties, or process linkage,
         which are better answered by LightRAG.
@@ -440,12 +451,24 @@ class AgentService:
             "流程图",
             "梳理",
             "脉络",
+            "负责",
             "对接",
             "协同",
             "联动",
+            "参与方",
+            "职责",
+            "牵头",
+            "配合",
         ]
+        process_keywords = ["流程", "环节", "节点", "使用场景", "链路", "步骤", "分工"]
         q_lower = query.lower()
-        return any(kw in query or kw in q_lower for kw in graph_keywords)
+        if any(kw in query or kw in q_lower for kw in graph_keywords):
+            return True
+        if sub_intent in {"process", "documents"} and any(
+            kw in query or kw in q_lower for kw in process_keywords
+        ):
+            return True
+        return False
 
 
 __all__ = ["AgentService"]

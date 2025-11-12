@@ -26,6 +26,7 @@ class GraphAgent:
         self.knowledge_agent = knowledge_agent
         self.logger = logging.getLogger(__name__)
         self._graph_agent = None
+        self._inline_summary_threshold = 800
         if GraphRetrieverAgent:
             try:
                 self._graph_agent = GraphRetrieverAgent()
@@ -45,7 +46,10 @@ class GraphAgent:
                 MessageContext(),
             )
             doc = result.documents[0] if result.documents else self._wrap_raw_text("")
-            relation_summary = await self._summarize_graph(doc.content, query)
+            if len(doc.content or "") <= self._inline_summary_threshold:
+                relation_summary = self._format_graph_snippet(doc.content, query)
+            else:
+                relation_summary = await self._summarize_graph(doc.content, query)
             return FinalAnswer(
                 query_id=uuid4(),
                 answer=relation_summary,
@@ -80,6 +84,12 @@ class GraphAgent:
         )
         response = await model_client.create([UserMessage(content=prompt, source="user")])
         return (response.content or "").strip() or "暂未从知识图谱中解析出明确的关系。"
+
+    def _format_graph_snippet(self, graph_text: str, query: str) -> str:
+        snippet = (graph_text or "").strip()
+        if len(snippet) > self._inline_summary_threshold:
+            snippet = snippet[: self._inline_summary_threshold] + "..."
+        return f"根据知识库关系返回的内容，以下是与“{query}”相关的关系概要：\n{snippet}"
 
     def _wrap_raw_text(self, text: str) -> PolicyDocument:
         return PolicyDocument(

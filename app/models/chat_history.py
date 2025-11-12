@@ -10,7 +10,12 @@ class ChatSession(Base):
     """聊天会话模型"""
     id = Column(String(255), primary_key=True, index=True)  # UUID格式的会话ID
     title = Column(String(500), nullable=False)  # 会话标题（通常是第一个查询的摘要）
-    connection_id = Column(Integer, ForeignKey("dbconnection.id"), nullable=True, index=True)  # 关联的数据库连接
+    connection_id = Column(
+        Integer,
+        ForeignKey("dbconnection.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )  # 关联的数据库连接
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True)  # 是否活跃

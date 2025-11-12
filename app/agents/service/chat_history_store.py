@@ -11,6 +11,7 @@ from app.persistence.crud import (
     chat_session as chat_session_crud,
     chat_message as chat_message_crud,
     chat_history_snapshot as snapshot_crud,
+    db_connection as db_connection_crud,
 )
 from app.schemas.chat_history import (
     ChatSessionCreate,
@@ -44,13 +45,17 @@ class ChatHistoryStore:
     ) -> None:
         db = self._get_db()
         try:
+            valid_connection_id = self._sanitize_connection_id(db, connection_id)
             existing = chat_session_crud.get(db, session_id)
             if existing:
                 updates = {}
                 if title and existing.title != title:
                     updates["title"] = title
-                if connection_id is not None and existing.connection_id != connection_id:
-                    updates["connection_id"] = connection_id
+                if (
+                    valid_connection_id is not None
+                    and existing.connection_id != valid_connection_id
+                ):
+                    updates["connection_id"] = valid_connection_id
                 if updates:
                     chat_session_crud.update(db, db_obj=existing, obj_in=updates)
             else:
@@ -59,7 +64,7 @@ class ChatHistoryStore:
                     obj_in=ChatSessionCreate(
                         id=session_id,
                         title=title or "新会话",
-                        connection_id=connection_id,
+                        connection_id=valid_connection_id,
                         is_active=True,
                     ),
                 )
@@ -188,3 +193,12 @@ class ChatHistoryStore:
             )
         finally:
             db.close()
+
+    @staticmethod
+    def _sanitize_connection_id(db: Session, connection_id: Optional[int]) -> Optional[int]:
+        if connection_id is None:
+            return None
+        record = db_connection_crud.get(db, connection_id)
+        if record is None:
+            return None
+        return connection_id
