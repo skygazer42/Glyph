@@ -16,30 +16,31 @@ class DatabaseSettings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "case_sensitive": False,
-        "extra": "allow"
+        "extra": "allow",
+        "env_nested_delimiter": "__"
     }
 
     # Neo4j 知识图谱
-    neo4j_uri: str = Field(default="bolt://localhost:7687", env="DATABASE__NEO4J_URI")
-    neo4j_user: str = Field(default="neo4j", env="DATABASE__NEO4J_USER")
-    neo4j_password: str = Field(default="password", env="DATABASE__NEO4J_PASSWORD")
-    use_neo4j: bool = Field(default=False, env="DATABASE__USE_NEO4J")
+    neo4j_uri: str = Field(default="bolt://localhost:7687")
+    neo4j_user: str = Field(default="neo4j")
+    neo4j_password: str = Field(default="password")
+    use_neo4j: bool = Field(default=False)
 
     # Milvus 向量数据库
-    milvus_host: str = Field(default="localhost", env="DATABASE__MILVUS_HOST")
-    milvus_port: int = Field(default=19530, env="DATABASE__MILVUS_PORT")
-    milvus_user: Optional[str] = Field(default=None, env="DATABASE__MILVUS_USER")
-    milvus_password: Optional[str] = Field(default=None, env="DATABASE__MILVUS_PASSWORD")
-    milvus_db_name: str = Field(default="default", env="DATABASE__MILVUS_DB_NAME")
-    milvus_collection_name: str = Field(default="policy_documents", env="DATABASE__MILVUS_COLLECTION_NAME")
-    milvus_use_secure: bool = Field(default=False, env="DATABASE__MILVUS_USE_SECURE")
+    milvus_host: str = Field(default="localhost")
+    milvus_port: int = Field(default=19530)
+    milvus_user: Optional[str] = Field(default=None)
+    milvus_password: Optional[str] = Field(default=None)
+    milvus_db_name: str = Field(default="default")
+    milvus_collection_name: str = Field(default="policy_documents")
+    milvus_use_secure: bool = Field(default=False)
 
     # 关系型数据库（默认MySQL）用于存储结构化元数据
-    mysql_host: str = Field(default="localhost", env="DATABASE__MYSQL_HOST")
-    mysql_port: int = Field(default=3306, env="DATABASE__MYSQL_PORT")
-    mysql_user: str = Field(default="root", env="DATABASE__MYSQL_USER")
-    mysql_password: str = Field(default="mysql", env="DATABASE__MYSQL_PASSWORD")
-    mysql_db: str = Field(default="policy_db", env="DATABASE__MYSQL_DB")
+    mysql_host: str = Field(default="localhost")
+    mysql_port: int = Field(default=3306)
+    mysql_user: str = Field(default="root")
+    mysql_password: str = Field(default="mysql")
+    mysql_db: str = Field(default="policy_db")
 
 
 class ModelSettings(BaseSettings):
@@ -317,19 +318,24 @@ class SystemSettings(BaseSettings):
 
 class SecuritySettings(BaseSettings):
     """API 安全配置"""
-    jwt_secret_key: str = Field(default="dev-secret", env="SECURITY__JWT_SECRET")
-    jwt_algorithm: str = Field(default="HS256", env="SECURITY__JWT_ALGORITHM")
-    jwt_access_token_exp_minutes: int = Field(default=60, env="SECURITY__JWT_EXP_MINUTES")
-    api_default_username: str = Field(default="admin", env="SECURITY__API_DEFAULT_USERNAME")
-    api_default_password: str = Field(default="admin123", env="SECURITY__API_DEFAULT_PASSWORD")
-    api_default_fullname: str = Field(default="Administrator", env="SECURITY__API_DEFAULT_FULLNAME")
-    rate_limit_query_times: int = Field(default=30, env="SECURITY__RATE_LIMIT_QUERY_TIMES")
-    rate_limit_query_seconds: int = Field(default=60, env="SECURITY__RATE_LIMIT_QUERY_SECONDS")
-    rate_limit_docs_times: int = Field(default=5, env="SECURITY__RATE_LIMIT_DOCS_TIMES")
-    rate_limit_docs_seconds: int = Field(default=60, env="SECURITY__RATE_LIMIT_DOCS_SECONDS")
-    rate_limit_redis_url: str = Field(default="redis://localhost:6379/0", env="SECURITY__RATE_LIMIT_REDIS_URL")
-    rate_limit_disable: bool = Field(default=True, env="SECURITY__RATE_LIMIT_DISABLE")
-    disable_auth: bool = Field(default=False, env="SECURITY__DISABLE_AUTH")
+    model_config = {
+        "extra": "ignore",
+        "env_nested_delimiter": "__"
+    }
+
+    jwt_secret_key: str = Field(default="dev-secret")
+    jwt_algorithm: str = Field(default="HS256")
+    jwt_access_token_exp_minutes: int = Field(default=60)
+    api_default_username: str = Field(default="admin")
+    api_default_password: str = Field(default="admin123")
+    api_default_fullname: str = Field(default="Administrator")
+    rate_limit_query_times: int = Field(default=30)
+    rate_limit_query_seconds: int = Field(default=60)
+    rate_limit_docs_times: int = Field(default=5)
+    rate_limit_docs_seconds: int = Field(default=60)
+    rate_limit_redis_url: str = Field(default="redis://localhost:6379/0")
+    rate_limit_disable: bool = Field(default=True)
+    disable_auth: bool = Field(default=False)
 
 
 class Settings(BaseSettings):
@@ -337,7 +343,8 @@ class Settings(BaseSettings):
     model_config = {
         "extra": "ignore",
         "env_file": ".env",
-        "case_sensitive": False
+        "case_sensitive": False,
+        "env_nested_delimiter": "__"
     }
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)

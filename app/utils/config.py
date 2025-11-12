@@ -2,19 +2,29 @@
 Configuration management for the policy QA system.
 """
 
+import os
 from typing import Dict, Any, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ModelConfig(BaseSettings):
-    """Model configuration."""
-    model_name: str = Field(default="deepseek-chat", description="Model name")
-    api_key: str = Field(default="", description="API key")
-    base_url: str = Field(default="https://api.deepseek.com", description="API base URL")
-    temperature: float = Field(default=0.1, ge=0, le=2)
-    max_tokens: int = Field(default=4000, ge=1, le=32000)
-    timeout: int = Field(default=120, ge=1)
+    """Model configuration bound to LLM_* environment variables."""
+
+    model_name: str = Field(
+        default="deepseek-chat",
+        description="Model name",
+        env="LLM_MODEL_NAME",
+    )
+    api_key: str = Field(default="", description="API key", env="LLM_API_KEY")
+    base_url: str = Field(
+        default="https://api.deepseek.com",
+        description="API base URL",
+        env="LLM_BASE_URL",
+    )
+    temperature: float = Field(default=0.1, ge=0, le=2, env="LLM_TEMPERATURE")
+    max_tokens: int = Field(default=4000, ge=1, le=32000, env="LLM_MAX_TOKENS")
+    timeout: int = Field(default=120, ge=1, env="LLM_TIMEOUT")
 
 
 class VectorStoreConfig(BaseSettings):
@@ -76,10 +86,37 @@ class WebSearchConfig(BaseSettings):
 
 class DatabaseConfig(BaseSettings):
     """Database configuration."""
+    model_config = SettingsConfigDict(extra='ignore')
+
     neo4j_uri: str = Field(default="bolt://localhost:7687")
     neo4j_user: str = Field(default="neo4j")
     neo4j_password: str = Field(default="")
     use_neo4j: bool = Field(default=False)
+
+
+class PerformanceConfig(BaseSettings):
+    """Performance tuning knobs (PERFORMANCE__* env vars)."""
+
+    max_concurrent_queries: int = Field(
+        default=5,
+        ge=1,
+        env="PERFORMANCE__MAX_CONCURRENT_QUERIES",
+    )
+    query_timeout: int = Field(default=30, ge=1, env="PERFORMANCE__QUERY_TIMEOUT")
+    batch_size: int = Field(default=10, ge=1, env="PERFORMANCE__BATCH_SIZE")
+    batch_timeout: int = Field(default=300, ge=1, env="PERFORMANCE__BATCH_TIMEOUT")
+    embedding_batch_size: int = Field(
+        default=32,
+        ge=1,
+        env="PERFORMANCE__EMBEDDING_BATCH_SIZE",
+    )
+    vector_search_timeout: int = Field(
+        default=10,
+        ge=1,
+        env="PERFORMANCE__VECTOR_SEARCH_TIMEOUT",
+    )
+    enable_cache: bool = Field(default=True, env="PERFORMANCE__ENABLE_CACHE")
+    cache_ttl: int = Field(default=3600, ge=0, env="PERFORMANCE__CACHE_TTL")
 
 
 class Config(BaseSettings):
@@ -88,7 +125,8 @@ class Config(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
-        case_sensitive=False
+        case_sensitive=False,
+        extra="ignore",
     )
 
     model: ModelConfig = Field(default_factory=ModelConfig)
@@ -96,6 +134,7 @@ class Config(BaseSettings):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     conversation: ConversationConfig = Field(default_factory=ConversationConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     vision: VisionConfig = Field(default_factory=VisionConfig)
     web_search: WebSearchConfig = Field(default_factory=WebSearchConfig)
     user_profile_db_path: str = Field(
@@ -130,7 +169,18 @@ class Config(BaseSettings):
             "logging": self.logging.dict(),
             "conversation": self.conversation.dict(),
             "database": self.database.dict(),
+            "performance": self.performance.dict(),
             "vision": self.vision.dict(),
             "web_search": self.web_search.dict(),
             "user_profile_db_path": self.user_profile_db_path,
         }
+
+    @property
+    def embedding_model(self) -> str:
+        """Backward-compatible accessor for legacy code/tests."""
+        return getattr(self.vector_store, "model_name", "")
+
+    @property
+    def rerank_model(self) -> str:
+        """Expose the configured reranker model name, if any."""
+        return os.getenv("RERANKER_MODEL", "")

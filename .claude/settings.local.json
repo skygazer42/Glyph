@@ -33,7 +33,12 @@
       "Bash(systemctl status:*)",
       "Bash(service mysql status:*)",
       "Bash(docker-compose logs:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(cp:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(echo:*)",
+      "Bash(set)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []
