@@ -29,13 +29,19 @@ from .tools import (
     UserProfileTool,
 )
 from app.core import logging_manager
+from app.config import settings
 from app.knowledge.service import KnowledgeService
 from app.knowledge.faq_responder import FAQResponder
 from app.utils.config import Config
 from app.utils.document_loader import DocumentLoader
 from app.models.base import Attachment
 
-logging_manager.configure()
+logging_manager.configure(
+    log_dir=str(settings.system.log_dir),
+    filename="agent.log",
+    max_bytes=settings.system.log_max_bytes,
+    backup_count=settings.system.log_backup_count,
+)
 
 
 class AgentService:

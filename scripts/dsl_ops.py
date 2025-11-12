@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+w#!/usr/bin/env python
 """
 Enterprise-grade CLI entry for DSL operations.
 """

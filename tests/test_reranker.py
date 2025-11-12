@@ -1,143 +1,205 @@
 #!/usr/bin/env python3
-"""测试DashScope Reranker功能"""
+"""
+测试 Reranker 召回功能
+"""
 
 import sys
 import os
-import time
 from pathlib import Path
 
-# 清除代理
+# 清除代理环境变量
 for key in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']:
     if key in os.environ:
         del os.environ[key]
 
 # 添加项目根目录到路径
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# UTF-8输出
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-
+from pymilvus import connections, Collection
+from llama_index.embeddings.dashscope import DashScopeEmbedding, DashScopeTextEmbeddingModels
 from app.config import settings
+import requests
 
-print("="*70)
-print("Reranker功能测试")
-print("="*70)
+print("=" * 70)
+print(" Reranker 召回功能测试")
+print("=" * 70)
+print()
 
-print(f"\n配置信息:")
-print(f"  Backend: {settings.reranker.backend}")
-print(f"  Model: {settings.reranker.model_name}")
-print(f"  Top N: {settings.reranker.top_n if hasattr(settings.reranker, 'top_n') else 5}")
+# 1. 连接 Milvus
+print("🔗 连接 Milvus...")
+connections.connect(
+    alias="default",
+    host=settings.database.milvus_host,
+    port=str(settings.database.milvus_port)
+)
 
-# 读取一些文档作为候选
-data_dir = Path("F:/pythonproject/gov/data/process")
-md_files = list(data_dir.rglob("*.md"))[:5]  # 只取5个文档
+collection = Collection(settings.database.milvus_collection_name)
+collection.load()
+print(f"✓ 已连接 (文档数: {collection.num_entities})")
+print()
 
-documents = []
-for md_file in md_files:
-    with open(md_file, 'r', encoding='utf-8') as f:
-        content = f.read()
-        # 截取前500字符作为文档片段
-        documents.append({
-            'text': content[:500],
-            'title': md_file.stem
-        })
+# 2. 配置 Embedding 模型
+print("🔧 配置 Embedding 模型...")
+embed_model = DashScopeEmbedding(
+    model_name=DashScopeTextEmbeddingModels.TEXT_EMBEDDING_V3,
+    api_key=settings.embedding.dashscope_api_key,
+    embed_batch_size=10
+)
+print("✓ Embedding 配置成功")
+print()
 
-print(f"\n准备了 {len(documents)} 个文档片段进行测试")
+# 测试问题
+question = "购买手机可以享受多少补贴？需要什么条件？"
 
-# 测试查询
-test_query = "家电以旧换新的补贴标准和申请流程"
+print("=" * 70)
+print(f" 测试问题: {question}")
+print("=" * 70)
+print()
 
-print(f"\n测试查询: {test_query}")
-print("-"*70)
+# Step 1: 向量检索 (召回更多候选)
+print("🔍 第一阶段: 向量检索 (召回 Top 20)...")
+query_vec = embed_model.get_text_embedding(question)
 
-print("\n[1] 原始文档顺序:")
-for i, doc in enumerate(documents, 1):
-    print(f"  {i}. {doc['title'][:50]}")
+results = collection.search(
+    data=[query_vec],
+    anns_field="embedding",
+    param={"metric_type": "IP"},
+    limit=20,  # 召回 20 个候选
+    output_fields=["text", "file_name", "source"]
+)
 
-# 测试Reranker
-print("\n[2] 初始化Reranker...")
+# 提取召回结果
+candidates = []
+print(f"✓ 召回 {len(results[0])} 个候选文档:\n")
+
+for j, hit in enumerate(results[0][:10], 1):  # 只显示前 10 个
+    text = hit.entity.get('text', '')
+    file_name = hit.entity.get('file_name', '未知')
+    score = hit.score
+
+    candidates.append({
+        'text': text,
+        'file_name': file_name,
+        'vector_score': score
+    })
+
+    print(f"  [{j}] 向量相似度: {score:.4f} | {file_name[:50]}...")
+
+# 为所有 20 个候选准备数据
+for hit in results[0][10:]:
+    candidates.append({
+        'text': hit.entity.get('text', ''),
+        'file_name': hit.entity.get('file_name', '未知'),
+        'vector_score': hit.score
+    })
+
+print()
+
+# Step 2: Reranker 重排序
+print("🎯 第二阶段: Reranker 重排序 (Top 5)...")
+print()
+
 try:
-    from app.knowledge.rerank import Reranker
+    # 使用 DashScope Reranker API
+    url = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
+    headers = {
+        "Authorization": f"Bearer {settings.embedding.dashscope_api_key}",
+        "Content-Type": "application/json"
+    }
 
-    reranker = Reranker()
-    print(f"  ✓ Reranker初始化成功")
+    # 限制每个文档的长度（DashScope 限制）
+    truncated_docs = [c['text'][:500] for c in candidates]
 
-    # 提取文档文本
-    texts = [doc['text'] for doc in documents]
+    payload = {
+        "model": "gte-rerank-v2",
+        "input": {
+            "query": question,
+            "documents": truncated_docs
+        },
+        "parameters": {
+            "top_n": 5,
+            "return_documents": False
+        }
+    }
 
-    print(f"\n[3] 执行Rerank (查询: {test_query})...")
-    start_time = time.time()
+    response = requests.post(url, json=payload, headers=headers, timeout=30)
 
-    results = reranker.rerank(
-        query=test_query,
-        documents=texts,
-        top_n=len(documents)  # 返回所有文档，查看完整排序
-    )
+    # 打印详细错误信息
+    if response.status_code != 200:
+        print(f"❌ API 错误 ({response.status_code}):")
+        print(f"响应: {response.text}")
+        response.raise_for_status()
 
-    rerank_time = time.time() - start_time
-    print(f"  ✓ Rerank完成 (耗时: {rerank_time:.3f}秒)")
+    result = response.json()
 
-    print(f"\n[4] Rerank后的排序 (按相关度):")
+    if result.get("output") and result["output"].get("results"):
+        rerank_results = result["output"]["results"]
 
-    # 检查结果格式
-    if results and len(results) > 0:
-        first_result = results[0]
-        print(f"  调试: 结果类型={type(first_result)}, 内容={first_result if isinstance(first_result, dict) else 'tuple/other'}")
+        print(f"✓ Reranker 返回 Top {len(rerank_results)} 结果:\n")
 
-        for i, result in enumerate(results, 1):
-            if isinstance(result, dict):
-                idx = result.get('index', i-1)
-                score = result.get('relevance_score', result.get('score', 0))
-            elif isinstance(result, tuple) and len(result) >= 2:
-                idx, score = result[0], result[1]
-            else:
-                print(f"  未知结果格式: {type(result)}")
-                continue
+        # 显示重排序后的结果
+        print("=" * 70)
+        print(" 📊 对比: 重排序前 vs 重排序后")
+        print("=" * 70)
+        print()
 
-            doc = documents[idx]
-            print(f"  {i}. [分数: {score:.4f}] {doc['title'][:50]}")
-            if i <= 3:
-                # 显示前3个文档的部分内容
-                preview = doc['text'][:100].replace('\n', ' ')
-                print(f"      预览: {preview}...")
+        for i, rerank_item in enumerate(rerank_results, 1):
+            index = rerank_item['index']
+            rerank_score = rerank_item['relevance_score']
 
-    print(f"\n[5] 对比分析:")
-    print(f"  原始顺序前3:")
-    for i in range(min(3, len(documents))):
-        print(f"    {i+1}. {documents[i]['title'][:40]}")
+            original_candidate = candidates[index]
+            vector_score = original_candidate['vector_score']
+            file_name = original_candidate['file_name']
 
-    print(f"\n  Rerank后前3:")
-    for i in range(min(3, len(results))):
-        if isinstance(results[i], tuple) and len(results[i]) >= 2:
-            idx, score = results[i][0], results[i][1]
+            print(f"[{i}] Rerank分数: {rerank_score:.4f} (原向量排名: {index+1}, 分数: {vector_score:.4f})")
+            print(f"    文件: {file_name[:60]}...")
+            print(f"    内容: {original_candidate['text'][:150]}...")
+            print()
+
+        # 统计分析
+        print("=" * 70)
+        print(" 📈 召回效果分析")
+        print("=" * 70)
+        print()
+
+        # 检查排序变化
+        original_top5_indices = list(range(5))
+        reranked_indices = [r['index'] for r in rerank_results]
+
+        changes = sum(1 for i, idx in enumerate(reranked_indices) if idx != i)
+
+        print(f"原始 Top 5 索引: {original_top5_indices}")
+        print(f"Rerank Top 5 索引: {reranked_indices}")
+        print(f"排序变化: {changes}/5 个结果位置改变")
+        print()
+
+        # 显示从后面提升上来的文档
+        promoted = [idx for idx in reranked_indices if idx >= 5]
+        if promoted:
+            print(f"✨ 从后面提升的文档索引: {promoted} (原排名: {[p+1 for p in promoted]})")
         else:
-            continue
-        print(f"    {i+1}. {documents[idx]['title'][:40]} (分数: {score:.4f})")
+            print("ℹ️  Top 5 内部重排序，无新文档提升")
 
-    # 计算顺序变化
-    original_order = list(range(len(documents)))
-    rerank_order = [r[0] if isinstance(r, tuple) else r.get('index', i) for i, r in enumerate(results)]
-
-    if original_order != rerank_order:
-        print(f"\n  ✓ 顺序发生了变化，Reranker生效！")
-        print(f"    原始: {original_order}")
-        print(f"    重排: {rerank_order}")
     else:
-        print(f"\n  ⚠ 顺序未变化")
-
-    print(f"\n[6] 性能统计:")
-    print(f"  - 文档数量: {len(documents)}")
-    print(f"  - Rerank时间: {rerank_time:.3f}秒")
-    print(f"  - 平均每文档: {rerank_time/len(documents)*1000:.1f}毫秒")
+        print("❌ Reranker 返回结果异常")
+        print(f"响应: {result}")
 
 except Exception as e:
-    print(f"  ✗ Reranker初始化或执行失败: {e}")
+    print(f"❌ Reranker 调用失败: {e}")
     import traceback
     traceback.print_exc()
 
-print("\n" + "="*70)
-print("测试完成")
-print("="*70)
+print()
+print("=" * 70)
+print(" ✓ 测试完成")
+print("=" * 70)
+print()
+print("📊 总结:")
+print(f"  - 第一阶段: 向量检索召回 20 个候选")
+print(f"  - 第二阶段: Reranker 重排序选出 Top 5")
+print(f"  - Reranker 模型: gte-rerank-v2 (DashScope)")
+print()
+
+# 清理
+connections.disconnect("default")

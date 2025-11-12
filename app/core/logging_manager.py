@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from autogen_core import EVENT_LOGGER_NAME
@@ -30,23 +32,53 @@ class LoggingManager:
     def logger(self) -> logging.Logger:
         return self._logger
 
+    def _add_handler(self, handler: logging.Handler) -> None:
+        """Attach handler if a similar one doesn't already exist."""
+        for existing in self._logger.handlers:
+            if type(existing) is type(handler):
+                if getattr(existing, "baseFilename", None) == getattr(handler, "baseFilename", None):
+                    return
+                if not getattr(existing, "baseFilename", None):
+                    return
+        self._logger.addHandler(handler)
+
     def configure(
         self,
         *,
         level: int = logging.INFO,
         formatter: Optional[logging.Formatter] = None,
         handler: Optional[logging.Handler] = None,
+        log_dir: Optional[str] = None,
+        filename: str = "app.log",
+        max_bytes: int = 10 * 1024 * 1024,
+        backup_count: int = 5,
+        enable_console: bool = True,
     ) -> None:
-        """Configure the underlying logger once for the whole application."""
+        """Configure logger handlers and optional rotating file output."""
         self._logger.setLevel(level)
-        target_handler = handler or logging.StreamHandler()
-        if formatter is None:
-            formatter = logging.Formatter(
-                "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+        formatter = formatter or logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+        )
+
+        if handler is not None:
+            handler.setFormatter(formatter)
+            self._add_handler(handler)
+        elif enable_console:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(formatter)
+            self._add_handler(stream_handler)
+
+        if log_dir:
+            Path(log_dir).mkdir(parents=True, exist_ok=True)
+            file_path = Path(log_dir) / filename
+            file_handler = RotatingFileHandler(
+                file_path,
+                maxBytes=max_bytes,
+                backupCount=backup_count,
+                encoding="utf-8",
             )
-        target_handler.setFormatter(formatter)
-        if not any(isinstance(h, type(target_handler)) for h in self._logger.handlers):
-            self._logger.addHandler(target_handler)
+            file_handler.setFormatter(formatter)
+            self._add_handler(file_handler)
 
     # ---- LLM events -----------------------------------------------------
 
