@@ -5,9 +5,10 @@ Uses LightRAG's native storages and query modes (naive/local/global/hybrid).
 Environment is configured via .env; no extra state is persisted here beyond LightRAG working_dir.
 """
 
+import asyncio
 import os
 import inspect
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable, Awaitable
 
 from autogen_core import MessageContext
 
@@ -38,7 +39,6 @@ class GraphRetrieverAgent(StatefulAgent):
             agent_type=AgentType.POLICY_RETRIEVER,
             name="GraphRetriever",
             description="基于LightRAG的图检索Agent",
-            **kwargs,
         )
 
         self.working_dir = working_dir or os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag")
@@ -131,12 +131,15 @@ class GraphRetrieverAgent(StatefulAgent):
             return settings.embedding.dimension
         return 1024
 
-    def _embedding_callable(self) -> Callable[[List[str]], List[List[float]]]:
+    def _embedding_callable(self) -> Callable[[List[str]], Awaitable[List[List[float]]]]:
         if self.embedding_backend == "openai":
             return self._embed_openai
         return self._embed_dashscope
 
-    def _embed_openai(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_openai(self, texts: List[str]) -> List[List[float]]:
+        return await asyncio.to_thread(self._embed_openai_sync, texts)
+
+    def _embed_openai_sync(self, texts: List[str]) -> List[List[float]]:
         from openai import OpenAI
 
         api_key = settings.embedding.openai_api_key or os.getenv("LLM_API_KEY")
@@ -156,7 +159,10 @@ class GraphRetrieverAgent(StatefulAgent):
         self.logger.error("OpenAI embedding 调用失败，已重试 %s 次", attempts)
         raise last_error  # type: ignore[misc]
 
-    def _embed_dashscope(self, texts: List[str]) -> List[List[float]]:
+    async def _embed_dashscope(self, texts: List[str]) -> List[List[float]]:
+        return await asyncio.to_thread(self._embed_dashscope_sync, texts)
+
+    def _embed_dashscope_sync(self, texts: List[str]) -> List[List[float]]:
         import requests
 
         api_key = settings.embedding.dashscope_api_key
@@ -204,13 +210,19 @@ class GraphRetrieverAgent(StatefulAgent):
         for t in texts:
             await self._rag.ainsert(t)
 
-    async def add_documents(self, documents: List[PolicyDocument]):
-        """Insert PolicyDocuments into LightRAG store."""
+    async def add_documents(self, documents: List[PolicyDocument]) -> int:
+        """Insert PolicyDocuments into LightRAG store. Returns count of indexed documents."""
         if not self._initialized:
             await self.initialize()
+        indexed = 0
         for doc in documents:
-            text = f"{doc.title}\n{doc.content}"
-            await self._rag.ainsert(text)
+            try:
+                text = f"{doc.title}\n{doc.content}"
+                await self._rag.ainsert(text)
+                indexed += 1
+            except Exception as e:
+                self.logger.warning(f"Failed to index document {doc.title}: {e}")
+        return indexed
 
     async def process_request(self, request: Any, context: MessageContext) -> RetrievalResult:
         """Process retrieval using LightRAG and return documents as snippets.
@@ -271,3 +283,30 @@ class GraphRetrieverAgent(StatefulAgent):
             total_searched=1,
             search_time=0.0,
         )
+
+    async def _handle_user_query(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
+        """Handle user query messages by delegating to process_request."""
+        try:
+            request = message.content
+            result = await self.process_request(request, ctx)
+            return AgentMessage(
+                type=MessageType.RETRIEVAL_RESULT,
+                sender=self.agent_type,
+                content=result.model_dump() if hasattr(result, 'model_dump') else result,
+                metadata={"query_id": str(getattr(request, "query_id", "unknown"))}
+            )
+        except Exception as e:
+            self.logger.error(f"Error handling user query: {e}")
+            return None
+
+    async def _handle_query_analysis(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
+        """Handle query analysis messages - not used by GraphRetriever."""
+        # GraphRetriever doesn't need query analysis, just pass through
+        return None
+
+    async def on_message_impl(self, message: Any, ctx: MessageContext) -> Any:
+        """
+        Main message handler required by autogen_core BaseAgent.
+        Delegates to process_request for actual retrieval.
+        """
+        return await self.process_request(message, ctx)

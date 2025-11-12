@@ -1,1 +1,4 @@
-{"message":"你好"}
+{
+  "message": "请列出所有政策文件",
+  "session_id": "test-session-001"
+}

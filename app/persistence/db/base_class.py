@@ -1,14 +1,12 @@
-from typing import Any
+"""
+Re-export the shared SQLAlchemy declarative Base used by all ORM models.
 
-from sqlalchemy.ext.declarative import as_declarative, declared_attr
+Historically this project defined a second Base class here, which caused
+`Base.metadata.create_all()` to operate on an empty metadata set (hence the
+missing ChatSession/ChatMessage tables in MySQL). Now we directly reuse the
+Base from `app.models.base` so every ORM model shares the same metadata tree.
+"""
 
+from app.models.base import Base  # noqa: F401
 
-@as_declarative()
-class Base:
-    id: Any
-    __name__: str
-    
-    # Generate __tablename__ automatically
-    @declared_attr
-    def __tablename__(cls) -> str:
-        return cls.__name__.lower()
+__all__ = ["Base"]

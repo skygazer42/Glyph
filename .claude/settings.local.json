@@ -38,7 +38,10 @@
       "Bash(docker-compose exec:*)",
       "Bash(echo:*)",
       "Bash(set)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

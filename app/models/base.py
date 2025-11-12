@@ -5,7 +5,7 @@ Base models and data structures for the policy QA system.
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from uuid import UUID, uuid4
 from pydantic_settings import BaseSettings
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
@@ -109,11 +109,13 @@ class PolicyDocument(BaseModel):
     embedding: Optional[List[float]] = Field(None, description="向量嵌入")
     metadata: Dict[str, Any] = Field(..., description="元数据")
 
-    @validator('expiry_date')
-    def validate_dates(cls, v, values):
-        if v and 'effective_date' in values and v <= values['effective_date']:
+    @model_validator(mode="after")
+    def validate_dates(cls, data: "PolicyDocument") -> "PolicyDocument":
+        effective = data.effective_date
+        expiry = data.expiry_date
+        if expiry and effective and expiry <= effective:
             raise ValueError("失效日期必须晚于生效日期")
-        return v
+        return data
 
 
 class UserQuery(BaseModel):

@@ -61,14 +61,15 @@ class GraphAgent:
                 query, intent=intent, emphasis="relation_summary"
             )
 
-    async def ingest(self, documents: List[PolicyDocument]) -> None:
-        """Push documents into LightRAG when available."""
+    async def ingest(self, documents: List[PolicyDocument]) -> int:
+        """Push documents into LightRAG when available. Returns count of indexed documents."""
         if not self._graph_agent or not documents:
-            return
+            return 0
         try:
-            await self._graph_agent.add_documents(documents)
+            return await self._graph_agent.add_documents(documents)
         except Exception as exc:  # pragma: no cover
             self.logger.warning("GraphAgent 文档入库失败：%s", exc)
+            return 0
 
     async def _summarize_graph(self, graph_text: str, query: str) -> str:
         prompt = (

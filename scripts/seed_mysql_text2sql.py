@@ -324,10 +324,10 @@ def main() -> None:
     conn = connect_mysql(cfg)
     try:
         if not args.skip_schema:
-            print("→ Applying schema ...")
+            print("[*] Applying schema ...")
             apply_schema(conn)
         if not args.no_truncate:
-            print("→ Truncating existing data ...")
+            print("[*] Truncating existing data ...")
             truncate_tables(
                 conn,
                 [
@@ -341,9 +341,9 @@ def main() -> None:
                     "policy_documents",
                 ],
             )
-        print(f"→ Generating {args.documents} policy documents + related rows ...")
+        print(f"[*] Generating {args.documents} policy documents + related rows ...")
         seed_mysql(conn, args.documents)
-        print("✓ MySQL seed data ready. Text2SQL agent can now query policy_db.")
+        print("[OK] MySQL seed data ready. Text2SQL agent can now query policy_db.")
     finally:
         conn.close()
 

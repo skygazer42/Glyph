@@ -304,14 +304,16 @@ class AgentService:
         batch: List[PolicyDocument] = []
         total_loaded = 0
         total_indexed = 0
+        total_rag_indexed = 0
 
         async def _flush_batch():
-            nonlocal batch, total_loaded, total_indexed
+            nonlocal batch, total_loaded, total_indexed, total_rag_indexed
             if not batch:
                 return
             indexed = await self.knowledge_tool.ingest(batch)
-            await self.graph_agent.ingest(batch)
+            rag_indexed = await self.graph_agent.ingest(batch)
             total_indexed += indexed
+            total_rag_indexed += rag_indexed
             total_loaded += len(batch)
             batch = []
 
@@ -340,7 +342,7 @@ class AgentService:
 
         await _flush_batch()
         logging_manager.info("Ingested %s documents into vector store", total_loaded)
-        return {"loaded_docs": total_loaded, "kb_indexed": total_indexed, "rag_indexed": 0}
+        return {"loaded_docs": total_loaded, "kb_indexed": total_indexed, "rag_indexed": total_rag_indexed}
 
     async def detect_intent(self, query: str) -> Dict[str, Any]:
         return await self.intent_tool.detect(query)
@@ -365,6 +367,7 @@ class AgentService:
         attachments: List[Attachment],
     ) -> str:
         intent = (intent_result or {}).get("intent", "policy_inquiry")
+        sub_intent = (intent_result or {}).get("sub_intent")
         if attachments and any(att.is_image() for att in attachments):
             if self.vision_tool.enabled:
                 return "workflow"
@@ -379,6 +382,8 @@ class AgentService:
         if intent == "summary":
             return "graph"
         if intent == "comparison":
+            if self._looks_like_graph_question(rewritten_query):
+                return "graph"
             return "knowledge"
 
         if self._looks_like_sql_question(rewritten_query) and connection_id:
@@ -393,6 +398,10 @@ class AgentService:
             return "graph"
         if "calculation_chain" in chains:
             return "rule_engine"
+
+        if intent == "policy_inquiry" and self._looks_like_graph_question(rewritten_query):
+            if connection_id is None:
+                return "graph"
 
         if self._looks_like_user_history(rewritten_query):
             return "workflow"
@@ -415,6 +424,28 @@ class AgentService:
         ]
         q_lower = query.lower()
         return any(kw in query or kw in q_lower for kw in keywords)
+
+    def _looks_like_graph_question(self, query: str) -> bool:
+        """
+        Detect questions that ask for relationships, responsible parties, or process linkage,
+        which are better answered by LightRAG.
+        """
+        graph_keywords = [
+            "关系",
+            "关联",
+            "联系",
+            "执行部门",
+            "监管机制",
+            "责任链",
+            "流程图",
+            "梳理",
+            "脉络",
+            "对接",
+            "协同",
+            "联动",
+        ]
+        q_lower = query.lower()
+        return any(kw in query or kw in q_lower for kw in graph_keywords)
 
 
 __all__ = ["AgentService"]

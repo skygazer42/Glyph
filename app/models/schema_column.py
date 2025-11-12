@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Foreign
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
-from app.models.base import Base
+from app.persistence.db.base_class import Base
 
 
 class SchemaColumn(Base):

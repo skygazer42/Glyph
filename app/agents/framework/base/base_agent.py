@@ -50,8 +50,9 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
         **kwargs
     ):
         """Initialize the base agent."""
-        super().__init__(name=name, description=description)
+        super().__init__(description=description)
         self.agent_type = agent_type
+        self.name = name
         self.logger = logging.getLogger(f"{__name__}.{name}")
 
         # Initialize memory

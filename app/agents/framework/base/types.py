@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
+from app.models.base import PolicyDocument as PydanticPolicyDocument
+
 
 class AgentTypes(Enum):
     """Agent type enumeration."""
@@ -48,18 +50,7 @@ class RetrievalMethod(Enum):
     HYBRID = "hybrid"
 
 
-@dataclass
-class PolicyDocument:
-    """Policy document data structure."""
-    id: str
-    title: str
-    content: str
-    source: str
-    doc_type: str
-    publish_date: Optional[str] = None
-    relevant_departments: List[str] = None
-    policy_type: str = ""
-    embedding: Optional[List[float]] = None
+PolicyDocument = PydanticPolicyDocument
 
 
 @dataclass
