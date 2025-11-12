@@ -7,7 +7,7 @@ from app.models.base import Base
 
 class SchemaTable(Base):
     id = Column(Integer, primary_key=True, index=True)
-    connection_id = Column(Integer, ForeignKey("dbconnection.id"), nullable=False)
+    connection_id = Column(Integer, ForeignKey("dbconnection.id"), nullable=False, index=True)
     table_name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     ui_metadata = Column(JSON, nullable=True)

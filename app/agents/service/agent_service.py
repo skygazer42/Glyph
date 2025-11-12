@@ -91,6 +91,7 @@ class AgentService:
             user_profile_tool=self.user_profile_tool,
         )
         self.faq_responder = FAQResponder()
+        self._ingest_batch_size = max(1, getattr(self.config.performance, "batch_size", 10))
         self._initialized = False
         self._init_lock = asyncio.Lock()
 
@@ -142,20 +143,25 @@ class AgentService:
             logging_manager.info("检测到 LightRAG 种子目录内容发生变化，触发重新导入。")
 
         try:
-            documents = self._loader.load_from_directory(seed_dir)
-        except FileNotFoundError:
-            logging_manager.warning("LightRAG 种子目录无法读取：%s", seed_dir)
-            return
+            batch: List[PolicyDocument] = []
+            total_ingested = 0
+            for doc in self._loader.iter_documents_from_directory(seed_dir):
+                batch.append(doc)
+                if len(batch) >= self._ingest_batch_size:
+                    await self.graph_agent.ingest(batch)
+                    total_ingested += len(batch)
+                    batch = []
+            if batch:
+                await self.graph_agent.ingest(batch)
+                total_ingested += len(batch)
 
-        if not documents:
-            logging_manager.warning("LightRAG 种子目录未加载到任何有效文档：%s", seed_dir)
-            return
+            if not total_ingested:
+                logging_manager.warning("LightRAG 种子目录未加载到任何有效文档：%s", seed_dir)
+                return
 
-        try:
-            await self.graph_agent.ingest(documents)
             self._write_seed_manifest(manifest_path, seed_path, current_manifest)
             logging_manager.info(
-                "已自动将 %s 篇文档导入 LightRAG（目录：%s）。", len(documents), seed_dir
+                "已自动将 %s 篇文档导入 LightRAG（目录：%s）。", total_ingested, seed_dir
             )
         except Exception as exc:
             logging_manager.warning("LightRAG 自动导入失败：%s", exc)
@@ -289,20 +295,46 @@ class AgentService:
         return final
 
     async def ingest_paths(self, paths: List[str]) -> Dict[str, int]:
-        documents = []
+        batch: List[PolicyDocument] = []
+        total_loaded = 0
+        total_indexed = 0
+
+        async def _flush_batch():
+            nonlocal batch, total_loaded, total_indexed
+            if not batch:
+                return
+            indexed = await self.knowledge_tool.ingest(batch)
+            await self.graph_agent.ingest(batch)
+            total_indexed += indexed
+            total_loaded += len(batch)
+            batch = []
+
         for path in paths:
-            try:
-                documents.extend(self._loader.load_from_directory(path))
-            except Exception:
-                doc = self._loader.load_single_file(path)
-                if doc:
-                    documents.append(doc)
-        if not documents:
+            if os.path.isdir(path):
+                try:
+                    iterator = self._loader.iter_documents_from_directory(path)
+                except FileNotFoundError:
+                    logging_manager.warning("未找到目录：%s", path)
+                    continue
+            else:
+                try:
+                    doc = self._loader.load_single_file(path)
+                except Exception as exc:
+                    logging_manager.warning("加载文件失败 %s：%s", path, exc)
+                    doc = None
+                iterator = (doc,) if doc else tuple()
+
+            for doc in iterator:
+                batch.append(doc)
+                if len(batch) >= self._ingest_batch_size:
+                    await _flush_batch()
+
+        if not total_loaded and not batch:
             return {"loaded_docs": 0, "kb_indexed": 0, "rag_indexed": 0}
-        indexed = await self.knowledge_tool.ingest(documents)
-        await self.graph_agent.ingest(documents)
-        logging_manager.info("Ingested %s documents into vector store", indexed)
-        return {"loaded_docs": len(documents), "kb_indexed": indexed, "rag_indexed": 0}
+
+        await _flush_batch()
+        logging_manager.info("Ingested %s documents into vector store", total_loaded)
+        return {"loaded_docs": total_loaded, "kb_indexed": total_indexed, "rag_indexed": 0}
 
     async def detect_intent(self, query: str) -> Dict[str, Any]:
         return await self.intent_tool.detect(query)

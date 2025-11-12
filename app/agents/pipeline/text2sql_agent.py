@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Optional
 from uuid import uuid4
@@ -11,7 +10,7 @@ from app.models.base import FinalAnswer
 from app.persistence import crud
 from app.persistence.db.session import SessionLocal
 from app.schemas.query import QueryResponse
-from app.agents.chatdb.text2sql_service import process_text2sql_query
+from app.agents.chatdb.text2sql_service import process_text2sql_query_async
 
 
 class Text2SQLAgent:
@@ -33,9 +32,7 @@ class Text2SQLAgent:
             )
 
         try:
-            response: QueryResponse = await asyncio.to_thread(
-                self._run_query, query, connection_id
-            )
+            response: QueryResponse = await self._run_query_async(query, connection_id)
             return self._build_answer(response, connection_id)
         except Exception as exc:  # pragma: no cover
             self.logger.error("Text2SQL 执行失败: %s", exc)
@@ -49,13 +46,13 @@ class Text2SQLAgent:
                 total_processing_time=0.0,
             )
 
-    def _run_query(self, query: str, connection_id: int) -> QueryResponse:
+    async def _run_query_async(self, query: str, connection_id: int) -> QueryResponse:
         db = SessionLocal()
         try:
             connection = crud.db_connection.get(db=db, id=connection_id)
             if not connection:
                 raise ValueError(f"找不到 ID 为 {connection_id} 的数据库连接")
-            return process_text2sql_query(db, connection, query)
+            return await process_text2sql_query_async(db, connection, query)
         finally:
             db.close()
 

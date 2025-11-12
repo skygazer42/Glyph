@@ -31,5 +31,14 @@ class CRUDSchemaColumn(CRUDBase[SchemaColumn, SchemaColumnCreate, SchemaColumnUp
             .first()
         )
 
+    def get_by_table_ids(self, db: Session, *, table_ids: List[int]) -> List[SchemaColumn]:
+        if not table_ids:
+            return []
+        return (
+            db.query(SchemaColumn)
+            .filter(SchemaColumn.table_id.in_(table_ids))
+            .all()
+        )
+
 
 schema_column = CRUDSchemaColumn(SchemaColumn)

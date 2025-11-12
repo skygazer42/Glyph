@@ -32,7 +32,8 @@
       "Bash(netstat:*)",
       "Bash(systemctl status:*)",
       "Bash(service mysql status:*)",
-      "Bash(docker-compose logs:*)"
+      "Bash(docker-compose logs:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

@@ -7,7 +7,7 @@ from app.models.base import Base
 
 class SchemaColumn(Base):
     id = Column(Integer, primary_key=True, index=True)
-    table_id = Column(Integer, ForeignKey("schematable.id"), nullable=False)
+    table_id = Column(Integer, ForeignKey("schematable.id"), nullable=False, index=True)
     column_name = Column(String(255), nullable=False)
     data_type = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)

@@ -182,9 +182,24 @@ class Text2SQLService:
 
     def run(self, db: Session, connection: DBConnection, query: str) -> QueryResponse:
         # 为向后兼容保留同步接口，在独立线程内可安全调用
-        return asyncio.run(self.run_async(db, connection, query))
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self.run_async(db, connection, query))
+        finally:
+            loop.close()
 
 
 def process_text2sql_query(db: Session, connection: DBConnection, natural_language_query: str) -> QueryResponse:
     """同步包装，保持对 legacy 调用的兼容。"""
-    return asyncio.run(_process_text2sql_query_async(db, connection, natural_language_query))
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(_process_text2sql_query_async(db, connection, natural_language_query))
+    finally:
+        loop.close()
+
+
+async def process_text2sql_query_async(
+    db: Session, connection: DBConnection, natural_language_query: str
+) -> QueryResponse:
+    """异步接口，允许在现有事件循环内调用。"""
+    return await _process_text2sql_query_async(db, connection, natural_language_query)

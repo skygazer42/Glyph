@@ -25,25 +25,34 @@ class DocumentLoader:
         """Initialize the document loader."""
         self.supported_extensions = {'.pdf', '.docx', '.txt', '.md', '.doc'}
 
-    def load_from_directory(self, directory_path: str) -> List[PolicyDocument]:
-        """Load all supported documents from a directory."""
-        documents = []
+    def iter_documents_from_directory(
+        self,
+        directory_path: str,
+        *,
+        limit: Optional[int] = None,
+    ):
+        """Yield documents from a directory to avoid loading everything into memory."""
         directory = Path(directory_path)
 
         if not directory.exists():
             raise FileNotFoundError(f"Directory not found: {directory_path}")
 
-        # Walk through all files
+        yielded = 0
         for file_path in directory.rglob('*'):
             if file_path.is_file() and file_path.suffix.lower() in self.supported_extensions:
                 try:
                     doc = self.load_single_file(str(file_path))
                     if doc:
-                        documents.append(doc)
+                        yield doc
+                        yielded += 1
+                        if limit is not None and yielded >= limit:
+                            break
                 except Exception as e:
                     print(f"Error loading {file_path}: {e}")
 
-        return documents
+    def load_from_directory(self, directory_path: str, *, limit: Optional[int] = None) -> List[PolicyDocument]:
+        """Load supported documents from a directory (kept for compatibility)."""
+        return list(self.iter_documents_from_directory(directory_path, limit=limit))
 
     def load_single_file(self, file_path: str) -> Optional[PolicyDocument]:
         """Load a single document file."""

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Boolean, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
@@ -10,7 +10,7 @@ class ChatSession(Base):
     """聊天会话模型"""
     id = Column(String(255), primary_key=True, index=True)  # UUID格式的会话ID
     title = Column(String(500), nullable=False)  # 会话标题（通常是第一个查询的摘要）
-    connection_id = Column(Integer, ForeignKey("dbconnection.id"), nullable=True)  # 关联的数据库连接
+    connection_id = Column(Integer, ForeignKey("dbconnection.id"), nullable=True, index=True)  # 关联的数据库连接
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_active = Column(Boolean, default=True)  # 是否活跃
@@ -23,7 +23,7 @@ class ChatSession(Base):
 class ChatMessage(Base):
     """聊天消息模型"""
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String(255), ForeignKey("chatsession.id"), nullable=False)
+    session_id = Column(String(255), ForeignKey("chatsession.id"), nullable=False, index=True)
     message_type = Column(String(50), nullable=False)  # 'user_query', 'analysis', 'sql', 'explanation', 'data', 'visualization'
     content = Column(Text, nullable=False)  # 消息内容
     message_metadata = Column(JSON, nullable=True)  # 额外的元数据（如SQL结果、可视化配置等）
@@ -33,6 +33,9 @@ class ChatMessage(Base):
 
     # 关系
     session = relationship("ChatSession", back_populates="messages")
+    __table_args__ = (
+        Index("ix_chat_message_session_order", "session_id", "order_index"),
+    )
 
 
 class ChatHistorySnapshot(Base):

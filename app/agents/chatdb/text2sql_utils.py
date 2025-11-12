@@ -2,9 +2,11 @@
 Text2SQL工具模块
 提供查询分析、表结构检索、SQL处理等工具函数
 """
-import re
 import json
+import os
+import re
 import sqlparse
+from collections import OrderedDict
 from typing import Dict, Any, List, Optional, Tuple, Set
 from sqlalchemy.orm import Session
 from neo4j import GraphDatabase
@@ -14,8 +16,29 @@ from app.core.config import settings
 from app.core.llms import model_client
 from app.persistence import crud
 
-# 查询分析缓存，避免重复的LLM调用
-query_analysis_cache = {}
+
+class _LRUCache(OrderedDict):
+    """简单的LRU缓存，避免查询分析缓存无限增长。"""
+
+    def __init__(self, maxsize: int):
+        super().__init__()
+        self.maxsize = max(1, maxsize)
+
+    def get(self, key, default=None):
+        if key in self:
+            self.move_to_end(key)
+            return super().get(key)
+        return default
+
+    def put(self, key, value) -> None:
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        if len(self) > self.maxsize:
+            self.popitem(last=False)
+
+
+QUERY_ANALYSIS_CACHE_SIZE = int(os.getenv("TEXT2SQL_QUERY_CACHE_SIZE", "256"))
+query_analysis_cache = _LRUCache(QUERY_ANALYSIS_CACHE_SIZE)
 
 
 async def analyze_query_with_llm(query: str) -> Dict[str, Any]:
@@ -23,9 +46,9 @@ async def analyze_query_with_llm(query: str) -> Dict[str, Any]:
     使用LLM分析自然语言查询，提取关键实体和意图
     返回包含实体、关系和查询意图的结构化分析
     """
-    # 检查缓存
-    if query in query_analysis_cache:
-        return query_analysis_cache[query]
+    cached = query_analysis_cache.get(query)
+    if cached is not None:
+        return cached
 
     try:
         # 为LLM准备提示
@@ -62,13 +85,12 @@ async def analyze_query_with_llm(query: str) -> Dict[str, Any]:
         else:
             analysis = _create_fallback_analysis(query)
 
-        # 缓存结果
-        query_analysis_cache[query] = analysis
+        query_analysis_cache.put(query, analysis)
         return analysis
     except Exception as e:
         # 如果发生任何错误，回退到关键词提取
         analysis = _create_fallback_analysis(query)
-        query_analysis_cache[query] = analysis
+        query_analysis_cache.put(query, analysis)
         return analysis
 
 
@@ -543,73 +565,52 @@ async def retrieve_relevant_schema(db: Session, connection_id: int, query: str) 
                 for table in all_tables_from_db
             ]
 
-        columns_list = []
-
-        # 获取表的所有列
-        for table in tables_list:
-            table_columns = crud.schema_column.get_by_table(db=db, table_id=table["id"])
-            for column in table_columns:
-                columns_list.append({
-                    "id": column.id,
-                    "name": column.column_name,
-                    "type": column.data_type,
-                    "description": column.description,
-                    "is_primary_key": column.is_primary_key,
-                    "is_foreign_key": column.is_foreign_key,
-                    "table_id": table["id"],
-                    "table_name": table["name"]
-                })
-
-        # 获取表之间的关系
-        relationships_list = []
         table_ids = [t["id"] for t in tables_list]
+        table_name_lookup = {t["id"]: t["name"] for t in tables_list}
+
+        columns_records = crud.schema_column.get_by_table_ids(db=db, table_ids=table_ids)
+        columns_list = []
+        for column in columns_records:
+            columns_list.append({
+                "id": column.id,
+                "name": column.column_name,
+                "type": column.data_type,
+                "description": column.description,
+                "is_primary_key": column.is_primary_key,
+                "is_foreign_key": column.is_foreign_key,
+                "table_id": column.table_id,
+                "table_name": table_name_lookup.get(column.table_id, "")
+            })
+        column_lookup = {col["id"]: col for col in columns_list}
+
+        relationships_list = []
 
         # 如果返回所有表，则获取所有关系
         all_tables_count = len(crud.schema_table.get_by_connection(db=db, connection_id=connection_id))
         if len(tables_list) == all_tables_count:
-            all_relationships = crud.schema_relationship.get_by_connection(db=db, connection_id=connection_id)
-
-            for rel in all_relationships:
-                source_table = next((t for t in tables_list if t["id"] == rel.source_table_id), None)
-                target_table = next((t for t in tables_list if t["id"] == rel.target_table_id), None)
-                source_column = next((c for c in columns_list if c["id"] == rel.source_column_id), None)
-                target_column = next((c for c in columns_list if c["id"] == rel.target_column_id), None)
-
-                if source_table and target_table and source_column and target_column:
-                    relationships_list.append({
-                        "id": rel.id,
-                        "source_table": source_table["name"],
-                        "source_column": source_column["name"],
-                        "target_table": target_table["name"],
-                        "target_column": target_column["name"],
-                        "relationship_type": rel.relationship_type
-                    })
+            relationships_records = crud.schema_relationship.get_by_connection(db=db, connection_id=connection_id)
         else:
-            # 如果只返回相关表，则获取这些表之间的关系
-            for table in tables_list:
-                source_rels = crud.schema_relationship.get_by_source_table(db=db, source_table_id=table["id"])
-                target_rels = crud.schema_relationship.get_by_target_table(db=db, target_table_id=table["id"])
+            relationships_records = crud.schema_relationship.get_by_table_ids(db=db, table_ids=table_ids)
 
-                for rel in source_rels + target_rels:
-                    # 只包含相关表集中的表之间的关系
-                    if rel.source_table_id in table_ids and rel.target_table_id in table_ids:
-                        source_table = next((t for t in tables_list if t["id"] == rel.source_table_id), None)
-                        target_table = next((t for t in tables_list if t["id"] == rel.target_table_id), None)
-                        source_column = next((c for c in columns_list if c["id"] == rel.source_column_id), None)
-                        target_column = next((c for c in columns_list if c["id"] == rel.target_column_id), None)
+        for rel in relationships_records:
+            if rel.source_table_id not in table_ids or rel.target_table_id not in table_ids:
+                if len(tables_list) != all_tables_count:
+                    continue
 
-                        if source_table and target_table and source_column and target_column:
-                            # 确保不重复添加关系
-                            rel_dict = {
-                                "id": rel.id,
-                                "source_table": source_table["name"],
-                                "source_column": source_column["name"],
-                                "target_table": target_table["name"],
-                                "target_column": target_column["name"],
-                                "relationship_type": rel.relationship_type
-                            }
-                            if rel_dict not in relationships_list:
-                                relationships_list.append(rel_dict)
+            source_table_name = table_name_lookup.get(rel.source_table_id)
+            target_table_name = table_name_lookup.get(rel.target_table_id)
+            source_column = column_lookup.get(rel.source_column_id)
+            target_column = column_lookup.get(rel.target_column_id)
+
+            if source_table_name and target_table_name and source_column and target_column:
+                relationships_list.append({
+                    "id": rel.id,
+                    "source_table": source_table_name,
+                    "source_column": source_column["name"],
+                    "target_table": target_table_name,
+                    "target_column": target_column["name"],
+                    "relationship_type": rel.relationship_type
+                })
 
         return {
             "tables": tables_list,

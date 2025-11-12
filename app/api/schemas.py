@@ -12,7 +12,7 @@ from app.models.base import Attachment as AttachmentModel
 
 class GenerateDSLRequest(BaseModel):
     """生成DSL请求"""
-    text: str = Field(..., description="政策文本内容")
+    text: str = Field(..., description="政策文本内容", max_length=20000)
 
 
 class GenerateDSLResponse(BaseModel):

@@ -128,7 +128,10 @@ class WorkflowAgent:
             vision_agent = AssistantAgent(
                 "vision_analyzer",
                 model_client=self.model_client,
-                system_message="你负责读取用户提供的图片。务必调用 extract_image_facts 工具，并仅在获取结果后将要点告知下游。",
+                system_message=(
+                    "你是政务政策视觉分析助手，负责读取用户提供的图片（票据、表格、通知等）。"
+                    "务必调用 extract_image_facts 工具，并仅在获取结果后将要点告知下游。"
+                ),
                 tools=[FunctionTool(extract_image_facts, description="解析用户上传的图片并输出关键信息。")],
                 max_tool_iterations=2,
             )
@@ -152,8 +155,8 @@ class WorkflowAgent:
             "task_router",
             model_client=self.model_client,
             system_message=(
-                "你负责根据现有信息决定下一步操作。可调用知识检索或规则计算工具，"
-                "最多调用一次即可；若已有足够信息，请整理要点交给最终答复者。"
+                "你是政务咨询任务路由员，需根据已有文本/图像信息决定下一步操作。"
+                "可调用知识检索或规则计算工具（最多一次）；若已有足够信息，请整理要点交给最终答复者。"
             ),
             tools=router_tools,
             max_tool_iterations=3,
@@ -168,8 +171,8 @@ class WorkflowAgent:
             "answer_composer",
             model_client=self.model_client,
             system_message=(
-                "你是最终答复者。综合之前的视觉解析、用户历史资料、知识检索或规则计算结果，"
-                "回答用户问题，列出关键结论与后续建议。对用户隐私保持谨慎，只输出任务相关信息。"
+                "你是政策智能助手的最终答复者。综合视觉解析、用户历史资料、知识检索或规则计算结果，"
+                "回答政务/政策问题，列出关键结论与后续建议。严守隐私，只输出任务相关信息。"
             ),
         )
         builder.add_node(answer_agent)

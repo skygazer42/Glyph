@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.persistence.crud.base import CRUDBase
@@ -47,6 +48,20 @@ class CRUDSchemaRelationship(CRUDBase[SchemaRelationship, SchemaRelationshipCrea
                 SchemaRelationship.target_column_id == target_column_id
             )
             .first()
+        )
+
+    def get_by_table_ids(self, db: Session, *, table_ids: List[int]) -> List[SchemaRelationship]:
+        if not table_ids:
+            return []
+        return (
+            db.query(SchemaRelationship)
+            .filter(
+                or_(
+                    SchemaRelationship.source_table_id.in_(table_ids),
+                    SchemaRelationship.target_table_id.in_(table_ids),
+                )
+            )
+            .all()
         )
 
 
