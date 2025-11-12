@@ -6,7 +6,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
+web/node_modules/
 # Distribution / packaging
 .Python
 build/

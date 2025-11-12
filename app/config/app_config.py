@@ -328,6 +328,7 @@ class SecuritySettings(BaseSettings):
     rate_limit_docs_times: int = Field(default=5, env="SECURITY__RATE_LIMIT_DOCS_TIMES")
     rate_limit_docs_seconds: int = Field(default=60, env="SECURITY__RATE_LIMIT_DOCS_SECONDS")
     rate_limit_redis_url: str = Field(default="redis://localhost:6379/0", env="SECURITY__RATE_LIMIT_REDIS_URL")
+    rate_limit_disable: bool = Field(default=True, env="SECURITY__RATE_LIMIT_DISABLE")
     disable_auth: bool = Field(default=False, env="SECURITY__DISABLE_AUTH")
 
 
