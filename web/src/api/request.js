@@ -3,7 +3,7 @@ import { ElMessage } from 'element-plus'
 
 const instance = axios.create({
   baseURL: '/api',
-  timeout: 60000,
+  timeout: 120000, // 增加到120秒,适配LightRAG较慢的查询
   headers: {
     'Content-Type': 'application/json'
   }

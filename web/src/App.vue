@@ -28,6 +28,10 @@
               <el-icon><Collection /></el-icon>
               <span>知识库</span>
             </el-menu-item>
+            <el-menu-item index="/graph" class="nav-item">
+              <el-icon><Share /></el-icon>
+              <span>知识图谱</span>
+            </el-menu-item>
           </el-menu>
           <div class="header-actions">
             <ThemeToggle />
@@ -49,7 +53,7 @@
 </template>
 
 <script setup>
-import { Document, Collection, ChatDotRound } from '@element-plus/icons-vue'
+import { Document, Collection, ChatDotRound, Share } from '@element-plus/icons-vue'
 import AppFooter from '@/components/AppFooter.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import MobileMenu from '@/components/MobileMenu.vue'

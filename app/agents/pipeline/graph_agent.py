@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from autogen_core import MessageContext
+from autogen_core import MessageContext, AgentId, TopicId, CancellationToken
 from autogen_core.models import UserMessage
 
 from app.core.llms import model_client
@@ -43,7 +43,7 @@ class GraphAgent:
         try:
             result = await self._graph_agent.process_request(
                 {"query_text": query, "mode": "hybrid", "top_k": 3},
-                MessageContext(),
+                self._build_message_context(),
             )
             doc = result.documents[0] if result.documents else self._wrap_raw_text("")
             if len(doc.content or "") <= self._inline_summary_threshold:
@@ -97,4 +97,14 @@ class GraphAgent:
             content=text,
             source="LightRAG",
             doc_type=PolicyType.GUIDELINE,
+        )
+
+    def _build_message_context(self) -> MessageContext:
+        """Create a minimal MessageContext for AutoGen graph agents."""
+        return MessageContext(
+            sender=AgentId("graph_agent", "router"),
+            topic_id=TopicId("graph", "graph_agent"),
+            is_rpc=False,
+            cancellation_token=CancellationToken(),
+            message_id=str(uuid4()),
         )

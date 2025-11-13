@@ -13,6 +13,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import json
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -390,7 +392,7 @@ class LogAlertChannel(AlertChannel):
         self.logger.setLevel(logging.INFO)
 
         # 配置文件处理器
-        log_dir = Path("logs/alerts")
+        log_dir = settings.system.logs_dir / "alerts"
         log_dir.mkdir(parents=True, exist_ok=True)
 
         fh = logging.FileHandler(

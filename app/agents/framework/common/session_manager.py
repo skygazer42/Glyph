@@ -31,6 +31,7 @@ class Session:
     status: str = "active"
     title: str = ""
     connection_id: Optional[int] = None
+    user_id: Optional[str] = None
 
 
 class SessionManager:
@@ -66,6 +67,7 @@ class SessionManager:
         *,
         title: Optional[str] = None,
         connection_id: Optional[int] = None,
+        user_id: Optional[str] = None,
     ) -> Session:
         if session_id is None:
             session_id = str(uuid.uuid4())
@@ -74,6 +76,7 @@ class SessionManager:
             session_id=session_id,
             title=title or "",
             connection_id=connection_id,
+            user_id=user_id,
         )
         self.sessions[session_id] = session
 
@@ -117,6 +120,7 @@ class SessionManager:
         *,
         title: Optional[str] = None,
         connection_id: Optional[int] = None,
+        user_id: Optional[str] = None,
     ) -> Session:
         if session_id:
             existing = self.sessions.get(session_id)
@@ -124,6 +128,8 @@ class SessionManager:
                 existing.last_active = time.time()
                 if connection_id is not None:
                     existing.connection_id = connection_id
+                if user_id and not existing.user_id:
+                    existing.user_id = user_id
                 return existing
 
             session = self.get_session(session_id)
@@ -136,6 +142,7 @@ class SessionManager:
             session_id,
             title=title,
             connection_id=connection_id,
+            user_id=user_id,
         )
 
     # ------------------------------------------------------------------

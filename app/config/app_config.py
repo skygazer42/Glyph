@@ -290,7 +290,10 @@ class SystemSettings(BaseSettings):
     verbose_debug: bool = Field(default=False, env="VERBOSE_DEBUG")
 
     # 日志配置
-    log_dir: str = Field(default=".", env="LOG_DIR")
+    log_dir: str = Field(
+        default=str(Path(__file__).resolve().parents[2] / "resources" / "logs"),
+        env="LOG_DIR"
+    )
     log_max_bytes: int = Field(default=10485760, env="LOG_MAX_BYTES")
     log_backup_count: int = Field(default=5, env="LOG_BACKUP_COUNT")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -22,15 +23,53 @@ from autogen_core.logging import (
 )
 
 
+class UTF8JsonFormatter(logging.Formatter):
+    """自定义格式化器:将日志消息中的JSON转换为UTF-8可读格式"""
+    def format(self, record):
+        # 先应用标准格式
+        formatted = super().format(record)
+        # 尝试解析并重新序列化为UTF-8
+        try:
+            # 查找JSON部分(通常在最后一个" - "之后)
+            if " - " in formatted:
+                parts = formatted.split(" - ", 3)
+                if len(parts) >= 4:
+                    json_part = parts[3]
+                    try:
+                        # 解析JSON并用ensure_ascii=False重新序列化
+                        data = json.loads(json_part)
+                        readable_json = json.dumps(data, ensure_ascii=False, indent=None)
+                        parts[3] = readable_json
+                        formatted = " - ".join(parts)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+        except Exception:
+            pass
+        return formatted
+
+
 class LoggingManager:
     """Wraps ``autogen_core`` logging events with a simple management API."""
 
     def __init__(self, name: str = EVENT_LOGGER_NAME) -> None:
         self._logger = logging.getLogger(name)
+        # 防止日志传播到root logger,避免重复输出
+        self._logger.propagate = False
 
     @property
     def logger(self) -> logging.Logger:
         return self._logger
+
+    @staticmethod
+    def _serialize_event(event: Any) -> str:
+        """Convert AutoGen logging events to UTF-8 JSON for readable console输出."""
+        payload = getattr(event, "kwargs", None)
+        if payload is None:
+            return str(event)
+        try:
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            return str(event)
 
     def _add_handler(self, handler: logging.Handler) -> None:
         """Attach handler if a similar one doesn't already exist."""
@@ -56,17 +95,22 @@ class LoggingManager:
     ) -> None:
         """Configure logger handlers and optional rotating file output."""
         self._logger.setLevel(level)
-        formatter = formatter or logging.Formatter(
+
+        # 清除所有现有handlers,避免重复
+        self._logger.handlers.clear()
+
+        # 使用UTF-8JsonFormatter来正确显示中文
+        formatter = formatter or UTF8JsonFormatter(
             "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
         )
 
         if handler is not None:
             handler.setFormatter(formatter)
-            self._add_handler(handler)
+            self._logger.addHandler(handler)
         elif enable_console:
             stream_handler = logging.StreamHandler()
             stream_handler.setFormatter(formatter)
-            self._add_handler(stream_handler)
+            self._logger.addHandler(stream_handler)
 
         if log_dir:
             Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -78,7 +122,7 @@ class LoggingManager:
                 encoding="utf-8",
             )
             file_handler.setFormatter(formatter)
-            self._add_handler(file_handler)
+            self._logger.addHandler(file_handler)
 
     # ---- LLM events -----------------------------------------------------
 
@@ -87,7 +131,8 @@ class LoggingManager:
         messages: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> None:
-        self._logger.info(LLMStreamStartEvent(messages=messages, **kwargs))
+        event = LLMStreamStartEvent(messages=messages, **kwargs)
+        self._logger.info(self._serialize_event(event))
 
     def log_llm_stream_end(
         self,
@@ -97,14 +142,13 @@ class LoggingManager:
         completion_tokens: int,
         **kwargs: Any,
     ) -> None:
-        self._logger.info(
-            LLMStreamEndEvent(
-                response=response,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                **kwargs,
-            )
+        event = LLMStreamEndEvent(
+            response=response,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            **kwargs,
         )
+        self._logger.info(self._serialize_event(event))
 
     def log_llm_call(
         self,
@@ -115,15 +159,14 @@ class LoggingManager:
         completion_tokens: int,
         **kwargs: Any,
     ) -> None:
-        self._logger.info(
-            LLMCallEvent(
-                messages=messages,
-                response=response,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                **kwargs,
-            )
+        event = LLMCallEvent(
+            messages=messages,
+            response=response,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            **kwargs,
         )
+        self._logger.info(self._serialize_event(event))
 
     # ---- Tool events ----------------------------------------------------
 
@@ -133,9 +176,8 @@ class LoggingManager:
         arguments: Dict[str, Any],
         result: str,
     ) -> None:
-        self._logger.info(
-            ToolCallEvent(tool_name=tool_name, arguments=arguments, result=result)
-        )
+        event = ToolCallEvent(tool_name=tool_name, arguments=arguments, result=result)
+        self._logger.info(self._serialize_event(event))
 
     # ---- Message bus events --------------------------------------------
 
@@ -149,16 +191,15 @@ class LoggingManager:
         delivery_stage: DeliveryStage = DeliveryStage.SEND,
         **kwargs: Any,
     ) -> None:
-        self._logger.info(
-            MessageEvent(
-                payload=payload,
-                sender=sender,
-                receiver=receiver,
-                kind=kind,
-                delivery_stage=delivery_stage,
-                **kwargs,
-            )
+        event = MessageEvent(
+            payload=payload,
+            sender=sender,
+            receiver=receiver,
+            kind=kind,
+            delivery_stage=delivery_stage,
+            **kwargs,
         )
+        self._logger.info(self._serialize_event(event))
 
     def log_message_dropped(
         self,
@@ -169,15 +210,14 @@ class LoggingManager:
         kind: MessageKind = MessageKind.DIRECT,
         **kwargs: Any,
     ) -> None:
-        self._logger.warning(
-            MessageDroppedEvent(
-                payload=payload,
-                sender=sender,
-                receiver=receiver,
-                kind=kind,
-                **kwargs,
-            )
+        event = MessageDroppedEvent(
+            payload=payload,
+            sender=sender,
+            receiver=receiver,
+            kind=kind,
+            **kwargs,
         )
+        self._logger.warning(self._serialize_event(event))
 
     def log_handler_exception(
         self,
@@ -186,14 +226,13 @@ class LoggingManager:
         exception: BaseException,
         **kwargs: Any,
     ) -> None:
-        self._logger.error(
-            MessageHandlerExceptionEvent(
-                payload=payload,
-                handling_agent=handling_agent,
-                exception=exception,
-                **kwargs,
-            )
+        event = MessageHandlerExceptionEvent(
+            payload=payload,
+            handling_agent=handling_agent,
+            exception=exception,
+            **kwargs,
         )
+        self._logger.error(self._serialize_event(event))
 
     def log_agent_construction_error(
         self,
@@ -201,11 +240,10 @@ class LoggingManager:
         exception: BaseException,
         **kwargs: Any,
     ) -> None:
-        self._logger.error(
-            AgentConstructionExceptionEvent(
-                agent_id=agent_id, exception=exception, **kwargs
-            )
+        event = AgentConstructionExceptionEvent(
+            agent_id=agent_id, exception=exception, **kwargs
         )
+        self._logger.error(self._serialize_event(event))
 
     # ---- Generic logging ------------------------------------------------
 

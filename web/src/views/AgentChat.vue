@@ -16,6 +16,24 @@
             <span class="title">AI 政策助手</span>
           </div>
           <div class="header-right">
+            <el-select
+              v-model="userId"
+              size="small"
+              class="user-id-input"
+              placeholder="选择或输入用户ID"
+              clearable
+              filterable
+              allow-create
+              default-first-option
+              :disabled="loading"
+            >
+              <el-option
+                v-for="id in presetUserIds"
+                :key="id"
+                :label="`示例ID：${id}`"
+                :value="id"
+              />
+            </el-select>
             <el-switch
               v-model="useStreaming"
               active-text="流式"
@@ -110,6 +128,28 @@
           @keydown.ctrl.enter="sendMessage"
           :disabled="loading"
         />
+
+        <div class="attachment-toolbar">
+          <FileUploader
+            ref="attachmentUploaderRef"
+            :upload-url="'/api/uploads'"
+            :multiple="true"
+            :limit="5"
+            :drag="false"
+            :accept="attachmentAccepts"
+            :button-text="hasAttachments ? '继续添加附件' : '上传附件'"
+            :tip-text="'支持图片、PDF、Office 文档，单个不超过10MB'"
+            :max-size="10 * 1024 * 1024"
+            :show-file-list="true"
+            @change="handleAttachmentChange"
+          />
+          <div class="attachment-info" v-if="hasAttachments">
+            <el-tag size="small" type="info">
+              已选择 {{ attachments.length }} 个附件
+            </el-tag>
+          </div>
+        </div>
+
         <div class="input-actions">
           <div class="input-tips">
             <el-text size="small" type="info">
@@ -171,7 +211,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { agentApi } from '@/api'
 import { ElMessage } from 'element-plus'
 import {
@@ -185,6 +225,7 @@ import {
   Menu as MenuIcon
 } from '@element-plus/icons-vue'
 import SessionManager from '@/components/SessionManager.vue'
+import FileUploader from '@/components/FileUploader.vue'
 import { useChatHistory, useSessionList } from '@/composables/useLocalStorage'
 
 // 状态
@@ -196,6 +237,85 @@ const useStreaming = ref(true) // 是否使用流式响应
 const sessionId = ref(null) // 会话ID
 const showSessionDrawer = ref(false) // 显示会话侧边栏
 const sessionManagerRef = ref(null) // 会话管理器引用
+const attachmentUploaderRef = ref(null)
+
+const USER_ID_STORAGE_KEY = 'agent_chat_user_id'
+const presetUserIds = ['12345', '67890', '88888']
+const userId = ref(localStorage.getItem(USER_ID_STORAGE_KEY) || '')
+const attachments = ref([])
+const attachmentAccepts = '.png,.jpg,.jpeg,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx'
+const hasAttachments = computed(() => attachments.value.length > 0)
+
+const normalizeUserId = (value) => {
+  if (!value) return ''
+  return value.trim()
+}
+
+const getResolvedUserId = () => {
+  const normalized = normalizeUserId(userId.value)
+  return normalized || null
+}
+
+watch(userId, (value) => {
+  const normalized = normalizeUserId(value)
+  if (!normalized) {
+    localStorage.removeItem(USER_ID_STORAGE_KEY)
+    if (value) {
+      userId.value = ''
+    }
+    return
+  }
+
+  if (normalized !== value) {
+    userId.value = normalized
+    return
+  }
+
+  localStorage.setItem(USER_ID_STORAGE_KEY, normalized)
+})
+
+const normalizeAttachmentRecords = (files = []) => {
+  return files
+    .map((item) => {
+      const resp = item.response || {}
+      const mime = resp.mime_type || item.raw?.type || ''
+      return {
+        uid: item.uid,
+        name: item.name,
+        size: item.size,
+        mime_type: mime,
+        path: resp.path || resp.file_path || '',
+        url: resp.url || '',
+        type: mime.toLowerCase().startsWith('image/') ? 'image' : 'file'
+      }
+    })
+    .filter((record) => record.path || record.url)
+}
+
+const handleAttachmentChange = (fileItems) => {
+  attachments.value = normalizeAttachmentRecords(fileItems)
+}
+
+const buildAttachmentPayload = () => {
+  if (!attachments.value.length) {
+    return []
+  }
+  return attachments.value.map((record) => ({
+    type: record.type,
+    path: record.path,
+    url: record.url,
+    mime_type: record.mime_type,
+    metadata: {
+      name: record.name,
+      size: record.size
+    }
+  }))
+}
+
+const resetAttachments = () => {
+  attachments.value = []
+  attachmentUploaderRef.value?.clearAll?.()
+}
 
 // 会话管理
 const { sessions, upsertSession, updateSessionActivity } = useSessionList()
@@ -314,12 +434,24 @@ const sendMessageStream = async (userMessage) => {
   scrollToBottom()
   loading.value = true
 
+  let streamingSucceeded = false
+
   try {
     // 使用EventSource接收SSE流
     const url = `/api/agent/chat/stream`
+    const resolvedUserId = getResolvedUserId()
     const payload = {
       message: userMessage,
       session_id: sessionId.value
+    }
+
+    if (resolvedUserId) {
+      payload.user_id = resolvedUserId
+    }
+
+    const attachmentPayload = buildAttachmentPayload()
+    if (attachmentPayload.length) {
+      payload.attachments = attachmentPayload
     }
 
     // 使用fetch发送POST请求并接收SSE
@@ -389,6 +521,7 @@ const sendMessageStream = async (userMessage) => {
 
     // 保存助手消息到历史
     addMessageToHistory(messages.value[assistantMessageIndex])
+    streamingSucceeded = true
 
   } catch (error) {
     console.error('流式发送消息失败:', error)
@@ -397,6 +530,9 @@ const sendMessageStream = async (userMessage) => {
     messages.value[assistantMessageIndex].content = '抱歉，我遇到了一些问题，请稍后再试。'
     addMessageToHistory(messages.value[assistantMessageIndex])
   } finally {
+    if (streamingSucceeded) {
+      resetAttachments()
+    }
     loading.value = false
     scrollToBottom()
   }
@@ -433,7 +569,15 @@ const sendMessageNonStream = async (userMessage) => {
 
   try {
     // 调用API
-    const response = await agentApi.chat(userMessage, sessionId.value)
+    const resolvedUserId = getResolvedUserId()
+    const attachmentPayload = buildAttachmentPayload()
+    const response = await agentApi.chat(
+      userMessage,
+      sessionId.value,
+      null,
+      resolvedUserId,
+      attachmentPayload
+    )
 
     if (response.success) {
       // 更新会话ID
@@ -450,6 +594,7 @@ const sendMessageNonStream = async (userMessage) => {
       }
       messages.value.push(assistantMsg)
       addMessageToHistory(assistantMsg)
+      resetAttachments()
     } else {
       throw new Error('获取回复失败')
     }
@@ -610,6 +755,10 @@ onMounted(() => {
   gap: 10px;
 }
 
+.user-id-input {
+  width: 190px;
+}
+
 .title {
   font-size: 18px;
   font-weight: 600;
@@ -748,6 +897,19 @@ onMounted(() => {
   padding: var(--spacing-lg);
   background: linear-gradient(to top, #ffffff, #fafbfc);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.attachment-toolbar {
+  margin-top: var(--spacing-md);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+.attachment-info {
+  display: flex;
+  align-items: center;
+  height: 40px;
 }
 
 .input-actions {

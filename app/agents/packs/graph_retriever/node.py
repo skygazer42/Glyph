@@ -24,6 +24,7 @@ from app.models.base import (
 )
 from app.agents.framework.base.base_agent import StatefulAgent
 from app.config import settings
+from app.knowledge.rerank import Reranker
 
 
 class GraphRetrieverAgent(StatefulAgent):
@@ -50,6 +51,7 @@ class GraphRetrieverAgent(StatefulAgent):
             )
         self.embedding_model = self._resolve_embedding_model()
         self.embedding_dim = self._infer_embedding_dim()
+        self._rerank_func: Optional[Callable[..., Awaitable[List[Dict[str, Any]]]]] = None
 
         # Lazy init members
         self._rag = None
@@ -93,6 +95,7 @@ class GraphRetrieverAgent(StatefulAgent):
                 working_dir=self.working_dir,
                 llm_model_func=llm_model_func,
                 embedding_func=embedding_func,
+                rerank_model_func=self._get_rerank_callable(),
             )
 
             await self._rag.initialize_storages()
@@ -310,3 +313,40 @@ class GraphRetrieverAgent(StatefulAgent):
         Delegates to process_request for actual retrieval.
         """
         return await self.process_request(message, ctx)
+
+    def _get_rerank_callable(self) -> Optional[Callable[..., Awaitable[List[Dict[str, Any]]]]]:
+        if self._rerank_func is not None:
+            return self._rerank_func
+
+        try:
+            reranker = Reranker()
+        except Exception as exc:  # pragma: no cover - reranker optional
+            self.logger.warning("DashScope Reranker 初始化失败，GraphAgent 将跳过重排：%s", exc)
+            self._rerank_func = None
+            return None
+
+        async def _async_rerank(
+            query: str,
+            documents: List[str],
+            top_n: Optional[int] = None,
+        ) -> List[Dict[str, Any]]:
+            if not documents:
+                return []
+            loop = asyncio.get_running_loop()
+
+            def _run():
+                return reranker.rerank(query, documents, top_n)
+
+            try:
+                ranked = await loop.run_in_executor(None, _run)
+            except Exception as exc:  # pragma: no cover - network errors
+                self.logger.warning("调用 DashScope Reranker 失败：%s", exc)
+                return []
+
+            payload: List[Dict[str, Any]] = []
+            for idx, score, _ in ranked:
+                payload.append({"index": idx, "relevance_score": float(score)})
+            return payload
+
+        self._rerank_func = _async_rerank
+        return self._rerank_func

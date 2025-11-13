@@ -92,13 +92,23 @@ export const systemApi = {
 
 // Agent相关API（匹配后端实际API）
 export const agentApi = {
-  // 发送消息（非流式）- 支持会话和数据库连接
-  chat(message, sessionId = null, connectionId = null) {
-    return request.post('/agent/chat', {
+  // 发送消息（非流式）- 支持会话、数据库连接以及用户ID
+  chat(message, sessionId = null, connectionId = null, userId = null, attachments = null) {
+    const payload = {
       message,
       session_id: sessionId,
       connection_id: connectionId
-    })
+    }
+
+    if (userId) {
+      payload.user_id = userId
+    }
+
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments
+    }
+
+    return request.post('/agent/chat', payload)
   },
 
   // 发送消息（流式）- 通过POST发送，使用SSE接收
@@ -126,3 +136,19 @@ export const agentApi = {
     return request.get(`/agent/sessions/${sessionId}/messages`, { params })
   }
 }
+
+// 知识图谱相关API
+export const graphApi = {
+  // 获取知识图谱数据
+  getGraphData() {
+    return request.get('/knowledge-graph/graph')
+  },
+
+  // 获取图谱统计信息
+  getGraphStats() {
+    return request.get('/knowledge-graph/graph/stats')
+  }
+}
+
+// 导出统一的 getGraphData 函数供组件使用
+export const getGraphData = graphApi.getGraphData

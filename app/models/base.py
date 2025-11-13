@@ -102,12 +102,12 @@ class PolicyDocument(BaseModel):
     publish_date: Optional[datetime] = Field(None, description="发布日期")
     effective_date: Optional[datetime] = Field(None, description="生效日期")
     expiry_date: Optional[datetime] = Field(None, description="失效日期")
-    relevant_departments: List[str] = Field(..., description="相关部门")
-    target_groups: List[str] = Field(..., description="目标群体")
-    regions: List[str] = Field(..., description="适用地区")
-    keywords: List[str] = Field(..., description="关键词")
+    relevant_departments: List[str] = Field(default_factory=list, description="相关部门")
+    target_groups: List[str] = Field(default_factory=list, description="目标群体")
+    regions: List[str] = Field(default_factory=list, description="适用地区")
+    keywords: List[str] = Field(default_factory=list, description="关键词")
     embedding: Optional[List[float]] = Field(None, description="向量嵌入")
-    metadata: Dict[str, Any] = Field(..., description="元数据")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
 
     @model_validator(mode="after")
     def validate_dates(cls, data: "PolicyDocument") -> "PolicyDocument":

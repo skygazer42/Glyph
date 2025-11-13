@@ -20,6 +20,11 @@ const routes = [
     path: '/knowledge',
     name: 'Knowledge',
     component: () => import('@/views/KnowledgeBase.vue')
+  },
+  {
+    path: '/graph',
+    name: 'Graph',
+    component: () => import('@/views/KnowledgeGraph.vue')
   }
 ]
 

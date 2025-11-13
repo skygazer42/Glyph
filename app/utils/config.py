@@ -3,6 +3,7 @@ Configuration management for the policy QA system.
 """
 
 import os
+from pathlib import Path
 from typing import Dict, Any, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,7 +42,9 @@ class VectorStoreConfig(BaseSettings):
 class LoggingConfig(BaseSettings):
     """Logging configuration."""
     level: str = Field(default="INFO")
-    file: str = Field(default="logs/policy_qa.log")
+    file: str = Field(
+        default=str(Path(__file__).resolve().parents[2] / "resources" / "logs" / "policy_qa.log")
+    )
     format: str = Field(default="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     max_size: str = Field(default="10MB")
     backup_count: int = Field(default=5)

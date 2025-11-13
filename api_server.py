@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # 导入 endpoint 路由
-from app.api.endpoints import agent, dsl, knowledge
+from app.api.endpoints import agent, dsl, knowledge, uploads, knowledge_graph
 from app.api.schemas import HealthResponse
 from app.api.deps import get_session_manager
 
@@ -66,6 +66,8 @@ app.add_middleware(
 app.include_router(agent.router, prefix="/api/agent", tags=["Agent 问答"])
 app.include_router(dsl.router, prefix="/api/dsl", tags=["DSL 生成"])
 app.include_router(knowledge.router, prefix="/api/knowledge", tags=["知识库"])
+app.include_router(uploads.router, prefix="/api/uploads", tags=["附件上传"])
+app.include_router(knowledge_graph.router, prefix="/api/knowledge-graph", tags=["知识图谱"])
 
 # ==================== 健康检查 ====================
 

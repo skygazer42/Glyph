@@ -21,6 +21,7 @@ from app.agents.pipeline import (
     Text2SQLAgent,
     WorkflowAgent,
 )
+from app.agents.framework.common import session_store
 from .tools import (
     IntentDetectionTool,
     KnowledgeTool,
@@ -34,14 +35,31 @@ from app.knowledge.service import KnowledgeService
 from app.knowledge.faq_responder import FAQResponder
 from app.utils.config import Config
 from app.utils.document_loader import DocumentLoader
-from app.models.base import Attachment
+from app.models.base import Attachment, UserQuery
 
+# 配置主日志管理器
 logging_manager.configure(
     log_dir=str(settings.system.log_dir),
     filename="agent.log",
     max_bytes=settings.system.log_max_bytes,
     backup_count=settings.system.log_backup_count,
 )
+
+# 确保autogen logger只有UTF-8 handler,无重复
+import logging
+from app.core.logging_manager import UTF8JsonFormatter
+
+autogen_logger = logging.getLogger("autogen_core.events")
+autogen_logger.handlers.clear()
+autogen_logger.setLevel(logging.INFO)
+autogen_logger.propagate = False
+
+# 添加UTF-8格式化的console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(UTF8JsonFormatter(
+    "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+))
+autogen_logger.addHandler(console_handler)
 
 
 class AgentService:
@@ -249,7 +267,14 @@ class AgentService:
         await self.initialize()
         attachments = attachments or []
 
-        rewritten_query = await self.rewrite_agent.rewrite(query)
+        (
+            session_id,
+            effective_query,
+            conversation_context,
+            history_used,
+        ) = self._prepare_conversation_context(session_id, user_id, query)
+
+        rewritten_query = await self.rewrite_agent.rewrite(effective_query)
         faq_final = self.faq_responder.maybe_answer(rewritten_query)
         if faq_final:
             intent_result = {
@@ -286,6 +311,8 @@ class AgentService:
             else:  # knowledge 默认
                 final = await self.knowledge_agent.answer(rewritten_query, intent=intent_result)
 
+        session_store.add_answer(session_id, final)
+
         metadata = final.metadata or {}
         metadata.update(
             {
@@ -294,6 +321,12 @@ class AgentService:
                 "rewritten_query": rewritten_query,
                 "session_id": session_id,
                 "user_id": user_id,
+                "connection_id": connection_id,
+                "conversation_context": {
+                    "history_used": history_used,
+                    "history_turns": len(conversation_context.get("history", [])),
+                    "is_new_session": conversation_context.get("is_new_session", True),
+                },
             }
         )
         if attachments:
@@ -405,8 +438,15 @@ class AgentService:
             return "workflow"
         if "user_history_chain" in chains:
             return "workflow"
-        if "graph_chain" in chains and connection_id is None:
-            return "graph"
+        graph_chain_requested = "graph_chain" in chains
+        kb_chain_requested = "kb_chain" in chains
+
+        if graph_chain_requested and self._looks_like_graph_question(
+            rewritten_query, sub_intent
+        ):
+            # 只有在明确的关系/比较用例下才切到 Graph；否则继续走知识库降低成本
+            if not kb_chain_requested or connection_id is None:
+                return "graph"
         if "calculation_chain" in chains:
             return "rule_engine"
 
@@ -418,6 +458,65 @@ class AgentService:
             return "workflow"
 
         return "knowledge"
+
+    def _prepare_conversation_context(
+        self,
+        session_id: Optional[str],
+        user_id: Optional[str],
+        query: str,
+    ) -> Tuple[str, str, Dict[str, Any], bool]:
+        """Ensure session presence, record用户查询并返回上下文/增强后的查询。"""
+
+        default_context: Dict[str, Any] = {"history": [], "is_new_session": True}
+        try:
+            sid, _ = session_store.create_or_update_session(session_id, user_id)
+            context_payload = session_store.get_context(sid, current_query=query)
+            user_query = UserQuery(
+                text=query,
+                session_id=sid,
+                user_id=user_id,
+                context=context_payload,
+            )
+            session_store.add_query(sid, user_query)
+            augmented_query, history_used = self._augment_query_with_history(query, context_payload)
+            return sid, augmented_query, context_payload, history_used
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logging_manager.warning("会话上下文处理失败：%s", exc)
+            return session_id or "", query, default_context, False
+
+    def _augment_query_with_history(
+        self,
+        query: str,
+        context_payload: Dict[str, Any],
+        max_snippets: int = 6,
+    ) -> Tuple[str, bool]:
+        """Append recent multi-turn history to the query when available."""
+
+        history = context_payload.get("history") or []
+        if not history:
+            return query, False
+
+        snippets: List[str] = []
+        for item in history[-max_snippets:]:
+            text = (item.get("text") or "").strip()
+            if not text:
+                continue
+            role = "用户" if item.get("type") == "query" else "助手"
+            snippets.append(f"{role}:{text}")
+
+        if not snippets:
+            return query, False
+
+        history_text = "\n".join(snippets)
+        # 简短问题直接改写成“历史+当前问题”结构，长问题则附加参考段落
+        if len(query) <= 200:
+            augmented = (
+                "请结合以下对话历史回答用户最新问题。\n"
+                f"历史：\n{history_text}\n\n用户最新问题：{query}"
+            )
+        else:
+            augmented = f"{query}\n\n【最近对话参考】\n{history_text}"
+        return augmented, True
 
     def _looks_like_sql_question(self, query: str) -> bool:
         q = query.lower()
@@ -445,22 +544,11 @@ class AgentService:
             "关系",
             "关联",
             "联系",
-            "执行部门",
-            "监管机制",
-            "责任链",
-            "流程图",
             "梳理",
             "脉络",
             "负责",
-            "对接",
-            "协同",
-            "联动",
-            "参与方",
-            "职责",
-            "牵头",
-            "配合",
         ]
-        process_keywords = ["流程", "环节", "节点", "使用场景", "链路", "步骤", "分工"]
+        process_keywords = ["流程", "环节", "节点", "链路", "步骤", "分工"]
         q_lower = query.lower()
         if any(kw in query or kw in q_lower for kw in graph_keywords):
             return True

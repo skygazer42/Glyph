@@ -44,7 +44,11 @@
       "Bash(dir:*)",
       "Bash(awk:*)",
       "Bash(timeout /t 20)",
-      "Bash(set:*)"
+      "Bash(set:*)",
+      "Bash(docker rmi:*)",
+      "Bash(docker system prune:*)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

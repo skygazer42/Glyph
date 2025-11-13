@@ -40,11 +40,15 @@ async def agent_chat(
     try:
         # 获取或创建会话
         session = session_manager.get_or_create_session(
-            request.session_id, connection_id=request.connection_id
+            request.session_id,
+            connection_id=request.connection_id,
+            user_id=request.user_id,
         )
 
         # 添加用户消息到会话
         user_metadata = {"connection_id": request.connection_id}
+        if request.user_id:
+            user_metadata["user_id"] = request.user_id
         if request.attachments:
             user_metadata["attachments"] = [att.model_dump() for att in request.attachments]
 
@@ -59,6 +63,7 @@ async def agent_chat(
         final = await agent_service.process_query(
             request.message,
             session_id=session.session_id,
+            user_id=request.user_id,
             connection_id=request.connection_id,
             attachments=request.attachments,
         )
@@ -114,10 +119,14 @@ async def agent_chat_stream(
         try:
             # 获取或创建会话
             session = session_manager.get_or_create_session(
-                request.session_id, connection_id=request.connection_id
+                request.session_id,
+                connection_id=request.connection_id,
+                user_id=request.user_id,
             )
             session_id = session.session_id
             user_metadata = {"connection_id": request.connection_id}
+            if request.user_id:
+                user_metadata["user_id"] = request.user_id
             if request.attachments:
                 user_metadata["attachments"] = [att.model_dump() for att in request.attachments]
 
@@ -142,6 +151,7 @@ async def agent_chat_stream(
             final = await agent_service.process_query(
                 request.message,
                 session_id=session_id,
+                user_id=request.user_id,
                 connection_id=request.connection_id,
                 attachments=request.attachments,
             )

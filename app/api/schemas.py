@@ -116,6 +116,17 @@ class UploadResponse(BaseModel):
     content_length: int
 
 
+class AttachmentUploadResponse(BaseModel):
+    """聊天附件上传响应"""
+    success: bool
+    filename: str
+    stored_filename: str
+    path: str
+    url: str
+    mime_type: Optional[str] = None
+    size: Optional[int] = None
+
+
 class DocumentInfo(BaseModel):
     """文档信息"""
     id: str
@@ -149,6 +160,7 @@ class ChatRequest(BaseModel):
     """聊天请求"""
     message: str = Field(..., description="用户消息")
     session_id: Optional[str] = Field(None, description="会话ID（用于多轮对话）")
+    user_id: Optional[str] = Field(None, description="调用方传入的用户ID，用于画像/上下文关联")
     stream: bool = Field(default=False, description="是否使用流式响应")
     connection_id: Optional[int] = Field(
         default=None,
@@ -172,6 +184,7 @@ class ChatStreamRequest(BaseModel):
     """流式聊天请求"""
     message: str = Field(..., description="用户消息")
     session_id: Optional[str] = Field(None, description="会话ID（用于多轮对话）")
+    user_id: Optional[str] = Field(None, description="调用方传入的用户ID，用于画像/上下文关联")
     connection_id: Optional[int] = Field(
         default=None,
         description="Text2SQL 场景使用的数据库连接ID"

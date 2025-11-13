@@ -15,6 +15,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.config import settings
+
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -600,7 +602,7 @@ class AuditLogger:
     """
 
     def __init__(self):
-        self.log_dir = Path("logs/audit")
+        self.log_dir = settings.system.logs_dir / "audit"
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         self.setup_logger()
