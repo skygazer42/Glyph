@@ -76,6 +76,7 @@ import {
   ChatDotRound,
   Document,
   Collection,
+  Share,
   HomeFilled,
   ArrowRight
 } from '@element-plus/icons-vue'
@@ -88,7 +89,8 @@ const menuItems = [
   { path: '/', label: '首页', icon: HomeFilled },
   { path: '/agent', label: 'AI问答', icon: ChatDotRound },
   { path: '/dsl', label: 'DSL生成', icon: Document },
-  { path: '/knowledge', label: '知识库', icon: Collection }
+  { path: '/knowledge', label: '知识库', icon: Collection },
+  { path: '/graph', label: '知识图谱', icon: Share }
 ]
 </script>
 

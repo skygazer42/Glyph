@@ -1,10 +1,10 @@
 {
   "stats": {
     "total": 42,
-    "passed": 16,
-    "failed": 26,
-    "route_match": 16,
-    "route_mismatch": 26,
+    "passed": 22,
+    "failed": 20,
+    "route_match": 22,
+    "route_mismatch": 20,
     "errors": 0
   },
   "results": [
@@ -13,15 +13,22 @@
       "target_route": "faq_cache",
       "query": "家电以旧换新补贴标准是多少？",
       "description": "命中 FAQ 第一条",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“家电以旧换新补贴的具体标准是什么？”相关的关系概要：\n根据《济南市2025年家电以旧换新补贴实施细则》，家电以旧换新补贴的具体标准如下：\n\n### 补贴范围\n补贴涵盖**12类家电产品**，具体包括：\n*   电冰箱（含冰吧、冰柜、冷柜）\n*   洗衣机（含干衣机、洗烘一体机）\n*   电视机（含激光电视、智慧屏）\n*   空调（含家用中央空调、风管机）\n*  ...",
-      "confidence": 0.7,
-      "processing_time": 4.754728078842163,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，无法确定家电以旧换新政策的具体补贴标准。\n\n**关键信息：**\n- 资料1和资料2仅为政策通知，未提及具体补贴金额、条件、流程或时间。\n- 资料3涉及汽车消费补贴，与家电以旧换新政策无关。\n\n**答复依据：**  \n以上答复基于山东省及济南市发布的2025年家电以旧换新政策通知中未包含具体补贴标准的信息。",
+      "confidence": 0.6746110121409098,
+      "processing_time": 13.144188165664673,
       "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "benefit",
+        "doc_count": 3,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "benefit",
@@ -33,7 +40,7 @@
           "requires_parallel": true,
           "raw_query": "家电以旧换新补贴标准是多少？"
         },
-        "rewritten_query": "家电以旧换新补贴的具体标准是什么？",
+        "rewritten_query": "请问家电以旧换新政策的补贴标准具体是多少？",
         "session_id": "test_session_1",
         "user_id": null,
         "connection_id": null,
@@ -49,15 +56,23 @@
       "target_route": "faq_cache",
       "query": "申请创业补贴需要满足什么条件？",
       "description": "命中 FAQ 第二条",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“申请创业补贴需满足哪些法定条件？”相关的关系概要：\n根据我所掌握的信息，目前没有关于“创业补贴”申请法定条件的相关内容。\n\n提供的知识库主要涉及济南市在2025年开展的各类政府消费补贴活动，例如汽车消费补贴、家电以旧换新补贴等，并未包含针对创业补贴的具体政策、资格要求或申请流程。\n\n建议您通过访问济南市商务局官方网站或关注其官方公众号“商务济南”来获取最新、最准...",
-      "confidence": 0.7,
-      "processing_time": 19.86168670654297,
+      "actual_route": "knowledge",
+      "answer": "根据您的问题，我检索了相关资料，但现有资料均为关于“汽车消费补贴”的公告，并未包含“创业补贴”的资格条件信息。\n\n**关键信息：**\n*   **条件**：资料未提供与创业补贴相关的任何资格条件。\n*   **金额**：资料未提供与创业补贴相关的任何金额标准。\n*   **流程**：资料未提供与创业补贴相关的任何申请流程。\n*   **时间**：资料未提供与创业补贴相关的任何时间节点。\n\n以上信息...",
+      "confidence": 0.6092475801706314,
+      "processing_time": 9.982856750488281,
       "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "eligibility",
+        "doc_count": 4,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "eligibility",
@@ -69,7 +84,7 @@
           "requires_parallel": true,
           "raw_query": "申请创业补贴需要满足什么条件？"
         },
-        "rewritten_query": "申请创业补贴需满足哪些法定条件？",
+        "rewritten_query": "申请创业补贴需符合哪些具体资格条件？",
         "session_id": "test_session_2",
         "user_id": null,
         "connection_id": null,
@@ -88,7 +103,7 @@
       "actual_route": "dialogue",
       "answer": "您好，欢迎咨询政策问题，我可以协助查条件、流程和补贴计算。",
       "confidence": 0.9,
-      "processing_time": 2.8101396560668945,
+      "processing_time": 3.5049445629119873,
       "route_match": true,
       "error": null,
       "metadata": {
@@ -103,7 +118,7 @@
           "requires_parallel": false,
           "raw_query": "你好，在吗？"
         },
-        "rewritten_query": "您好，请问可以咨询一个政务/政策相关的问题吗？",
+        "rewritten_query": "您好，请问可以咨询相关政策业务问题吗？",
         "session_id": "test_session_3",
         "user_id": null,
         "connection_id": null,
@@ -122,7 +137,7 @@
       "actual_route": "dialogue",
       "answer": "感谢使用政策智能助手，如需帮助随时再来！",
       "confidence": 0.9,
-      "processing_time": 2.8794450759887695,
+      "processing_time": 54.78414011001587,
       "route_match": true,
       "error": null,
       "metadata": {
@@ -130,14 +145,14 @@
         "intent": {
           "intent": "farewell",
           "sub_intent": null,
-          "confidence": 0.95,
+          "confidence": 0.9,
           "chains": [
             "chat_chain"
           ],
           "requires_parallel": false,
           "raw_query": "辛苦啦，今天先这样，下次聊。"
         },
-        "rewritten_query": "本次沟通内容已确认完毕，后续事宜将另行沟通。",
+        "rewritten_query": "我方已了解当前沟通内容，感谢您的工作付出，本次沟通暂告段落，后续事宜将另行安排。",
         "session_id": "test_session_4",
         "user_id": null,
         "connection_id": null,
@@ -156,7 +171,7 @@
       "actual_route": "dialogue",
       "answer": "您好，我可以帮助您理解政策、计算补贴或查办理方式，需要我做什么？",
       "confidence": 0.9,
-      "processing_time": 3.0009422302246094,
+      "processing_time": 4.124046564102173,
       "route_match": true,
       "error": null,
       "metadata": {
@@ -171,7 +186,7 @@
           "requires_parallel": false,
           "raw_query": "你都能做什么？"
         },
-        "rewritten_query": "本系统可提供政务信息查询、政策法规解读、公共服务指引及业务办理咨询等全方位政务支持服务。",
+        "rewritten_query": "本政务服务平台可提供政策法规查询、业务办理指南、公共服务信息解答、行政审批进度跟踪等综合性政务服务，具体服务范围及操作指引请参阅平台公示内容。",
         "session_id": "test_session_5",
         "user_id": null,
         "connection_id": null,
@@ -187,25 +202,49 @@
       "target_route": "clarify",
       "query": "这个政策怎么样？",
       "description": "触发 Clarifier 补问",
-      "actual_route": "clarify",
-      "answer": "为了更准确地回答“您对该项政策的具体内容或实施效果有何评价或疑问？”，需要进一步确认：请问您更关注申请资格、办理流程还是补贴金额？",
-      "confidence": 0.4,
-      "processing_time": 3.1095077991485596,
-      "route_match": true,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，无法找到关于具体政策名称的详细内容与实施效果的评价信息。搜索结果仅展示了相关政府部门的日常工作和新闻动态，未包含对该政策的分析或评估。\n\n**关键信息：**\n- 资料中未提及具体政策的具体条件、金额、流程或时间等细节。\n- 搜索结果主要涉及政府公告、会议和一般性工作报道，缺乏政策评价内容。\n\n答复依据：基于提供的网络搜索结果，没有足够信息来评价该政策的内容与效果。",
+      "confidence": 0.35,
+      "processing_time": 21.50195026397705,
+      "route_match": false,
       "error": null,
       "metadata": {
-        "route": "clarify",
+        "route": "knowledge",
+        "focus": "general",
+        "doc_count": 0,
+        "origin": "web_search",
+        "doc_origins": [
+          "web_search"
+        ],
+        "web_results": [
+          {
+            "title": "济南市南部山区管理委员会",
+            "url": "http://jnns.jinan.gov.cn/index.html",
+            "score": 0.0026112476
+          },
+          {
+            "title": "济南市工业和信息化局",
+            "url": "http://jnjxw.jinan.gov.cn/index.html",
+            "score": 0.0022518474
+          },
+          {
+            "title": "济南市投资促进局",
+            "url": "http://jntzcjj.jinan.gov.cn/index.html",
+            "score": 0.00198004
+          }
+        ],
         "intent": {
-          "intent": "clarification",
+          "intent": "comparison",
           "sub_intent": null,
           "confidence": 0.8,
           "chains": [
-            "chat_chain"
+            "comparison_chain",
+            "hybrid_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "这个政策怎么样？"
         },
-        "rewritten_query": "您对该项政策的具体内容或实施效果有何评价或疑问？",
+        "rewritten_query": "您如何评价[具体政策名称]的政策内容与实施效果？",
         "session_id": "test_session_6",
         "user_id": null,
         "connection_id": null,
@@ -222,9 +261,9 @@
       "query": "能不能说说那个东西？",
       "description": "极度模糊，期望 intent=clarification",
       "actual_route": "clarify",
-      "answer": "为了更准确地回答“请您具体说明您希望了解哪项政策或政务服务的详细信息。”，需要进一步确认：请问您更关注申请资格、办理流程还是补贴金额？",
+      "answer": "为了更准确地回答“请您具体说明需要咨询的政策或政务事项名称。”，需要进一步确认：为了更准确回答，能否说明所在地区或政策名称？",
       "confidence": 0.4,
-      "processing_time": 3.5636985301971436,
+      "processing_time": 2.8852243423461914,
       "route_match": true,
       "error": null,
       "metadata": {
@@ -232,14 +271,14 @@
         "intent": {
           "intent": "clarification",
           "sub_intent": null,
-          "confidence": 0.85,
+          "confidence": 0.9,
           "chains": [
             "chat_chain"
           ],
           "requires_parallel": false,
           "raw_query": "能不能说说那个东西？"
         },
-        "rewritten_query": "请您具体说明您希望了解哪项政策或政务服务的详细信息。",
+        "rewritten_query": "请您具体说明需要咨询的政策或政务事项名称。",
         "session_id": "test_session_7",
         "user_id": null,
         "connection_id": null,
@@ -255,27 +294,25 @@
       "target_route": "clarify",
       "query": "资料对不对？",
       "description": "需澄清'哪份资料'",
-      "actual_route": "graph",
-      "answer": "根据您提供的知识图谱查询结果，以下是关于“申请材料内容是否准确无误”的核心要求与关联信息分析：\n\n**一、 核心要求：准确性与真实性是补贴资格的前提**\n图谱明确指出，申请材料的准确性**直接关系到您的补贴资格**。这构成了整个审核机制的基础，所有具体要求都围绕这一核心展开。\n\n**二、 主体关联与具体要求脉络**\n图谱信息揭示了确保材料准确的几个关键关联维度：\n\n1.  **主体身份一致性（核心...",
-      "confidence": 0.7,
-      "processing_time": 56.94934940338135,
-      "route_match": false,
+      "actual_route": "clarify",
+      "answer": "为了更准确地回答“您所提交的材料信息是否准确无误？”，需要进一步确认：请问您更关注申请资格、办理流程还是补贴金额？",
+      "confidence": 0.4,
+      "processing_time": 2.705193519592285,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "clarify",
         "intent": {
-          "intent": "policy_inquiry",
-          "sub_intent": "documents",
-          "confidence": 0.9,
+          "intent": "clarification",
+          "sub_intent": null,
+          "confidence": 0.85,
           "chains": [
-            "kb_chain",
-            "graph_chain"
+            "chat_chain"
           ],
-          "requires_parallel": true,
+          "requires_parallel": false,
           "raw_query": "资料对不对？"
         },
-        "rewritten_query": "您提交的申请材料内容是否准确无误？",
+        "rewritten_query": "您所提交的材料信息是否准确无误？",
         "session_id": "test_session_8",
         "user_id": null,
         "connection_id": null,
@@ -291,19 +328,41 @@
       "target_route": "workflow",
       "query": "帮我看看用户 12345 往年政策记录，有没有逾期？",
       "description": "USER_PROFILE 张三",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“请查询用户编号12345的历年政策执行记录，并核实是否存在逾期情况。”相关的关系概要：\n根据您提供的信息，我无法查询到用户编号12345的历年政策执行记录及核实其逾期情况。\n\n我目前的知识库主要包含济南市2025年各类消费补贴活动的政策细节、申请流程和时间安排，但缺少查询特定用户历史记录和状态的功能。\n\n### 参考资料\n如果您需要了解具体的补贴政策或申请流程，...",
-      "confidence": 0.7,
-      "processing_time": 26.007670164108276,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，无法查询到用户编号12345的历年政策申报记录及逾期情况。\n\n**关键信息：**\n- **查询条件**：需提供具体的政策申报平台或部门名称\n- **查询流程**：需通过指定的政府信息公开平台进行查询\n- **数据范围**：当前资料仅包含政府信息公开目录框架，未涉及具体申报记录\n- **时效性**：资料未包含实时业务数据查询功能\n\n**答复依据：**\n提供的网络搜索结果均为政府信息公...",
+      "confidence": 0.431,
+      "processing_time": 16.010570287704468,
       "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "process",
+        "doc_count": 0,
+        "origin": "web_search",
+        "doc_origins": [
+          "web_search"
+        ],
+        "web_results": [
+          {
+            "title": "Jinan 济南高新技术产业开发区管理委员会 政策解读",
+            "url": "http://innovation.jinan.gov.cn/col/col56686/index.html",
+            "score": 0.98959166
+          },
+          {
+            "title": "Jinan 济南市教育局 政府信息公开目录",
+            "url": "http://jnedu.jinan.gov.cn/col/col56228/index.html?jh=264",
+            "score": 0.90397453
+          },
+          {
+            "title": "Jinan 济南市市场监督管理局 执法制度",
+            "url": "http://amr.jinan.gov.cn/col/col82393/index.html?number=A21",
+            "score": 0.54673815
+          }
+        ],
         "intent": {
           "intent": "policy_inquiry",
-          "sub_intent": "deadline",
-          "confidence": 0.85,
+          "sub_intent": "process",
+          "confidence": 0.9,
           "chains": [
             "kb_chain",
             "graph_chain"
@@ -311,7 +370,7 @@
           "requires_parallel": true,
           "raw_query": "帮我看看用户 12345 往年政策记录，有没有逾期？"
         },
-        "rewritten_query": "请查询用户编号12345的历年政策执行记录，并核实是否存在逾期情况。",
+        "rewritten_query": "请查询用户编号12345的历年政策申报记录，并核查是否存在逾期未办理的情况。",
         "session_id": "test_session_9",
         "user_id": "12345",
         "connection_id": null,
@@ -327,26 +386,49 @@
       "target_route": "workflow",
       "query": "查询用户 67890 最近一次活动是什么？",
       "description": "USER_PROFILE 李四",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“查询用户编号为67890的账户最近一次业务办理记录。”相关的关系概要：\n根据我目前掌握的上下文信息，无法找到与用户编号“67890”相关的任何账户信息或业务办理记录。\n\n我现有的知识库主要包含济南市各类消费补贴活动（如汽车、家电、零售餐饮消费券）的相关规则、申请流程和客服电话。您查询的具体用户业务办理记录不在这些信息范围之内。\n\n### References\n*...",
-      "confidence": 0.7,
-      "processing_time": 17.63034963607788,
+      "actual_route": "knowledge",
+      "answer": "根据您的问题，我查询了相关政府部门的公开信息，但未能找到与用户ID 67890相关的具体业务活动记录。\n\n**关键信息：**\n\n*   **查询结果**：提供的资料中未包含任何与“用户ID 67890”相关的业务活动信息。\n*   **资料范围**：检索的信息来源于济南市市场监督管理局、济南市投资促进局及济南公共资源交易中心的官方网站。\n*   **内容性质**：这些网站主要发布新闻动态、政策法规...",
+      "confidence": 0.35,
+      "processing_time": 27.242225408554077,
       "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "process",
+        "doc_count": 0,
+        "origin": "web_search",
+        "doc_origins": [
+          "web_search"
+        ],
+        "web_results": [
+          {
+            "title": "济南市市场监督管理局",
+            "url": "http://amr.jinan.gov.cn/index.html",
+            "score": 0.00598033
+          },
+          {
+            "title": "济南市投资促进局",
+            "url": "http://jntzcjj.jinan.gov.cn/index.html",
+            "score": 0.0021405893
+          },
+          {
+            "title": "济南公共资源交易中心",
+            "url": "https://jnggzy.jinan.gov.cn/index.html",
+            "score": 0.0021322616
+          }
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "process",
-          "confidence": 0.8,
+          "confidence": 0.9,
           "chains": [
+            "kb_chain",
             "graph_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "查询用户 67890 最近一次活动是什么？"
         },
-        "rewritten_query": "查询用户编号为67890的账户最近一次业务办理记录。",
+        "rewritten_query": "查询用户ID 67890的最近一次业务活动记录。",
         "session_id": "test_session_10",
         "user_id": "67890",
         "connection_id": null,
@@ -362,26 +444,49 @@
       "target_route": "workflow",
       "query": "UserID=88888 是否申请过补贴？输出详细历史。",
       "description": "USER_PROFILE 王五",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“请查询用户ID为88888的申请人是否提交过补贴申请，并提供其完整的申请历史记录。”相关的关系概要：\n根据您提供的上下文信息，我无法查询到用户ID为88888的申请人是否提交过补贴申请，也无法提供其完整的申请历史记录。\n\n目前可用的信息主要涉及济南市各类消费补贴活动（如汽车、家电、手机等）的通用规则、申请流程和时间安排。这些文档中并未包含任何具体的申请人记录或可...",
-      "confidence": 0.7,
-      "processing_time": 23.40283703804016,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，无法回答用户的问题。网络搜索结果中没有包含与用户ID 88888或具体补贴申请流程相关的信息。\n\n**关键信息：**\n- 条件：不适用\n- 金额：不适用\n- 流程：不适用\n- 时间：不适用\n\n答复依据：提供的资料均为济南市政府部门网站首页链接，未包含任何个人或单位的补贴申请记录。",
+      "confidence": 0.431,
+      "processing_time": 15.754024267196655,
       "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "process",
+        "doc_count": 0,
+        "origin": "web_search",
+        "doc_origins": [
+          "web_search"
+        ],
+        "web_results": [
+          {
+            "title": "Jinan 济南市商务局 电子商务",
+            "url": "http://jnbusiness.jinan.gov.cn/col/col8303/index.html?uid=133658&pageNum=5",
+            "score": 0.94776917
+          },
+          {
+            "title": "Jinan 济南市商务局 流通业发展",
+            "url": "http://jnbusiness.jinan.gov.cn/col/col41125/index.html?uid=133658&pageNum=3",
+            "score": 0.7799929
+          },
+          {
+            "title": "Jinan 济南高新技术产业开发区管理委员会 好客山东 好品山东",
+            "url": "http://innovation.jinan.gov.cn/col/col89924/index.html?uid=630291&pageNum=-21",
+            "score": 0.7025301
+          }
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "process",
-          "confidence": 0.85,
+          "confidence": 0.9,
           "chains": [
+            "kb_chain",
             "graph_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "UserID=88888 是否申请过补贴？输出详细历史。"
         },
-        "rewritten_query": "请查询用户ID为88888的申请人是否提交过补贴申请，并提供其完整的申请历史记录。",
+        "rewritten_query": "用户ID为88888的个人或单位是否曾提交过补贴申请？请提供该用户完整的补贴申请历史记录。",
         "session_id": "test_session_11",
         "user_id": "88888",
         "connection_id": null,
@@ -397,27 +502,50 @@
       "target_route": "workflow",
       "query": "能依据用户 12345 的历史给出申报建议吗？",
       "description": "user_history intent",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“能否根据用户编号12345的历史申报记录，提供针对性的后续申报建议？”相关的关系概要：\n很抱歉，根据您提供的上下文信息，我无法找到与用户编号“12345”相关的任何历史申报记录或具体信息。\n\n所提供的知识库和文档资料主要涵盖了济南市各类消费补贴活动（如汽车、家电、数码产品）的通用规则、申请流程和所需材料，但没有包含任何具体的个人用户数据或历史申请记录。\n\n**如...",
-      "confidence": 0.7,
-      "processing_time": 34.66147303581238,
+      "actual_route": "knowledge",
+      "answer": "根据您的问题，我无法提供针对用户编号12345的后续申报建议。\n\n**关键信息：**\n- **条件**：需要获取用户12345的历史申报记录\n- **流程**：系统目前无法查询特定用户的申报历史数据\n- **时间**：实时查询功能暂不可用\n\n**总结**：由于系统无法访问用户12345的历史申报数据，无法基于其过往记录提供个性化申报建议。",
+      "confidence": 0.35,
+      "processing_time": 14.875929594039917,
       "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "process",
+        "doc_count": 0,
+        "origin": "web_search",
+        "doc_origins": [
+          "web_search"
+        ],
+        "web_results": [
+          {
+            "title": "济南市投资促进局",
+            "url": "http://jntzcjj.jinan.gov.cn/index.html",
+            "score": 0.00062146306
+          },
+          {
+            "title": "济南市市场监督管理局",
+            "url": "http://amr.jinan.gov.cn/index.html",
+            "score": 0.0006023541
+          },
+          {
+            "title": "济南公共资源交易中心",
+            "url": "https://jnggzy.jinan.gov.cn/index.html",
+            "score": 0.00057478616
+          }
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "process",
-          "confidence": 0.8,
+          "confidence": 0.85,
           "chains": [
             "graph_chain",
-            "kb_chain"
+            "kb_chain",
+            "hybrid_chain"
           ],
           "requires_parallel": true,
           "raw_query": "能依据用户 12345 的历史给出申报建议吗？"
         },
-        "rewritten_query": "能否根据用户编号12345的历史申报记录，提供针对性的后续申报建议？",
+        "rewritten_query": "能否依据用户编号12345的历史申报记录，提供针对性的后续申报建议？",
         "session_id": "test_session_12",
         "user_id": "12345",
         "connection_id": null,
@@ -433,27 +561,37 @@
       "target_route": "graph",
       "query": "济南汽车消费补贴与新车商业保险补贴之间的联动环节有哪些？",
       "description": "多机构关系",
-      "actual_route": "graph",
-      "answer": "根据您提供的关系图谱查询结果，济南市的汽车消费补贴政策与新车商业保险补贴政策并非独立运行，而是通过一套**深度整合的机制**紧密衔接。其核心联动环节体现在以下几个方面：\n\n### **核心衔接机制：政策结构整合**\n- **内置关系**：新车商业保险补贴并非独立政策，而是济南市汽车消费补贴政策中“汽车消费礼包”的**固定组成部分**。两者属于“整体与部分”的关系，消费者在满足汽车消费补贴申领条件时...",
-      "confidence": 0.7,
-      "processing_time": 61.4838809967041,
-      "route_match": true,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，济南市汽车消费补贴政策与新车商业保险补贴政策之间的衔接机制和联动环节包括以下关键内容：\n\n- **时间衔接**：政策活动时间分段进行，例如2025年5月1日至6月30日、7月1日至31日、8月1日至31日及9月1日至30日，覆盖不同季度，确保补贴连续性；补贴申报时间通常从活动开始后开放（如5月12日至7月15日），并允许资料修改在特定截止日期前完成（如7月30日），避免重叠冲突。\n...",
+      "confidence": 0.787078595161438,
+      "processing_time": 18.35010576248169,
+      "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "general",
+        "doc_count": 5,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "comparison",
           "sub_intent": null,
-          "confidence": 0.9,
+          "confidence": 0.85,
           "chains": [
             "comparison_chain",
-            "graph_chain"
+            "graph_chain",
+            "hybrid_chain"
           ],
           "requires_parallel": true,
           "raw_query": "济南汽车消费补贴与新车商业保险补贴之间的联动环节有哪些？"
         },
-        "rewritten_query": "济南市汽车消费补贴政策与新车商业保险补贴政策之间的衔接机制及具体联动环节有哪些？",
+        "rewritten_query": "济南市汽车消费补贴政策与新车商业保险补贴政策之间的衔接机制和联动环节包括哪些具体内容？",
         "session_id": "test_session_19",
         "user_id": null,
         "connection_id": null,
@@ -470,9 +608,9 @@
       "query": "家电以旧换新政策里，旧机回收和财政审核的关联节点？",
       "description": "以旧换新 doc",
       "actual_route": "graph",
-      "answer": "根据您提供的知识图谱查询结果，济南市2025年家电以旧换新政策中，旧机回收环节与财政补贴审核环节并非独立，而是通过一个以**销售企业**为核心、由**“泉城购”服务平台**进行全流程监管的闭环系统紧密衔接。其具体流程和关键关联节点如下：\n\n### 核心衔接流程与关键节点\n\n整个流程始于消费者交售旧机，终于财政补贴的最终兑付，其间的衔接可概括为：**回收行为触发补贴资格 -> 平台审核全流程信息 -...",
+      "answer": "根据您提供的关系图谱查询结果，在家电以旧换新政策中，旧机回收环节与财政补贴审核环节并非两个孤立的阶段，而是通过一个核心的关联节点紧密衔接，形成了一个完整的闭环流程。\n\n其核心关联节点是：**消费者在购买新家电时“核销补贴资格”**。\n\n以下是这两个环节的具体关联节点及流程衔接机制的详细说明：\n\n### 一、核心关联节点：补贴资格核销\n\n这个节点是连接“回收旧机”和“申请补贴”的关键枢纽。\n*   ...",
       "confidence": 0.7,
-      "processing_time": 99.76817274093628,
+      "processing_time": 81.4200599193573,
       "route_match": true,
       "error": null,
       "metadata": {
@@ -481,15 +619,16 @@
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "process",
-          "confidence": 0.85,
+          "confidence": 0.9,
           "chains": [
             "graph_chain",
-            "kb_chain"
+            "kb_chain",
+            "hybrid_chain"
           ],
           "requires_parallel": true,
           "raw_query": "家电以旧换新政策里，旧机回收和财政审核的关联节点？"
         },
-        "rewritten_query": "在家电以旧换新政策执行过程中，旧机回收环节与财政补贴审核环节之间的具体衔接流程及关键关联节点是什么？",
+        "rewritten_query": "在家电以旧换新政策执行过程中，旧机回收环节与财政补贴审核环节之间的具体关联节点及流程衔接机制是什么？",
         "session_id": "test_session_20",
         "user_id": null,
         "connection_id": null,
@@ -505,27 +644,50 @@
       "target_route": "graph",
       "query": "LightRAG 种子里提到的'动力电池企业'与'地方补贴审核'如何配合？",
       "description": "resources/data/lightrag 测试",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“在LightRAG政策框架中，动力电池企业应如何配合地方政府开展补贴审核工作？”相关的关系概要：\n根据提供的上下文信息，我无法找到关于“LightRAG政策框架”以及“动力电池企业”如何配合补贴审核的具体说明。\n\n**当前政策背景概述**\n\n在济南市2025年实施的各项消费补贴活动中（包括汽车消费补贴、家电以旧换新等），参与企业（包括销售企业、生产企业等）的配合...",
-      "confidence": 0.7,
-      "processing_time": 31.590234518051147,
-      "route_match": true,
+      "actual_route": "knowledge",
+      "answer": "根据现有信息，无法直接回答该问题。\n\n**关键信息：**\n- 现有资料仅提及国务院常务会议，未包含\"LightRAG技术规范\"具体内容\n- 检索结果未涉及动力电池生产企业与地方政府补贴审核协同运作机制\n- 缺少关于补贴条件、金额标准、操作流程和时间节点的具体规定\n\n**总结：** 当前可获得的信息不包含LightRAG技术规范与新能源汽车补贴审核协同运作的具体实施方案。",
+      "confidence": 0.435,
+      "processing_time": 17.080357551574707,
+      "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "general",
+        "doc_count": 0,
+        "origin": "web_search",
+        "doc_origins": [
+          "web_search"
+        ],
+        "web_results": [
+          {
+            "title": "Jinan 济南高新技术产业开发区管理委员会 高新民生",
+            "url": "http://innovation.jinan.gov.cn/col/col43622/index.html?uid=28062&pageNum=-71",
+            "score": 0.9764905
+          },
+          {
+            "title": "Jinan 济南高新技术产业开发区管理委员会 高新时讯",
+            "url": "http://innovation.jinan.gov.cn/col/col16571/index.html?uid=631218&pageNum=20",
+            "score": 0.95430803
+          },
+          {
+            "title": "Jinan 济南高新技术产业开发区管理委员会 好客山东 好品山东",
+            "url": "http://innovation.jinan.gov.cn/col/col89924/index.html?uid=630291&pageNum=-24",
+            "score": 0.6076632
+          }
+        ],
         "intent": {
-          "intent": "policy_inquiry",
-          "sub_intent": "process",
+          "intent": "comparison",
+          "sub_intent": null,
           "confidence": 0.8,
           "chains": [
+            "comparison_chain",
             "graph_chain",
-            "kb_chain"
+            "hybrid_chain"
           ],
           "requires_parallel": true,
           "raw_query": "LightRAG 种子里提到的'动力电池企业'与'地方补贴审核'如何配合？"
         },
-        "rewritten_query": "在LightRAG政策框架中，动力电池企业应如何配合地方政府开展补贴审核工作？",
+        "rewritten_query": "LightRAG技术规范中提及的“动力电池生产企业”应如何与“地方政府新能源汽车补贴审核机制”进行协同运作？",
         "session_id": "test_session_21",
         "user_id": null,
         "connection_id": null,
@@ -542,26 +704,26 @@
       "query": "列出政策执行部门之间的协同职责（济南首保消费券）。",
       "description": "consumption_doc 段落",
       "actual_route": "graph",
-      "answer": "根据您提供的关系/知识图谱查询结果，关于济南市首套住房消费券政策，**目前没有相关信息**。图谱明确显示，济南市2025年的消费券政策**未包含针对“首套住房”的专项消费券活动**。\n\n不过，图谱中详细说明了济南市在其他消费领域（如汽车、家电、零售餐饮）的消费券政策执行中，各相关部门的协同职责分工。以下是这些部门在**现有消费券活动**中的具体职责，供您参考：\n\n### 各相关部门协同职责分工（基...",
+      "answer": "根据您提供的关系图谱查询结果，济南市在首次消费券政策（以“2025年新车首保消费券活动”为例）的执行过程中，各相关部门之间的协同职责分工如下：\n\n### 核心协同框架\n\n整个政策的执行形成了一个以 **济南市商务局为核心主导**，其他部门及机构根据自身职能提供支持与配合的协同工作体系。其核心目标是确保财政资金安全，并推动政策有效落地。\n\n### 各主体具体职责与协同关系\n\n1.  **济南市商务局...",
       "confidence": 0.7,
-      "processing_time": 65.7722659111023,
+      "processing_time": 86.39009523391724,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "graph",
         "method": "graph_traversal",
         "intent": {
-          "intent": "policy_inquiry",
-          "sub_intent": "process",
+          "intent": "summary",
+          "sub_intent": null,
           "confidence": 0.85,
           "chains": [
             "graph_chain",
-            "kb_chain"
+            "hybrid_chain"
           ],
           "requires_parallel": true,
           "raw_query": "列出政策执行部门之间的协同职责（济南首保消费券）。"
         },
-        "rewritten_query": "请明确济南市首套住房消费券政策执行过程中各相关部门的具体协同职责分工。",
+        "rewritten_query": "请列出济南市首次消费券政策执行过程中，各相关部门之间的协同职责分工。",
         "session_id": "test_session_22",
         "user_id": null,
         "connection_id": null,
@@ -578,14 +740,14 @@
       "query": "购买 12 万元新能源车，按照 2025 济南补贴标准能领多少？请列出计算过程。",
       "description": "consumption_doc.txt 汽车补贴段",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“根据2025年济南市新能源汽车补贴政策，购买价格为12万元的新能源汽车，可申领的补贴金额计算过程如下：”。请补充具体的政策名称、城市或参数。原因：用户问题涉及2025年济南市新能源汽车补贴政策，但系统中可用的DSL规则均针对家电补贴或消费券发放，没有匹配新能源汽车补贴的规则。因此无法选择任何规则。",
+      "answer": "无法根据现有 DSL 规则处理“根据2025年济南市新能源汽车推广应用财政补贴政策，对于购买价格为12万元的新能源汽车，请提供具体的补贴标准及计算过程。”。请补充具体的政策名称、城市或参数。原因：用户询问的是2025年济南市新能源汽车补贴政策，但系统中可用的DSL规则均针对家电消费补贴或零售餐饮消费券，没有涉及新能源汽车的规则。因此无法匹配任何现有规则。",
       "confidence": 0.2,
-      "processing_time": 7.043074607849121,
+      "processing_time": 6.913045406341553,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户问题涉及2025年济南市新能源汽车补贴政策，但系统中可用的DSL规则均针对家电补贴或消费券发放，没有匹配新能源汽车补贴的规则。因此无法选择任何规则。",
+        "reason": "用户询问的是2025年济南市新能源汽车补贴政策，但系统中可用的DSL规则均针对家电消费补贴或零售餐饮消费券，没有涉及新能源汽车的规则。因此无法匹配任何现有规则。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
@@ -597,7 +759,7 @@
           "requires_parallel": true,
           "raw_query": "购买 12 万元新能源车，按照 2025 济南补贴标准能领多少？请列出计算过程。"
         },
-        "rewritten_query": "根据2025年济南市新能源汽车补贴政策，购买价格为12万元的新能源汽车，可申领的补贴金额计算过程如下：",
+        "rewritten_query": "根据2025年济南市新能源汽车推广应用财政补贴政策，对于购买价格为12万元的新能源汽车，请提供具体的补贴标准及计算过程。",
         "session_id": "test_session_23",
         "user_id": null,
         "connection_id": null,
@@ -614,14 +776,14 @@
       "query": "燃油车开票 32 万（不含税），对应补贴是多少？",
       "description": "汽车补贴计算",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“对于不含税开票金额为32万元的燃油车，其对应的补贴金额是多少？”。请补充具体的政策名称、城市或参数。原因：用户询问的是燃油车补贴金额计算，但系统中所有可用规则都是针对家电补贴（如Rule_济南_家电补贴_2025等）或消费券（Rule_Test_Consumer_Coupon）的，没有任何规则涉及燃油车补贴政策。因此无法匹配到合适的规则。",
+      "answer": "无法根据现有 DSL 规则处理“针对不含税开票金额为32万元的燃油车，其对应的补贴金额是多少？”。请补充具体的政策名称、城市或参数。原因：用户问题涉及燃油车补贴，但提供的DSL规则均针对家电消费补贴或零售餐饮消费券，没有涵盖汽车领域的补贴规则。无法匹配到合适的规则。",
       "confidence": 0.2,
-      "processing_time": 8.698610305786133,
+      "processing_time": 5.503434181213379,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户询问的是燃油车补贴金额计算，但系统中所有可用规则都是针对家电补贴（如Rule_济南_家电补贴_2025等）或消费券（Rule_Test_Consumer_Coupon）的，没有任何规则涉及燃油车补贴政策。因此无法匹配到合适的规则。",
+        "reason": "用户问题涉及燃油车补贴，但提供的DSL规则均针对家电消费补贴或零售餐饮消费券，没有涵盖汽车领域的补贴规则。无法匹配到合适的规则。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
@@ -633,7 +795,7 @@
           "requires_parallel": true,
           "raw_query": "燃油车开票 32 万（不含税），对应补贴是多少？"
         },
-        "rewritten_query": "对于不含税开票金额为32万元的燃油车，其对应的补贴金额是多少？",
+        "rewritten_query": "针对不含税开票金额为32万元的燃油车，其对应的补贴金额是多少？",
         "session_id": "test_session_24",
         "user_id": null,
         "connection_id": null,
@@ -650,18 +812,18 @@
       "query": "首保商业险 5200 元，根据首保消费券公告补贴多少？",
       "description": "首保补贴计算",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“根据车辆首次投保商业险费用为5200元的情况，应按照首保消费券补贴公告中的具体规定核算补贴金额。”。请补充具体的政策名称、城市或参数。原因：用户问题涉及车辆首次投保商业险的补贴核算，但可用DSL规则均针对家电补贴或零售餐饮消费券，未包含车辆保险相关规则。",
+      "answer": "无法根据现有 DSL 规则处理“根据首保商业险5200元的保费金额，请问按照首保消费券补贴公告的规定，具体可享受多少补贴？”。请补充具体的政策名称、城市或参数。原因：用户询问的是关于首保商业险保费金额的消费券补贴问题，但系统中所有可用规则均针对家电补贴或零售餐饮消费券，没有与商业险保费相关的补贴规则。无法匹配到适用的政策规则。",
       "confidence": 0.2,
-      "processing_time": 6.33382248878479,
+      "processing_time": 6.565720081329346,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户问题涉及车辆首次投保商业险的补贴核算，但可用DSL规则均针对家电补贴或零售餐饮消费券，未包含车辆保险相关规则。",
+        "reason": "用户询问的是关于首保商业险保费金额的消费券补贴问题，但系统中所有可用规则均针对家电补贴或零售餐饮消费券，没有与商业险保费相关的补贴规则。无法匹配到适用的政策规则。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
-          "confidence": 0.9,
+          "confidence": 0.95,
           "chains": [
             "calculation_chain",
             "kb_chain"
@@ -669,7 +831,7 @@
           "requires_parallel": true,
           "raw_query": "首保商业险 5200 元，根据首保消费券公告补贴多少？"
         },
-        "rewritten_query": "根据车辆首次投保商业险费用为5200元的情况，应按照首保消费券补贴公告中的具体规定核算补贴金额。",
+        "rewritten_query": "根据首保商业险5200元的保费金额，请问按照首保消费券补贴公告的规定，具体可享受多少补贴？",
         "session_id": "test_session_25",
         "user_id": null,
         "connection_id": null,
@@ -686,18 +848,18 @@
       "query": "保险金额 2500 元，补充公告后的首保补贴是多少？",
       "description": "补充公告段",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“补充公告发布后，保险金额为2500元时，对应的首保补贴标准是多少？”。请补充具体的政策名称、城市或参数。原因：用户询问的是保险金额对应的首保补贴标准，但可用的DSL规则都是针对家电补贴或消费券的政策，没有涉及保险领域的补贴规则。",
+      "answer": "无法根据现有 DSL 规则处理“根据补充公告，保险金额为2500元时，首保补贴的具体金额是多少？”。请补充具体的政策名称、城市或参数。原因：用户询问的是保险金额2500元时的首保补贴，但提供的DSL规则均针对家电补贴或消费券政策，没有涉及保险相关的补贴规则。",
       "confidence": 0.2,
-      "processing_time": 5.19190526008606,
+      "processing_time": 6.066348552703857,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户询问的是保险金额对应的首保补贴标准，但可用的DSL规则都是针对家电补贴或消费券的政策，没有涉及保险领域的补贴规则。",
+        "reason": "用户询问的是保险金额2500元时的首保补贴，但提供的DSL规则均针对家电补贴或消费券政策，没有涉及保险相关的补贴规则。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
-          "confidence": 0.9,
+          "confidence": 0.95,
           "chains": [
             "calculation_chain",
             "kb_chain"
@@ -705,7 +867,7 @@
           "requires_parallel": true,
           "raw_query": "保险金额 2500 元，补充公告后的首保补贴是多少？"
         },
-        "rewritten_query": "补充公告发布后，保险金额为2500元时，对应的首保补贴标准是多少？",
+        "rewritten_query": "根据补充公告，保险金额为2500元时，首保补贴的具体金额是多少？",
         "session_id": "test_session_26",
         "user_id": null,
         "connection_id": null,
@@ -722,18 +884,18 @@
       "query": "青岛消费券档位：消费 25 万补贴多少？写出计算逻辑。",
       "description": "青岛消费券",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“青岛市消费券补贴政策中，消费金额达到25万元时，对应的补贴金额标准是多少？请说明补贴计算的具体规则。”。请补充具体的政策名称、城市或参数。原因：用户询问的是青岛市的消费券补贴政策，但系统中可用的DSL规则均针对济南市（如Rule_济南_家电补贴_2025、Rule_Test_Consumer_Coupon等），没有适用于青岛市的规则。无法匹配到对应规则。",
+      "answer": "无法根据现有 DSL 规则处理“青岛市针对企业或个体工商户的消费券补贴政策中，若年度累计消费金额达到25万元，对应的补贴金额是多少？请说明具体的补贴标准及计算方式。”。请补充具体的政策名称、城市或参数。原因：用户询问的是青岛市的消费券补贴政策，但系统中可用的DSL规则均为济南市相关政策，没有适用于青岛市的规则。同时用户问题涉及企业/个体工商户的年度累计消费金额补贴，而现有规则主要针对个人消费或家电...",
       "confidence": 0.2,
-      "processing_time": 7.04994535446167,
+      "processing_time": 7.779249906539917,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户询问的是青岛市的消费券补贴政策，但系统中可用的DSL规则均针对济南市（如Rule_济南_家电补贴_2025、Rule_Test_Consumer_Coupon等），没有适用于青岛市的规则。无法匹配到对应规则。",
+        "reason": "用户询问的是青岛市的消费券补贴政策，但系统中可用的DSL规则均为济南市相关政策，没有适用于青岛市的规则。同时用户问题涉及企业/个体工商户的年度累计消费金额补贴，而现有规则主要针对个人消费或家电补贴，政策类型和地域均不匹配。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
-          "confidence": 0.9,
+          "confidence": 0.95,
           "chains": [
             "calculation_chain",
             "kb_chain"
@@ -741,7 +903,7 @@
           "requires_parallel": true,
           "raw_query": "青岛消费券档位：消费 25 万补贴多少？写出计算逻辑。"
         },
-        "rewritten_query": "青岛市消费券补贴政策中，消费金额达到25万元时，对应的补贴金额标准是多少？请说明补贴计算的具体规则。",
+        "rewritten_query": "青岛市针对企业或个体工商户的消费券补贴政策中，若年度累计消费金额达到25万元，对应的补贴金额是多少？请说明具体的补贴标准及计算方式。",
         "session_id": "test_session_27",
         "user_id": null,
         "connection_id": null,
@@ -757,19 +919,26 @@
       "target_route": "rule_engine",
       "query": "家电消费：二级能效冰箱 1.5 万，补贴金额与限购说明？",
       "description": "demo_policy.txt",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“关于家电消费补贴政策，请问购买一台售价为1.5万元的二级能效冰箱，具体的补贴金额标准及限购条件是什么？”相关的关系概要：\n根据济南市2025年家电以旧换新补贴政策的相关规定，针对您提出的购买二级能效冰箱的补贴问题，具体信息如下：\n\n### **补贴金额标准**\n\n*   对于购买**二级能效或水效标准**的补贴产品，补贴标准为产品**最终销售价格的15%**。\n...",
-      "confidence": 0.7,
-      "processing_time": 33.835259199142456,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，以下是关于家电消费补贴政策的关键信息：\n\n- **补贴条件**：适用于家电以旧换新活动，具体针对二级能效冰箱等产品。\n- **补贴金额标准**：资料未明确列出针对售价1.5万元二级能效冰箱的具体补贴金额，需参考相关实施细则文件确定。\n- **限购规定**：资料未直接提及限购细节，建议查阅地方或省级实施方案获取具体限制。\n- **流程**：需通过官方指定的以旧换新流程申请补贴，可能涉...",
+      "confidence": 0.6076169610023499,
+      "processing_time": 11.989505290985107,
       "route_match": false,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "benefit",
+        "doc_count": 3,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
-          "sub_intent": "limit",
-          "confidence": 0.85,
+          "sub_intent": "benefit",
+          "confidence": 0.9,
           "chains": [
             "kb_chain",
             "graph_chain"
@@ -777,7 +946,7 @@
           "requires_parallel": true,
           "raw_query": "家电消费：二级能效冰箱 1.5 万，补贴金额与限购说明？"
         },
-        "rewritten_query": "关于家电消费补贴政策，请问购买一台售价为1.5万元的二级能效冰箱，具体的补贴金额标准及限购条件是什么？",
+        "rewritten_query": "关于家电消费补贴政策，请问购买一台售价为1.5万元的二级能效冰箱，具体的补贴金额标准及限购规定是什么？",
         "session_id": "test_session_28",
         "user_id": null,
         "connection_id": null,
@@ -794,18 +963,18 @@
       "query": "写一条 SQL：统计 db.policy_apply 表中 2024 年济南汽车补贴申请数。",
       "description": "含 SQL 关键字",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“在数据库db.policy_apply表中，编写SQL查询语句统计2024年度济南市汽车补贴政策的申请数量。”。请补充具体的政策名称、城市或参数。原因：用户查询的是关于济南市汽车补贴政策的申请数量统计，但提供的DSL规则中只有家电补贴和消费券相关的规则，没有汽车补贴政策的规则。",
+      "answer": "无法根据现有 DSL 规则处理“请执行以下SQL查询：统计数据库表`db.policy_apply`中2024年度济南市汽车补贴政策的申请记录数量。”。请补充具体的政策名称、城市或参数。原因：用户问题要求执行SQL查询统计2024年度济南市汽车补贴政策的申请记录数量，但提供的DSL规则中所有规则都是针对家电补贴或消费券政策的，没有涉及汽车补贴政策的规则。因此无法匹配到合适的规则。",
       "confidence": 0.2,
-      "processing_time": 6.664080858230591,
+      "processing_time": 7.263622522354126,
       "route_match": false,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户查询的是关于济南市汽车补贴政策的申请数量统计，但提供的DSL规则中只有家电补贴和消费券相关的规则，没有汽车补贴政策的规则。",
+        "reason": "用户问题要求执行SQL查询统计2024年度济南市汽车补贴政策的申请记录数量，但提供的DSL规则中所有规则都是针对家电补贴或消费券政策的，没有涉及汽车补贴政策的规则。因此无法匹配到合适的规则。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
-          "confidence": 0.8,
+          "confidence": 0.85,
           "chains": [
             "calculation_chain",
             "kb_chain"
@@ -813,7 +982,7 @@
           "requires_parallel": true,
           "raw_query": "写一条 SQL：统计 db.policy_apply 表中 2024 年济南汽车补贴申请数。"
         },
-        "rewritten_query": "在数据库db.policy_apply表中，编写SQL查询语句统计2024年度济南市汽车补贴政策的申请数量。",
+        "rewritten_query": "请执行以下SQL查询：统计数据库表`db.policy_apply`中2024年度济南市汽车补贴政策的申请记录数量。",
         "session_id": "test_session_29",
         "user_id": null,
         "connection_id": 1,
@@ -830,25 +999,26 @@
       "query": "给我 SQL 查询 user_apply 中超过 2 次申报的用户 ID。",
       "description": "SQL 请求",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“请查询 user_apply 表中申请次数超过两次的用户编号。”。请补充具体的政策名称、城市或参数。原因：用户问题涉及查询数据库表中申请次数超过两次的用户编号，这是一个数据查询需求，而非政策规则匹配。可用的DSL规则均针对特定消费补贴或优惠券政策，需要输入如价格、能效等级等参数，与此查询无关。",
+      "answer": "无法根据现有 DSL 规则处理“请查询 user_apply 数据表中申报次数超过 2 次的用户 ID。”。请补充具体的政策名称、城市或参数。原因：用户查询的是数据表中申报次数统计问题，而所有可用规则都是针对具体补贴政策的计算规则，不涉及数据查询或统计功能。",
       "confidence": 0.2,
-      "processing_time": 7.223215341567993,
+      "processing_time": 5.827652931213379,
       "route_match": false,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户问题涉及查询数据库表中申请次数超过两次的用户编号，这是一个数据查询需求，而非政策规则匹配。可用的DSL规则均针对特定消费补贴或优惠券政策，需要输入如价格、能效等级等参数，与此查询无关。",
+        "reason": "用户查询的是数据表中申报次数统计问题，而所有可用规则都是针对具体补贴政策的计算规则，不涉及数据查询或统计功能。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
-          "confidence": 0.8,
+          "confidence": 0.85,
           "chains": [
-            "calculation_chain"
+            "calculation_chain",
+            "kb_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "给我 SQL 查询 user_apply 中超过 2 次申报的用户 ID。"
         },
-        "rewritten_query": "请查询 user_apply 表中申请次数超过两次的用户编号。",
+        "rewritten_query": "请查询 user_apply 数据表中申报次数超过 2 次的用户 ID。",
         "session_id": "test_session_30",
         "user_id": null,
         "connection_id": 2,
@@ -865,25 +1035,26 @@
       "query": "我要 SQL：按地区统计 subsidy_claim 金额总和，结果按降序。",
       "description": "需 connection_id",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“请提供SQL查询语句，用于统计各地区的补贴申领金额总和，并按金额总和降序排列结果。”。请补充具体的政策名称、城市或参数。原因：用户请求的是SQL查询语句用于统计补贴申领金额，但提供的DSL规则均专注于单个补贴政策的计算逻辑，不包含地区维度的申领数据统计功能。所有规则都缺少地区字段，无法满足用户对按地区分组统计的需求。",
+      "answer": "无法根据现有 DSL 规则处理“请提供SQL查询语句，用于统计各地区的补贴申领金额总和，并按金额总和降序排列。”。请补充具体的政策名称、城市或参数。原因：用户问题请求的是SQL查询语句，用于统计各地区的补贴申领金额总和并按金额降序排列，这是一个数据查询需求，而非具体的补贴规则匹配。提供的DSL规则均涉及家电补贴或消费券的具体参数（如价格、能效等级、类别等），但未包含地区字段或聚合查询逻辑，因此没有...",
       "confidence": 0.2,
-      "processing_time": 7.6533002853393555,
+      "processing_time": 17.307136297225952,
       "route_match": false,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户请求的是SQL查询语句用于统计补贴申领金额，但提供的DSL规则均专注于单个补贴政策的计算逻辑，不包含地区维度的申领数据统计功能。所有规则都缺少地区字段，无法满足用户对按地区分组统计的需求。",
+        "reason": "用户问题请求的是SQL查询语句，用于统计各地区的补贴申领金额总和并按金额降序排列，这是一个数据查询需求，而非具体的补贴规则匹配。提供的DSL规则均涉及家电补贴或消费券的具体参数（如价格、能效等级、类别等），但未包含地区字段或聚合查询逻辑，因此没有规则能直接满足此请求。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
           "confidence": 0.85,
           "chains": [
-            "calculation_chain"
+            "calculation_chain",
+            "kb_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "我要 SQL：按地区统计 subsidy_claim 金额总和，结果按降序。"
         },
-        "rewritten_query": "请提供SQL查询语句，用于统计各地区的补贴申领金额总和，并按金额总和降序排列结果。",
+        "rewritten_query": "请提供SQL查询语句，用于统计各地区的补贴申领金额总和，并按金额总和降序排列。",
         "session_id": "test_session_31",
         "user_id": null,
         "connection_id": 1,
@@ -900,22 +1071,23 @@
       "query": "把最新 50 条申请的 rule_id 和 submit_time 查出来。",
       "description": "SQL route",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“请查询最近提交的50条申请记录的规则编号（rule_id）与提交时间（submit_time）。”。请补充具体的政策名称、城市或参数。原因：用户查询的是申请记录的规则编号和提交时间，但所有可用规则都是针对具体补贴政策的计算规则，没有涉及申请记录查询功能。系统中没有支持查询历史申请记录的DSL规则。",
+      "answer": "无法根据现有 DSL 规则处理“请查询最近提交的50条申请记录的规则编号（rule_id）与提交时间（submit_time）。”。请补充具体的政策名称、城市或参数。原因：用户查询的是申请记录的规则编号和提交时间，但提供的DSL规则都是针对具体补贴政策的计算规则，没有涉及申请记录查询功能。所有规则都要求输入商品价格、能效等级等具体参数，而用户问题不包含这些必要参数。",
       "confidence": 0.2,
-      "processing_time": 7.062444448471069,
+      "processing_time": 8.198700189590454,
       "route_match": false,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户查询的是申请记录的规则编号和提交时间，但所有可用规则都是针对具体补贴政策的计算规则，没有涉及申请记录查询功能。系统中没有支持查询历史申请记录的DSL规则。",
+        "reason": "用户查询的是申请记录的规则编号和提交时间，但提供的DSL规则都是针对具体补贴政策的计算规则，没有涉及申请记录查询功能。所有规则都要求输入商品价格、能效等级等具体参数，而用户问题不包含这些必要参数。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
           "confidence": 0.85,
           "chains": [
-            "calculation_chain"
+            "calculation_chain",
+            "kb_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "把最新 50 条申请的 rule_id 和 submit_time 查出来。"
         },
         "rewritten_query": "请查询最近提交的50条申请记录的规则编号（rule_id）与提交时间（submit_time）。",
@@ -935,25 +1107,26 @@
       "query": "列出 policy_docs 表中 doc_type='coupon' 的标题。",
       "description": "SQL 关键词",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“从policy_docs数据表中检索文档类型为'coupon'的所有政策文件标题。”。请补充具体的政策名称、城市或参数。原因：用户查询是关于从数据库检索特定类型的政策文档标题，这是一个数据检索操作而非政策规则匹配。提供的DSL规则都是针对具体补贴政策的计算规则，没有涉及文档检索功能。",
+      "answer": "无法根据现有 DSL 规则处理“请查询policy_docs数据表中文档类型为'coupon'的所有政策文件标题。”。请补充具体的政策名称、城市或参数。原因：用户查询的是政策文档数据表中特定类型的文档标题，而非匹配具体的补贴或消费券规则。提供的DSL规则都是针对具体政策实施的匹配规则，不涉及数据库查询操作。",
       "confidence": 0.2,
-      "processing_time": 5.944301605224609,
+      "processing_time": 6.951284408569336,
       "route_match": false,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户查询是关于从数据库检索特定类型的政策文档标题，这是一个数据检索操作而非政策规则匹配。提供的DSL规则都是针对具体补贴政策的计算规则，没有涉及文档检索功能。",
+        "reason": "用户查询的是政策文档数据表中特定类型的文档标题，而非匹配具体的补贴或消费券规则。提供的DSL规则都是针对具体政策实施的匹配规则，不涉及数据库查询操作。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
           "confidence": 0.85,
           "chains": [
-            "calculation_chain"
+            "calculation_chain",
+            "kb_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "列出 policy_docs 表中 doc_type='coupon' 的标题。"
         },
-        "rewritten_query": "从policy_docs数据表中检索文档类型为'coupon'的所有政策文件标题。",
+        "rewritten_query": "请查询policy_docs数据表中文档类型为'coupon'的所有政策文件标题。",
         "session_id": "test_session_33",
         "user_id": null,
         "connection_id": 1,
@@ -969,18 +1142,23 @@
       "target_route": "knowledge",
       "query": "泉城购零售券的满减档位有哪些？",
       "description": "consumption_doc.txt 零售券段",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“请问泉城购消费券在零售消费场景中的满减适用条件具体包含哪些金额档位？”相关的关系概要：\n根据济南市2025年“泉城购”消费券活动的相关规定，**零售消费券**在零售类场景中的满减适用条件包含以下三个固定金额档位：\n\n*   **满100元减20元**\n*   **满200元减40元**\n*   **满300元减60元**\n\n### 补充说明\n*   **适用场景...",
-      "confidence": 0.7,
-      "processing_time": 25.27601981163025,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "- **适用条件**：适用于商超（不含数码产品、家电、家居等以旧换新政策涉及的品类）、便利店、食品零售店等零售类消费场景。\n- **优惠档次**：\n  - 满100元减20元\n  - 满200元减40元\n  - 满300元减60元\n- **活动时间**：2025年7月19日至11月15日，分多轮发放，需在每批次规定时间内领取并在有效期内使用。\n- **参与对象**：活动期间手机定位在济南市的用户（...",
+      "confidence": 0.7260655164718628,
+      "processing_time": 12.585633516311646,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "benefit",
+        "doc_count": 1,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
-          "sub_intent": "limit",
+          "sub_intent": "benefit",
           "confidence": 0.9,
           "chains": [
             "kb_chain",
@@ -989,7 +1167,7 @@
           "requires_parallel": true,
           "raw_query": "泉城购零售券的满减档位有哪些？"
         },
-        "rewritten_query": "请问泉城购消费券在零售消费场景中的满减适用条件具体包含哪些金额档位？",
+        "rewritten_query": "请问“泉城购”消费券活动针对零售类消费设置了哪些满减优惠档次？",
         "session_id": "test_session_34",
         "user_id": null,
         "connection_id": null,
@@ -1005,15 +1183,23 @@
       "target_route": "knowledge",
       "query": "餐饮消费券 200 元档需要满足的条件？",
       "description": "餐饮券",
-      "actual_route": "graph",
-      "answer": "根据您提供的关系图谱查询结果，关于申请200元档位餐饮消费券的资格条件，其核心脉络可以归纳为对**用户身份**和**消费场景**的双重限定。以下是详细的资格条件分析：\n\n### **核心资格条件**\n申请200元减50元餐饮消费券，您必须同时满足以下两类条件：\n\n1.  **用户身份资格**\n    *   **地理位置**：在活动期间，您的**手机定位必须实时在济南市**。这是领取和使用消费券的...",
-      "confidence": 0.7,
-      "processing_time": 53.94711756706238,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "- **申领条件**：\n  - 用户需在活动期间手机定位在济南市（不限户籍）\n  - 需在活动平台绑定手机号并完成实名认证\n  - 每批次发放时间内领取，限有效期内核销使用\n\n- **适用场景**：\n  - 仅限餐饮门店或住宿酒店的餐厅消费（以活动页面公示商家为准）\n\n- **消费券面额**：\n  - 餐饮消费券为满减形式：  \n    - 满100元减25元  \n    - **满200元减50...",
+      "confidence": 0.6239604204893112,
+      "processing_time": 15.867155313491821,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "eligibility",
+        "doc_count": 4,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "eligibility",
@@ -1025,7 +1211,7 @@
           "requires_parallel": true,
           "raw_query": "餐饮消费券 200 元档需要满足的条件？"
         },
-        "rewritten_query": "申请餐饮消费券200元档位需满足哪些资格条件？",
+        "rewritten_query": "餐饮消费券（面额200元）的申领及使用条件是什么？",
         "session_id": "test_session_35",
         "user_id": null,
         "connection_id": null,
@@ -1042,9 +1228,9 @@
       "query": "济南汽车补贴的购车、申报、资料修改三个时间窗口分别是什么？",
       "description": "consumption_doc 日期",
       "actual_route": "graph",
-      "answer": "根据您提供的关系/知识图谱查询结果，济南市2025年汽车消费补贴政策涉及多个活动轮次，各轮次的购车时间、申报时间及资料修改时间具体如下：\n\n### **活动轮次及时间脉络**\n\n济南市2025年的汽车消费补贴政策在时间上形成了清晰的脉络，主要分为年初的政府补贴活动和下半年的多轮次活动。各活动在时间上首尾相接或略有间隔，确保了政策在不同时期的连续性。\n\n1.  **2025年年初政府汽车消费补贴活动...",
+      "answer": "根据您提供的关系/知识图谱查询结果，济南市2025年汽车消费补贴政策在车辆购买、补贴申报及资料修改三个环节的时间安排如下，这三个环节在时间上紧密衔接，构成了一个完整的补贴申请流程：\n\n**1. 车辆购买时间**\n这是整个补贴流程的起点，您必须在以下指定的活动期间内完成新车购买，并以汽车销售企业开具的《机动车销售统一发票》日期为准。\n- **第一轮**：2025年7月1日0时至2025年7月31日2...",
       "confidence": 0.7,
-      "processing_time": 76.0268623828888,
+      "processing_time": 77.62859320640564,
       "route_match": false,
       "error": null,
       "metadata": {
@@ -1052,7 +1238,7 @@
         "method": "graph_traversal",
         "intent": {
           "intent": "policy_inquiry",
-          "sub_intent": "deadline",
+          "sub_intent": "process",
           "confidence": 0.9,
           "chains": [
             "kb_chain",
@@ -1061,7 +1247,7 @@
           "requires_parallel": true,
           "raw_query": "济南汽车补贴的购车、申报、资料修改三个时间窗口分别是什么？"
         },
-        "rewritten_query": "济南市汽车消费补贴政策中，购车时间、申报时间和资料修改时间的具体起止日期分别是多少？",
+        "rewritten_query": "请明确济南市汽车消费补贴政策中关于车辆购买、补贴申报及资料修改三个环节的具体时间安排。",
         "session_id": "test_session_36",
         "user_id": null,
         "connection_id": null,
@@ -1077,19 +1263,28 @@
       "target_route": "knowledge",
       "query": "青岛消费券活动持续到哪一天？",
       "description": "青岛消费券文档",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“青岛市本阶段消费券活动的截止日期是哪一天？”相关的关系概要：\n根据我目前掌握的信息，无法找到关于青岛市本阶段消费券活动截止日期的具体内容。\n\n我的知识库主要集中于济南市在2025年推出的一系列消费促进活动，目前没有包含青岛市的相关信息。\n\n### References\n*此回答未能提供有效参考文献。*",
-      "confidence": 0.7,
-      "processing_time": 17.13821029663086,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，无法确定青岛市本轮消费券活动的截止日期。\n\n**关键信息：**\n- 全部资料均为济南市消费券/补贴活动公告，未涉及青岛市活动信息\n- 资料中提到的城市范围均为济南市\n- 未包含任何青岛市消费券活动的相关时间信息\n\n答复依据：提供的所有参考资料均针对济南市消费活动，未包含青岛市消费券活动的任何信息。",
+      "confidence": 0.6704081892967224,
+      "processing_time": 8.569772720336914,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "deadline",
+        "doc_count": 5,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "deadline",
-          "confidence": 0.9,
+          "confidence": 0.95,
           "chains": [
             "kb_chain",
             "graph_chain"
@@ -1097,7 +1292,7 @@
           "requires_parallel": true,
           "raw_query": "青岛消费券活动持续到哪一天？"
         },
-        "rewritten_query": "青岛市本阶段消费券活动的截止日期是哪一天？",
+        "rewritten_query": "青岛市本轮的消费券活动截止日期是哪一天？",
         "session_id": "test_session_39",
         "user_id": null,
         "connection_id": null,
@@ -1113,15 +1308,21 @@
       "target_route": "knowledge",
       "query": "家电补贴方案里空调单人限购几台？",
       "description": "demo_policy.txt",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“在现行家电补贴政策中，针对空调产品的个人消费者限购数量是多少？”相关的关系概要：\n根据济南市现行的家电以旧换新补贴政策，针对空调产品的个人消费者限购数量如下：\n\n**每位消费者在空调类产品上，最多可以补贴3件。**\n\n这意味着，在2025年的补贴活动期间，个人消费者有资格为最多3台符合规定的空调申请以旧换新补贴。\n\n### 政策依据\n这项规定来源于 **《济南市...",
-      "confidence": 0.7,
-      "processing_time": 21.403162717819214,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，无法直接确定针对空调产品的个人消费者限购数量。\n\n**关键信息：**\n- 资料1仅涉及汽车消费补贴政策，未提及家电或空调产品的相关信息。\n- 资料2为山东省家电以旧换新实施方案的通知，但提供的资料内容不完整，未包含关于产品限购数量的具体条款。\n\n**总结：** 以上答复是基于所提供资料中未包含空调产品限购数量相关信息。",
+      "confidence": 0.6053239107131958,
+      "processing_time": 9.621911764144897,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "limit",
+        "doc_count": 2,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "limit",
@@ -1133,7 +1334,7 @@
           "requires_parallel": true,
           "raw_query": "家电补贴方案里空调单人限购几台？"
         },
-        "rewritten_query": "在现行家电补贴政策中，针对空调产品的个人消费者限购数量是多少？",
+        "rewritten_query": "在家电补贴政策中，针对空调产品的个人消费者限购数量是多少？",
         "session_id": "test_session_40",
         "user_id": null,
         "connection_id": null,
@@ -1150,48 +1351,27 @@
       "query": "一级与二级能效家电补贴比例分别是多少？",
       "description": "demo_policy",
       "actual_route": "knowledge",
-      "answer": "根据提供的资料，无法找到国家或地方政府对于一级能效与二级能效家电产品财政补贴标准或补贴比例的具体信息。\n\n**关键信息：**\n- 条件：未提及能效家电补贴的具体条件。\n- 金额：未列出任何补贴金额或比例。\n- 流程：未描述相关申请流程。\n- 时间：未涉及补贴政策的时间节点。\n\n答复依据：基于提供的网络搜索结果均未包含能效家电补贴的具体政策细节。",
-      "confidence": 0.36,
-      "processing_time": 24.701164722442627,
+      "answer": "暂未在知识库或联网检索中找到与“一级能效与二级能效家电的补贴标准或补贴比例分别是多少？”直接相关的政策条目。建议提供更多背景或确认关键词。",
+      "confidence": 0.2,
+      "processing_time": 14.194011688232422,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "knowledge",
-        "focus": "general",
-        "doc_count": 0,
-        "origin": "web_search",
-        "doc_origins": [
-          "web_search"
-        ],
-        "web_results": [
-          {
-            "title": "Jinan 济南市人力资源和社会保障局",
-            "url": "http://jnhrss.jinan.gov.cn/index.html?eqid=fa51ec2c00005e4d0000000264532186",
-            "score": 0.3023911
-          },
-          {
-            "title": "济南市投资促进局",
-            "url": "http://jntzcjj.jinan.gov.cn/index.html",
-            "score": 0.000932636
-          },
-          {
-            "title": "济南公共资源交易中心",
-            "url": "https://jnggzy.jinan.gov.cn/index.html",
-            "score": 0.00069054146
-          }
-        ],
+        "reason": "知识库暂无匹配文档且网络检索为空",
+        "doc_origins": [],
         "intent": {
-          "intent": "comparison",
-          "sub_intent": null,
+          "intent": "policy_inquiry",
+          "sub_intent": "benefit",
           "confidence": 0.9,
           "chains": [
-            "comparison_chain",
-            "kb_chain"
+            "kb_chain",
+            "graph_chain"
           ],
           "requires_parallel": true,
           "raw_query": "一级与二级能效家电补贴比例分别是多少？"
         },
-        "rewritten_query": "请问国家或地方政府对于一级能效与二级能效家电产品的财政补贴标准或补贴比例分别是多少？",
+        "rewritten_query": "一级能效与二级能效家电的补贴标准或补贴比例分别是多少？",
         "session_id": "test_session_41",
         "user_id": null,
         "connection_id": null,
@@ -1207,19 +1387,28 @@
       "target_route": "knowledge",
       "query": "家电补贴活动起止日期？",
       "description": "demo_policy",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“请问本次家电补贴政策的具体实施起止时间是什么？”相关的关系概要：\n根据提供的资料，济南市2025年家电以旧换新补贴政策的实施起止时间如下：\n\n**补贴实施时间**：自各市实施细则发布之日起，至 **2025年12月31日** 截止。\n\n此外，为确保活动顺利收尾，对于所有在本年度内销售的家电产品，有最终的送货安装截止日期要求：\n\n**送货安装截止时间**：所有家电...",
-      "confidence": 0.7,
-      "processing_time": 55.17027282714844,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，本次家电补贴活动的具体开始日期与结束日期如下：\n\n- **开始日期**：资料未明确提及家电补贴活动的具体开始日期。\n- **结束日期**：资料未明确提及家电补贴活动的具体结束日期。\n\n总结：依据资料，家电补贴活动的具体日期信息未在提供的参考资料中明确说明。",
+      "confidence": 0.6222180604934693,
+      "processing_time": 7.652233123779297,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "deadline",
+        "doc_count": 5,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "deadline",
-          "confidence": 0.95,
+          "confidence": 0.9,
           "chains": [
             "kb_chain",
             "graph_chain"
@@ -1227,7 +1416,7 @@
           "requires_parallel": true,
           "raw_query": "家电补贴活动起止日期？"
         },
-        "rewritten_query": "请问本次家电补贴政策的具体实施起止时间是什么？",
+        "rewritten_query": "请问本次家电补贴活动的具体开始日期与结束日期分别是何时？",
         "session_id": "test_session_42",
         "user_id": null,
         "connection_id": null,
@@ -1243,15 +1432,24 @@
       "target_route": "knowledge",
       "query": "说明 2025 年首保消费券的各档补贴额度。",
       "description": "consumption_doc",
-      "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“请说明2025年首次参保人员消费券各档次的补贴额度标准。”相关的关系概要：\n根据提供的知识库信息，2025年针对首次参保人员的消费券活动，其补贴额度标准是根据所购车辆商业保险的金额来划分的。\n\n### 补贴额度标准\n\n具体补贴标准如下：\n\n*   **车辆商业保险金额在2000元(含)至3000元之间**，可领取**800元**补贴。\n*   **车辆商业保险金...",
-      "confidence": 0.7,
-      "processing_time": 26.37789225578308,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，针对2025年度首次参保人员发放的消费券各档位具体补贴标准如下：\n\n- **补贴档位与金额**：\n  - 车辆商业保险金额在2000元（含）至3000元之间，可领取800元消费券（依据资料3）。\n  - 车辆商业保险金额在3000元（含）至4000元之间，可领取100元消费券（依据资料1）。\n  - 注：资料1和资料3均针对新车首保消费券活动，且资料3是对资料1的补充，明确了新增档...",
+      "confidence": 0.6927961707115173,
+      "processing_time": 26.76962971687317,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "benefit",
+        "doc_count": 5,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "benefit",
@@ -1263,7 +1461,7 @@
           "requires_parallel": true,
           "raw_query": "说明 2025 年首保消费券的各档补贴额度。"
         },
-        "rewritten_query": "请说明2025年首次参保人员消费券各档次的补贴额度标准。",
+        "rewritten_query": "请说明针对2025年度首次参保人员发放的消费券各档位具体补贴标准。",
         "session_id": "test_session_43",
         "user_id": null,
         "connection_id": null,
@@ -1280,9 +1478,9 @@
       "query": "追加的 3000 万汽车补贴公告主要说明了什么？",
       "description": "追加公告段",
       "actual_route": "graph",
-      "answer": "根据知识库关系返回的内容，以下是与“本次追加的3000万元汽车消费补贴公告主要说明了哪些政策内容和申领要求？”相关的关系概要：\n根据您的问题，本次追加3000万元汽车消费补贴的公告主要说明了以下政策内容和申领要求。\n\n**政策内容**\n\n*   **资金来源与性质**：本次追加的3000万元是**政府资金**，专门用于延续正在进行的汽车消费补贴活动。\n*   **活动延续**：追加资金意味着原补贴...",
+      "answer": "根据知识库关系返回的内容，以下是与“本次追加的3000万元汽车消费补贴政策公告的主要内容是什么？”相关的关系概要：\n根据济南市商务局发布的《关于追加2025年政府汽车消费补贴资金额度的公告》，本次追加3000万元汽车消费补贴政策的主要内容如下：\n\n### 政策核心内容\n\n**追加资金额度**：在原有3000万元补贴额度已申领完毕的基础上，再次追加政府资金3000万元用于汽车消费补贴活动。\n\n**申...",
       "confidence": 0.7,
-      "processing_time": 29.745861053466797,
+      "processing_time": 28.966453075408936,
       "route_match": false,
       "error": null,
       "metadata": {
@@ -1294,12 +1492,12 @@
           "confidence": 0.9,
           "chains": [
             "kb_chain",
-            "hybrid_chain"
+            "graph_chain"
           ],
           "requires_parallel": true,
           "raw_query": "追加的 3000 万汽车补贴公告主要说明了什么？"
         },
-        "rewritten_query": "本次追加的3000万元汽车消费补贴公告主要说明了哪些政策内容和申领要求？",
+        "rewritten_query": "本次追加的3000万元汽车消费补贴政策公告的主要内容是什么？",
         "session_id": "test_session_44",
         "user_id": null,
         "connection_id": null,
@@ -1316,35 +1514,21 @@
       "query": "第二轮与第三轮汽车消费礼包标准有区别吗？",
       "description": "检验回答",
       "actual_route": "knowledge",
-      "answer": "根据提供的资料，无法直接获取第二轮与第三轮汽车消费补贴政策的具体发放标准信息。\n\n**关键信息：**\n- 资料中未明确列出第二轮与第三轮汽车消费补贴的发放标准、条件、金额、流程或时间等具体细节。\n- 检索到的政府网站（如济南市政府网、发改委和交通运输局页面）主要提供了政策文件目录或入口，但未包含可直接对比两轮政策差异的详细内容。\n\n**答复依据：**  \n本回答基于对提供的网络搜索结果的分析，这些...",
-      "confidence": 0.433,
-      "processing_time": 13.196670293807983,
+      "answer": "根据提供的资料，第二轮与第三轮政府发放的汽车消费补贴礼包在发放标准上存在以下关键差异：\n\n- **活动时间**：\n  - 第二轮：购车时间为2025年8月1日0时至8月31日24时；补贴资料申报及修改时间为2025年8月6日10时至9月5日24时。\n  - 第三轮：购车时间为2025年9月1日0时至9月30日24时；补贴资料申报及修改时间为2025年9月6日10时至10月5日24时。\n\n- **补...",
+      "confidence": 0.6312117129564285,
+      "processing_time": 23.16456890106201,
       "route_match": true,
       "error": null,
       "metadata": {
         "route": "knowledge",
         "focus": "general",
-        "doc_count": 0,
-        "origin": "web_search",
+        "doc_count": 4,
+        "origin": "knowledge_base",
         "doc_origins": [
-          "web_search"
-        ],
-        "web_results": [
-          {
-            "title": "Jinan 济南政府网_济南市人民政府门户网站 2023年第2期(总第384期)",
-            "url": "http://www.jinan.gov.cn/col/col120363/index.html",
-            "score": 0.89552265
-          },
-          {
-            "title": "Jinan 济南市发展和改革委员会 其他文件",
-            "url": "http://jndpc.jinan.gov.cn/col/col30263/index.html?vc_xxgkarea=11370100004188602D&number=A0604&uid=640498&pageNum=26",
-            "score": 0.7981868
-          },
-          {
-            "title": "Jinan 济南市城乡交通运输局 政策法规",
-            "url": "http://jnjtj.jinan.gov.cn/col/col24847/index.html?number=A0605",
-            "score": 0.79438496
-          }
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base",
+          "knowledge_base"
         ],
         "intent": {
           "intent": "comparison",
@@ -1352,12 +1536,13 @@
           "confidence": 0.9,
           "chains": [
             "comparison_chain",
-            "kb_chain"
+            "kb_chain",
+            "hybrid_chain"
           ],
           "requires_parallel": true,
           "raw_query": "第二轮与第三轮汽车消费礼包标准有区别吗？"
         },
-        "rewritten_query": "第二轮与第三轮政府发放的汽车消费补贴政策在发放标准上是否存在差异？",
+        "rewritten_query": "第二轮与第三轮政府发放的汽车消费补贴礼包的发放标准是否存在差异？",
         "session_id": "test_session_45",
         "user_id": null,
         "connection_id": null,
@@ -1374,9 +1559,9 @@
       "query": "LightRAG 种子里有哪些政策主题？请概述。",
       "description": "resources/data/lightrag 内容",
       "actual_route": "graph",
-      "answer": "根据知识图谱查询结果，LightRAG政策框架种子文件所涵盖的主要政策主题类别是一个相互关联、多层次的消费促进体系，其核心脉络是通过财政激励与绿色循环相结合的方式全方位激发消费潜力。以下是各主题类别的概述及其内在联系：\n\n1. **🏛️ 国家战略与政策导向**\n   - 作为总体纲领，体现中央\"两新\"（大规模设备更新、消费品以旧换新）战略部署。\n   - 关联主体：国家发展改革委、财政部、商务部等...",
+      "answer": "根据知识库关系返回的内容，以下是与“请概述LightRAG种子数据集中所涵盖的政策主题内容。”相关的关系概要：\n根据提供的上下文信息，我无法找到关于“LightRAG种子数据集”的具体内容。所提供的知识库主要聚焦于2025年山东省及济南市的具体消费补贴政策，例如家电以旧换新、数码产品购新补贴、汽车消费补贴等具体实施细节，但并未提及该特定数据集或其涵盖的政策主题。\n\n因此，我没有足够的信息来概述Li...",
       "confidence": 0.7,
-      "processing_time": 52.92229342460632,
+      "processing_time": 23.413178205490112,
       "route_match": false,
       "error": null,
       "metadata": {
@@ -1393,7 +1578,7 @@
           "requires_parallel": true,
           "raw_query": "LightRAG 种子里有哪些政策主题？请概述。"
         },
-        "rewritten_query": "请概述LightRAG政策框架种子文件中所涵盖的主要政策主题类别。",
+        "rewritten_query": "请概述LightRAG种子数据集中所涵盖的政策主题内容。",
         "session_id": "test_session_46",
         "user_id": null,
         "connection_id": null,
@@ -1410,25 +1595,26 @@
       "query": "user_profiles 中白金用户来自哪个地区？",
       "description": "张三=深圳南山",
       "actual_route": "rule_engine",
-      "answer": "无法根据现有 DSL 规则处理“请查询用户档案（user_profiles）中，白金等级用户的来源地区分布情况。”。请补充具体的政策名称、城市或参数。原因：用户查询的是用户档案中白金等级用户的来源地区分布情况，这与提供的DSL规则均不匹配。所有规则均涉及消费补贴、消费券发放或家电补贴政策，需要商品价格、能效等级等输入参数，而用户问题不包含这些参数，且主题是用户统计而非政策规则应用。",
+      "answer": "无法根据现有 DSL 规则处理“在用户画像(user_profiles)中，白金等级用户的地区分布情况如何？”。请补充具体的政策名称、城市或参数。原因：用户问题询问的是用户画像中白金等级用户的地区分布情况，这属于数据分析或用户统计查询，不属于提供的任何DSL规则所涵盖的政策补贴或消费券发放范围。所有可用规则都涉及具体的补贴政策实施，需要商品价格、能效等级等输入参数，而当前问题没有提供这些参数且主题...",
       "confidence": 0.2,
-      "processing_time": 7.104618549346924,
+      "processing_time": 7.919689416885376,
       "route_match": false,
       "error": null,
       "metadata": {
         "route": "rule_engine",
-        "reason": "用户查询的是用户档案中白金等级用户的来源地区分布情况，这与提供的DSL规则均不匹配。所有规则均涉及消费补贴、消费券发放或家电补贴政策，需要商品价格、能效等级等输入参数，而用户问题不包含这些参数，且主题是用户统计而非政策规则应用。",
+        "reason": "用户问题询问的是用户画像中白金等级用户的地区分布情况，这属于数据分析或用户统计查询，不属于提供的任何DSL规则所涵盖的政策补贴或消费券发放范围。所有可用规则都涉及具体的补贴政策实施，需要商品价格、能效等级等输入参数，而当前问题没有提供这些参数且主题不匹配。",
         "intent": {
           "intent": "calculation",
           "sub_intent": null,
           "confidence": 0.85,
           "chains": [
-            "calculation_chain"
+            "calculation_chain",
+            "kb_chain"
           ],
-          "requires_parallel": false,
+          "requires_parallel": true,
           "raw_query": "user_profiles 中白金用户来自哪个地区？"
         },
-        "rewritten_query": "请查询用户档案（user_profiles）中，白金等级用户的来源地区分布情况。",
+        "rewritten_query": "在用户画像(user_profiles)中，白金等级用户的地区分布情况如何？",
         "session_id": "test_session_47",
         "user_id": null,
         "connection_id": null,
@@ -1444,27 +1630,33 @@
       "target_route": "knowledge",
       "query": "王五有没有提交过补贴？官方描述是什么？",
       "description": "user_profiles 88888",
-      "actual_route": "graph",
-      "answer": "根据您提供的关系/知识图谱查询结果，以下是对您问题的回答：\n\n### 关于申请人“王五”的申请状态\n**结论：无法确认。**\n根据图谱返回的信息，所提供的文档中**没有包含任何关于特定个人（如“王五”）申请状态**的查询信息。因此，无法判断申请人王五是否已经提交了补贴申请。\n\n---\n\n### 关于补贴政策的官方定义与具体条款\n图谱结果详细描述了该补贴政策的定义和具体条款，其核心脉络是**政府为刺...",
-      "confidence": 0.7,
-      "processing_time": 72.16909885406494,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "根据提供的资料，无法查询到王五的个人补贴申请状态，同时现有资料未完整定义该补贴政策的具体内容。\n\n**关键信息：**\n- **申请流程**：补贴申请需在指定时间内提交，系统按照提交顺序先到先得，额度用完即止。\n- **申请时间**：补贴申报时间为2025年2月12日10时至2025年4月15日24时；资料修改截止时间为2025年4月30日24时。\n- **政策范围**：适用于2025年1月25日至...",
+      "confidence": 0.60890993475914,
+      "processing_time": 29.37989854812622,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "process",
+        "doc_count": 2,
+        "origin": "knowledge_base",
+        "doc_origins": [
+          "knowledge_base",
+          "knowledge_base"
+        ],
         "intent": {
           "intent": "policy_inquiry",
           "sub_intent": "process",
-          "confidence": 0.85,
+          "confidence": 0.9,
           "chains": [
-            "graph_chain",
-            "kb_chain"
+            "kb_chain",
+            "graph_chain"
           ],
           "requires_parallel": true,
           "raw_query": "王五有没有提交过补贴？官方描述是什么？"
         },
-        "rewritten_query": "申请人王五是否已提交相关补贴申请？该补贴政策的官方定义与具体条款内容是什么？",
+        "rewritten_query": "请查询王五是否已提交补贴申请，并核实该补贴政策的官方定义或具体说明。",
         "session_id": "test_session_48",
         "user_id": null,
         "connection_id": null,
@@ -1480,27 +1672,49 @@
       "target_route": "knowledge",
       "query": "FAQ/embedding 数据里与'申报进度'相关的问法有哪些？如何回复？",
       "description": "faq_embeddings",
-      "actual_route": "graph",
-      "answer": "根据您提供的关系/知识图谱查询结果，以下是关于“申报进度”查询的常见问题及对应标准化回复方案的整理。内容重点描述了从提交申请到最终结果确认的全流程，并明确了各环节的关键联系与标准化表述。\n\n### 关于申报进度查询的常见问题与标准化回复方案\n\n**1. 问：我提交了补贴申请后，如何查询审核进度？**  \n**标准化回复：** 您需要在提交申请资料后，**及时登录您所使用的申请平台**（如“工银e生...",
-      "confidence": 0.7,
-      "processing_time": 78.70283079147339,
-      "route_match": false,
+      "actual_route": "knowledge",
+      "answer": "- **查询申报进度渠道**：可通过济南市政务服务\"一网通办\"平台（http://zwfw.jinan.gov.cn）或济南公共资源交易中心官网（http://jnggzy.jinan.gov.cn）的\"合同履约信息\"\"政策法规\"等栏目查询。  \n- **关键查询条件**：需明确事项类型（如工程建设、政府采购等）、办理时间（2020年6月后事项适用现行流程）及具体项目编号或名称。  \n- **进度...",
+      "confidence": 0.444,
+      "processing_time": 17.238410472869873,
+      "route_match": true,
       "error": null,
       "metadata": {
-        "route": "graph",
-        "method": "graph_traversal",
+        "route": "knowledge",
+        "focus": "process",
+        "doc_count": 0,
+        "origin": "web_search",
+        "doc_origins": [
+          "web_search"
+        ],
+        "web_results": [
+          {
+            "title": "Jinan 济南公共资源交易中心 国家",
+            "url": "http://jnggzy.jinan.gov.cn/col/col115528/index.html?uid=614504&pageNum=0",
+            "score": 0.97344345
+          },
+          {
+            "title": "Jinan 济南市政务服务“一网通办” 证明事项实施清单",
+            "url": "http://zwfw.jinan.gov.cn/col/col68907/index.html",
+            "score": 0.9309621
+          },
+          {
+            "title": "Jinan 济南公共资源交易中心 政府采购",
+            "url": "https://jnggzy.jinan.gov.cn/col/col67334/index.html",
+            "score": 0.91367656
+          }
+        ],
         "intent": {
-          "intent": "summary",
-          "sub_intent": null,
+          "intent": "policy_inquiry",
+          "sub_intent": "process",
           "confidence": 0.85,
           "chains": [
             "kb_chain",
-            "hybrid_chain"
+            "graph_chain"
           ],
           "requires_parallel": true,
           "raw_query": "FAQ/embedding 数据里与'申报进度'相关的问法有哪些？如何回复？"
         },
-        "rewritten_query": "请提供关于“申报进度”查询的常见问题及对应答复口径，需明确FAQ数据中涉及申报进度查询的具体表述方式及其标准化回复方案。",
+        "rewritten_query": "请提供关于“申报进度”相关常见问题（FAQ）的查询问法及对应的标准答复内容。",
         "session_id": "test_session_49",
         "user_id": null,
         "connection_id": null,
@@ -1517,9 +1731,9 @@
       "query": "结合资源文件，概述济南 2025 年汽车补贴额度总量及先到先得规则。",
       "description": "consumption_doc 段落",
       "actual_route": "graph",
-      "answer": "根据您提供的关系/知识图谱查询结果，并结合相关政策文件，现将济南市2025年度汽车消费补贴的总额度及“先到先得”的具体实施规则概述如下：\n\n### 一、补贴总额度\n\n济南市2025年度汽车消费补贴通过多轮活动投放，**总资金额度为9600万元**。具体构成如下：\n- **首轮活动**：3000万元（2025年1月25日启动）\n- **追加额度**：3000万元（2025年2月26日启动）\n- **...",
+      "answer": "根据知识库关系返回的内容，以下是与“根据相关政策文件，概述济南市2025年度汽车消费补贴的财政预算总额及先到先得的具体实施规则。”相关的关系概要：\n根据济南市2025年度发布的汽车消费补贴相关政策文件，该市为促进汽车消费安排了专项财政预算，并制定了明确的“先到先得”实施规则。\n\n### 📊 财政预算总额\n\n济南市2025年度汽车消费补贴活动的总财政预算为**6000万元**。\n\n这笔资金分两次投入...",
       "confidence": 0.7,
-      "processing_time": 73.35288548469543,
+      "processing_time": 33.91844725608826,
       "route_match": false,
       "error": null,
       "metadata": {
@@ -1531,12 +1745,12 @@
           "confidence": 0.9,
           "chains": [
             "kb_chain",
-            "hybrid_chain"
+            "graph_chain"
           ],
           "requires_parallel": true,
           "raw_query": "结合资源文件，概述济南 2025 年汽车补贴额度总量及先到先得规则。"
         },
-        "rewritten_query": "结合相关政策文件，概述济南市2025年度汽车消费补贴的总额度及“先到先得”的具体实施规则。",
+        "rewritten_query": "根据相关政策文件，概述济南市2025年度汽车消费补贴的财政预算总额及先到先得的具体实施规则。",
         "session_id": "test_session_50",
         "user_id": null,
         "connection_id": null,

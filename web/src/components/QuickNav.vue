@@ -36,7 +36,8 @@ import {
   Promotion,
   ChatDotRound,
   Document,
-  Collection
+  Collection,
+  Share
 } from '@element-plus/icons-vue'
 
 const navItems = [
@@ -60,6 +61,13 @@ const navItems = [
     description: '管理政策文档库',
     icon: Collection,
     color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+  },
+  {
+    path: '/graph',
+    title: '知识图谱',
+    description: '可视化政策关系',
+    icon: Share,
+    color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
   }
 ]
 </script>

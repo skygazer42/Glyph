@@ -122,10 +122,15 @@ const loadGraph = async () => {
 
   try {
     const response = await getGraphData()
-    graphData = response.data
+    graphData = response || { nodes: [], links: [] }
+    const nodeCount = Array.isArray(graphData.nodes) ? graphData.nodes.length : 0
+    const edgeCount = Array.isArray(graphData.links) ? graphData.links.length : 0
     stats.value = {
-      nodes: graphData.nodes.length,
-      edges: graphData.links.length
+      nodes: nodeCount,
+      edges: edgeCount
+    }
+    if (!nodeCount && !edgeCount) {
+      throw new Error('知识图谱暂无可展示的数据')
     }
     renderGraph()
     ElMessage.success('知识图谱加载成功')
@@ -140,6 +145,13 @@ const loadGraph = async () => {
 // 渲染图谱
 const renderGraph = () => {
   if (!graphContainer.value || !graphData) return
+
+  const nodes = Array.isArray(graphData.nodes) ? graphData.nodes : []
+  const links = Array.isArray(graphData.links) ? graphData.links : []
+  if (!nodes.length || !links.length) {
+    error.value = '知识图谱暂无可视化数据，请先完成 LightRAG 构建'
+    return
+  }
 
   // 清除旧图
   d3.select(graphContainer.value).selectAll('*').remove()
@@ -166,8 +178,8 @@ const renderGraph = () => {
   svg.call(zoom)
 
   // 创建力导向图模拟
-  simulation = d3.forceSimulation(graphData.nodes)
-    .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100))
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(100))
     .force('charge', d3.forceManyBody().strength(-300))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(30))
@@ -175,7 +187,7 @@ const renderGraph = () => {
   // 绘制连线
   const link = g.append('g')
     .selectAll('line')
-    .data(graphData.links)
+    .data(links)
     .enter()
     .append('line')
     .attr('class', 'graph-link')
@@ -186,7 +198,7 @@ const renderGraph = () => {
   // 绘制节点
   const node = g.append('g')
     .selectAll('g')
-    .data(graphData.nodes)
+    .data(nodes)
     .enter()
     .append('g')
     .attr('class', 'graph-node')
@@ -362,8 +374,9 @@ onBeforeUnmount(() => {
 }
 
 .graph-content {
-  height: 100%;
   position: relative;
+  min-height: 520px;
+  height: 520px;
 }
 
 .loading-container,
@@ -405,6 +418,7 @@ onBeforeUnmount(() => {
 .graph-canvas {
   width: 100%;
   height: 100%;
+  min-height: 520px;
   background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
   border-radius: var(--radius-md);
 }

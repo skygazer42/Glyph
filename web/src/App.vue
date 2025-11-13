@@ -3,18 +3,18 @@
     <el-container class="app-container">
       <el-header class="app-header">
         <div class="header-content">
-          <div class="logo-section">
+          <router-link to="/" class="logo-section">
             <div class="logo-icon">🏛️</div>
             <div class="logo-info">
               <h1 class="logo-text">政府政策智能分析平台</h1>
               <div class="subtitle">Government Policy Analysis System</div>
             </div>
-          </div>
+          </router-link>
           <el-menu
             class="nav-menu"
             mode="horizontal"
             :default-active="$route.path"
-            router
+            @select="handleMenuSelect"
           >
             <el-menu-item index="/agent" class="nav-item">
               <el-icon><ChatDotRound /></el-icon>
@@ -53,11 +53,21 @@
 </template>
 
 <script setup>
+import { useRouter, useRoute } from 'vue-router'
 import { Document, Collection, ChatDotRound, Share } from '@element-plus/icons-vue'
 import AppFooter from '@/components/AppFooter.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import MobileMenu from '@/components/MobileMenu.vue'
 import BackToTop from '@/components/BackToTop.vue'
+
+const router = useRouter()
+const route = useRoute()
+
+// 手动处理导航以确保路由跳转正常工作
+const handleMenuSelect = (index) => {
+  console.log('Navigating to:', index)
+  router.push(index)
+}
 </script>
 
 <style scoped>
@@ -96,6 +106,20 @@ import BackToTop from '@/components/BackToTop.vue'
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+}
+
+.logo-section:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.02);
+}
+
+.logo-section:active {
+  transform: scale(0.98);
 }
 
 .logo-icon {

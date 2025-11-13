@@ -75,7 +75,7 @@
         >
           <div class="message-avatar">
             <el-avatar
-              :icon="message.role === 'user' ? User : Robot"
+              :icon="message.role === 'user' ? User : Service"
               :style="{ backgroundColor: message.role === 'user' ? '#409eff' : '#67c23a' }"
             />
           </div>
@@ -106,7 +106,7 @@
         <!-- 加载动画 -->
         <div v-if="loading" class="message-wrapper assistant">
           <div class="message-avatar">
-            <el-avatar :icon="Robot" style="background-color: #67c23a" />
+            <el-avatar :icon="Service" style="background-color: #67c23a" />
           </div>
           <div class="message-content">
             <div class="typing-indicator">
@@ -218,7 +218,7 @@ import {
   ChatDotRound,
   Delete,
   User,
-  Robot,
+  Service,
   Promotion,
   QuestionFilled,
   CopyDocument,

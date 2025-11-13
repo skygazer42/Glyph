@@ -108,6 +108,7 @@ class PolicyDocument(BaseModel):
     keywords: List[str] = Field(default_factory=list, description="关键词")
     embedding: Optional[List[float]] = Field(None, description="向量嵌入")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+    retrieval_origin: str = Field(default="knowledge_base", description="检索来源标记（knowledge_base/local_graph/web_search 等）")
 
     @model_validator(mode="after")
     def validate_dates(cls, data: "PolicyDocument") -> "PolicyDocument":

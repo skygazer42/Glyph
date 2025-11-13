@@ -8,7 +8,7 @@
 
     <!-- 功能介绍 -->
     <el-row :gutter="20" class="feature-section">
-      <el-col :xs="24" :sm="12" :md="8" v-for="feature in features" :key="feature.title">
+      <el-col :xs="24" :sm="12" :md="12" :lg="6" v-for="feature in features" :key="feature.title">
         <el-card class="feature-card" shadow="hover">
           <div class="feature-icon" :style="{ background: feature.color }">
             <el-icon :size="32">
@@ -51,6 +51,7 @@ import {
   ChatDotRound,
   Document,
   Collection,
+  Share,
   DataAnalysis
 } from '@element-plus/icons-vue'
 import SystemAnnouncement from '@/components/SystemAnnouncement.vue'
@@ -92,6 +93,18 @@ const features = [
       '语义搜索',
       '统计分析'
     ]
+  },
+  {
+    title: '知识图谱',
+    description: '政策知识的可视化图谱展示与分析',
+    icon: Share,
+    color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    items: [
+      '实体关系可视化',
+      '交互式图谱探索',
+      '多层级关系展示',
+      '智能路径分析'
+    ]
   }
 ]
 
@@ -99,7 +112,7 @@ const stats = reactive([
   { label: '政策文档', value: '1,234' },
   { label: '问答次数', value: '5,678' },
   { label: 'DSL规则', value: '89' },
-  { label: '活跃用户', value: '123' }
+  { label: '图谱节点', value: '456' }
 ])
 </script>
 

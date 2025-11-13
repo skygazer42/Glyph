@@ -48,7 +48,15 @@
       "Bash(docker rmi:*)",
       "Bash(docker system prune:*)",
       "Bash(cat:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(jobs:*)",
+      "Bash(docker ps:*)",
+      "Bash(DATABASE__MYSQL_HOST=localhost DATABASE__MYSQL_PORT=3307 DATABASE__MYSQL_PASSWORD=glyph123 python3:*)",
+      "Bash(DATABASE__MYSQL_HOST=localhost DATABASE__MYSQL_PORT=3307 DATABASE__MYSQL_PASSWORD=glyph python3:*)"
     ],
     "deny": [],
     "ask": []
