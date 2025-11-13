@@ -8,28 +8,28 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [系统架构](#-系统架构) • [部署指南](#-部署指南) • [开发文档](#-开发指南)
+[功能特性](#功能特性) • [快速开始](#快速开始) • [系统架构](#系统架构) • [部署指南](#部署指南) • [开发文档](#开发指南)
 
 </div>
 
 ---
 
-## 📖 简介
+## 简介
 
 Glyph 是一个企业级政策智能问答系统，专为政府机构和企业提供精准的政策咨询服务。系统采用多Agent协作架构，结合知识图谱、向量检索和大语言模型，实现政策文档的深度理解和智能问答。
 
 ### 核心能力
 
-- 🤖 **多Agent协作** - 意图识别、知识检索、政策分析、答案生成等专业化智能体
-- 🧠 **混合检索** - 向量检索(Milvus) + 知识图谱(LightRAG) + 规则引擎(DSL)
-- 💬 **多轮对话** - 上下文理解与会话管理
-- 🔍 **Text2SQL** - 自然语言转SQL查询
-- 📊 **结构化提取** - 政策要素自动抽取（资格、流程、时间、材料等）
-- 🌐 **RESTful API** - 完整的后端服务接口
+- **多Agent协作** - 意图识别、知识检索、政策分析、答案生成等专业化智能体
+- **混合检索** - 向量检索(Milvus) + 知识图谱(LightRAG) + 规则引擎(DSL)
+- **多轮对话** - 上下文理解与会话管理
+- **Text2SQL** - 自然语言转SQL查询
+- **结构化提取** - 政策要素自动抽取（资格、流程、时间、材料等）
+- **RESTful API** - 完整的后端服务接口
 
 ---
 
-## ✨ 功能特性
+## 功能特性
 
 ### 1. 智能路由系统
 
@@ -83,126 +83,122 @@ graph LR
 
 ---
 
-## 🚀 快速开始
+## 快速开始
 
 ### 环境要求
 
-- Python 3.9+
-- MySQL 8.0+ (用于Text2SQL)
-- Milvus 2.4+ (向量数据库)
-- 8GB+ RAM
-- (可选) GPU for embedding
+- Python 3.9 或更高版本
+- MySQL 8.0（Text2SQL/会话存储）
+- Milvus 2.4（向量检索）
+- Node.js 18+（前端调试时需要）
+- 8GB 以上内存，建议开启虚拟内存或使用 GPU 进行批量嵌入
 
-### 安装步骤
+### 本地安装步骤
 
-#### 1. 克隆项目
+1. **克隆代码并安装依赖**
+   ```bash
+   git clone <your-repo-url>
+   cd Glyph
+   python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+2. **配置 `.env`**
+   ```bash
+   cp .env.example .env
+   ```
+   至少需要设置以下项：
+   - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL_NAME`
+   - `EMBEDDING_BACKEND` 及对应的 API Key（OpenAI 或 DashScope）
+   - `DATABASE__MYSQL_*` 与 `DATABASE__MILVUS_*`
+   - `LIGHTRAG_WORKDIR`（默认即可）
 
-```bash
-git clone <your-repo-url>
-cd Glyph
-```
+3. **启动 MySQL 并初始化表**
+   ```bash
+   mysql -u root -p < resources/database/schema/policy_qa_schema.sql
+   python create_tables.py
+   ```
 
-#### 2. 安装依赖
+4. **启动 Milvus（示例使用官方 docker-compose）**
+   ```bash
+   wget https://github.com/milvus-io/milvus/releases/download/v2.4.0/milvus-standalone-docker-compose.yml -O docker-compose.yml
+   docker-compose up -d
+   ```
 
-```bash
-# 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+5. **启动 API**
+   ```bash
+   python api_server.py
+   # 默认监听 http://localhost:8000
+   ```
 
-# 安装依赖
-pip install -r requirements.txt
-```
+6. **健康检查**
+   ```bash
+   curl http://localhost:8000/health
+   ```
 
-#### 3. 配置环境变量
-
-```bash
-cp .env.example .env
-# 编辑 .env 文件，配置以下关键参数
-```
-
-**核心配置项**:
-
-```bash
-# ===== LLM 配置 =====
-LLM_API_KEY=your_api_key_here
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL_NAME=deepseek-chat
-LLM_TEMPERATURE=0
-
-# ===== 向量检索配置 =====
-EMBEDDING_BACKEND=openai  # 或 dashscope
-EMBEDDING_OPENAI_API_KEY=your_openai_key
-EMBEDDING_OPENAI_MODEL=text-embedding-3-small
-
-# ===== Milvus 配置 =====
-DATABASE__MILVUS_HOST=localhost
-DATABASE__MILVUS_PORT=19530
-DATABASE__MILVUS_COLLECTION_NAME=policy_documents
-
-# ===== MySQL 配置 (Text2SQL) =====
-DATABASE__MYSQL_HOST=localhost
-DATABASE__MYSQL_PORT=3306
-DATABASE__MYSQL_USER=root
-DATABASE__MYSQL_PASSWORD=your_password
-DATABASE__MYSQL_DATABASE=policy_qa
-
-# ===== LightRAG 配置 (可选) =====
-LIGHTRAG_WORKDIR=resources/data/lightrag
-EMBEDDING_DASHSCOPE_API_KEY=your_dashscope_key
-```
-
-#### 4. 启动基础设施
-
-**MySQL**:
-```bash
-# 启动 MySQL 服务
-# 导入数据库结构
-mysql -u root -p < resources/database/schema/policy_qa_schema.sql
-```
-
-**Milvus**:
-```bash
-# 使用 Docker 启动 Milvus
-docker-compose up -d
-
-# 或使用官方配置
-wget https://github.com/milvus-io/milvus/releases/download/v2.4.0/milvus-standalone-docker-compose.yml -O docker-compose.yml
-docker-compose up -d
-```
-
-#### 5. 数据导入
+### 使用 Docker 构建与运行
 
 ```bash
-# 导入政策文档到向量库和LightRAG
-python scripts/ingest_policy_docs.py
+# 在项目根目录构建镜像
+docker build -t glyph-policy-qa:latest .
 
-# 或通过CLI
-python scripts/unified_cli.py --load-docs ./resources/data/process
+# 以 .env 中的配置启动容器
+docker run -d \
+  -p 8000:8000 \
+  --env-file .env \
+  --name glyph-api \
+  glyph-policy-qa:latest
+
+# 进入容器以执行嵌入/导入脚本
+docker exec -it glyph-api bash
+
+# 停止并移除
+docker stop glyph-api && docker rm glyph-api
 ```
 
-#### 6. 启动服务
+（如需同时运行 MySQL、Milvus，可在宿主机或独立容器中启动，保持 `.env` 中的地址可达。）
 
-```bash
-# 启动 FastAPI 服务
-python api_server.py
+### 导入示例数据
 
-# 服务将在 http://localhost:8000 启动
-```
+1. **生成 Text2SQL 数据库**
+   ```bash
+   sqlite3 resources/sql/policy_demo.db < resources/sql/policy_demo.sql
+   python scripts/register_text2sql_connection.py  # 记录返回的 connection_id
+   ```
 
-#### 7. 测试接口
+2. **嵌入政策文档到向量库 / LlamaIndex**
+   ```bash
+   python scripts/ingest_policy_docs.py --source resources/data/process
+   ```
 
-```bash
-# 健康检查
-curl http://localhost:8000/health
+3. **写入 LightRAG 图谱（可选但建议执行）**
+   ```bash
+   python scripts/seed_lightrag.py --input-dir resources/data/process
+   ```
 
-# 问答接口
-curl -X POST http://localhost:8000/api/agent/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "家电以旧换新的补贴标准是什么？",
-    "session_id": "test-session-001"
-  }'
-```
+4. **验证数据是否生效**
+   - `python scripts/unified_cli.py --interactive` 可快速检索文档
+   - `sqlite3 resources/sql/policy_demo.db ".tables"` 检查表已生成
+   - `mysql -u root -p policy_db -e "SHOW TABLES"` 确认 `chatsession/chatmessage` 等表存在
+
+### 自动化验证
+
+1. **界面层脚本**
+   ```bash
+   ./run_50_tests.sh   # 选择模式 2 可顺序测试 42 条问题
+   ```
+   运行完成后会生成 `test_results_50_questions.{json,md}`，可用于校验路由与答案。
+
+2. **单元与集成测试**
+   ```bash
+   pytest tests -q
+   ```
+
+3. **手动接口检查**
+   ```bash
+   curl -X POST http://localhost:8000/api/agent/chat \
+     -H "Content-Type: application/json" \
+     -d '{"message": "家电以旧换新的补贴标准是什么？", "session_id": "demo"}'
+   ```
 
 ### 交互式CLI
 
@@ -225,7 +221,7 @@ python scripts/unified_cli.py --interactive
 
 ---
 
-## 🏗️ 系统架构
+## 系统架构
 
 ### 整体架构
 
@@ -277,7 +273,7 @@ python scripts/unified_cli.py --interactive
 
 ---
 
-## 📊 核心组件
+## 核心组件
 
 ### 1. RewriteAgent - 查询改写
 
@@ -368,7 +364,7 @@ SQL: SELECT title FROM policies WHERE category = '家电' LIMIT 10;
 
 ---
 
-## 🔧 配置说明
+## 配置说明
 
 ### 完整 .env 配置
 
@@ -432,7 +428,7 @@ ANALYZER_CONCURRENCY=3  # 政策分析并发数
 
 ---
 
-## 📈 性能优化
+## 性能优化
 
 ### 1. 向量检索优化
 
@@ -460,7 +456,7 @@ ANALYZER_CONCURRENCY=3
 
 ---
 
-## 🧪 测试
+## 测试
 
 ### 运行测试套件
 
@@ -484,7 +480,7 @@ python test_lightrag_retrieval.py
 
 ---
 
-## 📦 部署指南
+## 部署指南
 
 ### Docker 部署
 
@@ -535,7 +531,7 @@ server {
 
 ---
 
-## 📝 开发指南
+## 开发指南
 
 ### 添加新的 Agent
 
@@ -616,7 +612,7 @@ calculation:
 
 ---
 
-## 🧹 维护工具
+## 维护工具
 
 ### 清理临时文件
 
@@ -640,7 +636,7 @@ python scripts/rebuild_milvus.py
 
 ---
 
-## 🐛 已知问题
+## 已知问题
 
 ### LightRAG 嵌入函数异步问题
 
@@ -662,7 +658,7 @@ python scripts/rebuild_milvus.py
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [ ] 修复 LightRAG 异步嵌入问题
 - [ ] 优化路由策略，提升 LightRAG 使用率
@@ -674,7 +670,7 @@ python scripts/rebuild_milvus.py
 
 ---
 
-## 🤝 贡献指南
+## 贡献指南
 
 我们欢迎所有形式的贡献！
 
@@ -695,13 +691,13 @@ python scripts/rebuild_milvus.py
 
 ---
 
-## 📄 许可证
+## 许可证
 
 本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
 
 ---
 
-## 🙏 致谢
+## 致谢
 
 - [AutoGen](https://github.com/microsoft/autogen) - 多Agent协作框架
 - [LightRAG](https://github.com/HKUDS/LightRAG) - 轻量级知识图谱检索
@@ -711,18 +707,11 @@ python scripts/rebuild_milvus.py
 
 ---
 
-## 📧 联系方式
-
-- **Issues**: 在 GitHub 提交问题
-- **Discussions**: 参与项目讨论
-- **Email**: your-email@example.com
-
----
-
+ 
+ 
 <div align="center">
 
-**如果这个项目对您有帮助，请给我们一个 ⭐️**
 
-Made with ❤️ by Glyph Team
+Made with care by the Glyph Team
 
 </div>

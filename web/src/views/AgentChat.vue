@@ -398,7 +398,10 @@ const addMessageToHistory = (message) => {
   if (chatHistory) {
     chatHistory.addMessage(message)
   }
+}
 
+// 更新会话元数据
+const updateSessionMetadata = (message) => {
   // 更新会话信息
   const session = sessions.value.find(s => s.id === sessionId.value)
   if (session && sessionManagerRef.value) {
@@ -418,7 +421,6 @@ const sendMessageStream = async (userMessage) => {
     content: userMessage,
     time: new Date().toLocaleTimeString()
   }
-  messages.value.push(userMsg)
   addMessageToHistory(userMsg)
 
   // 添加空的助手消息（用于流式更新）
@@ -429,7 +431,7 @@ const sendMessageStream = async (userMessage) => {
     time: new Date().toLocaleTimeString(),
     metadata: null
   }
-  messages.value.push(assistantMsg)
+  addMessageToHistory(assistantMsg)
 
   scrollToBottom()
   loading.value = true
@@ -519,8 +521,8 @@ const sendMessageStream = async (userMessage) => {
       messages.value[assistantMessageIndex].content = '抱歉，没有收到回复。'
     }
 
-    // 保存助手消息到历史
-    addMessageToHistory(messages.value[assistantMessageIndex])
+    // 更新会话元数据
+    updateSessionMetadata(messages.value[assistantMessageIndex])
     streamingSucceeded = true
 
   } catch (error) {
@@ -528,7 +530,7 @@ const sendMessageStream = async (userMessage) => {
 
     // 更新错误消息
     messages.value[assistantMessageIndex].content = '抱歉，我遇到了一些问题，请稍后再试。'
-    addMessageToHistory(messages.value[assistantMessageIndex])
+    updateSessionMetadata(messages.value[assistantMessageIndex])
   } finally {
     if (streamingSucceeded) {
       resetAttachments()
@@ -561,7 +563,6 @@ const sendMessageNonStream = async (userMessage) => {
     content: userMessage,
     time: new Date().toLocaleTimeString()
   }
-  messages.value.push(userMsg)
   addMessageToHistory(userMsg)
 
   scrollToBottom()
@@ -592,8 +593,8 @@ const sendMessageNonStream = async (userMessage) => {
         time: new Date().toLocaleTimeString(),
         metadata: response.metadata
       }
-      messages.value.push(assistantMsg)
       addMessageToHistory(assistantMsg)
+      updateSessionMetadata(assistantMsg)
       resetAttachments()
     } else {
       throw new Error('获取回复失败')
@@ -607,8 +608,8 @@ const sendMessageNonStream = async (userMessage) => {
       content: '抱歉，我遇到了一些问题，请稍后再试。',
       time: new Date().toLocaleTimeString()
     }
-    messages.value.push(errorMsg)
     addMessageToHistory(errorMsg)
+    updateSessionMetadata(errorMsg)
   } finally {
     loading.value = false
     scrollToBottom()

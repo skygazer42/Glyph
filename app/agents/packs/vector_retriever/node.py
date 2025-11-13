@@ -110,7 +110,7 @@ class VectorRetrieverAgent(StatefulAgent):
             self.document_metadata.append({
                 "id": str(doc.id),
                 "title": doc.title,
-                "content": doc.content[:500],  # Store summary
+                "content": doc.content[:8000],  # Store more content to include detailed standards
                 "source": doc.source,
                 "doc_type": doc.doc_type,
                 "publish_date": doc.publish_date.isoformat() if doc.publish_date else None,

@@ -136,7 +136,7 @@ class KnowledgeAgent:
     def _format_documents(self, docs: List[PolicyDocument]) -> str:
         chunks = []
         for idx, doc in enumerate(docs[: self.top_k], 1):
-            preview = (doc.content or "")[:400].replace("\n", " ")
+            preview = (doc.content or "")[:6000].replace("\n", " ")  # Increased from 400 to 6000 to capture detailed subsidy standards
             chunks.append(
                 f"[资料{idx}] 标题：{doc.title}\n来源：{doc.source}\n内容摘录：{preview}\n"
             )

@@ -189,17 +189,22 @@ class VisionTool:
             client_args: Dict[str, Any] = {
                 "model": model,
                 "api_key": resolved_key,
-                "model_info": {"vision": True},
+                "model_info": {
+                    "vision": True,
+                    "function_calling": False,
+                    "json_output": False,
+                    "family": "unknown",
+                },
             }
             if base_url:
                 client_args["base_url"] = base_url
             try:
                 self._client = OpenAIChatCompletionClient(**client_args)
                 self._enabled = True
-                logger.info("VisionTool initialized with model %s", model)
+                logger.info("VisionTool initialized with model {}", model)
             except Exception as exc:  # pragma: no cover - init failure
                 self._enabled = False
-                logger.error("VisionTool 初始化失败: %s", exc)
+                logger.error("VisionTool 初始化失败: {}", exc)
         else:
             self._enabled = False
             if enabled:
@@ -221,7 +226,7 @@ class VisionTool:
             )
             return (response.content or "").strip()
         except Exception as exc:  # pragma: no cover - external failure
-            logger.error("VisionTool 描述失败: %s", exc)
+            logger.error("VisionTool 描述失败: {}", exc)
             return ""
 
     def _build_contents(self, query: str, attachments: List[Attachment]) -> List[Dict[str, Any]]:
@@ -252,7 +257,7 @@ class VisionTool:
             return None
         path = Path(attachment.path)
         if not path.exists():
-            logger.warning("VisionTool 找不到图片路径：%s", attachment.path)
+            logger.warning("VisionTool 找不到图片路径：{}", attachment.path)
             return None
         mime = attachment.mime_type or mimetypes.guess_type(path.name)[0] or "image/png"
         try:
@@ -260,7 +265,7 @@ class VisionTool:
             encoded = base64.b64encode(data).decode("utf-8")
             return f"data:{mime};base64,{encoded}"
         except Exception as exc:  # pragma: no cover - file read error
-            logger.error("VisionTool 读取图片失败 %s: %s", path, exc)
+            logger.error("VisionTool 读取图片失败 {}: {}", path, exc)
             return None
 
 
