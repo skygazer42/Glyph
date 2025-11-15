@@ -12,12 +12,30 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
+# ============================================
+# 日志过滤器: 过滤 health check 请求日志
+# ============================================
+class HealthCheckFilter(logging.Filter):
+    """过滤健康检查端点的访问日志"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # 过滤包含 /health 或 /api/health 的日志
+        message = record.getMessage()
+        return not any(
+            pattern in message
+            for pattern in ["/health", "GET /api/health", "GET /health"]
+        )
+
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# 应用过滤器到 uvicorn 的 access logger
+logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
 # 导入 endpoint 路由
 from app.api.endpoints import agent, dsl, knowledge, uploads, knowledge_graph

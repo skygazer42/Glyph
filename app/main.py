@@ -8,6 +8,7 @@
 环境：参考 .env / README 中的 LLM_*、嵌入、Reranker 等配置。
 """
 
+import logging
 from typing import List, Optional, Any, Dict
 
 import redis.asyncio as aioredis
@@ -26,6 +27,25 @@ from app.core.auth import (
     get_current_user_or_dummy,
 )
 from app.core.config import settings
+
+
+# ============================================
+# 日志过滤器: 过滤 health check 请求日志
+# ============================================
+class HealthCheckFilter(logging.Filter):
+    """过滤健康检查端点的访问日志"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # 过滤包含 /health 或 /api/health 的日志
+        message = record.getMessage()
+        return not any(
+            pattern in message
+            for pattern in ["/health", "GET /api/health", "GET /health"]
+        )
+
+
+# 应用过滤器到 uvicorn 的 access logger
+logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
 
 class QueryRequest(BaseModel):

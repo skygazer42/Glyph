@@ -565,7 +565,27 @@ calculation:
 
 **功能**: 将自然语言查询转换为SQL查询并执行
 
-**处理流程** (app/agents/chatdb/):
+**处理流程图**:
+
+```mermaid
+graph TB
+    Q[用户查询] --> D5[🔎 Text2SQLAgent<br/>SQL引擎<br/><small>NL→SQL</small>]
+
+    D5 --> S1[📋 Schema Analyzer<br/>表结构分析<br/><small>检索相关表和列</small>]
+    S1 --> S2[🔧 SQL Generator<br/>SQL生成<br/><small>NL→SQL转换</small>]
+    S2 --> S3[✅ Query Executor<br/>查询执行<br/><small>安全校验+执行</small>]
+    S3 --> S4[📊 Result Formatter<br/>结果格式化<br/><small>JSON/表格/图表</small>]
+    S4 --> A[最终答案]
+
+    style D5 fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style S1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style S2 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style S3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style S4 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style A fill:#a5d6a7,stroke:#1b5e20,stroke-width:3px
+```
+
+**流程说明** (app/agents/chatdb/):
 
 ```
 用户查询 → Schema分析 → SQL生成 → 安全校验 → 执行 → 结果格式化

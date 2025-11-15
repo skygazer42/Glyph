@@ -401,7 +401,11 @@ class AgentService:
                 # 追问场景下根据原始问题 + 领域元数据，按缺失槽位选择固定模板，不再回显内部拼接的历史上下文
                 final = self.clarifier_agent.ask(query, domain_context.to_metadata())
             elif route == "rule_engine":
-                final = await self.rule_agent.compute(rewritten_query, intent=intent_result)
+                # 规则计算场景下，优先保留改写后的业务表述，同时附加本轮用户补充信息，避免丢失价格/能效等槽位
+                combined_query = rewritten_query
+                if query and query not in combined_query:
+                    combined_query = f"{rewritten_query}\n\n用户补充信息：{query}"
+                final = await self.rule_agent.compute(combined_query, intent=intent_result)
             elif route == "text2sql":
                 final = await self.text2sql_agent.answer(
                     rewritten_query, connection_id=connection_id
@@ -561,10 +565,6 @@ class AgentService:
             self._routing_debug.append("needs_clarification_heuristic=>clarify")
             return "clarify"
 
-        if self._looks_like_subsidy_calculation(rewritten_query, domain_meta):
-            self._routing_debug.append("looks_like_subsidy_calculation=>rule_engine")
-            return "rule_engine"
-
         chains = (intent_result or {}).get("chains") or []
         if "vision_chain" in chains and self.vision_tool.enabled:
             self._routing_debug.append("chains:vision/user_history=>workflow")
@@ -616,8 +616,10 @@ class AgentService:
                 context=context_payload,
             )
             session_store.add_query(sid, user_query)
-            augmented_query, history_used = self._augment_query_with_history(query, context_payload)
-            return sid, augmented_query, context_payload, history_used
+            # 历史仅作为后续 Agent 的参考上下文，不再直接拼入用户原始问题，
+            # 避免改写阶段改变“最后一问”的语义。
+            _, history_used = self._augment_query_with_history(query, context_payload)
+            return sid, query, context_payload, history_used
         except Exception as exc:  # pragma: no cover - defensive fallback
             logging_manager.warning("会话上下文处理失败：%s", exc)
             return session_id or "", query, default_context, False
@@ -711,9 +713,24 @@ class AgentService:
             "脉络",
             "负责",
         ]
-        process_keywords = ["流程", "环节", "节点", "链路", "步骤", "分工"]
+        process_keywords = [
+            "流程",
+            "环节",
+            "节点",
+            "链路",
+            "步骤",
+            "分工",
+            "材料",
+            "怎么操作",
+            "如何操作",
+            "怎么办理",
+            "如何办理",
+        ]
         q_lower = query.lower()
         if any(kw in query or kw in q_lower for kw in graph_keywords):
+            return True
+        # 带明显流程/材料关键词的问题，也优先尝试用 Graph/流程视角来回答
+        if any(kw in query or kw in q_lower for kw in process_keywords):
             return True
         if sub_intent in {"process", "documents"} and any(
             kw in query or kw in q_lower for kw in process_keywords
@@ -776,8 +793,11 @@ class AgentService:
         if self._needs_clarification(original_query, rewritten_query, domain_meta):
             return "clarify"
         # Subsidy computation?
-        if self._looks_like_subsidy_calculation(rewritten_query, domain_meta):
+        if self._looks_like_subsidy_calculation(original_query, domain_meta):
             return "rule_engine"
+        # Temporal subsidy eligibility (“去年…今年还能享受补贴吗”) → Graph
+        if self._looks_like_temporal_subsidy_eligibility(rewritten_query):
+            return "graph"
         # Graph-like?
         if self._looks_like_graph_question(rewritten_query):
             return "graph"
@@ -824,19 +844,52 @@ class AgentService:
         query: str,
         domain_meta: Dict[str, Any],
     ) -> bool:
-        if "补贴" not in query and "补助" not in query:
+        """
+        仅根据「本轮问题」判断是否属于补贴金额计算：
+        - 需要在补贴/补助语境下；
+        - 且当前问题里同时出现金额、具体产品和能效等级。
+        上下文中的历史价格/产品不会触发计算路由，避免后续追问被误判为“再次计算”。
+        """
+        text = (query or "").strip()
+        if not text:
             return False
-        has_price = bool(re.search(r"\d+(\.\d+)?\s*元", query))
+
+        # 补贴/补助语境：问题本身或领域关键词中包含“补贴/补助”
+        if "补贴" not in text and "补助" not in text:
+            keywords = (domain_meta or {}).get("keywords") or []
+            has_subsidy_kw = any("补贴" in str(kw) or "补助" in str(kw) for kw in keywords)
+            if not has_subsidy_kw:
+                return False
+
+        has_price = bool(re.search(r"\d+(\.\d+)?\s*元", text))
         if not has_price:
             return False
+
         keywords = (domain_meta or {}).get("keywords") or []
-        has_product = any(kw in query for kw in self.PRODUCT_KEYWORDS) or any(
+        has_product = any(kw in text for kw in self.PRODUCT_KEYWORDS) or any(
             kw in keywords for kw in self.PRODUCT_KEYWORDS
         )
         if not has_product:
             return False
-        has_energy = any(tag in query for tag in ["1级", "一级", "2级", "二级", "能效", "水效"])
+
+        has_energy = any(tag in text for tag in ["1级", "一级", "2级", "二级", "能效", "水效"])
         return has_energy
+
+    def _looks_like_temporal_subsidy_eligibility(self, query: str) -> bool:
+        """
+        检测像“去年已享受，今年还能享受补贴吗？”这类带时间对比的资格问题，
+        优先路由到 Graph（需要结合条款做推理）。
+        """
+        text = (query or "").strip()
+        if not text:
+            return False
+        if "补贴" not in text and "补助" not in text:
+            return False
+        temporal_terms = ["去年", "上一年", "上一次", "2024", "今年", "2025"]
+        if not any(t in text for t in temporal_terms):
+            return False
+        eligibility_terms = ["还能", "再次", "还可以", "还能享受", "还能领", "还能不能", "还可以享受"]
+        return any(t in text for t in eligibility_terms)
 
     def _ensure_route_and_citations(self, final) -> None:
         route = (final.metadata or {}).get("route") if hasattr(final, "metadata") else None
@@ -869,7 +922,14 @@ class AgentService:
         if not lines:
             meta = final.metadata or {}
             if meta.get("rule_id"):
-                lines.append(f"- DSL 规则：{meta['rule_id']}")
+                # rule_engine 结果优先展示规则关联的政策标题
+                engine_result = meta.get("engine_result") or {}
+                policy_source = engine_result.get("policy_source") or {}
+                policy_title = policy_source.get("title")
+                if policy_title:
+                    lines.append(f"- {policy_title}")
+                else:
+                    lines.append(f"- DSL 规则：{meta['rule_id']}")
             elif meta.get("origin"):
                 lines.append(f"- 知识来源：{meta['origin']}")
             elif meta.get("workflow"):

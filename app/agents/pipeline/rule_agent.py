@@ -140,26 +140,57 @@ class RuleEngineAgent:
     def _format_result(
         self, rule_id: str, result: Dict[str, Any], inputs: Dict[str, Any]
     ) -> str:
-        status = result.get("status", "UNKNOWN")
-        msg = result.get("message", "")
-        final_value = result.get("final_result")
-        trace = result.get("trace")
+        status = (result or {}).get("status", "UNKNOWN")
+        msg = (result or {}).get("message", "")
+        final_value = (result or {}).get("final_result")
+        trace_steps = (result or {}).get("explainability_trace") or []
+        policy_source = (result or {}).get("policy_source") or {}
+        title = policy_source.get("title") or ""
 
-        parts = [f"匹配规则：{rule_id}", f"执行状态：{status}"]
-        if inputs:
-            pretty_inputs = ", ".join(f"{k}={v}" for k, v in inputs.items())
-            parts.append(f"输入参数：{pretty_inputs}")
-        if final_value:
-            if isinstance(final_value, dict):
-                entries = ", ".join(f"{k}={v}" for k, v in final_value.items())
-                parts.append(f"计算结果：{entries}")
+        lines: list[str] = []
+
+        # 开场：根据状态给一句总体验证结论
+        if status in {"QUALIFIED", "SUCCESS"}:
+            if title:
+                lines.append(f"感谢您提供的信息。根据《{title}》及您提供的参数，系统判断您符合当前规则下的补贴条件，并已完成补贴金额的计算。")
             else:
-                parts.append(f"计算结果：{final_value}")
+                lines.append("感谢您提供的信息。根据相关政策规则，系统判断您符合补贴条件，并已完成补贴金额的计算。")
+        elif status == "EXPIRED":
+            if title:
+                lines.append(f"根据《{title}》，该政策当前已不在有效期内，因此无法为您计算补贴金额。")
+            else:
+                lines.append("经核对，该政策当前已不在有效期内，暂无法为您计算补贴金额。")
+        elif status == "INVALID_INPUT":
+            lines.append("您提供的参数不完整或格式有误，暂时无法进行精确计算，请核对后重新提交。")
+        else:
+            lines.append("系统已根据相关政策规则尝试进行计算，结果如下：")
+
+        # 关键信息归纳
+        if inputs:
+            pretty_inputs = "，".join(f"{k}={v}" for k, v in inputs.items())
+            lines.append(f"\n本次计算使用的关键信息包括：{pretty_inputs}。")
+
+        # 计算过程：优先使用 DSL trace_template 生成的 explainability_trace
+        if trace_steps:
+            lines.append("\n计算过程如下：")
+            for step in trace_steps:
+                desc = step.get("description") if isinstance(step, dict) else str(step)
+                desc = str(desc).strip()
+                if not desc:
+                    continue
+                # 统一用条目形式呈现
+                lines.append(f"· {desc}")
+
+        # 计算结论
+        if isinstance(final_value, (int, float)):
+            lines.append(f"\n结论：本次计算得到的关键结果为 {final_value:.0f}。")
+        elif final_value is not None:
+            lines.append(f"\n结论：本次计算得到的关键结果为：{final_value}。")
+
         if msg:
-            parts.append(f"说明：{msg}")
-        if trace:
-            parts.append(f"计算过程：\n{trace}")
-        return "\n".join(parts)
+            lines.append(f"\n补充说明：{msg}")
+
+        return "\n".join(lines)
 
     def _unable_to_match_answer(
         self, query: str, reasoning: Optional[str]
