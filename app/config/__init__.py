@@ -13,8 +13,9 @@ from .app_config import (
     AutoGenSettings,
     PerformanceSettings,
     SystemSettings,
-    settings  # 全局配置实例
+    settings,  # 全局配置实例
 )
+from app.utils.config import Config
 
 __all__ = [
     'Settings',
@@ -29,4 +30,5 @@ __all__ = [
     'PerformanceSettings',
     'SystemSettings',
     'settings',
+    'Config',
 ]

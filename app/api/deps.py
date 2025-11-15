@@ -11,7 +11,7 @@ from app.agents.dsl_generator.dsl_generator import DSLGenerator
 from app.agents.dsl_generator.document_parser import DocumentParser
 from app.agents.dsl_generator.rule_engine import PolicyEngine
 from app.agents.service import AgentService
-from app.knowledge.milvus import MilvusStore
+from app.knowledge import KnowledgeService, EnhancedDocumentProcessor
 from app.models.llms import model_client
 
 
@@ -24,7 +24,8 @@ _doc_parser: Optional[DocumentParser] = None
 _policy_engine: Optional[PolicyEngine] = None
 
 # 知识库
-_milvus_store: Optional[MilvusStore] = None
+_knowledge_service: Optional[KnowledgeService] = None
+_enhanced_doc_processor: Optional[EnhancedDocumentProcessor] = None
 
 # Agent Service
 _agent_service: Optional[AgentService] = None
@@ -66,18 +67,20 @@ def get_policy_engine() -> PolicyEngine:
 
 # ==================== 知识库相关依赖 ====================
 
-def get_milvus_store() -> MilvusStore:
-    """获取 Milvus 存储实例"""
-    global _milvus_store
-    if _milvus_store is None:
-        try:
-            _milvus_store = MilvusStore()
-        except Exception as e:
-            raise HTTPException(
-                status_code=503,
-                detail=f"无法连接到Milvus: {str(e)}"
-            )
-    return _milvus_store
+def get_knowledge_service() -> KnowledgeService:
+    """获取 KnowledgeService 实例"""
+    global _knowledge_service
+    if _knowledge_service is None:
+        _knowledge_service = KnowledgeService()
+    return _knowledge_service
+
+
+def get_enhanced_doc_processor() -> EnhancedDocumentProcessor:
+    """获取增强文档处理器实例"""
+    global _enhanced_doc_processor
+    if _enhanced_doc_processor is None:
+        _enhanced_doc_processor = EnhancedDocumentProcessor()
+    return _enhanced_doc_processor
 
 
 # ==================== Agent 相关依赖 ====================

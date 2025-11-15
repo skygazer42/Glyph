@@ -201,6 +201,17 @@ test_output/
 **/test_*.txt
 **/demo_output/
 
+# 测试结果文件
+test_results*.json
+test_results*.md
+analyze_results.py
+test_*.py
+!tests/**/*.py  # 保留 tests 目录下的测试文件
+
+# 临时测试脚本
+check_*.py
+test_early_stop.py
+
 # ============================================
 # Optional: 测试报告和文档
 # ============================================

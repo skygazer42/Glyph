@@ -32,11 +32,10 @@ from .tools import (
 )
 from app.agents.domain import PolicyDomainContextBuilder
 from app.core import logging_manager
-from app.config import settings
+from app.config import settings, Config
 from app.knowledge.service import KnowledgeService
 from app.knowledge.faq_responder import FAQResponder
-from app.utils.config import Config
-from app.utils.document_loader import DocumentLoader
+from app.knowledge import DocumentLoader
 from app.models.base import Attachment, UserQuery
 
 # 配置主日志管理器

@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from app.knowledge.milvus import MilvusStore
 from app.agents.framework.base.types import PolicyDocument
-from app.utils.document_loader import DocumentLoader
+from app.knowledge import DocumentLoader
 
 
 def ingest_documents():

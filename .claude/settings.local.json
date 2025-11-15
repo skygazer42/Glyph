@@ -13,7 +13,8 @@
       "Bash(curl:*)",
       "Bash(python -m json.tool:*)",
       "Bash(python analyze_results.py:*)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

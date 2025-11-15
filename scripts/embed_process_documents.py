@@ -21,7 +21,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from loguru import logger
 
 from app.knowledge.service import KnowledgeService
-from app.utils.document_loader import DocumentLoader
+from app.knowledge import DocumentLoader
 
 
 def parse_args() -> argparse.Namespace:

@@ -30,7 +30,7 @@ except Exception as exc:  # pragma: no cover - missing LightRAG extras
 else:
     IMPORT_ERROR = None
 
-from app.utils.document_loader import DocumentLoader
+from app.knowledge import DocumentLoader
 
 
 def parse_args() -> argparse.Namespace:

@@ -6,6 +6,8 @@
 import shutil
 import logging
 from pathlib import Path
+from uuid import uuid4
+from typing import Optional, Tuple
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 
 from app.api.schemas import (
@@ -20,10 +22,12 @@ from app.api.schemas import (
     DeleteDocumentResponse,
     StatsResponse
 )
-from app.api.deps import get_milvus_store, get_document_parser
-from app.knowledge.milvus import MilvusStore
-from app.agents.dsl_generator.document_parser import DocumentParser
-from app.agents.framework.base.types import PolicyDocument
+from app.api.deps import (
+    get_enhanced_doc_processor,
+    get_knowledge_service,
+)
+from app.knowledge import EnhancedDocumentProcessor, KnowledgeService
+from app.models.base import PolicyDocument, PolicyType
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -33,10 +37,47 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
+async def _build_policy_document(
+    file_path: Path,
+    processor: EnhancedDocumentProcessor,
+    *,
+    doc_id: Optional[str] = None,
+) -> Tuple[PolicyDocument, int]:
+    """使用增强文档处理器提取文本并构建 PolicyDocument。"""
+    metadata = await processor.extract_with_metadata(file_path)
+    if not metadata.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=metadata.get("error", "无法提取文档内容"),
+        )
+    text = metadata.get("text") or ""
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="上传文档未解析到有效文本")
+
+    title = metadata.get("title") or metadata.get("file_name") or file_path.stem
+    summary = text[:200].strip()
+    policy_type = metadata.get("doc_type")
+    try:
+        doc_type = PolicyType(policy_type) if policy_type else PolicyType.GUIDELINE
+    except ValueError:
+        doc_type = PolicyType.GUIDELINE
+
+    document = PolicyDocument(
+        id=uuid4(),
+        title=title,
+        content=text,
+        summary=summary,
+        source=str(file_path),
+        doc_type=doc_type,
+        metadata={**metadata, "uploaded_doc_id": doc_id or file_path.name},
+    )
+    return document, len(text)
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    doc_parser: DocumentParser = Depends(get_document_parser)
+    processor: EnhancedDocumentProcessor = Depends(get_enhanced_doc_processor)
 ):
     """
     上传文档
@@ -53,8 +94,8 @@ async def upload_document(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # 解析文档
-        content = doc_parser.parse(str(file_path))
+        # 解析文档，确保可被知识库使用
+        _, content_length = await _build_policy_document(file_path, processor, doc_id=file.filename)
 
         logger.info(f"文档上传成功: {file.filename}")
 
@@ -62,7 +103,7 @@ async def upload_document(
             success=True,
             doc_id=file.filename,
             file_path=str(file_path),
-            content_length=len(content)
+            content_length=content_length
         )
 
     except Exception as e:
@@ -73,8 +114,8 @@ async def upload_document(
 @router.post("/embed", response_model=EmbedResponse)
 async def embed_document(
     request: EmbedRequest,
-    milvus_store: MilvusStore = Depends(get_milvus_store),
-    doc_parser: DocumentParser = Depends(get_document_parser)
+    knowledge_service: KnowledgeService = Depends(get_knowledge_service),
+    processor: EnhancedDocumentProcessor = Depends(get_enhanced_doc_processor),
 ):
     """
     将文档嵌入到向量库
@@ -91,27 +132,18 @@ async def embed_document(
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="文档不存在")
 
-        # 解析文档内容
-        content = doc_parser.parse(str(file_path))
+        # 解析文档并构建 PolicyDocument
+        document, _ = await _build_policy_document(file_path, processor, doc_id=request.doc_id)
 
-        # 创建文档对象
-        doc = PolicyDocument(
-            id=request.doc_id,
-            title=request.doc_id,
-            content=content,
-            source=str(file_path),
-            doc_type="policy"
-        )
+        # 添加到知识库
+        await knowledge_service.index_documents([document])
 
-        # 添加到向量库
-        milvus_store.add_documents([doc])
-
-        logger.info(f"文档已嵌入向量库: {request.doc_id}")
+        logger.info(f"文档已嵌入知识库: {request.doc_id}")
 
         return EmbedResponse(
             success=True,
             doc_id=request.doc_id,
-            message="文档已成功嵌入到向量库"
+            message="文档已成功入库并可用于检索"
         )
 
     except HTTPException:
@@ -124,7 +156,7 @@ async def embed_document(
 @router.post("/search", response_model=SearchResponse)
 async def search_knowledge(
     request: SearchRequest,
-    milvus_store: MilvusStore = Depends(get_milvus_store)
+    knowledge_service: KnowledgeService = Depends(get_knowledge_service),
 ):
     """
     搜索知识库
@@ -136,11 +168,11 @@ async def search_knowledge(
         搜索结果
     """
     try:
-        # 执行搜索
-        documents, scores = milvus_store.search(
+        # 执行搜索（统一走 KnowledgeService，可联动 LlamaIndex/MinerU）
+        documents, scores = await knowledge_service.search(
             query=request.query,
             top_k=request.top_k,
-            threshold=request.threshold
+            threshold=request.threshold,
         )
 
         # 转换为响应格式
@@ -242,7 +274,7 @@ async def delete_document(doc_id: str):
 
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(
-    milvus_store: MilvusStore = Depends(get_milvus_store)
+    knowledge_service: KnowledgeService = Depends(get_knowledge_service),
 ):
     """
     获取知识库统计信息
@@ -251,7 +283,7 @@ async def get_stats(
         统计信息
     """
     try:
-        stats = milvus_store.get_stats()
+        stats = knowledge_service.vector_store.get_stats()
 
         logger.info("获取知识库统计信息")
 

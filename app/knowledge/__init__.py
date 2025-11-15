@@ -15,11 +15,15 @@ from .llamaindex_integration import LlamaIndexIntegration
 from .milvus import MilvusStore
 from .rerank import Reranker
 from .doc_enhanced import EnhancedDocumentProcessor
+from .service import KnowledgeService
+from .document_loader import DocumentLoader
 
 __all__ = [
     # 文档解析
     "MinerUAdapter",
     "EnhancedDocumentProcessor",
+    "KnowledgeService",
+    "DocumentLoader",
 
     # OCR 处理
     "RapidOCRProcessor",

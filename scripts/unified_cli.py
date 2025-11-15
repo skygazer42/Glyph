@@ -14,7 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 from app.agents.service import AgentService
-from app.utils.config import Config
+from app.config import Config
 
 
 class AgentOrchestratorService:
