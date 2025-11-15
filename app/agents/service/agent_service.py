@@ -721,6 +721,42 @@ class AgentService:
             return True
         return False
 
+    def _looks_like_policy_content_question(
+        self,
+        query: str,
+        domain_meta: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """
+        Detect standard “policy content” questions that可以直接走知识库，
+        用于 FastPath 跳过意图识别 LLM 调用。
+        """
+        text = (query or "").strip()
+        if not text:
+            return False
+
+        # 需要同时具备“政策语境” + “内容类提问”两个要素
+        policy_terms = ["政策", "实施细则", "实施方案", "补贴政策"]
+        has_policy = any(term in text for term in policy_terms)
+        if not has_policy:
+            keywords = (domain_meta or {}).get("keywords") or []
+            has_policy = any("政策" in str(kw) or "补贴" in str(kw) for kw in keywords)
+            if not has_policy:
+                return False
+
+        content_triggers = [
+            "具体内容",
+            "主要内容",
+            "详细内容",
+            "包括哪些",
+            "具体有哪些",
+            "内容是什么",
+            "怎么规定",
+            "如何规定",
+        ]
+        if any(term in text for term in content_triggers):
+            return True
+        return False
+
     def _fast_route(
         self,
         *,
@@ -745,6 +781,9 @@ class AgentService:
         # Graph-like?
         if self._looks_like_graph_question(rewritten_query):
             return "graph"
+        # Standard “政策具体内容”问答 → 直接走知识库
+        if self._looks_like_policy_content_question(rewritten_query, domain_meta):
+            return "knowledge"
         return None
 
     def _needs_clarification(
