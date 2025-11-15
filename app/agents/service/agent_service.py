@@ -290,7 +290,10 @@ class AgentService:
         ) = self._prepare_conversation_context(session_id, user_id, query)
 
         # 0) 问候/闲聊快速检测：避免短句被 FAQ 模糊命中
+        logging_manager.info("[AgentService] 接收到用户提问: %s", query)
+
         if self._looks_like_greeting(query):
+            logging_manager.info("[AgentService] 命中问候检测，直接走 dialogue route")
             final = self.dialogue_agent.respond("greeting")
             session_store.add_answer(session_id, final)
             metadata = final.metadata or {}
@@ -316,6 +319,11 @@ class AgentService:
         # 1) FAQ 短路：优先用原始问题命中即可返回
         faq_final = self.faq_responder.maybe_answer(query)
         if faq_final:
+            logging_manager.info(
+                "[AgentService] FAQ 命中 question=%s similarity=%.3f",
+                faq_final.metadata.get("faq_question"),
+                faq_final.metadata.get("similarity"),
+            )
             intent_result = {
                 "intent": "faq_cache",
                 "confidence": faq_final.confidence,
@@ -351,6 +359,11 @@ class AgentService:
                 context=conversation_context,
                 domain_hint=None,
             )
+            logging_manager.info(
+                "[AgentService] 改写结果: %s -> %s",
+                query,
+                rewritten_query,
+            )
             domain_context = self._domain_context_builder.build(rewritten_query)
             # FAQ 仅针对原始问题；改写后不再重复匹配
             # 如果未命中 FAQ，继续走后续流程
@@ -366,15 +379,21 @@ class AgentService:
                 domain_meta=domain_context.to_metadata(),
             )
             if fast_route:
+                logging_manager.info("[AgentService] FastPath 命中 route=%s", fast_route)
                 intent_result = {"intent": "fast_path", "raw_query": query, "domain_context": domain_context.to_metadata()}
                 route = fast_route
             else:
+                logging_manager.info("[AgentService] FastPath 未命中，调用意图检测")
                 intent_result = await self.intent_tool.detect(rewritten_query)
             # 保存原始查询供路由逻辑使用
             intent_result["raw_query"] = query
             intent_result["domain_context"] = domain_context.to_metadata()
             if not fast_route:
                 route = self._resolve_route(intent_result, rewritten_query, connection_id, attachments)
+
+            logging_manager.info(
+                "[AgentService] 最终路由 route=%s intent=%s", route, (intent_result or {}).get("intent")
+            )
 
             if route == "dialogue":
                 final = self.dialogue_agent.respond(intent_result.get("intent", "chit_chat"))

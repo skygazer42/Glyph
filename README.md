@@ -563,15 +563,172 @@ calculation:
 
 ### 6. Text2SQLAgent - 自然语言转SQL
 
-**示例查询**:
+**功能**: 将自然语言查询转换为SQL查询并执行
 
+**处理流程** (app/agents/chatdb/):
+
+```
+用户查询 → Schema分析 → SQL生成 → 安全校验 → 执行 → 结果格式化
+```
+
+#### 核心组件
+
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| **Schema Analyzer** | schema_retriever.py | 表结构检索与分析 |
+| **SQL Generator** | sql_generator.py | NL→SQL转换 |
+| **Hybrid Generator** | hybrid_sql_generator.py | 规则+LLM混合生成 |
+| **Query Executor** | sql_executor.py | 安全执行SQL |
+| **Result Formatter** | visualization_recommender.py | 结果格式化与可视化 |
+| **Query Analyzer** | query_analyzer.py | 查询意图分析 |
+| **Domain Context** | domain_zh_gov.py | 政策领域增强 |
+
+#### 工作流程
+
+**1. Schema分析阶段**:
+```python
+# 检索相关表结构
+schema_context = retrieve_relevant_schema(
+    query="家电类政策有哪些？",
+    connection_id=1
+)
+# 返回: {
+#   "tables": ["policies"],
+#   "columns": ["id", "title", "category", "publish_date"],
+#   "relationships": []
+# }
+```
+
+**2. SQL生成阶段**:
+```python
+# 领域增强
+domain_hints = {
+    "time_window": parse_time_window(query),  # "近三个月"
+    "aggregation": infer_aggregation(query),  # COUNT/SUM
+    "order_by": "desc_time"
+}
+
+# 生成SQL
+sql = generate_sql(
+    query=query,
+    schema_context=schema_context,
+    domain_hints=domain_hints
+)
+# 生成: SELECT title, publish_date FROM policies
+#       WHERE category = '家电'
+#       ORDER BY publish_date DESC LIMIT 10;
+```
+
+**3. 安全校验阶段**:
+```python
+# 校验SQL安全性
+if not validate_sql(sql):
+    raise SecurityError("不安全的SQL")
+
+# 安全规则:
+# ✅ 仅允许 SELECT
+# ❌ 拒绝 DML (INSERT/UPDATE/DELETE)
+# ❌ 拒绝 DDL (CREATE/DROP/ALTER)
+# ❌ 拒绝 UNION (防止注入)
+# ❌ 拒绝多语句 (防止批量操作)
+```
+
+**4. 执行与格式化**:
+```python
+# 执行查询
+result = execute_query(sql, connection_id, timeout=30)
+
+# 格式化输出
+formatted = format_result(
+    result=result,
+    query=query,
+    sql=sql
+)
+# 返回: {
+#   "data": [...],
+#   "table": "| 标题 | 发布日期 |\n...",
+#   "visualization": {"type": "table"},
+#   "sql": "SELECT ...",
+#   "row_count": 5
+# }
+```
+
+#### 示例查询
+
+**基础查询**:
 ```
 用户: "一共有多少个政策文件？"
 SQL: SELECT COUNT(*) FROM policies;
-
-用户: "家电类政策有哪些？"
-SQL: SELECT title FROM policies WHERE category = '家电' LIMIT 10;
+结果: {"count": 42}
 ```
+
+**条件查询**:
+```
+用户: "家电类政策有哪些？"
+SQL: SELECT title, publish_date FROM policies
+     WHERE category = '家电'
+     ORDER BY publish_date DESC LIMIT 10;
+结果: [{"title": "济南市家电补贴政策", "publish_date": "2024-01-15"}, ...]
+```
+
+**时间范围查询**:
+```
+用户: "列出近三个月发布的政策标题及来源"
+SQL: SELECT title, source, publish_date FROM policies
+     WHERE publish_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+     ORDER BY publish_date DESC;
+```
+
+**聚合统计**:
+```
+用户: "按政策类型统计数量"
+SQL: SELECT category, COUNT(*) as count FROM policies
+     GROUP BY category
+     ORDER BY count DESC;
+结果: [
+  {"category": "家电", "count": 15},
+  {"category": "汽车", "count": 12},
+  ...
+]
+```
+
+#### 领域增强
+
+**时间表达解析**:
+- "最近3个月" → `>= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)`
+- "2024年" → `>= '2024-01-01' AND < '2025-01-01'`
+- "今年" → 当前年份范围
+
+**术语映射**:
+- "家电补贴" → `policy_type = '家电以旧换新'`
+- "济南市" → `region = '济南市'`
+- "发放情况" → 推断需要 `status` 字段
+
+**意图推断**:
+- "有多少" → 建议使用 `COUNT(*)` 聚合
+- "列出" → 建议使用 `SELECT ... LIMIT`
+- "统计" → 建议使用 `GROUP BY`
+
+#### 配置项
+
+```bash
+# Text2SQL 配置
+TEXT2SQL__MAX_TABLES=5          # 最大检索表数
+TEXT2SQL__MAX_COLUMNS=50        # 最大列数
+TEXT2SQL__QUERY_TIMEOUT=30      # 查询超时(秒)
+TEXT2SQL__MAX_ROWS=1000         # 最大返回行数
+TEXT2SQL__ENABLE_CACHE=true     # 启用缓存
+TEXT2SQL__CACHE_TTL=3600        # 缓存过期时间(秒)
+
+# 安全配置
+TEXT2SQL__ALLOW_DML=false       # 禁止 DML 操作
+TEXT2SQL__ALLOW_DDL=false       # 禁止 DDL 操作
+TEXT2SQL__ALLOW_UNION=false     # 禁止 UNION 查询
+```
+
+#### 详细文档
+
+完整的 Text2SQL 实现文档请参考: [app/agents/chatdb/README.md](app/agents/chatdb/README.md)
 
 ---
 
