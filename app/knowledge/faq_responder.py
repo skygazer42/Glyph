@@ -31,11 +31,14 @@ class FAQResponder:
         self,
         data_path: str = "resources/faq/qa_pairs.json",
         *,
-        threshold: float = 0.88,
+        threshold: float = 0.95,
         max_candidates: int = 1,
     ) -> None:
+        import os
+
         self.data_path = Path(data_path)
-        self.threshold = threshold
+        # allow env override: FAQ_THRESHOLD（默认 0.95，高相似度命中）
+        self.threshold = float(os.getenv("FAQ_THRESHOLD", str(threshold)))
         self.max_candidates = max(1, max_candidates)
         self.entries: List[FAQEntry] = []
         self._load_entries()
@@ -56,12 +59,16 @@ class FAQResponder:
                 for item in raw
                 if item.get("question") and item.get("answer")
             ]
-            logger.info("FAQResponder loaded %s entries from %s", len(self.entries), self.data_path)
+            logger.info(
+                "FAQResponder loaded %s entries from %s", len(self.entries), self.data_path
+            )
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("FAQResponder 载入失败：%s", exc)
             self.entries = []
 
     def maybe_answer(self, query: str) -> Optional[FinalAnswer]:
+        """Only answer when当前问题与 FAQ 问法高度一致（≥阈值）。"""
+
         if not query or not self.entries:
             return None
 
@@ -81,20 +88,22 @@ class FAQResponder:
                 "faq_question": entry.question,
                 "faq_source": entry.source,
                 "similarity": score,
-                "tags": entry.tags,
             },
             total_processing_time=0.0,
         )
 
     def _best_match(self, query: str) -> Optional[Tuple[FAQEntry, float]]:
-        """Return the best FAQ entry whose similarity passes the threshold."""
         normalized_query = query.strip().lower()
+        if not normalized_query:
+            return None
+
         best: Tuple[Optional[FAQEntry], float] = (None, 0.0)
         for entry in self.entries:
             candidate = entry.question.lower()
             score = SequenceMatcher(None, normalized_query, candidate).ratio()
             if score > best[1]:
                 best = (entry, score)
+
         if best[0] and best[1] >= self.threshold:
             return best  # type: ignore[return-value]
         return None

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,7 @@ from .tools import (
     WebSearchTool,
     UserProfileTool,
 )
+from app.agents.domain import PolicyDomainContextBuilder
 from app.core import logging_manager
 from app.config import settings
 from app.knowledge.service import KnowledgeService
@@ -66,6 +68,18 @@ class AgentService:
     """Single entrypoint that orchestrates the streamlined agent pipeline."""
 
     SQL_KEYWORDS = ["sql", "数据库", "数据表", "字段", "列名", "select", "查询语句"]
+    PRODUCT_KEYWORDS = [
+        "空调",
+        "冰箱",
+        "洗衣机",
+        "电视",
+        "家电",
+        "净水器",
+        "洗碗机",
+        "电脑",
+        "热水器",
+        "油烟机",
+    ]
 
     def __init__(
         self,
@@ -115,6 +129,7 @@ class AgentService:
             user_profile_tool=self.user_profile_tool,
         )
         self.faq_responder = FAQResponder()
+        self._domain_context_builder = PolicyDomainContextBuilder()
         self._ingest_batch_size = max(1, getattr(self.config.performance, "batch_size", 10))
         self._initialized = False
         self._init_lock = asyncio.Lock()
@@ -274,8 +289,32 @@ class AgentService:
             history_used,
         ) = self._prepare_conversation_context(session_id, user_id, query)
 
-        rewritten_query = await self.rewrite_agent.rewrite(effective_query)
-        faq_final = self.faq_responder.maybe_answer(rewritten_query)
+        # 0) 问候/闲聊快速检测：避免短句被 FAQ 模糊命中
+        if self._looks_like_greeting(query):
+            final = self.dialogue_agent.respond("greeting")
+            session_store.add_answer(session_id, final)
+            metadata = final.metadata or {}
+            metadata.update(
+                {
+                    "route": "dialogue",
+                    "rewritten_query": query,
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "connection_id": connection_id,
+                    "conversation_context": {
+                        "history_used": history_used,
+                        "history_turns": len(conversation_context.get("history", [])),
+                        "is_new_session": conversation_context.get("is_new_session", True),
+                    },
+                }
+            )
+            final.metadata = metadata
+            final.total_processing_time = time.perf_counter() - start
+            self._ensure_route_and_citations(final)
+            return final
+
+        # 1) FAQ 短路：优先用原始问题命中即可返回
+        faq_final = self.faq_responder.maybe_answer(query)
         if faq_final:
             intent_result = {
                 "intent": "faq_cache",
@@ -284,11 +323,58 @@ class AgentService:
             }
             route = "faq_cache"
             final = faq_final
+            # 立刻封装并返回，避免进入改写/意图等后续环节
+            session_store.add_answer(session_id, final)
+            metadata = final.metadata or {}
+            metadata.update(
+                {
+                    "route": route,
+                    "intent": intent_result,
+                    "rewritten_query": query,  # FAQ 命中时未改写
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "connection_id": connection_id,
+                    "conversation_context": {
+                        "history_used": history_used,
+                        "history_turns": len(conversation_context.get("history", [])),
+                        "is_new_session": conversation_context.get("is_new_session", True),
+                    },
+                }
+            )
+            final.metadata = metadata
+            final.total_processing_time = time.perf_counter() - start
+            self._ensure_route_and_citations(final)
+            return final
         else:
-            intent_result = await self.intent_tool.detect(rewritten_query)
+            rewritten_query = await self.rewrite_agent.rewrite(
+                effective_query,
+                context=conversation_context,
+                domain_hint=None,
+            )
+            domain_context = self._domain_context_builder.build(rewritten_query)
+            # FAQ 仅针对原始问题；改写后不再重复匹配
+            # 如果未命中 FAQ，继续走后续流程
+            rewritten_query = rewritten_query
+            domain_context = domain_context
+            
+            # Fast-path routing to reduce LLM calls
+            fast_route = self._fast_route(
+                original_query=query,
+                rewritten_query=rewritten_query,
+                connection_id=connection_id,
+                attachments=attachments,
+                domain_meta=domain_context.to_metadata(),
+            )
+            if fast_route:
+                intent_result = {"intent": "fast_path", "raw_query": query, "domain_context": domain_context.to_metadata()}
+                route = fast_route
+            else:
+                intent_result = await self.intent_tool.detect(rewritten_query)
             # 保存原始查询供路由逻辑使用
             intent_result["raw_query"] = query
-            route = self._resolve_route(intent_result, rewritten_query, connection_id, attachments)
+            intent_result["domain_context"] = domain_context.to_metadata()
+            if not fast_route:
+                route = self._resolve_route(intent_result, rewritten_query, connection_id, attachments)
 
             if route == "dialogue":
                 final = self.dialogue_agent.respond(intent_result.get("intent", "chit_chat"))
@@ -309,7 +395,11 @@ class AgentService:
                     intent=intent_result,
                 )
             else:  # knowledge 默认
-                final = await self.knowledge_agent.answer(rewritten_query, intent=intent_result)
+                final = await self.knowledge_agent.answer(
+                    rewritten_query,
+                    intent=intent_result,
+                    domain_context=domain_context,
+                )
 
         session_store.add_answer(session_id, final)
 
@@ -318,6 +408,7 @@ class AgentService:
             {
                 "route": route,
                 "intent": intent_result,
+                "routing_debug": getattr(self, "_routing_debug", []),
                 "rewritten_query": rewritten_query,
                 "session_id": session_id,
                 "user_id": user_id,
@@ -327,12 +418,14 @@ class AgentService:
                     "history_turns": len(conversation_context.get("history", [])),
                     "is_new_session": conversation_context.get("is_new_session", True),
                 },
+                "domain_context": domain_context.to_metadata(),
             }
         )
         if attachments:
             metadata.setdefault("attachments", [att.model_dump() for att in attachments])
         final.metadata = metadata
         final.total_processing_time = time.perf_counter() - start
+        self._ensure_route_and_citations(final)
         return final
 
     async def ingest_paths(self, paths: List[str]) -> Dict[str, int]:
@@ -401,6 +494,7 @@ class AgentService:
         connection_id: Optional[int],
         attachments: List[Attachment],
     ) -> str:
+        self._routing_debug = []  # collect reasons for the final metadata
         intent = (intent_result or {}).get("intent", "policy_inquiry")
         sub_intent = (intent_result or {}).get("sub_intent")
         original_query = (
@@ -408,33 +502,52 @@ class AgentService:
             or (intent_result or {}).get("original_query")
             or ""
         )
+        domain_meta = (intent_result or {}).get("domain_context") or {}
         def looks_like_graph() -> bool:
             return self._looks_like_graph_question(rewritten_query, sub_intent) or (
                 original_query and self._looks_like_graph_question(original_query, sub_intent)
             )
         if attachments and any(att.is_image() for att in attachments):
             if self.vision_tool.enabled:
+                self._routing_debug.append("has_image_attachment=>workflow")
                 return "workflow"
         if intent in {"user_history", "user_profile"}:
+            self._routing_debug.append(f"intent={intent}=>workflow")
             return "workflow"
         if intent in {"greeting", "farewell", "chit_chat"}:
+            self._routing_debug.append(f"intent={intent}=>dialogue")
             return "dialogue"
         if intent == "clarification":
+            self._routing_debug.append("intent=clarification=>clarify")
             return "clarify"
         if intent == "calculation":
+            self._routing_debug.append("intent=calculation=>rule_engine")
             return "rule_engine"
         if intent == "summary":
+            self._routing_debug.append("intent=summary=>graph")
             return "graph"
         if intent == "comparison":
             if looks_like_graph():
+                self._routing_debug.append("intent=comparison + graph_keywords=>graph")
                 return "graph"
+            self._routing_debug.append("intent=comparison=>knowledge")
             return "knowledge"
 
         if self._looks_like_sql_question(rewritten_query) and connection_id:
+            self._routing_debug.append("sql_keywords + has_connection_id=>text2sql")
             return "text2sql"
+
+        if self._needs_clarification(original_query, rewritten_query, domain_meta):
+            self._routing_debug.append("needs_clarification_heuristic=>clarify")
+            return "clarify"
+
+        if self._looks_like_subsidy_calculation(rewritten_query, domain_meta):
+            self._routing_debug.append("looks_like_subsidy_calculation=>rule_engine")
+            return "rule_engine"
 
         chains = (intent_result or {}).get("chains") or []
         if "vision_chain" in chains and self.vision_tool.enabled:
+            self._routing_debug.append("chains:vision/user_history=>workflow")
             return "workflow"
         if "user_history_chain" in chains:
             return "workflow"
@@ -446,17 +559,22 @@ class AgentService:
         ):
             # 只有在明确的关系/比较用例下才切到 Graph；否则继续走知识库降低成本
             if not kb_chain_requested or connection_id is None:
+                self._routing_debug.append("chains:graph_chain + graph_keywords=>graph")
                 return "graph"
         if "calculation_chain" in chains:
+            self._routing_debug.append("chains:calculation_chain=>rule_engine")
             return "rule_engine"
 
         if intent == "policy_inquiry" and looks_like_graph():
             if connection_id is None:
+                self._routing_debug.append("policy_inquiry + graph_keywords=>graph")
                 return "graph"
 
         if self._looks_like_user_history(rewritten_query):
+            self._routing_debug.append("looks_like_user_history=>workflow")
             return "workflow"
 
+        self._routing_debug.append("fallback=>knowledge")
         return "knowledge"
 
     def _prepare_conversation_context(
@@ -488,15 +606,23 @@ class AgentService:
         self,
         query: str,
         context_payload: Dict[str, Any],
-        max_snippets: int = 6,
+        max_snippets: int = 10,
     ) -> Tuple[str, bool]:
         """Append recent multi-turn history to the query when available."""
 
+        # 读取 .env 配置窗口（0 表示关闭记忆）
+        try:
+            from app.config import settings as _settings
+            window = int(getattr(getattr(_settings, 'system', _settings), 'conversation_history_window', 5))
+        except Exception:
+            window = 5
+
         history = context_payload.get("history") or []
-        if not history:
+        if not history or window <= 0:
             return query, False
 
         snippets: List[str] = []
+        max_snippets = max(1, window * 2)
         for item in history[-max_snippets:]:
             text = (item.get("text") or "").strip()
             if not text:
@@ -535,6 +661,23 @@ class AgentService:
         q_lower = query.lower()
         return any(kw in query or kw in q_lower for kw in keywords)
 
+    def _looks_like_greeting(self, query: str) -> bool:
+        q = (query or "").strip().lower()
+        if not q:
+            return False
+        # 常见问候/寒暄/在吗/打招呼
+        patterns = [
+            r"^(你好|您好|hi|hello|哈喽|在吗|早上好|中午好|下午好|晚上好)[!！。.?]*$",
+            r"^(hey|yo)[!！。.?]*$",
+        ]
+        for pat in patterns:
+            if re.match(pat, q):
+                return True
+        # 极短消息且无关键词，视为闲聊
+        if len(q) <= 3 and not any(ch.isdigit() for ch in q):
+            return True
+        return False
+
     def _looks_like_graph_question(self, query: str, sub_intent: Optional[str] = None) -> bool:
         """
         Detect questions that ask for relationships, responsible parties, or process linkage,
@@ -557,6 +700,126 @@ class AgentService:
         ):
             return True
         return False
+
+    def _fast_route(
+        self,
+        *,
+        original_query: str,
+        rewritten_query: str,
+        connection_id: Optional[int],
+        attachments: List[Attachment],
+        domain_meta: Dict[str, Any],
+    ) -> Optional[str]:
+        # Attachments → workflow
+        if attachments and any(att.is_image() for att in attachments) and self.vision_tool.enabled:
+            return "workflow"
+        # SQL keywords → text2sql
+        if self._looks_like_sql_question(rewritten_query) and connection_id:
+            return "text2sql"
+        # Need clarification?
+        if self._needs_clarification(original_query, rewritten_query, domain_meta):
+            return "clarify"
+        # Subsidy computation?
+        if self._looks_like_subsidy_calculation(rewritten_query, domain_meta):
+            return "rule_engine"
+        # Graph-like?
+        if self._looks_like_graph_question(rewritten_query):
+            return "graph"
+        return None
+
+    def _needs_clarification(
+        self,
+        original_query: str,
+        rewritten_query: str,
+        domain_meta: Dict[str, Any],
+    ) -> bool:
+        text = f"{original_query} {rewritten_query}"
+        triggers = [
+            "是否符合",
+            "是否满足",
+            "能否享受",
+            "是否可以享受",
+            "有没有资格",
+            "是否有资格",
+            "是否符合条件",
+            "能不能补贴",
+            "是否可以补贴",
+        ]
+        if not any(term in text for term in triggers):
+            return False
+        has_number = bool(re.search(r"\d", text))
+        has_price = bool(re.search(r"\d+(\.\d+)?\s*元", text))
+        keywords = (domain_meta or {}).get("keywords") or []
+        has_product = any(kw in text for kw in self.PRODUCT_KEYWORDS) or any(
+            kw in keywords for kw in self.PRODUCT_KEYWORDS
+        )
+        has_energy = any(tag in text for tag in ["1级", "一级", "2级", "二级", "能效", "水效"])
+        if has_product and has_price and has_energy:
+            return False
+        if not has_product or not has_energy or (not has_price and not has_number):
+            return True
+        return False
+
+    def _looks_like_subsidy_calculation(
+        self,
+        query: str,
+        domain_meta: Dict[str, Any],
+    ) -> bool:
+        if "补贴" not in query and "补助" not in query:
+            return False
+        has_price = bool(re.search(r"\d+(\.\d+)?\s*元", query))
+        if not has_price:
+            return False
+        keywords = (domain_meta or {}).get("keywords") or []
+        has_product = any(kw in query for kw in self.PRODUCT_KEYWORDS) or any(
+            kw in keywords for kw in self.PRODUCT_KEYWORDS
+        )
+        if not has_product:
+            return False
+        has_energy = any(tag in query for tag in ["1级", "一级", "2级", "二级", "能效", "水效"])
+        return has_energy
+
+    def _ensure_route_and_citations(self, final) -> None:
+        route = (final.metadata or {}).get("route") if hasattr(final, "metadata") else None
+        route_line = f"【路由】{route}" if route else None
+        citation_line = self._format_citation_block(final)
+
+        blocks = []
+        answer_text = final.answer or ""
+        if route_line:
+            blocks.append(route_line)
+        if citation_line:
+            blocks.append(citation_line)
+        if not blocks:
+            return
+        suffix = "\n" + "\n".join(blocks)
+        if answer_text and not answer_text.endswith("\n"):
+            final.answer = answer_text + "\n" + suffix.lstrip("\n")
+        else:
+            final.answer = answer_text + suffix
+
+    def _format_citation_block(self, final) -> Optional[str]:
+        sources = getattr(final, "sources", None) or []
+        lines: List[str] = []
+        for doc in sources[:3]:
+            title = getattr(doc, "title", None) or "未知来源"
+            source = getattr(doc, "source", None) or ""
+            if not source and hasattr(doc, "metadata") and doc.metadata:
+                source = doc.metadata.get("path") or doc.metadata.get("origin") or ""
+            lines.append(f"- {title}（{source or '内部知识库'}）")
+        if not lines:
+            meta = final.metadata or {}
+            if meta.get("rule_id"):
+                lines.append(f"- DSL 规则：{meta['rule_id']}")
+            elif meta.get("origin"):
+                lines.append(f"- 知识来源：{meta['origin']}")
+            elif meta.get("workflow"):
+                lines.append("- Workflow 协作结果")
+            elif meta.get("sql"):
+                lines.append("- 数据库查询 (Text2SQL)")
+        if not lines:
+            return None
+        return "【引用】\n" + "\n".join(lines)
 
 
 __all__ = ["AgentService"]

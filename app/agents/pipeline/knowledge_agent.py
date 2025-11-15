@@ -11,8 +11,10 @@ from uuid import uuid4
 from autogen_core.models import UserMessage
 
 from app.agents.service.tools import KnowledgeTool, WebSearchTool
+from app.config import settings
 from app.core.llms import model_client
 from app.models.base import FinalAnswer, PolicyDocument, PolicyType
+from app.agents.domain import PolicyDomainContext
 
 
 class KnowledgeAgent:
@@ -35,11 +37,62 @@ class KnowledgeAgent:
         *,
         intent: Optional[Dict[str, Any]] = None,
         emphasis: Optional[str] = None,
+        domain_context: Optional[PolicyDomainContext] = None,
     ) -> FinalAnswer:
-        docs, scores = await self._safe_search(query)
+        docs, scores, used_query = await self._domain_aware_search(query, domain_context)
         focus = emphasis or (intent or {}).get("sub_intent") or "general"
 
         if docs:
+            # 早停检查：如果检索置信度足够高，直接生成简化答案，无需重排和深度分析
+            initial_confidence = self._estimate_confidence(scores)
+            early_stop_threshold = getattr(getattr(settings, 'system', settings), 'early_stop_conf', 0.8)
+
+            if initial_confidence >= early_stop_threshold:
+                self.logger.info(
+                    "早停触发: 置信度 %.2f >= %.2f, 跳过重排和深度分析",
+                    initial_confidence,
+                    early_stop_threshold,
+                )
+                # 快速通道：直接生成答案
+                # 优先走快速抽取，尽量避免 LLM 调用
+                extracted = self._extract_policy_points((docs[0].content or ""))
+                if extracted:
+                    answer_text = "\n".join(f"- {b}" for b in extracted[:10])
+                    answer_text += "\n\n答复依据：" + (docs[0].title or "相关政策")
+                    answer_text = self._append_citations(answer_text, docs[:1])
+                else:
+                    # 回退到一次性 LLM 总结
+                    formatted_context = self._format_documents(docs)
+                    summary_prompt = self._build_summary_prompt(
+                        query,
+                        focus,
+                        formatted_context,
+                        context_label="参考资料",
+                        domain_context=domain_context,
+                    )
+                    answer_text = await self._call_llm(summary_prompt)
+                    answer_text = self._append_citations(answer_text, docs)
+
+                return FinalAnswer(
+                    query_id=uuid4(),
+                    answer=answer_text,
+                    sources=docs,
+                    confidence=initial_confidence,
+                    verification_passed=True,  # 高置信度结果
+                    metadata={
+                        "route": "knowledge",
+                        "focus": focus,
+                        "doc_count": len(docs),
+                        "origin": "knowledge_base",
+                        "early_stopped": True,
+                        "early_stop_confidence": initial_confidence,
+                        "search_query": used_query,
+                        "domain_context": domain_context.to_metadata() if domain_context else None,
+                    },
+                    total_processing_time=0.0,
+                )
+
+            # 常规流程：继续重排和深度分析
             doc_origins = [
                 getattr(doc, "retrieval_origin", "knowledge_base") for doc in docs
             ]
@@ -52,9 +105,14 @@ class KnowledgeAgent:
 
             formatted_context = self._format_documents(docs)
             summary_prompt = self._build_summary_prompt(
-                query, focus, formatted_context, context_label="参考资料"
+                query,
+                focus,
+                formatted_context,
+                context_label="参考资料",
+                domain_context=domain_context,
             )
             answer_text = await self._call_llm(summary_prompt)
+            answer_text = self._append_citations(answer_text, docs)
             confidence = self._estimate_confidence(scores)
             return FinalAnswer(
                 query_id=uuid4(),
@@ -68,6 +126,9 @@ class KnowledgeAgent:
                     "doc_count": len(docs),
                     "origin": dominant_origin,
                     "doc_origins": doc_origins,
+                    "early_stopped": False,
+                    "search_query": used_query,
+                    "domain_context": domain_context.to_metadata() if domain_context else None,
                 },
                 total_processing_time=0.0,
             )
@@ -77,9 +138,14 @@ class KnowledgeAgent:
         if web_results and tool:
             formatted_context = tool.format_results(web_results)
             summary_prompt = self._build_summary_prompt(
-                query, focus, formatted_context, context_label="网络搜索结果"
+                query,
+                focus,
+                formatted_context,
+                context_label="网络搜索结果",
+                domain_context=domain_context,
             )
             answer_text = await self._call_llm(summary_prompt)
+            answer_text = self._append_citations(answer_text, web_docs)
             web_docs = self._web_results_to_documents(web_results)
             return FinalAnswer(
                 query_id=uuid4(),
@@ -93,6 +159,7 @@ class KnowledgeAgent:
                     "doc_count": 0,
                     "origin": "web_search",
                     "doc_origins": ["web_search"],
+                    "early_stopped": False,
                     "web_results": [
                         {
                             "title": item.get("title", ""),
@@ -101,11 +168,32 @@ class KnowledgeAgent:
                         }
                         for item in web_results
                     ],
+                    "domain_context": domain_context.to_metadata() if domain_context else None,
                 },
                 total_processing_time=0.0,
             )
 
         return self._build_no_result_answer(query, reason="知识库暂无匹配文档且网络检索为空")
+
+    async def _domain_aware_search(
+        self,
+        query: str,
+        domain_context: Optional[PolicyDomainContext],
+    ) -> Tuple[List[PolicyDocument], List[float], str]:
+        variants = []
+        if domain_context:
+            variants.extend(domain_context.search_variants)
+        variants.append(query)
+        seen = set()
+        for candidate in variants:
+            candidate = candidate.strip()
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+            docs, scores = await self._safe_search(candidate)
+            if docs:
+                return docs, scores, candidate
+        return [], [], query
 
     async def _safe_search(
         self, query: str
@@ -186,17 +274,91 @@ class KnowledgeAgent:
         return round(normalized, 3)
 
     def _build_summary_prompt(
-        self, query: str, focus: str, context: str, *, context_label: str
+        self,
+        query: str,
+        focus: str,
+        context: str,
+        *,
+        context_label: str,
+        domain_context: Optional[PolicyDomainContext] = None,
     ) -> str:
+        hints = self._format_domain_hints(domain_context)
         return (
             "你是政府政策问答系统的知识专家。"
             "请结合提供的资料回答用户问题，列出关键信息（条件、金额、流程、时间等），"
             "以条列方式输出，并在结尾用一句话总结答复依据。\n\n"
             f"用户问题：{query}\n"
-            f"关注点/意图：{focus}\n\n"
+            f"关注点/意图：{focus}\n"
+            f"领域提示：{hints}\n\n"
             f"{context_label}：\n{context}\n\n"
             "请直接给出回答，不要重复引用原文。"
         )
+
+    def _format_domain_hints(self, domain_context: Optional[PolicyDomainContext]) -> str:
+        if not domain_context:
+            return "无"
+        lines = []
+        if domain_context.region:
+            lines.append(f"重点地区：{domain_context.region}")
+        if domain_context.time_window and domain_context.time_window.start:
+            end = domain_context.time_window.end or domain_context.time_window.start
+            lines.append(
+                f"关注时间段：{domain_context.time_window.start.isoformat()} 至 {end.isoformat()}"
+            )
+        if domain_context.keywords:
+            lines.append("关键主题：" + "、".join(domain_context.keywords))
+        if not lines:
+            return "无"
+        return "；".join(lines)
+
+    def _append_citations(self, answer: str, docs: List[PolicyDocument]) -> str:
+        if not docs:
+            return answer
+        lines = []
+        for doc in docs[:3]:
+            title = doc.title or "未知文档"
+            source = getattr(doc, "source", "") or doc.metadata.get("source") if hasattr(doc, "metadata") else ""
+            if not source and hasattr(doc, "metadata"):
+                source = doc.metadata.get("path") or doc.metadata.get("origin")
+            display = source or "内部知识库"
+            lines.append(f"- {title}（{display}）")
+        citation_block = "\n【来源】\n" + "\n".join(lines)
+        if citation_block.strip() in answer:
+            return answer
+        return f"{answer}\n{citation_block}"
+
+    def _extract_policy_points(self, text: str) -> List[str]:
+        if not text:
+            return []
+        import re
+        # 规则优先：抓取常用要点段落
+        rules = [
+            r"补贴范围[:：].{0,200}",
+            r"补贴对象[:：].{0,200}",
+            r"补贴标准[:：].{0,400}",
+            r"(15%|20%|2000元)",
+            r"申请流程[:：].{0,300}",
+            r"(实名认证|领取资格|核销|支付立减)",
+            r"(发票|签收|交旧|资金|有效期|用完即止).{0,100}",
+        ]
+        found: List[str] = []
+        for pat in rules:
+            for m in re.findall(pat, text, flags=re.IGNORECASE):
+                seg = m.strip()
+                if seg and seg not in found:
+                    found.append(seg)
+        if found:
+            return found
+        # 回退：取含关键词的前几句
+        sentences = re.split(r"[\n。；;]", text)
+        for s in sentences:
+            s = s.strip()
+            if any(k in s for k in ["补贴", "流程", "资格", "发票", "核销", "有效期"]):
+                if s and s not in found:
+                    found.append(s)
+            if len(found) >= 8:
+                break
+        return found
 
     def _build_no_result_answer(self, query: str, reason: str) -> FinalAnswer:
         return FinalAnswer(

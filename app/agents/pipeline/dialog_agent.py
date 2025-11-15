@@ -44,15 +44,14 @@ class DialogueAgent:
 class ClarifierAgent:
     """Asks follow-up questions when intent is unclear."""
 
-    QUESTIONS = [
-        "请问您更关注申请资格、办理流程还是补贴金额？",
-        "为了更准确回答，能否说明所在地区或政策名称？",
-        "想确认一下，您是想了解补贴标准、计算方式还是申报要求？",
-    ]
-
     def ask(self, original_query: str) -> FinalAnswer:
-        question = random.choice(self.QUESTIONS)
-        answer = f"为了更准确地回答“{original_query}”，需要进一步确认：{question}"
+        checklist = (
+            "为了准确判断补贴资格，请补充以下信息：\n"
+            "1. 计划购买的具体家电类别（如空调/冰箱/洗衣机等）；\n"
+            "2. 产品的能效或水效等级（1级或2级）；\n"
+            "3. 含税购买价格（发票金额，单位：元）。"
+        )
+        answer = f"针对“{original_query}”，我需要更多信息：\n{checklist}"
         return FinalAnswer(
             query_id=uuid4(),
             answer=answer,

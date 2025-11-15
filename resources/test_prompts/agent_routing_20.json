@@ -1,0 +1,23 @@
+[
+  {"query": "你好", "expect_route": "dialogue"},
+  {"query": "家电以旧换新补贴标准是多少？", "expect_route": "faq_cache"},
+  {"query": "我是否符合补贴资格？", "expect_route": "clarify", "notes": "缺少品类/能效/价格三要素"},
+  {"query": "二级能效空调 8000 元 能补贴多少？", "expect_route": "rule_engine"},
+  {"query": "办理流程需要什么材料？", "expect_route": "knowledge"},
+  {"query": "在哪里领取补贴资格？", "expect_route": "knowledge"},
+  {"query": "补贴资格领取后多长时间内有效？", "expect_route": "knowledge"},
+  {"query": "我去年换过一台空调，今年还能享受补贴吗？", "expect_route": "knowledge"},
+  {"query": "泉城购消费券发放时间是什么时候？", "expect_route": "faq_cache"},
+  {"query": "泉城购消费券面额和门槛是多少？", "expect_route": "faq_cache"},
+  {"query": "第三轮汽车消费补贴活动时间和资料申报时间？", "expect_route": "faq_cache"},
+  {"query": "新车首保消费券怎么按商业保险金额划档？", "expect_route": "faq_cache"},
+  {"query": "新车首保消费券申报需要哪些资料？", "expect_route": "faq_cache"},
+  {"query": "对比济南家电以旧换新与省级数码购新补贴的差异", "expect_route": "knowledge"},
+  {"query": "这项以旧换新政策的牵头单位和职责分工是什么？", "expect_route": "graph"},
+  {"query": "我上传了发票图片，帮我核对是否满足条件", "expect_route": "workflow", "notes": "需要图片触发"},
+  {"query": "查询政策标签表有多少条记录？", "expect_route": "text2sql", "notes": "需要 connection_id"},
+  {"query": "以旧换新和泉城购消费券是否可以同时享受？", "expect_route": "graph"},
+  {"query": "一级能效空调 12000 元 能补贴多少？", "expect_route": "rule_engine", "notes": "应命中上限2000元"},
+  {"query": "购买净水器是否在补贴范围内？", "expect_route": "knowledge"}
+]
+

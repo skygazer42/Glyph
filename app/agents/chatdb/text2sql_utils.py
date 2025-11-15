@@ -15,6 +15,10 @@ from autogen_core.models import UserMessage
 from app.core.config import settings
 from app.core.llms import model_client
 from app.persistence import crud
+from .domain_zh_gov import (
+    candidate_tables_from_query,
+    domain_value_mappings_for_schema,
+)
 
 
 class _LRUCache(OrderedDict):
@@ -166,7 +170,7 @@ async def find_relevant_tables_semantic(query: str, query_analysis: Dict[str, An
             ranked_tables = json.loads(json_str)
 
             # 确保每个表都有所需字段且table_id是整数
-            valid_tables = []
+            valid_tables: List[Tuple[int, float]] = []
             for t in ranked_tables:
                 if "table_id" in t and "relevance_score" in t:
                     if t["relevance_score"] > 3:
@@ -177,6 +181,26 @@ async def find_relevant_tables_semantic(query: str, query_analysis: Dict[str, An
                             except (ValueError, TypeError):
                                 continue
                         valid_tables.append((table_id, t["relevance_score"]))
+
+            # 领域提示加权：若中文关键词提示某些表，直接提升其分数
+            try:
+                domain_candidates = set(candidate_tables_from_query(query))
+                name_to_id = {t["name"]: int(t["id"]) for t in all_tables if isinstance(t.get("id"), (int,)) or str(t.get("id", "")).isdigit()}
+                boost_ids = {name_to_id.get(n) for n in domain_candidates if name_to_id.get(n) is not None}
+                if boost_ids:
+                    existing = {tid for tid, _ in valid_tables}
+                    # boost up existing; add new with base score 8
+                    boosted = []
+                    for tid, sc in valid_tables:
+                        if tid in boost_ids:
+                            sc = max(sc, 8.5)
+                        boosted.append((tid, sc))
+                    for bid in boost_ids:
+                        if bid not in existing:
+                            boosted.append((bid, 8.5))
+                    valid_tables = boosted
+            except Exception:
+                pass
 
             return valid_tables
         else:
@@ -190,12 +214,18 @@ def basic_table_matching(query: str, all_tables: List[Dict[str, Any]]) -> List[T
     基本关键词匹配回退方法
     """
     keywords = extract_keywords(query)
+    # 领域候选表（基于中文关键词）
+    domain_candidates = set(candidate_tables_from_query(query))
     relevant_tables = []
 
     for table in all_tables:
         score = 0
         table_name = table["name"].lower()
         table_desc = (table["description"] or "").lower()
+
+        # 强力加权：领域候选命中
+        if table["name"] in domain_candidates:
+            score += 10
 
         for keyword in keywords:
             if keyword in table_name:
@@ -319,7 +349,7 @@ def get_value_mappings(db: Session, schema_context: Dict[str, Any]) -> Dict[str,
     """
     获取表结构上下文中列的值映射
     """
-    mappings = {}
+    mappings: Dict[str, Dict[str, str]] = {}
 
     for column in schema_context["columns"]:
         column_id = column["id"]
@@ -328,6 +358,20 @@ def get_value_mappings(db: Session, schema_context: Dict[str, Any]) -> Dict[str,
         if column_mappings:
             table_col = f"{column['table_name']}.{column['name']}"
             mappings[table_col] = {m.nl_term: m.db_value for m in column_mappings}
+
+    # 合并领域通用映射（如 city/vehicle_type/benefit_type 等中文→规范值）
+    try:
+        domain_maps = domain_value_mappings_for_schema(schema_context)
+        for key, value in domain_maps.items():
+            if key in mappings:
+                # 显式配置优先，领域映射补充
+                merged = dict(value)
+                merged.update(mappings[key])
+                mappings[key] = merged
+            else:
+                mappings[key] = value
+    except Exception:
+        pass
 
     return mappings
 
@@ -374,7 +418,23 @@ def validate_sql(sql: str) -> bool:
 
         # 检查是否是SELECT语句（为了安全）
         stmt = parsed[0]
-        return stmt.get_type().upper() == 'SELECT'
+        if stmt.get_type().upper() != 'SELECT':
+            return False
+
+        # 额外安全检查：禁止危险关键字/多语句/UNION
+        if re.search(r"\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|ATTACH|DETACH|VACUUM|REINDEX|PRAGMA|REPLACE)\b",
+                     sql, flags=re.IGNORECASE):
+            return False
+
+        # 禁止多语句（末尾允许一个分号）
+        body = sql.strip()
+        if ';' in body[:-1]:
+            return False
+
+        if re.search(r"\bUNION\b", sql, flags=re.IGNORECASE):
+            return False
+
+        return True
     except Exception:
         return False
 

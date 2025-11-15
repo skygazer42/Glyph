@@ -14,9 +14,10 @@ from app.agents.chatdb.text2sql_utils import (
     process_sql_with_value_mappings, validate_sql, extract_sql_from_llm_response
 )
 from app.core.llms import model_client
+from .domain_zh_gov import parse_time_window, infer_intent, normalize_terms
 
 
-def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings: Dict[str, Dict[str, str]]) -> str:
+def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings: Dict[str, Dict[str, str]], *, hints: Dict[str, Any] | None = None) -> str:
     """
     为LLM构建增强上下文和指令的提示
     """
@@ -33,6 +34,25 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
                 mappings_str += f"--   自然语言中的'{nl_term}'指数据库中的'{db_value}'\n"
         mappings_str += "\n"
 
+    # 领域/时间/意图提示
+    hints = hints or {}
+    intent_lines = []
+    if agg := hints.get("aggregation"):
+        intent_lines.append(f"- 建议聚合: {agg}")
+    if order := hints.get("order_by"):
+        intent_lines.append("- 时间排序: 倒序(最近优先)" if order == "desc_time" else f"- 排序: {order}")
+    if lim := hints.get("limit"):
+        intent_lines.append(f"- 默认限制返回行数: {lim}")
+
+    time_hint = ""
+    if (tw := hints.get("time_window")) and tw.get("start"):
+        # 告诉LLM优先使用与时间相关的列进行过滤
+        time_hint = (
+            "-- 时间范围建议: {start} 至 {end} (若表含有 publish_date/start_date/start_time 等日期列, 请据此过滤)\n"
+        ).format(start=tw["start"], end=tw.get("end") or "当前")
+
+    extra_block = "\n" + ("\n".join(intent_lines) if intent_lines else "- 无特别意图推断") + "\n"
+
     prompt = f"""
 你是一名专业的SQL开发专家，专门将自然语言问题转换为精确的SQL查询。
 
@@ -40,6 +60,7 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
 ```sql
 {schema_str}
 {mappings_str}
+{time_hint}
 ```
 
 ### 自然语言问题:
@@ -55,6 +76,9 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
 7. 根据需要包含适当的GROUP BY、ORDER BY和LIMIT子句。
 8. 如果查询与时间相关，适当处理日期/时间比较。
 9. 简要解释你的推理。
+
+### 解析出的意图与约束:
+{extra_block}
 
 ### SQL查询:
 """
@@ -100,8 +124,20 @@ async def _process_text2sql_query_async(
     处理自然语言查询并转换为SQL
     """
     try:
-        # 1. 检索相关表结构
-        schema_context = await retrieve_relevant_schema(db, connection.id, natural_language_query)
+        # 0. 领域预处理（规范地区/常见词，并推断时间窗/意图）
+        normalized_query, replacements = normalize_terms(natural_language_query)
+        time_window = parse_time_window(normalized_query)
+        inferred = infer_intent(normalized_query)
+        hints = {**inferred}
+        if time_window:
+            hints["time_window"] = {
+                "start": time_window.start.isoformat() if time_window.start else None,
+                "end": time_window.end.isoformat() if time_window.end else None,
+                "phrase": time_window.phrase,
+            }
+
+        # 1. 检索相关表结构（使用规范化后的查询以提升召回）
+        schema_context = await retrieve_relevant_schema(db, connection.id, normalized_query)
 
         # 如果没有找到相关表结构，返回错误
         if not schema_context["tables"]:
@@ -112,11 +148,11 @@ async def _process_text2sql_query_async(
                 context={"schema_context": schema_context}
             )
 
-        # 2. 获取值映射
+        # 2. 获取值映射（合并领域映射，如 city/vehicle_type 等）
         value_mappings = get_value_mappings(db, schema_context)
 
-        # 3. 构建提示
-        prompt = construct_prompt(schema_context, natural_language_query, value_mappings)
+        # 3. 构建提示（附带时间/意图提示）
+        prompt = construct_prompt(schema_context, normalized_query, value_mappings, hints=hints)
 
         # 4. 调用LLM API
         llm_response = call_llm_api(prompt)
@@ -126,6 +162,10 @@ async def _process_text2sql_query_async(
 
         # 6. 使用值映射处理SQL
         processed_sql = process_sql_with_value_mappings(sql, value_mappings)
+
+        # 6.1 缺省行数保护：无聚合/无显式LIMIT时默认限制返回数量
+        if "limit" not in (processed_sql.lower()) and inferred.get("aggregation") not in ("count",):
+            processed_sql = processed_sql.rstrip("; ") + " LIMIT 100"
 
         # 7. 验证SQL
         if not validate_sql(processed_sql):
