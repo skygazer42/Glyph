@@ -398,7 +398,8 @@ class AgentService:
             if route == "dialogue":
                 final = self.dialogue_agent.respond(intent_result.get("intent", "chit_chat"))
             elif route == "clarify":
-                final = self.clarifier_agent.ask(rewritten_query)
+                # 追问场景下根据原始问题 + 领域元数据，按缺失槽位选择固定模板，不再回显内部拼接的历史上下文
+                final = self.clarifier_agent.ask(query, domain_context.to_metadata())
             elif route == "rule_engine":
                 final = await self.rule_agent.compute(rewritten_query, intent=intent_result)
             elif route == "text2sql":
