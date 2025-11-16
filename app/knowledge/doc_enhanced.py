@@ -32,9 +32,9 @@ class EnhancedDocumentProcessor:
         self.docling_enabled = False  # Docling support (TODO: implement)
 
         # 初始化MinerU客户端
-        self.mineru_enabled = self.config.get("mineru_enabled", True)
-        self.mineru_base_url = self.config.get("mineru_base_url", settings.model.mineru_base_url)
-        self.mineru_api_key = self.config.get("mineru_api_key", settings.model.mineru_api_key)
+        self.mineru_enabled = self.config.get("mineru_enabled", settings.mineru.enabled)
+        self.mineru_base_url = self.config.get("mineru_base_url", settings.mineru.get_effective_base_url())
+        self.mineru_api_key = self.config.get("mineru_api_key", settings.mineru.api_key)
 
         # 初始化LlamaIndex读取器
         self.llamaindex_enabled = self.config.get("llamaindex_enabled", LLAMAINDEX_AVAILABLE)
@@ -48,9 +48,9 @@ class EnhancedDocumentProcessor:
             self.logger.info("LlamaIndex readers initialized")
 
         # 处理选项
-        self.ocr_enabled = self.config.get("ocr_enabled", settings.document.enable_ocr)
-        self.table_extraction = self.config.get("table_extraction", settings.document.enable_table_extraction)
-        self.image_extraction = self.config.get("image_extraction", settings.document.enable_image_extraction)
+        self.ocr_enabled = self.config.get("ocr_enabled", getattr(settings.document, "enable_ocr", True))
+        self.table_extraction = self.config.get("table_extraction", getattr(settings.document, "enable_table_extraction", True))
+        self.image_extraction = self.config.get("image_extraction", getattr(settings.document, "enable_image_extraction", True))
 
         self.logger.info(f"Enhanced Document Processor initialized:")
         self.logger.info(f"  - MinerU: {'enabled' if self.mineru_enabled else 'disabled'}")

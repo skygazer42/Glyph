@@ -131,26 +131,6 @@
                     {{ formatDate(scope.row.created_at) }}
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="180" fixed="right">
-                  <template #default="scope">
-                    <el-button-group size="small">
-                      <el-button
-                        v-if="!scope.row.embedded"
-                        type="primary"
-                        @click="embedDocument(scope.row)"
-                        :loading="embeddings[scope.row.doc_id]"
-                      >
-                        嵌入
-                      </el-button>
-                      <el-button @click="viewDocument(scope.row)">
-                        查看
-                      </el-button>
-                      <el-button type="danger" @click="deleteDocument(scope.row)">
-                        删除
-                      </el-button>
-                    </el-button-group>
-                  </template>
-                </el-table-column>
               </el-table>
 
               <!-- 分页 -->
@@ -499,6 +479,10 @@ const clearUploaded = () => {
 }
 
 const embedDocument = async (doc) => {
+  if (doc.embedded) {
+    appStore.showNotification('info', `文档 ${doc.name} 已嵌入，无需重复操作`)
+    return
+  }
   embeddings.value[doc.doc_id] = true
   try {
     await knowledgeApi.embedDocument(doc.doc_id)
@@ -522,6 +506,10 @@ const processUploadedDocument = async (uploadInfo, fileName) => {
     await knowledgeApi.embedDocument(docId)
     appStore.showNotification('success', `文档 ${fileName} 解析并嵌入完成`)
     uploadInfo.embedded = true
+    const idx = uploadedFiles.value.findIndex(item => item.doc_id === docId)
+    if (idx !== -1) {
+      uploadedFiles.value.splice(idx, 1)
+    }
     loadDocuments()
     loadStats()
   } catch (error) {
@@ -530,28 +518,7 @@ const processUploadedDocument = async (uploadInfo, fileName) => {
 }
 
 const batchEmbed = async () => {
-  if (uploadedFiles.value.length === 0) {
-    appStore.showNotification('warning', '没有待嵌入的文档')
-    return
-  }
-
-  batchEmbedding.value = true
-  let successCount = 0
-  try {
-    for (const file of uploadedFiles.value) {
-      await knowledgeApi.parseDocument(file.doc_id)
-      await knowledgeApi.embedDocument(file.doc_id)
-      successCount += 1
-    }
-    appStore.showNotification('success', `成功嵌入 ${successCount} 个文档`)
-    clearUploaded()
-    loadDocuments()
-    loadStats()
-  } catch (error) {
-    appStore.showNotification('error', `批量嵌入过程中断在第 ${successCount + 1} 个文档: ${error.message}`)
-  } finally {
-    batchEmbedding.value = false
-  }
+  appStore.showNotification('info', '新上传的文档已自动解析并嵌入')
 }
 
 const deleteDocument = async (doc) => {
