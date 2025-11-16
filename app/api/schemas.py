@@ -147,6 +147,7 @@ class DocumentInfo(BaseModel):
     name: str
     size: int
     modified: float
+    embedded: bool = Field(default=False, description="是否已成功嵌入知识库")
 
 
 class ListDocumentsResponse(BaseModel):

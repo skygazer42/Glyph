@@ -3,6 +3,8 @@
 包含文档上传、嵌入、搜索等功能
 """
 
+import json
+import time
 import shutil
 import logging
 from pathlib import Path
@@ -39,6 +41,68 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 PARSED_DIR = UPLOAD_DIR / "parsed"
 PARSED_DIR.mkdir(parents=True, exist_ok=True)
+STATUS_DIR = UPLOAD_DIR / ".status"
+STATUS_DIR.mkdir(parents=True, exist_ok=True)
+PARSED_STATUS_DIR = STATUS_DIR / "parsed"
+PARSED_STATUS_DIR.mkdir(parents=True, exist_ok=True)
+EMBED_STATUS_DIR = STATUS_DIR / "embedded"
+EMBED_STATUS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _safe_doc_id(raw_id: str) -> str:
+    """避免路径遍历，始终返回文件名部分。"""
+    return Path(raw_id).name
+
+
+def _write_status_marker(dir_path: Path, doc_id: str, payload: dict) -> Path:
+    """将状态信息写入 marker 文件。"""
+    doc_id = _safe_doc_id(doc_id)
+    marker_path = dir_path / f"{doc_id}.json"
+    dir_path.mkdir(parents=True, exist_ok=True)
+    payload_with_meta = {
+        "doc_id": doc_id,
+        "updated_at": time.time(),
+        **payload,
+    }
+    marker_path.write_text(json.dumps(payload_with_meta, ensure_ascii=False), encoding="utf-8")
+    return marker_path
+
+
+def _mark_parsed(doc_id: str, markdown_path: Path, content_length: int) -> None:
+    """记录文档已解析的状态。"""
+    doc_id = _safe_doc_id(doc_id)
+    _write_status_marker(
+        PARSED_STATUS_DIR,
+        doc_id,
+        {
+            "markdown_path": str(markdown_path),
+            "content_length": content_length,
+        },
+    )
+
+
+def _mark_embedded(doc_id: str) -> None:
+    """记录文档已嵌入的状态。"""
+    doc_id = _safe_doc_id(doc_id)
+    _write_status_marker(
+        EMBED_STATUS_DIR,
+        doc_id,
+        {},
+    )
+
+
+def _remove_status_marker(dir_path: Path, doc_id: str) -> None:
+    """删除对应的状态文件。"""
+    doc_id = _safe_doc_id(doc_id)
+    marker = dir_path / f"{doc_id}.json"
+    if marker.exists():
+        marker.unlink()
+
+
+def _has_marker(dir_path: Path, doc_id: str) -> bool:
+    """检查 doc_id 的状态文件是否存在。"""
+    doc_id = _safe_doc_id(doc_id)
+    return (dir_path / f"{doc_id}.json").exists()
 
 
 async def _build_policy_document(
@@ -151,7 +215,7 @@ async def parse_document(
     """
     解析已上传的文档，生成 Markdown 缓存。
     """
-    safe_doc_id = Path(request.doc_id).name
+    safe_doc_id = _safe_doc_id(request.doc_id)
     try:
         file_path = UPLOAD_DIR / safe_doc_id
         if not file_path.exists():
@@ -161,6 +225,8 @@ async def parse_document(
 
         parsed_path = PARSED_DIR / f"{safe_doc_id}.md"
         parsed_path.write_text(document.content or "", encoding="utf-8")
+
+        _mark_parsed(safe_doc_id, parsed_path, content_length)
 
         logger.info(f"文档解析成功: {safe_doc_id} -> {parsed_path}")
 
@@ -194,7 +260,7 @@ async def embed_document(
     Returns:
         嵌入结果
     """
-    safe_doc_id = Path(request.doc_id).name
+    safe_doc_id = _safe_doc_id(request.doc_id)
     try:
         # 检查文档是否存在
         file_path = UPLOAD_DIR / safe_doc_id
@@ -218,6 +284,8 @@ async def embed_document(
 
         # 添加到知识库
         await knowledge_service.index_documents([document])
+
+        _mark_embedded(safe_doc_id)
 
         logger.info(f"文档已嵌入知识库: {safe_doc_id}")
 
@@ -308,7 +376,8 @@ async def list_documents():
                         id=file_path.name,
                         name=file_path.name,
                         size=file_path.stat().st_size,
-                        modified=file_path.stat().st_mtime
+                        modified=file_path.stat().st_mtime,
+                        embedded=_has_marker(EMBED_STATUS_DIR, file_path.name)
                     )
                 )
 
@@ -337,11 +406,17 @@ async def delete_document(doc_id: str):
         删除结果
     """
     try:
-        file_path = UPLOAD_DIR / doc_id
+        safe_doc_id = _safe_doc_id(doc_id)
+        file_path = UPLOAD_DIR / safe_doc_id
         if file_path.exists():
             file_path.unlink()
+        parsed_path = PARSED_DIR / f"{safe_doc_id}.md"
+        if parsed_path.exists():
+            parsed_path.unlink()
+        _remove_status_marker(PARSED_STATUS_DIR, safe_doc_id)
+        _remove_status_marker(EMBED_STATUS_DIR, safe_doc_id)
 
-        logger.info(f"文档已删除: {doc_id}")
+        logger.info(f"文档已删除: {safe_doc_id}")
 
         return DeleteDocumentResponse(
             success=True,
