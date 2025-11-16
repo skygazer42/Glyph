@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, AliasChoices
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -162,45 +162,125 @@ class MinerUSettings(BaseSettings):
 
     使用 mode="auto" 可自动选择最佳模式
     """
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "extra": "allow"
+    }
+
     # 基础配置
-    enabled: bool = Field(default=False, env="MINERU_ENABLED")
+    enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("MINERU_ENABLED", "MINERU__ENABLED"),
+    )
 
     # 运行模式: "official", "local", "auto"
-    mode: str = Field(default="auto", env="MINERU_MODE")
+    mode: str = Field(
+        default="auto",
+        validation_alias=AliasChoices("MINERU_MODE", "MINERU__MODE"),
+    )
 
     # 官方 API 配置
-    api_key: Optional[str] = Field(default=None, env="MINERU_API_KEY")
+    api_key: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("MINERU_API_KEY", "MINERU__API_KEY"),
+    )
     official_base_url: str = Field(
         default="https://mineru.net/api/v4",
-        env="MINERU_OFFICIAL_BASE_URL"
+        validation_alias=AliasChoices(
+            "MINERU_OFFICIAL_BASE_URL", "MINERU__OFFICIAL_BASE_URL"
+        ),
     )
 
     # 本地服务配置
-    api_base_url: str = Field(default="http://localhost:30001", env="MINERU_API_BASE_URL")
-    backend: str = Field(default="vlm-http-client", env="MINERU_BACKEND")
-    vlm_server_url: Optional[str] = Field(default=None, env="MINERU_VLM_SERVER_URL")
+    api_base_url: str = Field(
+        default="http://localhost:30001",
+        validation_alias=AliasChoices("MINERU_API_BASE_URL", "MINERU__API_BASE_URL"),
+    )
+    backend: str = Field(
+        default="vlm-http-client",
+        validation_alias=AliasChoices("MINERU_BACKEND", "MINERU__BACKEND"),
+    )
+    vlm_server_url: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("MINERU_VLM_SERVER_URL", "MINERU__VLM_SERVER_URL"),
+    )
 
     # 通用配置
-    timeout: int = Field(default=600, env="MINERU_TIMEOUT")
-    language: str = Field(default="ch", env="MINERU_LANGUAGE")
+    timeout: int = Field(
+        default=600,
+        validation_alias=AliasChoices("MINERU_TIMEOUT", "MINERU__TIMEOUT"),
+    )
+    language: str = Field(
+        default="ch",
+        validation_alias=AliasChoices("MINERU_LANGUAGE", "MINERU__LANGUAGE"),
+    )
 
     # 文档解析选项
-    extract_images: bool = Field(default=True, env="MINERU_EXTRACT_IMAGES")
-    extract_tables: bool = Field(default=True, env="MINERU_EXTRACT_TABLES")
-    extract_formulas: bool = Field(default=True, env="MINERU_EXTRACT_FORMULAS")
+    extract_images: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("MINERU_EXTRACT_IMAGES", "MINERU__EXTRACT_IMAGES"),
+    )
+    extract_tables: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("MINERU_EXTRACT_TABLES", "MINERU__EXTRACT_TABLES"),
+    )
+    extract_formulas: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "MINERU_EXTRACT_FORMULAS", "MINERU__EXTRACT_FORMULAS"
+        ),
+    )
 
     # OCR 配置
-    ocr_all_images: bool = Field(default=True, env="MINERU_OCR_ALL_IMAGES")
+    ocr_all_images: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("MINERU_OCR_ALL_IMAGES", "MINERU__OCR_ALL_IMAGES"),
+    )
 
     # 批量处理配置
-    max_concurrent: int = Field(default=3, env="MINERU_MAX_CONCURRENT")
+    max_concurrent: int = Field(
+        default=3,
+        validation_alias=AliasChoices("MINERU_MAX_CONCURRENT", "MINERU__MAX_CONCURRENT"),
+    )
 
     # 旧版兼容配置（保留用于向后兼容）
-    extract_lists: bool = Field(default=True, env="MINERU_EXTRACT_LISTS")
-    preserve_layout: bool = Field(default=True, env="MINERU_PRESERVE_LAYOUT")
-    ocr_dpi: int = Field(default=300, env="MINERU_OCR_DPI")
-    output_format: str = Field(default="markdown", env="MINERU_OUTPUT_FORMAT")
-    include_raw_ocr: bool = Field(default=True, env="MINERU_INCLUDE_RAW_OCR")
+    extract_lists: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("MINERU_EXTRACT_LISTS", "MINERU__EXTRACT_LISTS"),
+    )
+    preserve_layout: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "MINERU_PRESERVE_LAYOUT", "MINERU__PRESERVE_LAYOUT"
+        ),
+    )
+    ocr_dpi: int = Field(
+        default=300,
+        validation_alias=AliasChoices("MINERU_OCR_DPI", "MINERU__OCR_DPI"),
+    )
+    output_format: str = Field(
+        default="markdown",
+        validation_alias=AliasChoices("MINERU_OUTPUT_FORMAT", "MINERU__OUTPUT_FORMAT"),
+    )
+    include_raw_ocr: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "MINERU_INCLUDE_RAW_OCR", "MINERU__INCLUDE_RAW_OCR"
+        ),
+    )
+    model_version: str = Field(
+        default="vlm",
+        validation_alias=AliasChoices("MINERU_MODEL_VERSION", "MINERU__MODEL_VERSION"),
+    )
+    poll_interval: int = Field(
+        default=3,
+        validation_alias=AliasChoices("MINERU_POLL_INTERVAL", "MINERU__POLL_INTERVAL"),
+    )
+    poll_timeout: int = Field(
+        default=300,
+        validation_alias=AliasChoices("MINERU_POLL_TIMEOUT", "MINERU__POLL_TIMEOUT"),
+    )
 
     def get_effective_base_url(self) -> str:
         """获取有效的基础 URL（根据模式）"""
