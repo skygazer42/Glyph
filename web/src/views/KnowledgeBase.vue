@@ -455,7 +455,8 @@ const loadDocuments = async () => {
 const loadStats = async () => {
   try {
     const response = await knowledgeApi.getStats()
-    Object.assign(stats, response)
+    const data = response?.stats || response || {}
+    Object.assign(stats, data)
   } catch (error) {
     appStore.showNotification('error', `加载统计失败: ${error.message}`)
   }

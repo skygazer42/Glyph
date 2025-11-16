@@ -439,13 +439,32 @@ async def get_stats(
         统计信息
     """
     try:
-        stats = knowledge_service.vector_store.get_stats()
+        vector_stats = knowledge_service.vector_store.get_stats()
+
+        document_files = [
+            path for path in UPLOAD_DIR.iterdir()
+            if path.is_file()
+        ] if UPLOAD_DIR.exists() else []
+
+        total_size = sum(path.stat().st_size for path in document_files)
+        embedded_count = sum(
+            1 for path in document_files
+            if _has_marker(EMBED_STATUS_DIR, path.name)
+        )
+
+        stats_payload = {
+            "total_documents": len(document_files),
+            "total_chunks": vector_stats.get("total_documents", 0),
+            "embedding_count": embedded_count,
+            "total_size": total_size,
+            "vector_details": vector_stats,
+        }
 
         logger.info("获取知识库统计信息")
 
         return StatsResponse(
             success=True,
-            stats=stats
+            stats=stats_payload,
         )
 
     except HTTPException:
