@@ -38,29 +38,36 @@ from app.knowledge.faq_responder import FAQResponder
 from app.knowledge import DocumentLoader
 from app.models.base import Attachment, UserQuery
 
-# 配置主日志管理器
-logging_manager.configure(
-    log_dir=str(settings.system.log_dir),
-    filename="agent.log",
-    max_bytes=settings.system.log_max_bytes,
-    backup_count=settings.system.log_backup_count,
-)
-
-# 确保autogen logger只有UTF-8 handler,无重复
 import logging
 from app.core.logging_manager import UTF8JsonFormatter
 
-autogen_logger = logging.getLogger("autogen_core.events")
-autogen_logger.handlers.clear()
-autogen_logger.setLevel(logging.INFO)
-autogen_logger.propagate = False
+_LOGGING_CONFIGURED = False
 
-# 添加UTF-8格式化的console handler
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(UTF8JsonFormatter(
-    "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-))
-autogen_logger.addHandler(console_handler)
+
+def _configure_logging_once() -> None:
+    """Ensure logging configuration only runs a single time per process."""
+    global _LOGGING_CONFIGURED
+    if _LOGGING_CONFIGURED:
+        return
+
+    logging_manager.configure(
+        log_dir=str(settings.system.log_dir),
+        filename="agent.log",
+        max_bytes=settings.system.log_max_bytes,
+        backup_count=settings.system.log_backup_count,
+    )
+
+    autogen_logger = logging.getLogger("autogen_core.events")
+    autogen_logger.handlers.clear()
+    autogen_logger.setLevel(logging.INFO)
+    autogen_logger.propagate = False
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        UTF8JsonFormatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    )
+    autogen_logger.addHandler(console_handler)
+    _LOGGING_CONFIGURED = True
 
 
 class AgentService:
@@ -86,6 +93,7 @@ class AgentService:
         config: Optional[Config] = None,
         knowledge_service: Optional[KnowledgeService] = None,
     ) -> None:
+        _configure_logging_once()
         self.config = config or Config.from_env()
         self.intent_tool = IntentDetectionTool()
         self.knowledge_tool = KnowledgeTool(knowledge_service)
@@ -366,9 +374,7 @@ class AgentService:
             domain_context = self._domain_context_builder.build(rewritten_query)
             # FAQ 仅针对原始问题；改写后不再重复匹配
             # 如果未命中 FAQ，继续走后续流程
-            rewritten_query = rewritten_query
-            domain_context = domain_context
-            
+
             # Fast-path routing to reduce LLM calls
             fast_route = self._fast_route(
                 original_query=query,

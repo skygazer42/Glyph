@@ -309,6 +309,12 @@ class SystemSettings(BaseSettings):
     lightrag_seed_data_dir: Optional[str] = Field(default=None, env="LIGHTRAG_SEED_DATA_DIR")
     max_embed_tokens: int = Field(default=8192, env="MAX_EMBED_TOKENS")
 
+    # 知识检索上下文配置
+    knowledge_max_context_per_doc: int = Field(
+        default=6000,
+        env="KNOWLEDGE_MAX_CONTEXT_PER_DOC",
+    )
+
     # LlamaIndex 配置
     llama_index_embedding_model: str = Field(default="text-embedding-3-small", env="LLAMA_INDEX_EMBEDDING_MODEL")
     llama_index_llm_model: str = Field(default="deepseek-chat", env="LLAMA_INDEX_LLM_MODEL")

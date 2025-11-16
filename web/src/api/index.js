@@ -41,6 +41,11 @@ export const knowledgeApi = {
     })
   },
 
+  // 解析文档为 Markdown（调用 MinerU 等解析器）
+  parseDocument(docId) {
+    return request.post('/knowledge/parse', { doc_id: docId })
+  },
+
   // 嵌入文档到向量库
   embedDocument(docId) {
     return request.post('/knowledge/embed', { doc_id: docId })

@@ -486,6 +486,7 @@ const handleUploadSuccess = (data) => {
   appStore.showNotification('success', `文档 ${data.file.name} 上传成功`)
   loadDocuments()
   loadStats()
+  processUploadedDocument(data.response, data.file.name)
 }
 
 const handleUploadError = (data) => {
@@ -511,6 +512,23 @@ const embedDocument = async (doc) => {
   }
 }
 
+const processUploadedDocument = async (uploadInfo, fileName) => {
+  const docId = uploadInfo?.doc_id
+  if (!docId) return
+  try {
+    appStore.showNotification('info', `正在解析文档 ${fileName} ...`)
+    await knowledgeApi.parseDocument(docId)
+    appStore.showNotification('info', `正在嵌入文档 ${fileName} ...`)
+    await knowledgeApi.embedDocument(docId)
+    appStore.showNotification('success', `文档 ${fileName} 解析并嵌入完成`)
+    uploadInfo.embedded = true
+    loadDocuments()
+    loadStats()
+  } catch (error) {
+    appStore.showNotification('error', `文档 ${fileName} 处理失败: ${error.message}`)
+  }
+}
+
 const batchEmbed = async () => {
   if (uploadedFiles.value.length === 0) {
     appStore.showNotification('warning', '没有待嵌入的文档')
@@ -518,15 +536,19 @@ const batchEmbed = async () => {
   }
 
   batchEmbedding.value = true
+  let successCount = 0
   try {
-    const docIds = uploadedFiles.value.map(file => file.doc_id)
-    await knowledgeApi.embedDocument(docIds)
-    appStore.showNotification('success', `成功嵌入 ${docIds.length} 个文档`)
+    for (const file of uploadedFiles.value) {
+      await knowledgeApi.parseDocument(file.doc_id)
+      await knowledgeApi.embedDocument(file.doc_id)
+      successCount += 1
+    }
+    appStore.showNotification('success', `成功嵌入 ${successCount} 个文档`)
     clearUploaded()
     loadDocuments()
     loadStats()
   } catch (error) {
-    appStore.showNotification('error', `批量嵌入失败: ${error.message}`)
+    appStore.showNotification('error', `批量嵌入过程中断在第 ${successCount + 1} 个文档: ${error.message}`)
   } finally {
     batchEmbedding.value = false
   }

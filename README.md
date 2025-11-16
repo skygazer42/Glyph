@@ -241,15 +241,7 @@ graph TB
 
 - 命中即答：先用“原始问题”匹配 FAQ，若标签包含命中或相似度 ≥ `FAQ_THRESHOLD`（默认 0.85），直接返回，不走改写/意图/检索。
 - 改写后重试（可选）：`FAQ_RETRY_ON_REWRITE=true` 时，原文未命中才对“改写后问题”再尝试一次（提升口语化问法命中率）。
-- 标签来源与维护：
-  - 严格从 `resources/data/process` 文档抽取关键词作为 tags；
-  - 提供脚本按真实文档补齐 tags（不会改写答案，不引入杜撰）：
-    ```bash
-    # 预览/写回 FAQ tags（严格来源于 process）
-    python scripts/build_faq_tags_from_process.py \
-      --process-dir resources/data/process \
-      --faq resources/faq/qa_pairs.json --write
-    ```
+- 标签来源与维护：严格从 `resources/data/process` 文档抽取关键词作为 tags。若需要更新，可手动编辑 `resources/faq/qa_pairs.json`，确保引用真实文档语句，避免臆造。
 - 适用场景：固定问法（“发放时间/面额/领取与使用/资料清单/有效期/封顶金额/是否可再次享受” 等）优先挂到 FAQ，减少大模型调用与响应时延。
 
 ### 可配置项（.env）
@@ -325,8 +317,7 @@ graph TB
 
 3. **启动 MySQL 并初始化表**
    ```bash
-   mysql -u root -p < resources/database/schema/policy_qa_schema.sql
-   python create_tables.py
+   python scripts/1_create_tables.py
    ```
 
 4. **启动 Milvus（示例使用官方 docker-compose）**
@@ -349,7 +340,7 @@ graph TB
 ### 使用 Docker 构建与运行
 
 ```bash
-# 在项目根目录构建镜像
+# 在项目根目录构建镜像（需要自行提供 Dockerfile）
 docker build -t glyph-policy-qa:latest .
 
 # 以 .env 中的配置启动容器
@@ -376,14 +367,15 @@ docker stop glyph-api && docker rm glyph-api
    python scripts/register_text2sql_connection.py  # 记录返回的 connection_id
    ```
 
-2. **嵌入政策文档到向量库 / LlamaIndex**
+2. **初始化知识库（DashScope 默认配置）**
    ```bash
-   python scripts/ingest_policy_docs.py --source resources/data/process
+   bash scripts/init_data.sh
    ```
+   该脚本会依次运行 `scripts/1_create_tables.py`、`scripts/2_seed_mysql_text2sql.py`、`scripts/3_init_milvus.py`、`scripts/4_embed_documents.py`（构建 LlamaIndex 索引）、`scripts/5_embed_process_documents.py`（写入 Milvus），并尝试执行 `scripts/6_seed_lightrag.py`，保证 MySQL/Milvus/LightRAG 三条链路都初始化完成；若 `.env` 中 `SYSTEM__HYBRID_RETRIEVAL_ENABLED=false`，会自动跳过 LlamaIndex 构建步骤。
 
-3. **写入 LightRAG 图谱（可选但建议执行）**
+3. **（可选）只需单独更新 LightRAG 可再次执行**
    ```bash
-   python scripts/seed_lightrag.py --input-dir resources/data/process
+   python scripts/6_seed_lightrag.py --input-dir resources/data/process
    ```
 
 4. **验证数据是否生效**

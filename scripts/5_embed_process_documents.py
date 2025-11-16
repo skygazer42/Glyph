@@ -3,8 +3,8 @@
 Embed policy process documents under resources/data/process into the knowledge store.
 
 Usage examples:
-    python scripts/embed_process_documents.py
-    python scripts/embed_process_documents.py --input-dir data/custom --batch-size 5
+    python scripts/5_embed_process_documents.py
+    python scripts/5_embed_process_documents.py --input-dir data/custom --batch-size 5
 """
 
 from __future__ import annotations

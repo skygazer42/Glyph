@@ -1,0 +1,89 @@
+{
+  "test_time": "2025-11-16T11:16:29.127831",
+  "test_type": "Docker Rebuild Test",
+  "steps": [
+    {
+      "step": 1,
+      "action": "停止所有容器",
+      "status": "✅ 完成",
+      "details": "成功停止所有运行中的Docker容器"
+    },
+    {
+      "step": 2,
+      "action": "删除所有容器",
+      "status": "✅ 完成",
+      "details": "成功删除所有Docker容器"
+    },
+    {
+      "step": 3,
+      "action": "删除所有镜像",
+      "status": "✅ 完成",
+      "details": "成功删除所有Docker镜像，释放2.7GB空间"
+    },
+    {
+      "step": 4,
+      "action": "清理数据卷和网络",
+      "status": "✅ 完成",
+      "details": "清理无用的数据卷和网络资源"
+    },
+    {
+      "step": 5,
+      "action": "重新构建服务",
+      "status": "✅ 完成",
+      "details": "从Docker Hub拉取最新镜像并启动所有服务"
+    },
+    {
+      "step": 6,
+      "action": "验证服务状态",
+      "status": "✅ 完成",
+      "details": "所有服务正常运行"
+    }
+  ],
+  "services": [
+    {
+      "name": "etcd",
+      "status": "Up",
+      "ports": [
+        "2379/tcp",
+        "2380/tcp"
+      ]
+    },
+    {
+      "name": "milvus",
+      "status": "Up",
+      "ports": [
+        "19530:19530/tcp",
+        "9091:9091/tcp"
+      ]
+    },
+    {
+      "name": "minio",
+      "status": "Up (healthy)",
+      "ports": [
+        "9000/tcp"
+      ]
+    },
+    {
+      "name": "mysql",
+      "status": "Up (healthy)",
+      "ports": [
+        "3307:3306/tcp",
+        "33060/tcp"
+      ]
+    },
+    {
+      "name": "redis",
+      "status": "Up",
+      "ports": [
+        "6379:6379/tcp"
+      ]
+    }
+  ],
+  "test_results": {
+    "redis_ping": "✅ PONG",
+    "mysql_connection": "✅ Connected",
+    "milvus_status": "✅ Running",
+    "overall": "✅ 成功"
+  },
+  "summary": "Docker环境完全重建成功，所有服务正常运行"
+}

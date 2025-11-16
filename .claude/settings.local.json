@@ -14,7 +14,19 @@
       "Bash(python -m json.tool:*)",
       "Bash(python analyze_results.py:*)",
       "Bash(python -m py_compile:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(python:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose pull:*)",
+      "Bash(docker-compose exec redis redis-cli ping:*)",
+      "Bash(env:*)",
+      "Bash(source:*)",
+      "Bash(export:*)",
+      "Bash(docker-compose exec mysql mysql:*)",
+      "Bash(bash:*)"
     ],
     "deny": [],
     "ask": []

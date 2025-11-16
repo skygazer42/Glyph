@@ -258,9 +258,13 @@ store = MilvusStore(
 - [ ] `EMBEDDING_BACKEND` - 选择 backend (openai/dashscope)
 - [ ] 对应 backend 的 API_KEY 和配置
 
+### 知识检索配置（可选但推荐）
+
+- [ ] `KNOWLEDGE_MAX_CONTEXT_PER_DOC` - 每篇文档在 KnowledgeAgent 中参与摘要/生成时最多保留的字符数（默认 6000，可根据模型上下文长度调整）
+
 ### 可选配置
 
-- [ ] `MINERU_ENABLED` - 是否启用 MinerU 文档解析
+- [ ] `MINERU_ENABLED` / `MINERU_MODE` / `MINERU_API_KEY` - 是否启用 MinerU 文档解析，以及在线/本地模式
 - [ ] `RERANKER_BACKEND` - 是否启用重排序
 - [ ] `DATABASE__MILVUS_HOST` - 是否使用 Milvus
 - [ ] `DATABASE__NEO4J_URI` - 是否使用 Neo4j
@@ -416,3 +420,4 @@ validate_config()
 - [README.md](../README.md) - 项目总览
 - [.env.example](../.env.example) - 完整配置模板
 - [config/settings.py](../config/settings.py) - 配置类定义
+- [KNOWLEDGE_ENV_RECIPES.md](KNOWLEDGE_ENV_RECIPES.md) - `.env` 快速配方（召回、MinerU 等）

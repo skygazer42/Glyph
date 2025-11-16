@@ -85,6 +85,20 @@ class EmbedResponse(BaseModel):
     message: str
 
 
+class ParseRequest(BaseModel):
+    """解析文档请求"""
+    doc_id: str = Field(..., description="上传后的文档ID（文件名）")
+
+
+class ParseResponse(BaseModel):
+    """解析文档响应"""
+    success: bool
+    doc_id: str
+    markdown_path: str
+    content_length: int
+    message: Optional[str] = None
+
+
 class SearchRequest(BaseModel):
     """搜索知识库请求"""
     query: str = Field(..., description="搜索查询")

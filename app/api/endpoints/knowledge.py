@@ -13,6 +13,8 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from app.api.schemas import (
     EmbedRequest,
     EmbedResponse,
+    ParseRequest,
+    ParseResponse,
     SearchRequest,
     SearchResponse,
     SearchResult,
@@ -35,6 +37,8 @@ logger = logging.getLogger(__name__)
 # 上传目录
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
+PARSED_DIR = UPLOAD_DIR / "parsed"
+PARSED_DIR.mkdir(parents=True, exist_ok=True)
 
 
 async def _build_policy_document(
@@ -70,6 +74,34 @@ async def _build_policy_document(
         source=str(file_path),
         doc_type=doc_type,
         metadata={**metadata, "uploaded_doc_id": doc_id or file_path.name},
+    )
+    return document, len(text)
+
+
+def _build_policy_document_from_cache(
+    text: str,
+    file_path: Path,
+    *,
+    doc_id: str,
+    parsed_path: Path,
+) -> Tuple[PolicyDocument, int]:
+    """根据缓存的 Markdown 文本构建 PolicyDocument。"""
+    title = doc_id or file_path.stem
+    summary = text[:200].strip()
+    metadata = {
+        "uploaded_doc_id": doc_id,
+        "text_length": len(text),
+        "parsed_markdown_path": str(parsed_path),
+        "extraction_method": "cached_markdown",
+    }
+    document = PolicyDocument(
+        id=uuid4(),
+        title=title,
+        content=text,
+        summary=summary or title,
+        source=str(file_path),
+        doc_type=PolicyType.GUIDELINE,
+        metadata=metadata,
     )
     return document, len(text)
 
@@ -111,6 +143,42 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/parse", response_model=ParseResponse)
+async def parse_document(
+    request: ParseRequest,
+    processor: EnhancedDocumentProcessor = Depends(get_enhanced_doc_processor),
+):
+    """
+    解析已上传的文档，生成 Markdown 缓存。
+    """
+    safe_doc_id = Path(request.doc_id).name
+    try:
+        file_path = UPLOAD_DIR / safe_doc_id
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="文档不存在")
+
+        document, content_length = await _build_policy_document(file_path, processor, doc_id=safe_doc_id)
+
+        parsed_path = PARSED_DIR / f"{safe_doc_id}.md"
+        parsed_path.write_text(document.content or "", encoding="utf-8")
+
+        logger.info(f"文档解析成功: {safe_doc_id} -> {parsed_path}")
+
+        return ParseResponse(
+            success=True,
+            doc_id=safe_doc_id,
+            markdown_path=str(parsed_path),
+            content_length=content_length,
+            message="文档已解析为 Markdown，可直接用于嵌入",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"文档解析失败: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.post("/embed", response_model=EmbedResponse)
 async def embed_document(
     request: EmbedRequest,
@@ -126,23 +194,36 @@ async def embed_document(
     Returns:
         嵌入结果
     """
+    safe_doc_id = Path(request.doc_id).name
     try:
         # 检查文档是否存在
-        file_path = UPLOAD_DIR / request.doc_id
+        file_path = UPLOAD_DIR / safe_doc_id
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="文档不存在")
 
-        # 解析文档并构建 PolicyDocument
-        document, _ = await _build_policy_document(file_path, processor, doc_id=request.doc_id)
+        parsed_path = PARSED_DIR / f"{safe_doc_id}.md"
+        if parsed_path.exists():
+            text = parsed_path.read_text(encoding="utf-8")
+            if not text.strip():
+                raise HTTPException(status_code=400, detail="已解析的 Markdown 内容为空")
+            document, _ = _build_policy_document_from_cache(
+                text,
+                file_path,
+                doc_id=safe_doc_id,
+                parsed_path=parsed_path,
+            )
+        else:
+            # 解析文档并构建 PolicyDocument
+            document, _ = await _build_policy_document(file_path, processor, doc_id=safe_doc_id)
 
         # 添加到知识库
         await knowledge_service.index_documents([document])
 
-        logger.info(f"文档已嵌入知识库: {request.doc_id}")
+        logger.info(f"文档已嵌入知识库: {safe_doc_id}")
 
         return EmbedResponse(
             success=True,
-            doc_id=request.doc_id,
+            doc_id=safe_doc_id,
             message="文档已成功入库并可用于检索"
         )
 
