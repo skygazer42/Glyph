@@ -17,8 +17,8 @@ cd "$ROOT_DIR"
 echo "==> Step 1/6: Creating database tables"
 python scripts/1_create_tables.py
 
-echo "==> Step 2/6: Seeding MySQL policy/Text2SQL data"
-python scripts/2_seed_mysql_text2sql.py --skip-schema
+echo "==> Step 2/6: Seeding MySQL policy/Text2SQL data (auto-applying schema)"
+python scripts/2_seed_mysql_text2sql.py
 
 echo "==> Step 3/6: Initializing Milvus collection"
 python scripts/3_init_milvus.py

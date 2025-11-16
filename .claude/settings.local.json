@@ -26,7 +26,8 @@
       "Bash(source:*)",
       "Bash(export:*)",
       "Bash(docker-compose exec mysql mysql:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": []

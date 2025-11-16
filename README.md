@@ -371,7 +371,7 @@ docker stop glyph-api && docker rm glyph-api
    ```bash
    bash scripts/init_data.sh
    ```
-   该脚本会依次运行 `scripts/1_create_tables.py`、`scripts/2_seed_mysql_text2sql.py`、`scripts/3_init_milvus.py`、`scripts/4_embed_documents.py`（构建 LlamaIndex 索引）、`scripts/5_embed_process_documents.py`（写入 Milvus），并尝试执行 `scripts/6_seed_lightrag.py`，保证 MySQL/Milvus/LightRAG 三条链路都初始化完成；若 `.env` 中 `SYSTEM__HYBRID_RETRIEVAL_ENABLED=false`，会自动跳过 LlamaIndex 构建步骤。
+   该脚本会依次运行 `scripts/1_create_tables.py`、`scripts/2_seed_mysql_text2sql.py`（自动应用 `policy_qa_schema.sql`）、`scripts/3_init_milvus.py`、`scripts/4_embed_documents.py`（构建 LlamaIndex 索引）、`scripts/5_embed_process_documents.py`（写入 Milvus），并尝试执行 `scripts/6_seed_lightrag.py`，保证 MySQL/Milvus/LightRAG 三条链路都初始化完成；若 `.env` 中 `SYSTEM__HYBRID_RETRIEVAL_ENABLED=false`，会自动跳过 LlamaIndex 构建步骤。
 
 3. **（可选）只需单独更新 LightRAG 可再次执行**
    ```bash
