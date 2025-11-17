@@ -133,6 +133,30 @@ graph TB
     D6 --> A0
 
     %% ========================================
+    %% Text2SQLAgent 子流程
+    %% ========================================
+    subgraph Text2SQL_Subgraph [🔎 Text2SQLAgent 详细流程]
+        TS1[📋 Schema Analyzer<br/>表结构分析<br/><small>检索相关表和列</small>]
+        TS2[🔧 SQL Generator<br/>SQL生成<br/><small>NL→SQL转换</small>]
+        TS3[✅ Query Executor<br/>查询执行<br/><small>安全校验+执行</small>]
+        TS4[📊 Result Formatter<br/>结果格式化<br/><small>JSON/表格/图表</small>]
+
+        TS1 --> TS2
+        TS2 --> TS3
+        TS3 --> TS4
+
+        %% 安全检查子流程
+        TS3 --> TS5{🔒 安全检查}
+        TS5 -->|❌ 非SELECT查询| TS6[❌ 拒绝执行<br/>仅允许SELECT查询]
+        TS5 -->|❌ 注入风险| TS6
+        TS5 -->|✅ 通过安全校验| TS7[✅ 执行查询]
+        TS7 --> TS4
+    end
+
+    D5 -.-> Text2SQL_Subgraph
+    Text2SQL_Subgraph -.-> A0
+
+    %% ========================================
     %% 第七层: 统一后处理 (紫色系)
     %% ========================================
     A0 --> P1[🎁 后处理包装器<br/>统一格式化<br/><small>追加路由+引用+元数据</small>]
@@ -184,6 +208,15 @@ graph TB
 
     %% 最终输出 - 绿色高亮
     style Z fill:#a5d6a7,stroke:#1b5e20,stroke-width:4px
+
+    %% Text2SQLAgent 子图样式
+    style TS1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style TS2 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style TS3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    style TS4 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style TS5 fill:#ffecb3,stroke:#f57f17,stroke-width:3px
+    style TS6 fill:#ffcdd2,stroke:#d32f2f,stroke-width:2px
+    style TS7 fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
 ```
 
 **架构图图例说明**:

@@ -1,0 +1,75 @@
+<svg width="900" height="520" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" font-family="'Inter','PingFang SC', 'Microsoft YaHei', sans-serif">
+  <style>
+    .title { font-size: 24px; font-weight: 600; fill: #1d3557; }
+    .subtitle { font-size: 14px; fill: #457b9d; }
+    .node { fill: #f1faee; stroke: #1d3557; stroke-width: 2; rx: 12; }
+    .hub { fill: #ffe8d6; stroke: #cc5803; stroke-width: 2.5; rx: 16; }
+    .edge { stroke: #6c757d; stroke-width: 2; marker-end: url(#arrow); }
+    .edge-text { font-size: 12px; fill: #495057; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,3 L0,6 z" fill="#6c757d" />
+    </marker>
+  </defs>
+  <rect width="900" height="520" fill="#f8f9fa" rx="20" />
+  <text x="40" y="50" class="title">Glyph 知识图谱（示例）</text>
+  <text x="40" y="78" class="subtitle">LightRAG 将政策拆解为实体和关系，支持 GraphAgent 在本地图谱内做推理</text>
+
+  <!-- Hub node -->
+  <rect x="380" y="190" width="150" height="80" class="hub" />
+  <text x="455" y="215" text-anchor="middle" font-size="18" font-weight="600" fill="#cc5803">政策实体</text>
+  <text x="455" y="240" text-anchor="middle" font-size="13" fill="#8c5319">Policy: 济南家电补贴实施细则</text>
+
+  <!-- Nodes -->
+  <rect x="120" y="140" width="160" height="70" class="node" />
+  <text x="200" y="165" text-anchor="middle" font-size="16" font-weight="600" fill="#1d3557">地区</text>
+  <text x="200" y="190" text-anchor="middle" font-size="13" fill="#457b9d">济南市 / 历下区</text>
+
+  <rect x="120" y="270" width="160" height="70" class="node" />
+  <text x="200" y="295" text-anchor="middle" font-size="16" font-weight="600" fill="#1d3557">申请主体</text>
+  <text x="200" y="320" text-anchor="middle" font-size="13" fill="#457b9d">个人 / 零售企业</text>
+
+  <rect x="620" y="120" width="180" height="70" class="node" />
+  <text x="710" y="145" text-anchor="middle" font-size="16" font-weight="600" fill="#1d3557">补贴标准</text>
+  <text x="710" y="170" text-anchor="middle" font-size="13" fill="#457b9d">15% 额度，封顶 2000 元</text>
+
+  <rect x="620" y="240" width="180" height="70" class="node" />
+  <text x="710" y="265" text-anchor="middle" font-size="16" font-weight="600" fill="#1d3557">材料清单</text>
+  <text x="710" y="290" text-anchor="middle" font-size="13" fill="#457b9d">发票、旧机回收单</text>
+
+  <rect x="620" y="360" width="180" height="70" class="node" />
+  <text x="710" y="385" text-anchor="middle" font-size="16" font-weight="600" fill="#1d3557">流程节点</text>
+  <text x="710" y="410" text-anchor="middle" font-size="13" fill="#457b9d">申请→审核→兑付</text>
+
+  <rect x="120" y="40" width="180" height="70" class="node" />
+  <text x="210" y="65" text-anchor="middle" font-size="16" font-weight="600" fill="#1d3557">上位文献</text>
+  <text x="210" y="90" text-anchor="middle" font-size="13" fill="#457b9d">省级实施方案</text>
+
+  <!-- Edges -->
+  <line x1="280" y1="175" x2="380" y2="230" class="edge" />
+  <text x="315" y="190" class="edge-text">适用地区</text>
+
+  <line x1="280" y1="305" x2="380" y2="250" class="edge" />
+  <text x="305" y="280" class="edge-text">面向主体</text>
+
+  <line x1="530" y1="215" x2="620" y2="160" class="edge" />
+  <text x="560" y="180" class="edge-text">设定</text>
+
+  <line x1="530" y1="245" x2="620" y2="275" class="edge" />
+  <text x="560" y="265" class="edge-text">需要</text>
+
+  <line x1="530" y1="260" x2="620" y2="395" class="edge" />
+  <text x="560" y="340" class="edge-text">办理流程</text>
+
+  <line x1="300" y1="80" x2="380" y2="210" class="edge" />
+  <text x="320" y="120" class="edge-text">继承</text>
+
+  <!-- Legend -->
+  <rect x="120" y="410" width="320" height="70" rx="12" ry="12" fill="#ffffff" stroke="#ced4da" />
+  <text x="140" y="435" font-size="14" font-weight="600" fill="#343a40">图例</text>
+  <circle cx="170" cy="458" r="6" fill="#ffe8d6" stroke="#cc5803" stroke-width="2" />
+  <text x="185" y="462" font-size="12" fill="#495057">核心政策节点</text>
+  <circle cx="340" cy="458" r="6" fill="#f1faee" stroke="#1d3557" stroke-width="2" />
+  <text x="355" y="462" font-size="12" fill="#495057">要素节点（地区/材料等）</text>
+</svg>
