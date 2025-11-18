@@ -316,4 +316,10 @@ INSERT INTO text2sql_reference_questions (question, recommended_table, filter_hi
 ('找出auto_subsidy_tiers里benefit_type=''gift_package''的最高benefit_amount。', 'auto_subsidy_tiers', 'benefit_type=''gift_package''', NULL, 2, '检验礼包档位'),
 ('列出appliance_subsidy_rules里per_person_limit>1的品类。', 'appliance_subsidy_rules', 'per_person_limit>1', NULL, 1, '验证旧家电表仍可查询'),
 ('查询policy_benefit_rules中subsidy_cap>=2000或flat_amount>=2000的条目，按金额降序。', 'policy_benefit_rules', '(subsidy_cap>=2000 OR flat_amount>=2000)', NULL, 2, '用于演示混合条件'),
-('写SQL返回agent_capabilities里route在("knowledge","graph")的代理及primary_tools。', 'agent_capabilities', 'route IN (''knowledge'',''graph'')', NULL, 1, '凸显检索链路依赖');
+('写SQL返回agent_capabilities里route在("knowledge","graph")的代理及primary_tools。', 'agent_capabilities', 'route IN (''knowledge'',''graph'')', NULL, 1, '凸显检索链路依赖'),
+-- 更贴近真实用户话术的 Text2SQL 参考问题（济南市民家电以旧换新场景）
+('济南市家电以旧换新政策中，空调一级和二级能效分别补贴多少比例？单件封顶多少钱？', 'policy_benefit_rules', 'doc_id=''JINAN_APPLIANCE_2025'' AND benefit_item=''空调''', 'JINAN_APPLIANCE_2025', 1, '展示空调一级20%、二级15%、单件封顶2000元'),
+('家电以旧换新里，空调、冰箱和其他家电每位消费者最多可以补贴几件？', 'appliance_category_limits', NULL, 'JINAN_APPLIANCE_2025', 1, '空调3件、冰箱2件、其他家电1件'),
+('济南家电以旧换新补贴实施期从什么时候到什么时候？', 'policy_timelines', 'doc_id=''JINAN_APPLIANCE_2025''', 'JINAN_APPLIANCE_2025', 1, '实施期为2025-01-20至2025-12-31'),
+('比较济南家电以旧换新与手机/平板/智能手表购新补贴的单件补贴封顶金额。', 'policy_benefit_rules', 'doc_id IN (''JINAN_APPLIANCE_2025'',''JINAN_DIGITAL_2025'')', NULL, 2, '家电单件封顶2000元，数码单件封顶500元'),
+('政策数据库里，家电以旧换新类政策文档一共有多少份？', 'policy_documents', 'category=''家电以旧换新''', 'JINAN_APPLIANCE_2025', 1, '统计家电以旧换新相关政策文档数量');

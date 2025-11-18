@@ -7,7 +7,6 @@ import os
 import re
 import json
 import hashlib
-import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass

@@ -181,6 +181,10 @@ class ChatRequest(BaseModel):
         default=None,
         description="Text2SQL 场景使用的数据库连接ID"
     )
+    text2sql_mode: bool = Field(
+        default=False,
+        description="显式开启 Text2SQL 模式（需要 connection_id 或默认连接）"
+    )
     attachments: Optional[List[AttachmentModel]] = Field(
         default=None,
         description="可选附件列表，例如图片路径/URL，用于多模态任务",
@@ -203,6 +207,10 @@ class ChatStreamRequest(BaseModel):
     connection_id: Optional[int] = Field(
         default=None,
         description="Text2SQL 场景使用的数据库连接ID"
+    )
+    text2sql_mode: bool = Field(
+        default=False,
+        description="显式开启 Text2SQL 模式（需要 connection_id 或默认连接）"
     )
     attachments: Optional[List[AttachmentModel]] = Field(
         default=None,

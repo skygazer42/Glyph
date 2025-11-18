@@ -57,19 +57,40 @@ class Text2SQLAgent:
             db.close()
 
     def _build_answer(self, response: QueryResponse, connection_id: int) -> FinalAnswer:
+        rows = response.results or []
         metadata = {
             "route": "text2sql",
             "sql": response.sql,
             "connection_id": connection_id,
             "error": response.error,
-            "rows": response.results or [],
+            "rows": rows,
         }
-        answer_text = (
-            "SQL 执行成功，结果如下：" if not response.error else f"SQL 执行失败：{response.error}"
-        )
-        if response.results:
-            answer_text += f"\n返回 {len(response.results)} 条记录。"
-        confidence = 0.75 if response.results else (0.3 if response.error else 0.5)
+
+        # 构造人类可读的回答文案
+        if response.error:
+            answer_text = f"SQL 执行失败：{response.error}"
+            confidence = 0.3
+        else:
+            total = len(rows)
+            answer_text = "SQL 执行成功，结果如下："
+            answer_text += f"\n返回 {total} 条记录。"
+
+            # 预览前若干条记录，避免一次性输出过多数据
+            if rows:
+                max_preview = 10
+                preview = rows[:max_preview]
+                answer_text += f"\n预览前 {len(preview)} 条："
+                # 推导列名
+                cols = list(preview[0].keys())
+                for idx, row in enumerate(preview, start=1):
+                    # 简单的 k=v 列表，前端会按文本渲染
+                    kv = ", ".join(f"{k}={row.get(k)!r}" for k in cols)
+                    answer_text += f"\n{idx}) {kv}"
+                if total > max_preview:
+                    answer_text += f"\n... 其余 {total - max_preview} 条已省略。"
+
+            confidence = 0.75 if rows else 0.5
+
         return FinalAnswer(
             query_id=uuid4(),
             answer=answer_text,

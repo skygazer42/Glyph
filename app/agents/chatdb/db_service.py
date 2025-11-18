@@ -28,23 +28,9 @@ def _build_db_access(connection: DBConnection) -> DBAccess:
             password=connection.password_encrypted,
             port=connection.port,
         )
-    elif db_type == "sqlite":
-        db_access.connect_to_sqlite(connection.database_name)
-    elif db_type == "clickhouse":
-        db_access.connect_to_clickhouse(
-            host=connection.host,
-            dbname=connection.database_name,
-            user=connection.username,
-            password=connection.password_encrypted,
-            port=connection.port,
-        )
     elif db_type == "snowflake":
-        db_access.connect_to_snowflake(
-            account=connection.host,
-            username=connection.username,
-            password=connection.password_encrypted,
-            database=connection.database_name,
-        )
+        # Snowflake support has been removed; keep explicit error to surface misconfiguration.
+        raise ValueError("Snowflake connections are no longer supported. Please use MySQL/PostgreSQL.")
     else:  # pragma: no cover
         raise ValueError(f"Unsupported database type: {connection.db_type}")
 

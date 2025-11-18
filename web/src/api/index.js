@@ -32,6 +32,17 @@ export const dslApi = {
   }
 }
 
+// 数据库连接相关 API
+export const dbApi = {
+  listConnections() {
+    return request.get('/db/connections')
+  },
+
+  getConnection(id) {
+    return request.get(`/db/connections/${id}`)
+  }
+}
+
 // 知识库相关API（匹配后端实际API）
 export const knowledgeApi = {
   // 上传单个文档
@@ -98,11 +109,12 @@ export const systemApi = {
 // Agent相关API（匹配后端实际API）
 export const agentApi = {
   // 发送消息（非流式）- 支持会话、数据库连接以及用户ID
-  chat(message, sessionId = null, connectionId = null, userId = null, attachments = null) {
+  chat(message, sessionId = null, connectionId = null, userId = null, attachments = null, options = {}) {
     const payload = {
       message,
       session_id: sessionId,
-      connection_id: connectionId
+      connection_id: connectionId,
+      ...options
     }
 
     if (userId) {

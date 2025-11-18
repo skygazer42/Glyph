@@ -8,8 +8,8 @@ This module centralizes:
 - Lightweight intent heuristics (count/list/latest/top)
 
 These hints are consumed by Text2SQL utilities/prompts to improve
-recall and correctness on policy-oriented databases such as the
-demo DB under resources/sql/policy_demo.db.
+recall and correctness on policy-oriented policy databases
+regardless of the underlying engine (MySQL/SQLite/Postgres, etc.).
 """
 
 from __future__ import annotations
@@ -296,4 +296,3 @@ def load_overrides(paths: Optional[List[Path]] = None) -> None:
 
 # Load on import (best-effort)
 load_overrides()
-

@@ -1,13 +1,13 @@
 """
 表结构检索智能体
-负责从图数据库获取相关表结构
+负责从元数据表中获取相关表结构（SchemaTable/SchemaColumn/SchemaRelationship）
 """
 from typing import Dict, Any, Tuple
 
 from autogen_core import message_handler, MessageContext, TopicId, type_subscription
 
 from app.persistence.db.session import SessionLocal
-from app.agents.chatdb.text2sql_service import retrieve_relevant_schema, get_value_mappings
+from app.agents.chatdb.text2sql_utils import retrieve_relevant_schema, get_value_mappings
 from app.schemas.text2sql import QueryMessage, SchemaContextMessage
 from .base import BaseAgent
 from .types import AgentTypes, AGENT_NAMES, TopicTypes
@@ -15,7 +15,7 @@ from .types import AgentTypes, AGENT_NAMES, TopicTypes
 
 @type_subscription(topic_type=TopicTypes.SCHEMA_RETRIEVER.value)
 class SchemaRetrieverAgent(BaseAgent):
-    """表结构检索智能体，负责从图数据库获取相关表结构"""
+    """表结构检索智能体，负责从元数据表获取相关表结构"""
 
     def __init__(self, model_client_instance=None, db_type=None):
         """初始化表结构检索智能体"""
@@ -27,7 +27,7 @@ class SchemaRetrieverAgent(BaseAgent):
         )
 
     async def retrieve_schema(self, connection_id: int, query: str) -> Tuple[Dict[str, Any], str]:
-        """从图数据库获取相关表结构信息
+        """获取相关表结构信息
 
         Args:
             connection_id: 数据库连接ID
@@ -72,14 +72,14 @@ class SchemaRetrieverAgent(BaseAgent):
             schema_context = {}
 
             # 发送开始处理的消息
-            await self.send_response("正在从图数据库解析相关表结构...\n\n")
+            await self.send_response("正在解析相关表结构...\n\n")
 
             mappings_str = ""
             if message.connection_id:
                 connection_id = message.connection_id
                 print(f"[{self.agent_name}] 收到连接ID: {connection_id}")
 
-                # 从图数据库获取相关表结构信息和值映射
+                # 获取相关表结构信息和值映射
                 schema_context, mappings_str = await self.retrieve_schema(connection_id, message.query)
 
                 # 输出找到的相关表信息

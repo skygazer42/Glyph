@@ -394,27 +394,27 @@ docker stop glyph-api && docker rm glyph-api
 
 ### 导入示例数据
 
-1. **生成 Text2SQL 数据库**
-   ```bash
-   sqlite3 resources/sql/policy_demo.db < resources/sql/policy_demo.sql
-   python scripts/register_text2sql_connection.py  # 记录返回的 connection_id
-   ```
-
-2. **初始化知识库（DashScope 默认配置）**
+1. **初始化 MySQL / Text2SQL / 知识库链路（推荐）**
    ```bash
    bash scripts/init_data.sh
    ```
-   该脚本会依次运行 `scripts/1_create_tables.py`、`scripts/2_seed_mysql_text2sql.py`（自动应用 `policy_qa_schema.sql`）、`scripts/3_init_milvus.py`、`scripts/4_embed_documents.py`（构建 LlamaIndex 索引）、`scripts/5_embed_process_documents.py`（写入 Milvus），并尝试执行 `scripts/6_seed_lightrag.py`，保证 MySQL/Milvus/LightRAG 三条链路都初始化完成；若 `.env` 中 `SYSTEM__HYBRID_RETRIEVAL_ENABLED=false`，会自动跳过 LlamaIndex 构建步骤。
+   该脚本会依次运行：
+   - `scripts/1_create_tables.py`：创建 ORM 管理的业务表（包括 `db_connection`、schema 元数据表、聊天记录等）
+   - `scripts/2_seed_mysql_text2sql.py`：在 MySQL 的 `policy_db` 中按 `policy_qa_schema.sql` 初始化 Text2SQL 演示数据
+   - `scripts/7_sync_text2sql_schema.py`：为 `policy_db` 创建 `DBConnection` 记录，并从 MySQL 信息_schema 自动填充 `SchemaTable/SchemaColumn/SchemaRelationship`，供 Text2SQL Agent 使用
+   - `scripts/3_init_milvus.py`：初始化 Milvus 集合
+   - `scripts/4_embed_documents.py`：从 `resources/data/process` 构建 LlamaIndex 分层索引（在开启 `SYSTEM__HYBRID_RETRIEVAL_ENABLED` 时）
+   - `scripts/5_embed_process_documents.py`：将同一批文档嵌入 Milvus
+   - `scripts/6_seed_lightrag.py`：为 LightRAG 导入种子数据
 
-3. **（可选）只需单独更新 LightRAG 可再次执行**
+2. **（可选）只需单独更新 LightRAG 可再次执行**
    ```bash
    python scripts/6_seed_lightrag.py --input-dir resources/data/process
    ```
 
-4. **验证数据是否生效**
+3. **验证数据是否生效**
    - `python scripts/unified_cli.py --interactive` 可快速检索文档
-   - `sqlite3 resources/sql/policy_demo.db ".tables"` 检查表已生成
-   - `mysql -u root -p policy_db -e "SHOW TABLES"` 确认 `chatsession/chatmessage` 等表存在
+   - `mysql -u root -p policy_db -e "SHOW TABLES"` 确认 `policy_documents/policy_qa_pairs/policy_tags` 等表存在
 
 ### 自动化验证
 

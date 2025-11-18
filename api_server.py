@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
 # 导入 endpoint 路由
-from app.api.endpoints import agent, dsl, knowledge, uploads, knowledge_graph
+from app.api.endpoints import agent, dsl, knowledge, uploads, knowledge_graph, db_connections
 from app.api.schemas import HealthResponse
 from app.api.deps import get_session_manager
 
@@ -86,6 +86,7 @@ app.include_router(dsl.router, prefix="/api/dsl", tags=["DSL 生成"])
 app.include_router(knowledge.router, prefix="/api/knowledge", tags=["知识库"])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["附件上传"])
 app.include_router(knowledge_graph.router, prefix="/api/knowledge-graph", tags=["知识图谱"])
+app.include_router(db_connections.router, prefix="/api/db", tags=["数据库连接"])
 
 # ==================== 健康检查 ====================
 

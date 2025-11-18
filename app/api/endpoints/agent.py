@@ -66,6 +66,7 @@ async def agent_chat(
             user_id=request.user_id,
             connection_id=request.connection_id,
             attachments=request.attachments,
+            force_text2sql=request.text2sql_mode,
         )
 
         # 添加助手消息到会话
@@ -154,6 +155,7 @@ async def agent_chat_stream(
                 user_id=request.user_id,
                 connection_id=request.connection_id,
                 attachments=request.attachments,
+                force_text2sql=request.text2sql_mode,
             )
 
             # 发送内容片段（一次性推送最终答案）

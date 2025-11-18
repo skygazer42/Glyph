@@ -1,176 +1,119 @@
-# 政务问答数据库快速入门
+# 政务问答数据库快速入门（MySQL 版）
 
-## 5分钟快速开始
+> 说明：当前项目统一使用 **MySQL 的 `policy_db` 库** 作为 Text2SQL / 政策问答的数据源。  
+> 早期的 `policy_qa.db`（SQLite）示例库已废弃，不再建议使用。
 
-### 1. 初始化数据库
+## 5 分钟快速开始
 
-```bash
-cd F:\pythonproject\Glyph
-python database/initialize_db.py
+### 1. 准备环境
+
+1. 启动本地或容器里的 MySQL 8：
+   - 确保可以连通：`mysql -h <host> -u <user> -p`
+2. 配置 `.env`（或环境变量）中的数据库参数，和主仓库一致：
+
+```env
+DATABASE__MYSQL_HOST=localhost
+DATABASE__MYSQL_PORT=3306
+DATABASE__MYSQL_USER=glyph
+DATABASE__MYSQL_PASSWORD=glyph
+DATABASE__MYSQL_DB=policy_db
 ```
 
-### 2. 验证安装
+### 2. 初始化表结构 + 演示数据
+
+在项目根目录执行：
 
 ```bash
-python -c "import sqlite3; conn = sqlite3.connect('database/policy_qa.db'); print('数据库连接成功！'); conn.close()"
+cd /path/to/Glyph
+
+# 仅初始化 MySQL 政策问答 / Text2SQL 数据
+python scripts/2_seed_mysql_text2sql.py
+
+# 或执行完整数据链路（建表 + MySQL + Milvus + 索引）
+bash scripts/init_data.sh
 ```
 
-### 3. 第一个查询
+`scripts/2_seed_mysql_text2sql.py` 会做两件事：
+
+- 读取 `resources/database/schema/policy_qa_schema.sql`，转换成 MySQL 语法并建表；
+- 自动生成一小批政务政策文档、实体、QA 对和标签，插入到 `policy_db` 中。
+
+### 3. 验证初始化结果
+
+使用 MySQL 客户端快速检查：
+
+```bash
+mysql -h $DATABASE__MYSQL_HOST \
+      -u $DATABASE__MYSQL_USER \
+      -p$DATABASE__MYSQL_PASSWORD \
+      -D $DATABASE__MYSQL_DB \
+      -e "SHOW TABLES"
+```
+
+你应该能看到类似表名：
+
+- `policy_documents`
+- `policy_qa_pairs`
+- `policy_entities`
+- `policy_tags`
+- `query_history`
+- `policy_relationships`
+- `policy_change_log`
+- `schema_hints`
+
+## Python 查询示例（直接连 MySQL）
 
 ```python
-import sqlite3
+import pymysql
 
-# 连接数据库
-conn = sqlite3.connect('database/policy_qa.db')
+conn = pymysql.connect(
+    host="localhost",
+    port=3306,
+    user="glyph",
+    password="glyph",
+    database="policy_db",
+    charset="utf8mb4",
+)
 cursor = conn.cursor()
 
-# 查询所有QA对
-cursor.execute("SELECT question, answer FROM policy_qa_pairs LIMIT 3")
-for q, a in cursor.fetchall():
-    print(f"问: {q}")
-    print(f"答: {a}\n")
+# 查询部分 QA 对
+cursor.execute(
+    """
+    SELECT question, answer, category
+    FROM policy_qa_pairs
+    ORDER BY id
+    LIMIT 3
+    """
+)
+for q, a, cat in cursor.fetchall():
+    print(f"[{cat}] 问: {q}\n答: {a}\n")
 
 conn.close()
 ```
 
-## 常用查询模板
+## 常用 SQL 模板
 
-### 关键词搜索
+按分类统计 QA 对数量：
 
-```python
-keyword = "补贴金额"
-cursor.execute("""
-    SELECT question, answer, category
-    FROM policy_qa_pairs
-    WHERE keywords LIKE ?
-""", (f'%{keyword}%',))
+```sql
+SELECT category, COUNT(*) AS qa_count
+FROM policy_qa_pairs
+GROUP BY category;
 ```
 
-### 分类查询
+获取最近发布的有效政策：
 
-```python
-category = "汽车消费补贴"
-cursor.execute("""
-    SELECT question, answer
-    FROM policy_qa_pairs
-    WHERE category = ?
-    ORDER BY difficulty_level
-""", (category,))
+```sql
+SELECT title, category, publish_date
+FROM policy_documents
+WHERE status = 'active'
+ORDER BY publish_date DESC
+LIMIT 10;
 ```
-
-### 获取活跃政策
-
-```python
-cursor.execute("""
-    SELECT title, category, publish_date
-    FROM policy_documents
-    WHERE status = 'active'
-    ORDER BY publish_date DESC
-""")
-```
-
-## 数据统计
-
-```python
-# QA对统计
-cursor.execute("""
-    SELECT category, COUNT(*) as count
-    FROM policy_qa_pairs
-    GROUP BY category
-""")
-print("分类统计:", cursor.fetchall())
-
-# 文档统计
-cursor.execute("SELECT COUNT(*) FROM policy_documents")
-print("文档总数:", cursor.fetchone()[0])
-```
-
-## API 集成示例
-
-```python
-from fastapi import FastAPI
-import sqlite3
-
-app = FastAPI()
-
-@app.get("/api/qa/search")
-async def search_qa(q: str):
-    conn = sqlite3.connect('database/policy_qa.db')
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT question, answer, category
-        FROM policy_qa_pairs
-        WHERE question LIKE ?
-        LIMIT 5
-    """, (f'%{q}%',))
-
-    results = [
-        {"question": row[0], "answer": row[1], "category": row[2]}
-        for row in cursor.fetchall()
-    ]
-
-    conn.close()
-    return {"results": results}
-```
-
-## 数据库位置
-
-```
-F:\pythonproject\Glyph\database\policy_qa.db
-```
-
-## 数据概览
-
-- **QA 对**: 10 个
-  - 汽车消费补贴: 4 个
-  - 家电以旧换新: 3 个
-  - 通用政策: 3 个
-
-- **政策文档**: 12 个
-  - 汽车消费补贴: 5 个
-  - 家电以旧换新: 4 个
-  - 消费券: 3 个
-
-## 核心表
-
-1. `policy_qa_pairs` - 问答对
-2. `policy_documents` - 政策文档
-3. `policy_entities` - 实体信息
-4. `policy_tags` - 语义标签
-5. `schema_hints` - LLM提示
 
 ## 下一步
 
-- 查看完整文档: `database/README.md`
-- 了解表结构: `database/schema/policy_qa_schema.sql`
-- 查看数据: `database/seed_data/policy_qa_初始数据.json`
+- 查看完整表结构：`resources/database/schema/policy_qa_schema.sql`
+- 查看数据生成逻辑：`scripts/2_seed_mysql_text2sql.py`
+- 查看整体链路说明：项目根目录 `README.md` 中的 “导入示例数据” 章节
 
-## 常见问题
-
-**Q: 如何添加新数据？**
-
-```python
-cursor.execute("""
-    INSERT INTO policy_qa_pairs (question, answer, category, keywords)
-    VALUES (?, ?, ?, ?)
-""", ("新问题", "新答案", "分类", "关键词1,关键词2"))
-conn.commit()
-```
-
-**Q: 如何备份数据库？**
-
-```bash
-cp database/policy_qa.db database/backup/policy_qa_backup.db
-```
-
-**Q: 如何重置数据库？**
-
-```bash
-rm database/policy_qa.db
-python database/initialize_db.py
-```
-
----
-
-更多信息请参考: `database/README.md`

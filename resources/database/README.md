@@ -1,652 +1,199 @@
-# 政务智能问答数据库系统使用文档
+# 政务智能问答数据库 Schema 说明（MySQL）
 
-## 目录
-
-1. [系统概述](#系统概述)
-2. [数据库架构](#数据库架构)
-3. [快速开始](#快速开始)
-4. [数据模型](#数据模型)
-5. [使用示例](#使用示例)
-6. [API集成](#api集成)
-7. [维护与更新](#维护与更新)
+> 本文档只描述 **表结构和使用约定**。  
+> 实际初始化和导数逻辑由 `scripts/2_seed_mysql_text2sql.py` 和 `scripts/init_data.sh` 负责完成，目标库为 **MySQL `policy_db`**。
 
 ---
 
-## 系统概述
+## 1. 系统概述
 
-本系统是基于 ChatDB 架构设计的政务智能问答数据库，专为济南市政策咨询场景优化。
+政务智能问答数据库用于承载：
 
-### 核心功能
+- 政策原文与元数据（文档层）
+- 结构化实体与标签（结构化层）
+- 问答对与查询日志（交互层）
 
-- **政策文档管理**: 结构化存储政策文档及元数据
-- **智能问答**: 高质量 QA 对，支持多种查询类型
-- **实体提取**: 自动提取关键信息（补贴金额、申请条件等）
-- **语义搜索**: 关键词标签系统支持相关性检索
-- **变更追踪**: 完整的政策变更历史记录
-
-### 数据统计
-
-```
-初始化数据概览：
-- QA 对总数: 10 个
-  - 汽车消费补贴: 4 个
-  - 家电以旧换新: 3 个
-  - 通用政策: 3 个
-
-- 政策文档: 12 个
-  - 汽车消费补贴: 5 个
-  - 家电以旧换新: 4 个
-  - 消费券: 3 个
-
-- Schema 提示: 21 条（LLM友好的表结构说明）
-```
+Text2SQL 智能体、DSL 生成器等都会围绕这些表做检索和分析。
 
 ---
 
-## 数据库架构
+## 2. 初始化与连接方式
 
-### 核心表结构
+### 2.1 初始化 MySQL 表结构 + 演示数据
 
-#### 1. `policy_documents` - 政策文档表
-
-存储政策文档原文及基本信息。
-
-```sql
-CREATE TABLE policy_documents (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    doc_id VARCHAR(100) UNIQUE NOT NULL,      -- 文档唯一标识
-    title VARCHAR(500) NOT NULL,               -- 文档标题
-    category VARCHAR(50) NOT NULL,             -- 政策分类
-    sub_category VARCHAR(50),                  -- 子分类
-    source_file VARCHAR(500),                  -- 源文件路径
-    content TEXT NOT NULL,                     -- 文档内容
-    metadata JSON,                             -- 额外元数据
-    publish_date DATE,                         -- 发布日期
-    effective_date DATE,                       -- 生效日期
-    expiry_date DATE,                          -- 失效日期
-    status VARCHAR(20) DEFAULT 'active',       -- 状态
-    created_at TIMESTAMP,                      -- 创建时间
-    updated_at TIMESTAMP                       -- 更新时间
-);
-```
-
-**分类类型**:
-- 汽车消费补贴
-- 家电以旧换新
-- 消费券
-- 数码产品补贴
-- 通用政策
-
-#### 2. `policy_qa_pairs` - QA 对表
-
-存储验证过的高质量问答对。
-
-```sql
-CREATE TABLE policy_qa_pairs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    question TEXT NOT NULL,                    -- 问题
-    answer TEXT NOT NULL,                      -- 答案
-    doc_id VARCHAR(100),                       -- 关联文档ID
-    category VARCHAR(50) NOT NULL,             -- 分类
-    keywords TEXT,                             -- 关键词（逗号分隔）
-    difficulty_level INTEGER DEFAULT 3,        -- 难度等级 1-5
-    query_type VARCHAR(50),                    -- 查询类型
-    verified BOOLEAN DEFAULT FALSE,            -- 是否验证
-    use_count INTEGER DEFAULT 0,               -- 使用次数
-    feedback_score FLOAT DEFAULT 0.0,          -- 反馈评分
-    metadata JSON,                             -- 元数据
-    created_at TIMESTAMP,                      -- 创建时间
-    updated_at TIMESTAMP                       -- 更新时间
-);
-```
-
-**查询类型**:
-- `informational`: 信息查询（如"补贴金额是多少"）
-- `procedural`: 流程查询（如"如何申请补贴"）
-- `eligibility`: 资格查询（如"谁可以申请"）
-
-#### 3. `policy_entities` - 政策实体表
-
-结构化提取的关键信息。
-
-```sql
-CREATE TABLE policy_entities (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    doc_id VARCHAR(100) NOT NULL,
-    entity_type VARCHAR(50) NOT NULL,          -- 实体类型
-    entity_name VARCHAR(200) NOT NULL,         -- 实体名称
-    entity_value TEXT,                         -- 实体值
-    entity_unit VARCHAR(50),                   -- 单位
-    confidence FLOAT DEFAULT 1.0,              -- 置信度
-    metadata JSON
-);
-```
-
-**实体类型**:
-- 补贴金额
-- 申请条件
-- 时间期限
-- 办理流程
-- 申请材料
-
-#### 4. `policy_tags` - 政策标签表
-
-支持语义搜索的标签系统。
-
-```sql
-CREATE TABLE policy_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    doc_id VARCHAR(100) NOT NULL,
-    tag_name VARCHAR(100) NOT NULL,            -- 标签名
-    tag_type VARCHAR(50),                      -- 标签类型
-    weight FLOAT DEFAULT 1.0                   -- 权重
-);
-```
-
-**标签类型**:
-- 领域（如：汽车、家电）
-- 对象（如：补贴、换新）
-- 场景（如：新能源、节能）
-- 地域（如：济南市）
-
-#### 5. 其他支持表
-
-- `query_history`: 用户查询历史
-- `policy_relationships`: 政策间关系
-- `policy_change_log`: 变更日志
-- `schema_hints`: LLM 表结构提示
-
----
-
-## 快速开始
-
-### 1. 初始化数据库
+在项目根目录执行：
 
 ```bash
-# 进入项目目录
-cd F:\pythonproject\Glyph
+# 仅初始化 MySQL / Text2SQL 演示数据
+python scripts/2_seed_mysql_text2sql.py
 
-# 运行初始化脚本
-python database/initialize_db.py
+# 或执行完整链路（建表 + MySQL + Milvus + 索引）
+bash scripts/init_data.sh
 ```
 
-**预期输出**:
-```
-============================================================
-开始初始化政务智能问答数据库
-============================================================
+`2_seed_mysql_text2sql.py` 会：
 
-[OK] 已连接到数据库: database\policy_qa.db
+1. 读取 `resources/database/schema/policy_qa_schema.sql`，转换为 MySQL 兼容语法并建表；
+2. 生成若干随机政策文档、实体、QA 对、标签，插入到 `policy_db` 中；
+3. 填充 `schema_hints`，方便 LLM / Text2SQL 理解表结构。
 
-[1/6] 创建数据库表结构...
-[OK] 数据库表结构创建完成
-
-[2/6] 插入Schema提示...
-[OK] 已插入 21 条Schema提示
-
-[3/6] 导入QA对数据...
-[OK] 已导入 10 个QA对
-
-[4/6] 导入政策文档...
-[INFO] 找到 12 个Markdown文件
-[OK] 已导入 12 个政策文档
-
-[5/6] 创建示例标签...
-[OK] 已创建 4 个示例标签
-
-[6/6] 生成统计信息...
-
-数据库统计信息
-QA对总数: 10
-政策文档总数: 12
-Schema提示总数: 21
-
-[OK] 数据库初始化完成！
-数据库位置: F:\pythonproject\Glyph\database\policy_qa.db
-```
-
-### 2. 验证数据库
+### 2.2 验证表是否存在
 
 ```bash
-# 使用 Python 验证
-python -c "import sqlite3; conn = sqlite3.connect('database/policy_qa.db'); cursor = conn.cursor(); cursor.execute('SELECT COUNT(*) FROM policy_qa_pairs'); print(f'QA对数量: {cursor.fetchone()[0]}'); conn.close()"
+mysql -h $DATABASE__MYSQL_HOST \
+      -u $DATABASE__MYSQL_USER \
+      -p$DATABASE__MYSQL_PASSWORD \
+      -D $DATABASE__MYSQL_DB \
+      -e "SHOW TABLES"
+```
+
+通常你会看到：
+
+- `policy_documents`
+- `policy_entities`
+- `policy_qa_pairs`
+- `policy_tags`
+- `query_history`
+- `policy_relationships`
+- `policy_change_log`
+- `schema_hints`
+
+---
+
+## 3. 核心表概览
+
+> 完整字段定义请参考：`resources/database/schema/policy_qa_schema.sql`  
+> 以下为按业务维度的简要说明。
+
+### 3.1 政策文档表 `policy_documents`
+
+- 存储政策原文和元数据：
+  - `doc_id`: 业务主键，供其他表引用
+  - `title`: 标题
+  - `category` / `sub_category`: 领域与子类（如汽车消费补贴、家电以旧换新）
+  - `content`: Markdown/纯文本内容
+  - `metadata`: JSON 扩展字段（地域、发布部门等）
+  - `publish_date` / `effective_date` / `expiry_date`
+  - `status`: `active` / `expired` / `draft`
+
+### 3.2 政策实体表 `policy_entities`
+
+- 对文档中关键信息的结构化抽取：
+  - 常见 `entity_type`：补贴金额、申请条件、时间期限、办理流程、申请材料
+  - `entity_value` / `entity_unit` 用于结构化计算或过滤
+
+### 3.3 问答对表 `policy_qa_pairs`
+
+- 存储高质量 QA 对，供：
+  - Text2SQL 回答直接落库
+  - FAQ 检索/候选答案合并
+- 关键字段：
+  - `question` / `answer`
+  - `doc_id`：回链到 `policy_documents`
+  - `category` / `keywords`
+  - `difficulty_level`：1–5
+  - `query_type`：`informational` / `procedural` / `eligibility`
+  - `verified`：是否人工校验
+  - `use_count` / `feedback_score`
+
+### 3.4 标签表 `policy_tags`
+
+- 负责语义标签与简单主题体系：
+  - `tag_name`: 标签名（如 “新能源”、“消费券”、“小微企业”）
+  - `tag_type`: 领域 / 对象 / 场景
+  - `weight`: 用于相关性加权
+
+### 3.5 查询历史表 `query_history`
+
+- 记录用户查询与系统响应摘要：
+  - `session_id` / `user_id`
+  - `query`：原始问句
+  - `matched_doc_ids`：文档 ID 列表（JSON）
+  - `response`：回答摘要
+  - `response_time_ms` / `feedback` / `feedback_comment`
+
+> 注意：多轮对话的完整细节建议使用主项目的  
+> `ChatSession` / `ChatMessage` ORM 模型（`app/models/chat_history.py`），  
+> 这里的 `query_history` 更偏向统计与审计用途。
+
+### 3.6 政策关系表 `policy_relationships`
+
+- 抽象不同政策文档之间的关系：
+  - `relationship_type`: `补充` / `替代` / `依赖` / `相关`
+  - 供智能体做「政策对比」「新旧政策衔接」等推理。
+
+### 3.7 变更日志表 `policy_change_log`
+
+- 记录政策生命周期变更：
+  - `change_type`: `created` / `updated` / `expired` / `superseded`
+  - `old_value` / `new_value`: 文本或 JSON 摘要
+  - 可用于回溯特定时间点的政策状态。
+
+### 3.8 Schema 提示表 `schema_hints`
+
+- 面向 LLM / Text2SQL 的表结构注释：
+  - `table_name` / `column_name`
+  - `hint_type`: `description` / `example` / `constraint`
+  - `hint_text`: 中文提示文案
+- `scripts/2_seed_mysql_text2sql.py` 会自动填充一批中文提示，帮助模型理解字段语义。
+
+---
+
+## 4. 与 Text2SQL / Agent 的关系
+
+- Text2SQL 智能体会：
+  - 从 `schema_hints` 和元数据中拼接 DDL 视图；
+  - 基于用户问题选择 `policy_documents` / `policy_qa_pairs` 等相关表；
+  - 生成并执行 SQL，最终输出自然语言答案。
+- 其它 Agent（如政策比较、时间线梳理）会复用同一批表，并通过
+  `PolicyDomainContextBuilder` 做地区 / 时间窗口 / 主题的统一规范化。
+
+---
+
+## 5. 推荐的访问方式
+
+项目内部推荐使用已有的 ORM / 工具层，而不是直接拼接连接串：
+
+- ORM 模型：`app/models/*.py`
+- SQLAlchemy 会话：`app/persistence/db/session.py` 中的 `SessionLocal`
+- 通用查询封装：`app/persistence/crud/*`
+
+示例（同步脚本）：
+
+```python
+from app.persistence.db.session import SessionLocal
+from app.models.schema_table import SchemaTable
+
+db = SessionLocal()
+try:
+    tables = db.query(SchemaTable).limit(5).all()
+    for t in tables:
+        print(t.table_name, t.description)
+finally:
+    db.close()
 ```
 
 ---
 
-## 数据模型
+## 6. 目录结构
 
-### QA 对示例
-
-```json
-{
-  "question": "2025年济南市汽车消费补贴的活动时间是什么时候？",
-  "answer": "购车时间：2025年1月25日0时至2025年3月31日24时（以机动车销售统一发票时间为准）；补贴申报时间：2025年2月12日10时至2025年4月15日24时。补贴额度共计3000万元，先到先得，用完即止。",
-  "category": "汽车消费补贴",
-  "keywords": "活动时间,购车时间,申报时间,汽车补贴",
-  "difficulty_level": 2,
-  "query_type": "informational",
-  "verified": true
-}
-```
-
-### 政策文档示例
-
-```json
-{
-  "doc_id": "doc_0001",
-  "title": "2025年政府汽车消费补贴活动公告",
-  "category": "汽车消费补贴",
-  "status": "active",
-  "publish_date": "2025-01-25",
-  "content": "# 2025年政府汽车消费补贴活动公告\n\n## 活动时间\n..."
-}
-```
-
----
-
-## 使用示例
-
-### Python 基础查询
-
-```python
-import sqlite3
-import json
-
-# 连接数据库
-conn = sqlite3.connect('database/policy_qa.db')
-cursor = conn.cursor()
-
-# 1. 查询所有汽车补贴相关的 QA 对
-cursor.execute("""
-    SELECT question, answer, keywords
-    FROM policy_qa_pairs
-    WHERE category = '汽车消费补贴'
-    ORDER BY difficulty_level
-""")
-
-for row in cursor.fetchall():
-    print(f"问题: {row[0]}")
-    print(f"答案: {row[1]}")
-    print(f"关键词: {row[2]}")
-    print("-" * 60)
-
-# 2. 关键词搜索
-search_keyword = "补贴金额"
-cursor.execute("""
-    SELECT question, answer
-    FROM policy_qa_pairs
-    WHERE keywords LIKE ?
-""", (f'%{search_keyword}%',))
-
-print(f"\n关键词 '{search_keyword}' 搜索结果:")
-for row in cursor.fetchall():
-    print(f"Q: {row[0]}")
-    print(f"A: {row[1]}\n")
-
-# 3. 获取活跃政策文档
-cursor.execute("""
-    SELECT title, category, publish_date
-    FROM policy_documents
-    WHERE status = 'active'
-    ORDER BY publish_date DESC
-""")
-
-print("\n活跃政策文档:")
-for row in cursor.fetchall():
-    print(f"- [{row[1]}] {row[0]} ({row[2]})")
-
-conn.close()
-```
-
-### 智能问答检索
-
-```python
-def search_qa(question_keywords):
-    """根据关键词检索相关 QA 对"""
-    conn = sqlite3.connect('database/policy_qa.db')
-    cursor = conn.cursor()
-
-    # 构建 LIKE 查询
-    conditions = ' OR '.join([f"question LIKE '%{kw}%'" for kw in question_keywords])
-
-    cursor.execute(f"""
-        SELECT
-            question,
-            answer,
-            category,
-            difficulty_level,
-            use_count
-        FROM policy_qa_pairs
-        WHERE {conditions}
-        ORDER BY use_count DESC, difficulty_level ASC
-        LIMIT 5
-    """)
-
-    results = cursor.fetchall()
-    conn.close()
-
-    return results
-
-# 使用示例
-keywords = ["补贴", "金额", "新能源"]
-results = search_qa(keywords)
-
-for i, (q, a, cat, diff, count) in enumerate(results, 1):
-    print(f"\n{i}. [{cat}] (难度: {diff}, 使用: {count}次)")
-    print(f"   问: {q}")
-    print(f"   答: {a[:100]}...")
-```
-
-### 统计分析
-
-```python
-import sqlite3
-import pandas as pd
-
-conn = sqlite3.connect('database/policy_qa.db')
-
-# 1. QA 对分类统计
-df_qa = pd.read_sql_query("""
-    SELECT
-        category,
-        COUNT(*) as qa_count,
-        AVG(difficulty_level) as avg_difficulty,
-        SUM(use_count) as total_usage
-    FROM policy_qa_pairs
-    GROUP BY category
-""", conn)
-
-print("QA对分类统计:")
-print(df_qa)
-
-# 2. 政策文档分类统计
-df_docs = pd.read_sql_query("""
-    SELECT
-        category,
-        COUNT(*) as doc_count,
-        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count
-    FROM policy_documents
-    GROUP BY category
-""", conn)
-
-print("\n政策文档分类统计:")
-print(df_docs)
-
-conn.close()
-```
-
----
-
-## API 集成
-
-### FastAPI 端点示例
-
-```python
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-import sqlite3
-
-router = APIRouter(prefix="/api/qa", tags=["问答"])
-
-class QuestionRequest(BaseModel):
-    question: str
-    category: str = None
-
-class AnswerResponse(BaseModel):
-    question: str
-    answer: str
-    category: str
-    confidence: float
-
-@router.post("/ask", response_model=AnswerResponse)
-async def ask_question(request: QuestionRequest):
-    """智能问答端点"""
-    conn = sqlite3.connect('database/policy_qa.db')
-    cursor = conn.cursor()
-
-    # 简单的关键词匹配
-    query = """
-        SELECT question, answer, category
-        FROM policy_qa_pairs
-        WHERE question LIKE ?
-    """
-
-    if request.category:
-        query += " AND category = ?"
-        cursor.execute(query, (f'%{request.question}%', request.category))
-    else:
-        cursor.execute(query, (f'%{request.question}%',))
-
-    result = cursor.fetchone()
-    conn.close()
-
-    if result:
-        return AnswerResponse(
-            question=result[0],
-            answer=result[1],
-            category=result[2],
-            confidence=0.95
-        )
-    else:
-        return AnswerResponse(
-            question=request.question,
-            answer="抱歉，暂未找到相关政策信息。",
-            category="未知",
-            confidence=0.0
-        )
-
-@router.get("/categories")
-async def get_categories():
-    """获取所有政策分类"""
-    conn = sqlite3.connect('database/policy_qa.db')
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT DISTINCT category, COUNT(*) as count
-        FROM policy_qa_pairs
-        GROUP BY category
-    """)
-
-    categories = [{"name": row[0], "count": row[1]} for row in cursor.fetchall()]
-    conn.close()
-
-    return {"categories": categories}
-```
-
-### 向量搜索集成（Milvus）
-
-```python
-from pymilvus import connections, Collection
-import sqlite3
-
-def sync_qa_to_milvus():
-    """将 QA 对同步到 Milvus 向量库"""
-    # 连接 SQLite
-    conn = sqlite3.connect('database/policy_qa.db')
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT id, question, answer, category FROM policy_qa_pairs")
-    qa_pairs = cursor.fetchall()
-    conn.close()
-
-    # 连接 Milvus
-    connections.connect("default", host="localhost", port="19530")
-    collection = Collection("policy_qa")
-
-    # 准备数据（需要先用 embedding 模型生成向量）
-    # from your_embedding_model import get_embedding
-
-    for qa_id, question, answer, category in qa_pairs:
-        # embedding = get_embedding(question)
-        # collection.insert([[qa_id], [embedding], [category]])
-        pass
-
-    print(f"已同步 {len(qa_pairs)} 个 QA 对到 Milvus")
-```
-
----
-
-## 维护与更新
-
-### 添加新的 QA 对
-
-```python
-import sqlite3
-import json
-from datetime import datetime
-
-def add_qa_pair(question, answer, category, keywords, difficulty=3, query_type="informational"):
-    """添加新的 QA 对"""
-    conn = sqlite3.connect('database/policy_qa.db')
-    cursor = conn.cursor()
-
-    metadata = json.dumps({
-        "source": "manual_add",
-        "created_by": "admin",
-        "created_at": datetime.now().isoformat()
-    })
-
-    cursor.execute("""
-        INSERT INTO policy_qa_pairs
-        (question, answer, category, keywords, difficulty_level, query_type, verified, metadata)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (question, answer, category, keywords, difficulty, query_type, True, metadata))
-
-    conn.commit()
-    qa_id = cursor.lastrowid
-    conn.close()
-
-    print(f"已添加 QA 对，ID: {qa_id}")
-    return qa_id
-
-# 使用示例
-add_qa_pair(
-    question="购买新能源汽车最高可以获得多少补贴？",
-    answer="根据2025年济南市政策，购车发票金额30万元（含）以上的新能源汽车，每辆可获得5000元补贴。",
-    category="汽车消费补贴",
-    keywords="新能源汽车,补贴金额,最高补贴",
-    difficulty=2,
-    query_type="informational"
-)
-```
-
-### 更新政策文档状态
-
-```python
-def expire_policy(doc_id, reason="政策到期"):
-    """标记政策为过期"""
-    conn = sqlite3.connect('database/policy_qa.db')
-    cursor = conn.cursor()
-
-    # 更新文档状态
-    cursor.execute("""
-        UPDATE policy_documents
-        SET status = 'expired', updated_at = CURRENT_TIMESTAMP
-        WHERE doc_id = ?
-    """, (doc_id,))
-
-    # 记录变更日志
-    cursor.execute("""
-        INSERT INTO policy_change_log
-        (doc_id, change_type, change_description, old_value, new_value)
-        VALUES (?, ?, ?, ?, ?)
-    """, (doc_id, "expired", reason, "active", "expired"))
-
-    conn.commit()
-    conn.close()
-
-    print(f"政策 {doc_id} 已标记为过期")
-
-# 使用示例
-expire_policy("doc_0001", "2025年政策已结束")
-```
-
-### 数据库备份
-
-```bash
-# 备份数据库
-cp database/policy_qa.db database/backup/policy_qa_$(date +%Y%m%d_%H%M%S).db
-
-# 或使用 SQLite 导出
-sqlite3 database/policy_qa.db ".backup 'database/backup/policy_qa_backup.db'"
-```
-
-### 重新初始化
-
-```bash
-# 删除旧数据库
-rm database/policy_qa.db
-
-# 重新运行初始化
-python database/initialize_db.py
-```
-
----
-
-## 常见问题
-
-### Q1: 如何添加新的政策分类？
-
-A: 直接在插入数据时使用新的 category 值即可。建议保持分类名称的一致性。
-
-### Q2: 如何提高搜索准确度？
-
-A:
-1. 完善 `keywords` 字段，添加更多同义词
-2. 使用 `policy_tags` 表添加语义标签
-3. 集成向量搜索（Milvus）实现语义匹配
-4. 利用 `schema_hints` 表帮助 LLM 理解表结构
-
-### Q3: 如何处理多轮对话？
-
-A: 结合 `query_history` 表记录用户查询历史，使用 session_id 关联同一会话的多次查询。
-
-### Q4: 数据库性能优化建议？
-
-A:
-- 使用索引（已创建常用字段索引）
-- 定期使用 `VACUUM` 清理数据库
-- 对大文本字段考虑分表存储
-- 高频查询考虑使用缓存（Redis）
-
----
-
-## 文件结构
-
-```
-database/
-├── policy_qa.db                    # 主数据库文件
-├── initialize_db.py                # 初始化脚本
-├── README.md                       # 本文档
+```text
+resources/database/
 ├── schema/
-│   └── policy_qa_schema.sql        # 数据库 Schema
+│   └── policy_qa_schema.sql        # 政策问答相关表的 Schema 定义（以 SQLite 语法书写，脚本中会转换为 MySQL）
 └── seed_data/
-    ├── generate_qa_data.py         # QA 对生成脚本
-    └── policy_qa_初始数据.json      # 初始 QA 数据
+    ├── generate_qa_data.py         # 生成初始 QA 对数据的脚本（供演示/扩展）
+    └── policy_qa_初始数据.json      # 示例 QA 对 JSON（可按需导入到 MySQL）
 ```
 
 ---
 
-## 相关资源
+## 7. 迁移与扩展建议
 
-- [ChatDB 项目文档](https://github.com/your-org/chatdb)
-- [FastAPI 官方文档](https://fastapi.tiangolo.com/)
-- [SQLite 官方文档](https://www.sqlite.org/docs.html)
-- [Milvus 向量数据库](https://milvus.io/)
+- 新增表时：
+  - 优先修改 `policy_qa_schema.sql`，并确保 `2_seed_mysql_text2sql.py` 的语法转换仍然生效；
+  - 同时补充 `schema_hints`，提高 Text2SQL 的可用性。
+- 若引入新领域（城市 / 业务线），推荐：
+  - 在 `metadata` / 标签中附加 `region` / `domain` 信息；
+  - 通过上层的领域上下文路由（`PolicyDomainContextBuilder`）区分处理。
 
----
-
-## 版本历史
-
-- **v1.0.0** (2025-11-09)
-  - 初始版本发布
-  - 支持汽车补贴、家电换新、消费券、数码补贴4大类政策
-  - 包含10个验证QA对、12个政策文档
-  - 完整的表结构和索引优化
-
----
-
-## 许可证
-
-本项目仅供内部使用，政策数据版权归济南市政府所有。

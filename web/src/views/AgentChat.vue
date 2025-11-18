@@ -34,6 +34,29 @@
                 :value="id"
               />
             </el-select>
+            <el-select
+              v-model="selectedConnectionId"
+              size="small"
+              class="connection-select"
+              placeholder="选择数据库连接"
+              clearable
+              :disabled="loading || dbConnections.length === 0"
+              style="min-width: 180px; margin-right: 8px"
+            >
+              <el-option
+                v-for="conn in dbConnections"
+                :key="conn.id"
+                :label="conn.name"
+                :value="conn.id"
+              />
+            </el-select>
+            <el-switch
+              v-model="text2sqlMode"
+              active-text="Text2SQL"
+              inactive-text="普通问答"
+              :disabled="loading || !dbConnections.length"
+              style="margin-right: 10px"
+            />
             <el-switch
               v-model="useStreaming"
               active-text="流式"
@@ -212,7 +235,7 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
-import { agentApi } from '@/api'
+import { agentApi, dbApi } from '@/api'
 import { ElMessage } from 'element-plus'
 import {
   ChatDotRound,
@@ -246,6 +269,11 @@ const attachments = ref([])
 const attachmentAccepts = '.png,.jpg,.jpeg,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx'
 const hasAttachments = computed(() => attachments.value.length > 0)
 
+// 数据库连接 & Text2SQL 模式
+const dbConnections = ref([])
+const selectedConnectionId = ref(null)
+const text2sqlMode = ref(false)
+
 const normalizeUserId = (value) => {
   if (!value) return ''
   return value.trim()
@@ -272,6 +300,22 @@ watch(userId, (value) => {
   }
 
   localStorage.setItem(USER_ID_STORAGE_KEY, normalized)
+})
+
+// 加载可用的数据库连接，并优先选择 Policy Demo MySQL
+onMounted(async () => {
+  try {
+    const connections = await dbApi.listConnections()
+    dbConnections.value = Array.isArray(connections) ? connections : []
+    const policyConn = dbConnections.value.find(c => c.name === 'Policy Demo MySQL')
+    if (policyConn) {
+      selectedConnectionId.value = policyConn.id
+    } else if (dbConnections.value.length > 0) {
+      selectedConnectionId.value = dbConnections.value[0].id
+    }
+  } catch (e) {
+    console.warn('加载数据库连接失败:', e)
+  }
 })
 
 const normalizeAttachmentRecords = (files = []) => {
@@ -456,6 +500,13 @@ const sendMessageStream = async (userMessage) => {
       payload.attachments = attachmentPayload
     }
 
+    if (selectedConnectionId.value) {
+      payload.connection_id = selectedConnectionId.value
+    }
+    if (text2sqlMode.value) {
+      payload.text2sql_mode = true
+    }
+
     // 使用fetch发送POST请求并接收SSE
     const response = await fetch(url, {
       method: 'POST',
@@ -575,9 +626,10 @@ const sendMessageNonStream = async (userMessage) => {
     const response = await agentApi.chat(
       userMessage,
       sessionId.value,
-      null,
+      selectedConnectionId.value || null,
       resolvedUserId,
-      attachmentPayload
+      attachmentPayload,
+      text2sqlMode.value ? { text2sql_mode: true } : {}
     )
 
     if (response.success) {

@@ -37,6 +37,8 @@ from app.knowledge.service import KnowledgeService
 from app.knowledge.faq_responder import FAQResponder
 from app.knowledge import DocumentLoader
 from app.models.base import Attachment, UserQuery
+from app.persistence.db.session import SessionLocal
+from app.persistence import crud
 
 import logging
 from app.core.logging_manager import UTF8JsonFormatter
@@ -118,6 +120,7 @@ class AgentService:
         profile_db_path = self.config.user_profile_db_path
         self.user_profile_tool = UserProfileTool(db_path=profile_db_path)
         self._loader = DocumentLoader()
+        self._default_connection_id: Optional[int] = None
 
         # Pipeline agents
         self.rewrite_agent = RewriteAgent()
@@ -140,6 +143,32 @@ class AgentService:
         self._ingest_batch_size = max(1, getattr(self.config.performance, "batch_size", 10))
         self._initialized = False
         self._init_lock = asyncio.Lock()
+
+    def _resolve_connection_id(self, connection_id: Optional[int]) -> Optional[int]:
+        """
+        Resolve an effective connection_id.
+
+        - If explicit connection_id is provided, use it.
+        - Otherwise, try to reuse/calculate a default MySQL connection:
+          currently we look for a DBConnection named 'Policy Demo MySQL'
+          (created by scripts/7_sync_text2sql_schema.py).
+        """
+        if connection_id is not None:
+            return connection_id
+
+        if self._default_connection_id is not None:
+            return self._default_connection_id
+
+        db = SessionLocal()
+        try:
+            default = crud.db_connection.get_by_name(db, name="Policy Demo MySQL")
+            if default:
+                self._default_connection_id = default.id
+                return default.id
+        finally:
+            db.close()
+
+        return None
 
     async def initialize(self) -> None:
         if self._initialized:
@@ -284,10 +313,14 @@ class AgentService:
         user_id: Optional[str] = None,
         connection_id: Optional[int] = None,
         attachments: Optional[List[Attachment]] = None,
+        force_text2sql: bool = False,
     ) -> Any:
         start = time.perf_counter()
         await self.initialize()
         attachments = attachments or []
+
+        # 尝试解析默认 connection_id（例如 Policy Demo MySQL）
+        connection_id = self._resolve_connection_id(connection_id)
 
         (
             session_id,
@@ -375,26 +408,41 @@ class AgentService:
             # FAQ 仅针对原始问题；改写后不再重复匹配
             # 如果未命中 FAQ，继续走后续流程
 
-            # Fast-path routing to reduce LLM calls
-            fast_route = self._fast_route(
-                original_query=query,
-                rewritten_query=rewritten_query,
-                connection_id=connection_id,
-                attachments=attachments,
-                domain_meta=domain_context.to_metadata(),
-            )
-            if fast_route:
-                logging_manager.info("[AgentService] FastPath 命中 route=%s", fast_route)
-                intent_result = {"intent": "fast_path", "raw_query": query, "domain_context": domain_context.to_metadata()}
-                route = fast_route
+            # 如果显式开启 Text2SQL 模式且有可用 connection_id，则优先走 text2sql
+            if force_text2sql and connection_id:
+                logging_manager.info("[AgentService] Text2SQL 模式开启，强制路由到 text2sql")
+                intent_result = {
+                    "intent": "forced_text2sql",
+                    "raw_query": query,
+                    "domain_context": domain_context.to_metadata(),
+                }
+                route = "text2sql"
             else:
-                logging_manager.info("[AgentService] FastPath 未命中，调用意图检测")
-                intent_result = await self.intent_tool.detect(rewritten_query)
-            # 保存原始查询供路由逻辑使用
-            intent_result["raw_query"] = query
-            intent_result["domain_context"] = domain_context.to_metadata()
-            if not fast_route:
-                route = self._resolve_route(intent_result, rewritten_query, connection_id, attachments)
+                # Fast-path routing to reduce LLM calls
+                fast_route = self._fast_route(
+                    original_query=query,
+                    rewritten_query=rewritten_query,
+                    connection_id=connection_id,
+                    attachments=attachments,
+                    domain_meta=domain_context.to_metadata(),
+                )
+                if fast_route:
+                    logging_manager.info("[AgentService] FastPath 命中 route=%s", fast_route)
+                    intent_result = {
+                        "intent": "fast_path",
+                        "raw_query": query,
+                        "domain_context": domain_context.to_metadata(),
+                    }
+                    route = fast_route
+                else:
+                    logging_manager.info("[AgentService] FastPath 未命中，调用意图检测")
+                    intent_result = await self.intent_tool.detect(rewritten_query)
+                    # 保存原始查询供路由逻辑使用
+                    intent_result["raw_query"] = query
+                    intent_result["domain_context"] = domain_context.to_metadata()
+                    route = self._resolve_route(
+                        intent_result, rewritten_query, connection_id, attachments
+                    )
 
             logging_manager.info(
                 "[AgentService] 最终路由 route=%s intent=%s", route, (intent_result or {}).get("intent")

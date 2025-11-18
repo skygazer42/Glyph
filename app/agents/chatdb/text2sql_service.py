@@ -6,6 +6,8 @@ import asyncio
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 
+from autogen_core.models import UserMessage
+
 from app.models.db_connection import DBConnection
 from app.schemas.query import QueryResponse
 from app.agents.chatdb.db_service import execute_query
@@ -86,31 +88,33 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
     return prompt
 
 
-def call_llm_api(prompt: str) -> str:
+async def call_llm_api(prompt: str) -> str:
     """
-    调用LLM API使用model_client生成SQL
+    调用LLM API 使用 model_client 生成 SQL。
+
+    为了与项目中其他模块保持一致，这里使用 `model_client.create(...)`
+    并传入单条 UserMessage。
     """
     try:
         system_message = """
-        你是一名专业的SQL开发专家，专门将自然语言问题转换为精确的SQL查询。
-        你的专长包括:
-        1. 理解复杂的数据库结构和关系
-        2. 将自然语言意图转换为正确的SQL语法
-        3. 处理连接、聚合和复杂的过滤条件
-        4. 确保查询优化并遵循最佳实践
+你是一名专业的SQL开发专家，专门将自然语言问题转换为精确的SQL查询。
+你的专长包括:
+1. 理解复杂的数据库结构和关系
+2. 将自然语言意图转换为正确的SQL语法
+3. 处理连接、聚合和复杂的过滤条件
+4. 确保查询优化并遵循最佳实践
 
-        始终生成遵循标准SQL语法的有效SQL。专注于准确性和精确性。
-        """
+始终生成遵循标准SQL语法的有效SQL。专注于准确性和精确性。
+"""
+        # 将系统提示拼接到用户提示中，简化消息结构
+        full_prompt = f"{system_message}\n\n{prompt}"
 
-        # 直接使用model_client以保持一致性
-        response = model_client.complete(
-            prompt=prompt,
-            system_prompt=system_message,
-            temperature=0.1  # 较低的温度以获得更确定的输出
+        response = await model_client.create(
+            [UserMessage(content=full_prompt, source="user")]
         )
 
-        # 确保返回字符串
-        return response if isinstance(response, str) else response.content
+        # Autogen 的 OpenAIChatCompletionClient 返回对象带有 content 属性
+        return response.content if hasattr(response, "content") else str(response)
     except Exception as e:
         raise Exception(f"调用LLM API时出错: {str(e)}")
 
@@ -155,7 +159,7 @@ async def _process_text2sql_query_async(
         prompt = construct_prompt(schema_context, normalized_query, value_mappings, hints=hints)
 
         # 4. 调用LLM API
-        llm_response = call_llm_api(prompt)
+        llm_response = await call_llm_api(prompt)
 
         # 5. 从响应中提取SQL
         sql = extract_sql_from_llm_response(llm_response)

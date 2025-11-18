@@ -29,7 +29,8 @@
       "Bash(bash:*)",
       "Bash(kill:*)",
       "Bash(chmod:*)",
-      "Bash(./scripts/init_data.sh:*)"
+      "Bash(./scripts/init_data.sh:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

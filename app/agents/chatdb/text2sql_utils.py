@@ -9,7 +9,6 @@ import sqlparse
 from collections import OrderedDict
 from typing import Dict, Any, List, Optional, Tuple, Set
 from sqlalchemy.orm import Session
-from neo4j import GraphDatabase
 
 from autogen_core.models import UserMessage
 from app.core.config import settings
@@ -477,184 +476,90 @@ def extract_sql_from_llm_response(response: str) -> str:
 
 async def retrieve_relevant_schema(db: Session, connection_id: int, query: str) -> Dict[str, Any]:
     """
-    基于自然语言查询检索相关的表结构信息
-    使用Neo4j图数据库和LLM找到相关表和列
+    基于自然语言查询检索相关的表结构信息。
+
+    企业化实现说明：
+    - 不再依赖 Neo4j，全部基于 ORM 管理的 SchemaTable/SchemaColumn/SchemaRelationship 元数据；
+    - 使用 LLM + 关键词匹配对所有表做排序，选出 Top-K 相关表；
+    - 保留原有返回结构: {"tables": [...], "columns": [...], "relationships": [...]}
     """
     try:
-        # 1. 使用LLM分析查询并提取关键实体和意图
+        # 1. 使用 LLM 分析查询并提取关键实体和意图
         query_analysis = await analyze_query_with_llm(query)
 
-        # 连接到Neo4j
-        driver = GraphDatabase.driver(
-            settings.database.neo4j_uri,
-            auth=(settings.database.neo4j_user, settings.database.neo4j_password),
-        )
+        # 2. 从元数据表中获取所有表信息
+        all_tables_from_db = crud.schema_table.get_by_connection(db=db, connection_id=connection_id)
+        if not all_tables_from_db:
+            return {"tables": [], "columns": [], "relationships": []}
 
-        # 使用字典按ID跟踪表以防止重复
-        relevant_tables_dict = {}
-        relevant_columns = set()
-        table_relevance_scores = {}
+        all_tables_for_llm = [
+            {
+                "id": table.id,
+                "name": table.table_name,
+                "description": table.description or "",
+            }
+            for table in all_tables_from_db
+        ]
 
-        with driver.session() as session:
-            # 2. 首先，获取此连接的所有表及其描述
-            # 这将用于语义匹配
-            all_tables = session.run(
-                """
-                MATCH (t:Table {connection_id: $connection_id})
-                RETURN t.id AS id, t.name AS name, t.description AS description
-                """,
-                connection_id=connection_id
-            ).data()
+        # 3. 使用语义匹配 + 领域提示找到相关表
+        ranked = await find_relevant_tables_semantic(query, query_analysis, all_tables_for_llm)
+        # ranked: List[Tuple[table_id, score]]
+        relevance_scores: Dict[int, float] = {tid: sc for tid, sc in ranked}
 
-            # 3. 使用语义搜索基于查询分析找到相关表
-            relevant_table_ids = await find_relevant_tables_semantic(query, query_analysis, all_tables)
+        if ranked:
+            table_ids = [tid for tid, _ in ranked]
+        else:
+            # 回退：没有语义结果时，使用全部表（默认让 LLM 在Prompt里做过滤）
+            table_ids = [t["id"] for t in all_tables_for_llm]
 
-            # 4. 按ID获取表并设置相关性分数
-            for table_id, relevance_score in relevant_table_ids:
-                # 确保table_id是整数类型
-                if not isinstance(table_id, int):
-                    try:
-                        table_id = int(table_id)
-                    except (ValueError, TypeError):
-                        continue
+        # 限制最多表数，避免提示过长（可按需调整）
+        max_tables = int(os.getenv("TEXT2SQL_MAX_TABLES", "8"))
+        if len(table_ids) > max_tables:
+            table_ids = table_ids[:max_tables]
 
-                # 查找表信息
-                table_info = next((t for t in all_tables if t["id"] == table_id), None)
-                if table_info:
-                    # 在字典中存储表，以ID为键
-                    relevant_tables_dict[table_info["id"]] = (
-                        table_info["id"], table_info["name"], table_info["description"]
-                    )
-                    table_relevance_scores[table_info["id"]] = relevance_score
+        # 4. 构造 tables_list
+        tables_list = [
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "description": t["description"],
+            }
+            for t in all_tables_for_llm
+            if t["id"] in table_ids
+        ]
 
-            # 5. 找到与查询相关的列
-            for entity in query_analysis["entities"]:
-                # 搜索匹配实体名称或描述的列
-                result = session.run(
-                    """
-                    MATCH (c:Column {connection_id: $connection_id})
-                    WHERE toLower(c.name) CONTAINS $entity OR toLower(c.description) CONTAINS $entity
-                    MATCH (t:Table)-[:HAS_COLUMN]->(c)
-                    RETURN c.id AS id, c.name AS name, c.type AS type, c.description AS description,
-                           c.is_pk AS is_pk, c.is_fk AS is_fk, t.id AS table_id, t.name AS table_name
-                    """,
-                    connection_id=connection_id,
-                    entity=entity.lower()
-                )
-
-                for record in result:
-                    relevant_columns.add((
-                        record["id"], record["name"], record["type"], record["description"],
-                        record["is_pk"], record["is_fk"], record["table_id"], record["table_name"]
-                    ))
-                    # 添加表或更新（如果已存在且有更好的描述）
-                    if record["table_id"] not in relevant_tables_dict or not relevant_tables_dict[record["table_id"]][2]:
-                        relevant_tables_dict[record["table_id"]] = (
-                            record["table_id"], record["table_name"], ""
-                        )
-                    # 为有匹配列的表增加相关性分数
-                    table_relevance_scores[record["table_id"]] = table_relevance_scores.get(record["table_id"], 0) + 0.5
-
-            # 6. 如果找到了一些相关表/列，扩展以包含相关表
-            if relevant_tables_dict or relevant_columns:
-                table_ids = list(relevant_tables_dict.keys())
-
-                # 通过外键找到连接的表（1跳）
-                if table_ids:
-                    result = session.run(
-                        """
-                        MATCH (t1:Table {connection_id: $connection_id})-[:HAS_COLUMN]->
-                              (c1:Column)-[:REFERENCES]->
-                              (c2:Column)<-[:HAS_COLUMN]-(t2:Table {connection_id: $connection_id})
-                        WHERE t1.id IN $table_ids AND NOT t2.id IN $table_ids
-                        RETURN t2.id AS id, t2.name AS name, t2.description AS description,
-                               c1.id AS source_column_id, c1.name AS source_column_name,
-                               c2.id AS target_column_id, c2.name AS target_column_name,
-                               t1.id AS source_table_id
-                        """,
-                        connection_id=connection_id,
-                        table_ids=table_ids
-                    )
-
-                    for record in result:
-                        # 添加表或更新（如果已存在且有更好的描述）
-                        if record["id"] not in relevant_tables_dict or (
-                            not relevant_tables_dict[record["id"]][2] and record["description"]
-                        ):
-                            relevant_tables_dict[record["id"]] = (
-                                record["id"], record["name"], record["description"]
-                            )
-                        # 相关表基于源表的分数获得相关性分数
-                        source_score = table_relevance_scores.get(record["source_table_id"], 0)
-                        table_relevance_scores[record["id"]] = source_score * 0.7  # 相关表分数降低
-
-                # 7. 使用LLM评估扩展表是否真正与查询相关
-                expanded_tables = [t for t in relevant_tables_dict.values() if t[0] not in table_ids]
-                if expanded_tables:
-                    filtered_expanded_tables = await filter_expanded_tables_with_llm(
-                        query, query_analysis, expanded_tables, table_relevance_scores
-                    )
-                    # 移除LLM认为不相关的表
-                    # 只保留相关表
-                    filtered_table_ids = set(table_ids).union({t[0] for t in filtered_expanded_tables})
-                    relevant_tables_dict = {
-                        tid: t for tid, t in relevant_tables_dict.items() if tid in filtered_table_ids
-                    }
-
-        driver.close()
-
-        # 8. 按相关性分数排序表
-        sorted_tables = sorted(
-            relevant_tables_dict.values(),
-            key=lambda t: table_relevance_scores.get(t[0], 0),
-            reverse=True
-        )
-
-        # 转换为字典列表
-        tables_list = [{"id": t[0], "name": t[1], "description": t[2]} for t in sorted_tables]
-
-        # 如果没有找到相关表，返回所有表
-        if not tables_list:
-            all_tables_from_db = crud.schema_table.get_by_connection(db=db, connection_id=connection_id)
-            tables_list = [
-                {
-                    "id": table.id,
-                    "name": table.table_name,
-                    "description": table.description or ""
-                }
-                for table in all_tables_from_db
-            ]
-
-        table_ids = [t["id"] for t in tables_list]
+        # 5. 加载列信息
         table_name_lookup = {t["id"]: t["name"] for t in tables_list}
-
         columns_records = crud.schema_column.get_by_table_ids(db=db, table_ids=table_ids)
         columns_list = []
         for column in columns_records:
-            columns_list.append({
-                "id": column.id,
-                "name": column.column_name,
-                "type": column.data_type,
-                "description": column.description,
-                "is_primary_key": column.is_primary_key,
-                "is_foreign_key": column.is_foreign_key,
-                "table_id": column.table_id,
-                "table_name": table_name_lookup.get(column.table_id, "")
-            })
+            columns_list.append(
+                {
+                    "id": column.id,
+                    "name": column.column_name,
+                    "type": column.data_type,
+                    "description": column.description,
+                    "is_primary_key": column.is_primary_key,
+                    "is_foreign_key": column.is_foreign_key,
+                    "table_id": column.table_id,
+                    "table_name": table_name_lookup.get(column.table_id, ""),
+                }
+            )
+
         column_lookup = {col["id"]: col for col in columns_list}
 
-        relationships_list = []
-
-        # 如果返回所有表，则获取所有关系
-        all_tables_count = len(crud.schema_table.get_by_connection(db=db, connection_id=connection_id))
+        # 6. 加载表间关系（外键等）
+        all_tables_count = len(all_tables_from_db)
         if len(tables_list) == all_tables_count:
-            relationships_records = crud.schema_relationship.get_by_connection(db=db, connection_id=connection_id)
+            rel_records = crud.schema_relationship.get_by_connection(db=db, connection_id=connection_id)
         else:
-            relationships_records = crud.schema_relationship.get_by_table_ids(db=db, table_ids=table_ids)
+            rel_records = crud.schema_relationship.get_by_table_ids(db=db, table_ids=table_ids)
 
-        for rel in relationships_records:
+        relationships_list: List[Dict[str, Any]] = []
+        for rel in rel_records:
             if rel.source_table_id not in table_ids or rel.target_table_id not in table_ids:
                 if len(tables_list) != all_tables_count:
+                    # 当只选择部分表时，仅保留完全落在子集内的关系
                     continue
 
             source_table_name = table_name_lookup.get(rel.source_table_id)
@@ -663,19 +568,17 @@ async def retrieve_relevant_schema(db: Session, connection_id: int, query: str) 
             target_column = column_lookup.get(rel.target_column_id)
 
             if source_table_name and target_table_name and source_column and target_column:
-                relationships_list.append({
-                    "id": rel.id,
-                    "source_table": source_table_name,
-                    "source_column": source_column["name"],
-                    "target_table": target_table_name,
-                    "target_column": target_column["name"],
-                    "relationship_type": rel.relationship_type
-                })
+                relationships_list.append(
+                    {
+                        "id": rel.id,
+                        "source_table": source_table_name,
+                        "source_column": source_column["name"],
+                        "target_table": target_table_name,
+                        "target_column": target_column["name"],
+                        "relationship_type": rel.relationship_type,
+                    }
+                )
 
-        return {
-            "tables": tables_list,
-            "columns": columns_list,
-            "relationships": relationships_list
-        }
+        return {"tables": tables_list, "columns": columns_list, "relationships": relationships_list}
     except Exception as e:
         raise Exception(f"检索表结构上下文时出错: {str(e)}")
