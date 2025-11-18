@@ -27,7 +27,9 @@
       "Bash(export:*)",
       "Bash(docker-compose exec mysql mysql:*)",
       "Bash(bash:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(chmod:*)",
+      "Bash(./scripts/init_data.sh:*)"
     ],
     "deny": [],
     "ask": []
