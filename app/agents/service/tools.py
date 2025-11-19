@@ -258,11 +258,8 @@ class VisionTool:
         path = self._resolve_local_image_path(attachment)
         if not path:
             return None
-        try:
-            return path.resolve().as_uri()
-        except ValueError:
-            resolved = path.resolve()
-            return f"file://{resolved}"
+        resolved = path.resolve()
+        return str(resolved)
 
     def _resolve_local_image_path(self, attachment: Attachment) -> Optional[Path]:
         if not attachment.path:
