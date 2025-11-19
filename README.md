@@ -323,7 +323,7 @@ graph TB
 
 ### 环境要求
 
-- Python 3.9 或更高版本
+- Python 3.10
 - MySQL 8.0（Text2SQL/会话存储）
 - Milvus 2.4（向量检索）
 - Node.js 18+（前端调试时需要）
