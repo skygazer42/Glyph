@@ -3,7 +3,7 @@
     <div class="footer-content">
       <div class="footer-section">
         <h4>关于平台</h4>
-        <p>政府政策智能分析平台致力于为政府决策提供智能化支持</p>
+        <p>智策通致力于为政府决策提供智能化支持</p>
       </div>
 
       <div class="footer-section">
@@ -24,7 +24,7 @@
 
     <div class="footer-bottom">
       <div class="copyright">
-        <p>© {{ currentYear }} 政府政策智能分析平台 版权所有</p>
+        <p>© {{ currentYear }} 智策通 版权所有</p>
         <p class="icp">备案号：XXX-XXXXXXXX</p>
       </div>
       <div class="footer-links">

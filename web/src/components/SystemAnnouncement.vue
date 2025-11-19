@@ -38,7 +38,7 @@ const fetchAnnouncement = () => {
   // 这里可以替换为实际的API调用
   announcement.value = {
     id: '1',
-    message: '欢迎使用政府政策智能分析平台，如有问题请联系技术支持。',
+    message: '欢迎使用智策通，如有问题请联系技术支持。',
     type: 'info',
     dismissible: true
   }

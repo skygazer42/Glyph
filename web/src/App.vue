@@ -6,8 +6,8 @@
           <router-link to="/" class="logo-section">
             <div class="logo-icon">🏛️</div>
             <div class="logo-info">
-              <h1 class="logo-text">政府政策智能分析平台</h1>
-              <div class="subtitle">Government Policy Analysis System</div>
+              <h1 class="logo-text">智策通</h1>
+              <div class="subtitle">ZhiceTong Platform</div>
             </div>
           </router-link>
           <el-menu
@@ -273,4 +273,3 @@ const handleMenuSelect = (index) => {
   }
 }
 </style>
-
