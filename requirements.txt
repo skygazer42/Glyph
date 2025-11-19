@@ -19,12 +19,13 @@ pydantic-settings>=2.6.0
 # Vector Store
 pymilvus>=2.4.0
 llama-index-vector-stores-milvus>=0.1.0
-
+neo4j
 # Document Processing (OCR & Image)
 PyMuPDF  # PDF处理，MinerU 需要
 pyzbar  # 二维码识别
 rapidocr-onnxruntime  # OCR 引擎
 pillow>=10.0.0  # 图像处理
+PyPDF2>=3.0.0  # PDF 文本解析回退
 # LightRAG (Knowledge Graph Agent)
 lightrag-hku
 
@@ -60,3 +61,4 @@ jieba
 python-jose[cryptography]>=3.3.0
 fastapi-limiter>=0.1.6
 redis>=5.0.0
+faiss-cpu

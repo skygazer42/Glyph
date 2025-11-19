@@ -45,14 +45,14 @@ def main() -> None:
                 database_name=db_settings.mysql_db,
             )
             connection = crud.db_connection.create(db=db, obj_in=conn_in)
-            print(f"✅ Created DBConnection '{connection.name}' (id={connection.id})")
+            print(f"[OK] Created DBConnection '{connection.name}' (id={connection.id})")
         else:
-            print(f"ℹ️  Reusing existing DBConnection '{connection.name}' (id={connection.id})")
+            print(f"[INFO] Reusing existing DBConnection '{connection.name}' (id={connection.id})")
 
         # 2. Refresh schema metadata for this connection
-        print(f"🔧 Introspecting MySQL schema for database '{connection.database_name}' ...")
+        print(f"[INFO] Introspecting MySQL schema for database '{connection.database_name}' ...")
         refresh_mysql_schema_metadata(db, connection)
-        print("✅ Text2SQL schema metadata synchronized successfully.")
+        print("[OK] Text2SQL schema metadata synchronized successfully.")
 
     finally:
         db.close()

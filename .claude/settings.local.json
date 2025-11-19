@@ -30,7 +30,11 @@
       "Bash(kill:*)",
       "Bash(chmod:*)",
       "Bash(./scripts/init_data.sh:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

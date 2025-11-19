@@ -169,20 +169,20 @@ async def demo_mode(orchestrator: AgentOrchestratorService):
         actual_chain = response.metadata.get("chain", "unknown")
         confidence = response.confidence
 
-        print(f"\n✅ 实际链: {actual_chain}")
+        print(f"\n[OK] Actual chain: {actual_chain}")
         print(f"   置信度: {confidence:.1%}")
         print(f"   回答: {response.answer[:100]}...")
 
         # 检查是否符合预期
         if actual_chain == scenario['expected_chain']:
-            print("✅ 测试通过")
+            print("[OK] Test passed")
         else:
-            print(f"⚠️  链不匹配 (期望: {scenario['expected_chain']})")
+            print(f"[WARNING] Chain mismatch (expected: {scenario['expected_chain']})")
 
         await asyncio.sleep(1)  # 演示效果
 
     print(f"\n{'='*50}")
-    print("\n✅ 演示完成！")
+    print("\n[OK] Demo completed!")
 
 
 async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
@@ -230,10 +230,10 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
                 "intent_statistics": intent_stats
             }, f, ensure_ascii=False, indent=2)
 
-        print(f"\n✅ 结果已保存到: {output_file}")
+        print(f"\n[OK] Results saved to: {output_file}")
 
         # 显示统计
-        print("\n📊 处理统计:")
+        print("\n[STATS] Processing statistics:")
         print("\n处理链分布:")
         for chain, count in chain_stats.items():
             percentage = count / len(queries) * 100
@@ -249,7 +249,7 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
         print(f"\n平均置信度: {avg_confidence:.1%}")
 
     except Exception as e:
-        print(f"❌ 错误: {e}")
+        print(f"[ERROR]: {e}")
         logging.error(f"Error in batch mode: {e}", exc_info=True)
 
 
@@ -260,11 +260,11 @@ async def metrics_mode(orchestrator: AgentOrchestratorService):
     # 获取指标
     metrics = await orchestrator.get_metrics()
 
-    print(f"\n📊 智能体统计:")
+    print(f"\n[STATS] Agent statistics:")
     print(f"   总智能体数: {metrics['total_agents']}")
     print(f"   处理链数: {metrics['processing_chains']}")
 
-    print("\n🤖 智能体详情:")
+    print("\n[AGENTS] Agent details:")
     for name, agent_metrics in metrics["agent_metrics"].items():
         if hasattr(agent_metrics, "metrics"):
             print(f"\n   {name}:")
@@ -278,7 +278,7 @@ async def metrics_mode(orchestrator: AgentOrchestratorService):
         else:
             print(f"   {name}: 已初始化")
 
-    print("\n✅ 指标获取完成")
+    print("\n[OK] Metrics retrieved successfully")
 
 
 async def main():

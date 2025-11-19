@@ -58,7 +58,7 @@ def find_markdown_files(data_dir: Path) -> List[str]:
     md_files: List[str] = []
 
     if not data_dir.exists():
-        print(f"❌ 数据目录不存在: {data_dir}")
+        print(f"[ERROR] Data directory does not exist: {data_dir}")
         return []
 
     print(f"[扫描目录] {data_dir}")
@@ -97,7 +97,7 @@ def main(args: argparse.Namespace) -> int:
 
     md_files = find_markdown_files(data_dir)
     if not md_files:
-        print("❌ 未找到 Markdown 文件")
+        print("[ERROR] No Markdown files found")
         return 1
 
     print("\n" + "=" * 70)
@@ -174,7 +174,7 @@ def main(args: argparse.Namespace) -> int:
         import traceback
 
         print("\n" + "=" * 70)
-        print(" ❌ 错误")
+        print(" [ERROR]")
         print("=" * 70)
         print(f"\n{type(exc).__name__}: {exc}")
         print("\n详细错误信息:")

@@ -16,7 +16,7 @@ def main() -> None:
     from app.persistence.db.session import engine
 
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created.")
+    print("[OK] Database tables created.")
 
 
 if __name__ == "__main__":

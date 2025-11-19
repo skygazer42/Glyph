@@ -106,13 +106,13 @@ if __name__ == "__main__":
     logger.info("="*60)
     logger.info("🚀 启动 政策DSL生成和知识库管理系统 API服务器")
     logger.info("="*60)
-    logger.info("📍 地址: http://0.0.0.0:8000")
-    logger.info("📚 API文档: http://0.0.0.0:8000/docs")
+    logger.info("📍 地址: http://0.0.0.0:8001")
+    logger.info("📚 API文档: http://0.0.0.0:8001/docs")
     logger.info("="*60)
 
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         log_level="info"
     )

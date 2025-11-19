@@ -15,11 +15,11 @@ def init_milvus_collection():
     try:
         # 创建 MilvusStore 实例，会自动创建集合
         store = MilvusStore()
-        print(f"✅ 集合 '{store.collection_name}' 已准备就绪")
+        print(f"[OK] Collection '{store.collection_name}' is ready")
 
         # 显示统计信息
         stats = store.get_stats()
-        print(f"📊 统计信息:")
+        print(f"[STATS] Statistics:")
         print(f"  - 集合名称: {stats['collection_name']}")
         print(f"  - 文档数量: {stats['total_documents']}")
         print(f"  - 嵌入维度: {stats['dim']}")
@@ -27,7 +27,7 @@ def init_milvus_collection():
         print(f"  - 模型: {stats['model']}")
 
     except Exception as e:
-        print(f"❌ 初始化失败: {e}")
+        print(f"[ERROR] Initialization failed: {e}")
         return False
 
     return True
