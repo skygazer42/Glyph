@@ -425,6 +425,9 @@ def validate_sql(sql: str) -> bool:
     验证SQL语法
     """
     try:
+        # 从环境变量读取安全开关（默认禁止 UNION）
+        allow_union = os.getenv("TEXT2SQL__ALLOW_UNION", "false").lower() == "true"
+
         parsed = sqlparse.parse(sql)
         if not parsed:
             return False
@@ -444,7 +447,7 @@ def validate_sql(sql: str) -> bool:
         if ';' in body[:-1]:
             return False
 
-        if re.search(r"\bUNION\b", sql, flags=re.IGNORECASE):
+        if not allow_union and re.search(r"\bUNION\b", sql, flags=re.IGNORECASE):
             return False
 
         return True
