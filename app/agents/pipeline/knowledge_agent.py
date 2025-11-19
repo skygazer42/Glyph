@@ -145,8 +145,8 @@ class KnowledgeAgent:
                 domain_context=domain_context,
             )
             answer_text = await self._call_llm(summary_prompt)
-            answer_text = self._append_citations(answer_text, web_docs)
             web_docs = self._web_results_to_documents(web_results)
+            answer_text = self._append_citations(answer_text, web_docs)
             return FinalAnswer(
                 query_id=uuid4(),
                 answer=answer_text,
