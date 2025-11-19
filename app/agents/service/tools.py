@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import mimetypes
 import os
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 
-from autogen_core.models import UserMessage
-from autogen_ext.models.openai import OpenAIChatCompletionClient
+from openai import AsyncOpenAI
 
 from app.agents.framework.base.types import PolicyDocument
 from app.agents.packs.intent_router.utils import LLMIntentClassifier
@@ -182,29 +183,19 @@ class VisionTool:
         self.prompt_template = prompt_template or "请描述图片中的关键信息。"
         self.max_images = max(1, max_images)
         self.max_output_tokens = max_output_tokens
-        self._client: OpenAIChatCompletionClient | None = None
+        self._client: AsyncOpenAI | None = None
+        self._dashscope_client = None
+        self._dashscope_api_key: Optional[str] = None
+        self._mode: str = "disabled"
+        self._model_name = model
         resolved_key = api_key or os.getenv("VISION_API_KEY") or os.getenv("OPENAI_API_KEY")
 
         if enabled and resolved_key:
-            client_args: Dict[str, Any] = {
-                "model": model,
-                "api_key": resolved_key,
-                "model_info": {
-                    "vision": True,
-                    "function_calling": False,
-                    "json_output": False,
-                    "family": "unknown",
-                },
-            }
-            if base_url:
-                client_args["base_url"] = base_url
-            try:
-                self._client = OpenAIChatCompletionClient(**client_args)
-                self._enabled = True
-                logger.info("VisionTool initialized with model {}", model)
-            except Exception as exc:  # pragma: no cover - init failure
-                self._enabled = False
-                logger.error("VisionTool 初始化失败: {}", exc)
+            dashscope_mode = bool(base_url and "dashscope.aliyuncs.com" in base_url.lower())
+            if dashscope_mode:
+                self._initialize_dashscope(resolved_key)
+            else:
+                self._initialize_openai(resolved_key, base_url)
         else:
             self._enabled = False
             if enabled:
@@ -212,24 +203,20 @@ class VisionTool:
 
     @property
     def enabled(self) -> bool:
-        return bool(self._enabled and self._client)
+        if not self._enabled:
+            return False
+        if self._mode == "dashscope":
+            return bool(self._dashscope_client and self._dashscope_api_key)
+        return bool(self._client)
 
     async def describe(self, query: str, attachments: List[Attachment]) -> str:
         if not self.enabled or not attachments:
             return ""
-        content = self._build_contents(query, attachments)
-        if len(content) <= 1:
-            return ""
-        try:
-            response = await self._client.create(  # type: ignore[union-attr]
-                [UserMessage(content=content, source="user")]
-            )
-            return (response.content or "").strip()
-        except Exception as exc:  # pragma: no cover - external failure
-            logger.error("VisionTool 描述失败: {}", exc)
-            return ""
+        if self._mode == "dashscope":
+            return await self._describe_dashscope(query, attachments)
+        return await self._describe_openai(query, attachments)
 
-    def _build_contents(self, query: str, attachments: List[Attachment]) -> List[Dict[str, Any]]:
+    def _build_openai_contents(self, query: str, attachments: List[Attachment]) -> List[Dict[str, Any]]:
         prompt = self.prompt_template.format(query=query)
         payload: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
         added = 0
@@ -253,11 +240,8 @@ class VisionTool:
     def _resolve_image_url(self, attachment: Attachment) -> Optional[str]:
         if attachment.url:
             return attachment.url
-        if not attachment.path:
-            return None
-        path = Path(attachment.path)
-        if not path.exists():
-            logger.warning("VisionTool 找不到图片路径：{}", attachment.path)
+        path = self._resolve_local_image_path(attachment)
+        if not path:
             return None
         mime = attachment.mime_type or mimetypes.guess_type(path.name)[0] or "image/png"
         try:
@@ -267,6 +251,160 @@ class VisionTool:
         except Exception as exc:  # pragma: no cover - file read error
             logger.error("VisionTool 读取图片失败 {}: {}", path, exc)
             return None
+
+    def _resolve_dashscope_image_ref(self, attachment: Attachment) -> Optional[str]:
+        if attachment.url and attachment.url.startswith(("http://", "https://", "oss://")):
+            return attachment.url
+        path = self._resolve_local_image_path(attachment)
+        if not path:
+            return None
+        try:
+            return path.resolve().as_uri()
+        except ValueError:
+            resolved = path.resolve()
+            return f"file://{resolved}"
+
+    def _resolve_local_image_path(self, attachment: Attachment) -> Optional[Path]:
+        if not attachment.path:
+            return None
+        path = Path(attachment.path)
+        if not path.exists():
+            logger.warning("VisionTool 找不到图片路径：{}", attachment.path)
+            return None
+        return path
+
+    def _initialize_openai(self, api_key: str, base_url: Optional[str]) -> None:
+        try:
+            client_kwargs: Dict[str, Any] = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            self._client = AsyncOpenAI(**client_kwargs)
+            self._enabled = True
+            self._mode = "openai"
+            logger.info("VisionTool initialized with model {}", self._model_name)
+        except Exception as exc:  # pragma: no cover - init failure
+            self._enabled = False
+            logger.error("VisionTool 初始化失败: {}", exc)
+
+    def _initialize_dashscope(self, api_key: str) -> None:
+        try:
+            from dashscope import MultiModalConversation  # type: ignore
+        except Exception as exc:  # pragma: no cover - optional dependency failure
+            self._enabled = False
+            logger.error("VisionTool 初始化 DashScope SDK 失败: {}", exc)
+            return
+        self._dashscope_client = MultiModalConversation
+        self._dashscope_api_key = api_key
+        self._mode = "dashscope"
+        self._enabled = True
+        logger.info("VisionTool initialized with DashScope model {}", self._model_name)
+
+    async def _describe_openai(self, query: str, attachments: List[Attachment]) -> str:
+        if not self._client:
+            return ""
+        content = self._build_openai_contents(query, attachments)
+        if not content or len(content) <= 1:
+            return ""
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._model_name,
+                messages=[{"role": "user", "content": content}],
+                max_tokens=self.max_output_tokens,
+            )
+        except Exception as exc:  # pragma: no cover - external failure
+            logger.error("VisionTool 描述失败: {}", exc)
+            return ""
+        choice = (response.choices or [None])[0]
+        if choice and choice.message and choice.message.content:
+            return choice.message.content.strip()
+        return ""
+
+    async def _describe_dashscope(self, query: str, attachments: List[Attachment]) -> str:
+        if not self._dashscope_client or not self._dashscope_api_key:
+            return ""
+        messages = self._build_dashscope_messages(query, attachments)
+        if not messages:
+            return ""
+        try:
+            response = await asyncio.to_thread(
+                self._dashscope_client.call,
+                model=self._model_name,
+                messages=messages,
+                api_key=self._dashscope_api_key,
+                max_tokens=self.max_output_tokens,
+            )
+        except Exception as exc:  # pragma: no cover - external failure
+            logger.error("VisionTool DashScope 描述失败: {}", exc)
+            return ""
+        if not response or response.status_code != HTTPStatus.OK:
+            code = getattr(response, "code", "unknown")
+            message = getattr(response, "message", "unknown error")
+            logger.error(
+                "VisionTool DashScope 返回异常 code=%s message=%s",
+                code,
+                message,
+            )
+            return ""
+        text = self._extract_dashscope_text(response)
+        return text.strip() if text else ""
+
+    def _build_dashscope_messages(
+        self, query: str, attachments: List[Attachment]
+    ) -> List[Dict[str, Any]]:
+        prompt = self.prompt_template.format(query=query)
+        contents: List[Dict[str, Any]] = []
+        added = 0
+        for attachment in attachments:
+            if added >= self.max_images:
+                break
+            image_ref = self._resolve_dashscope_image_ref(attachment)
+            if not image_ref:
+                continue
+            contents.append({"image": image_ref})
+            added += 1
+        if added == 0:
+            logger.debug("VisionTool 未找到可用于 DashScope 的图片，跳过多模态调用。")
+            return []
+        contents.append({"text": prompt})
+        return [{"role": "user", "content": contents}]
+
+    def _extract_dashscope_text(self, response: Any) -> str:
+        output = getattr(response, "output", None)
+        if not output:
+            return ""
+        if isinstance(output, dict):
+            text = output.get("text")
+            choices = output.get("choices")
+        else:
+            text = getattr(output, "text", None)
+            choices = getattr(output, "choices", None)
+        if text:
+            return str(text)
+        if not choices:
+            return ""
+        for choice in choices:
+            message = choice.get("message") if isinstance(choice, dict) else getattr(choice, "message", None)
+            if not message:
+                continue
+            content = (
+                message.get("content")
+                if isinstance(message, dict)
+                else getattr(message, "content", None)
+            )
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                texts = []
+                for item in content:
+                    if isinstance(item, dict):
+                        value = item.get("text")
+                        if value:
+                            texts.append(value)
+                    elif isinstance(item, str):
+                        texts.append(item)
+                if texts:
+                    return "\n".join(texts)
+        return ""
 
 
 class UserProfileTool:
