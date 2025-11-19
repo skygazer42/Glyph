@@ -458,6 +458,8 @@ class AgentService:
                 "[AgentService] 最终路由 route=%s intent=%s", route, (intent_result or {}).get("intent")
             )
 
+            rewritten_for_metadata = rewritten_query
+
             if route == "dialogue":
                 final = self.dialogue_agent.respond(intent_result.get("intent", "chit_chat"))
             elif route == "clarify":
@@ -470,9 +472,8 @@ class AgentService:
                     combined_query = f"{rewritten_query}\n\n用户补充信息：{query}"
                 final = await self.rule_agent.compute(combined_query, intent=intent_result)
             elif route == "text2sql":
-                final = await self.text2sql_agent.answer(
-                    rewritten_query, connection_id=connection_id
-                )
+                final = await self.text2sql_agent.answer(query, connection_id=connection_id)
+                rewritten_for_metadata = query
             elif route == "graph":
                 final = await self.graph_agent.answer(rewritten_query, intent=intent_result)
             elif route == "workflow":
@@ -496,7 +497,7 @@ class AgentService:
                 "route": route,
                 "intent": intent_result,
                 "routing_debug": getattr(self, "_routing_debug", []),
-                "rewritten_query": rewritten_query,
+                "rewritten_query": rewritten_for_metadata,
                 "session_id": session_id,
                 "user_id": user_id,
                 "connection_id": connection_id,
