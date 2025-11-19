@@ -403,6 +403,20 @@ def process_sql_with_value_mappings(sql: str, value_mappings: Dict[str, Dict[str
             pattern4 = rf"({col}\s+LIKE\s+['\"])%?({nl_term})%?(['\"])"
             sql = re.sub(pattern4, f"\\1%{db_value}%\\3", sql, flags=re.IGNORECASE)
 
+    # 额外一步：修正 LLM 生成的 PostgreSQL 风格 JSON/类型转换语法为 MySQL 兼容形式
+    # 1) 将 "alias.metadata::text" 或 "metadata::text" 替换为 CAST(... AS CHAR)
+    def _replace_metadata_cast(match: re.Match) -> str:
+        col_ref = match.group(1)
+        return f"CAST({col_ref} AS CHAR)"
+
+    # 匹配类似 "pd.metadata::text" 或 "metadata::text"
+    sql = re.sub(r"\b([\w]+\.[Mm][Ee][Tt][Aa][Dd][Aa][Tt][Aa])::text\b", _replace_metadata_cast, sql)
+    sql = re.sub(r"\b([Mm][Ee][Tt][Aa][Dd][Aa][Tt][Aa])::text\b", _replace_metadata_cast, sql)
+
+    # 2) 通用的 "::text" 类型转换，退化为直接使用原列
+    # 例如 "some_column::text" -> "CAST(some_column AS CHAR)"
+    sql = re.sub(r"\b([\w]+\.[\w]+)::text\b", _replace_metadata_cast, sql)
+
     return sql
 
 

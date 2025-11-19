@@ -88,6 +88,16 @@ class AgentService:
         "热水器",
         "油烟机",
     ]
+    ROUTE_LABELS = {
+        "dialogue": "DialogueAgent · 闲聊问候",
+        "faq_cache": "FAQResponder · 快速命中",
+        "clarify": "ClarifierAgent · 条件澄清",
+        "knowledge": "KnowledgeAgent · 知识检索",
+        "graph": "GraphAgent · LightRAG 关系推理",
+        "rule_engine": "RuleEngineAgent · DSL 补贴计算",
+        "text2sql": "Text2SQLAgent · 结构化查询",
+        "workflow": "WorkflowAgent · 多模态协作",
+    }
 
     def __init__(
         self,
@@ -946,11 +956,21 @@ class AgentService:
 
     def _ensure_route_and_citations(self, final) -> None:
         route = (final.metadata or {}).get("route") if hasattr(final, "metadata") else None
-        route_line = f"【路由】{route}" if route else None
+        route_label = self.ROUTE_LABELS.get(route, "") if route else ""
+        if route and route_label:
+            route_line = f"【路由】{route} · {route_label}"
+        elif route:
+            route_line = f"【路由】{route}"
+        else:
+            route_line = None
         citation_line = self._format_citation_block(final)
 
         blocks = []
         answer_text = final.answer or ""
+        # 可选：将 Markdown 友好的内容转为纯文本，便于前端不做 markdown 渲染时展示
+        if getattr(self.config, "answer_plain_output", False):
+            answer_text = self._to_plain_text(answer_text)
+
         if route_line:
             blocks.append(route_line)
         if citation_line:
@@ -962,6 +982,10 @@ class AgentService:
             final.answer = answer_text + "\n" + suffix.lstrip("\n")
         else:
             final.answer = answer_text + suffix
+
+        # 末尾块也做一次 plain 化，保证引用/路由不带 markdown 列表符号
+        if getattr(self.config, "answer_plain_output", False):
+            final.answer = self._to_plain_text(final.answer)
 
     def _format_citation_block(self, final) -> Optional[str]:
         sources = getattr(final, "sources", None) or []
@@ -992,6 +1016,25 @@ class AgentService:
         if not lines:
             return None
         return "【引用】\n" + "\n".join(lines)
+
+    def _to_plain_text(self, text: str) -> str:
+        """Best-effort Markdown → plain-text转换，保持换行与要点顺序。"""
+        if not text:
+            return ""
+        cleaned = text
+        # 去掉代码块
+        cleaned = re.sub(r"```[\s\S]*?```", "", cleaned)
+        # 去掉行首标题符号
+        cleaned = re.sub(r"^\s*#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+        # 列表符替换为中点
+        cleaned = re.sub(r"^\s*[-*]\s+", "· ", cleaned, flags=re.MULTILINE)
+        # 粗体/斜体/行内代码标记去壳
+        cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", cleaned)
+        cleaned = re.sub(r"\*(.*?)\*", r"\1", cleaned)
+        cleaned = re.sub(r"`([^`]*)`", r"\1", cleaned)
+        # 多余空行压缩为单个空行
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
 
 
 __all__ = ["AgentService"]

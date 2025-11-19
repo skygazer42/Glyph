@@ -121,8 +121,18 @@
             </div>
             <div class="message-text" v-html="formatMessage(message.content)"></div>
             <div v-if="message.metadata" class="message-meta">
-              <el-tag size="small" type="info">{{ message.metadata.model }}</el-tag>
+              <el-tag
+                v-if="message.metadata.route"
+                size="small"
+                type="info"
+              >
+                {{ message.metadata.route }}
+              </el-tag>
             </div>
+            <Text2SQLResult
+              v-if="message.role === 'assistant' && message.metadata && message.metadata.route === 'text2sql'"
+              :metadata="message.metadata"
+            />
           </div>
         </div>
 
@@ -249,6 +259,7 @@ import {
 } from '@element-plus/icons-vue'
 import SessionManager from '@/components/SessionManager.vue'
 import FileUploader from '@/components/FileUploader.vue'
+import Text2SQLResult from '@/components/Text2SQLResult.vue'
 import { useChatHistory, useSessionList } from '@/composables/useLocalStorage'
 
 // 状态

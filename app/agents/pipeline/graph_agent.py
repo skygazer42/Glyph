@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -78,17 +79,20 @@ class GraphAgent:
     async def _summarize_graph(self, graph_text: str, query: str) -> str:
         prompt = (
             "下面是来自 LightRAG 的关系/知识图谱查询结果，请据此回答用户问题，"
-            "重点描述主体之间的联系或主题脉络，如无相关信息请说明。\n\n"
+            "重点描述主体之间的联系或主题脉络，如无相关信息请说明。"
+            "请使用自然段或列表描述，禁止输出以 # 开头的 Markdown 标题。\n\n"
             f"用户问题：{query}\n\n"
             f"图谱返回：\n{graph_text[:2000]}\n"
         )
         response = await model_client.create([UserMessage(content=prompt, source="user")])
-        return (response.content or "").strip() or "暂未从知识图谱中解析出明确的关系。"
+        sanitized = self._strip_markdown_headings(response.content or "")
+        return sanitized.strip() or "暂未从知识图谱中解析出明确的关系。"
 
     def _format_graph_snippet(self, graph_text: str, query: str) -> str:
         snippet = (graph_text or "").strip()
         if len(snippet) > self._inline_summary_threshold:
             snippet = snippet[: self._inline_summary_threshold] + "..."
+        snippet = self._strip_markdown_headings(snippet)
         return f"根据知识库关系返回的内容，以下是与“{query}”相关的关系概要：\n{snippet}"
 
     def _wrap_raw_text(self, text: str) -> PolicyDocument:
@@ -108,3 +112,10 @@ class GraphAgent:
             cancellation_token=CancellationToken(),
             message_id=str(uuid4()),
         )
+
+    def _strip_markdown_headings(self, text: str) -> str:
+        """Remove markdown heading markers (#, ##, ###) to keep responses clean."""
+        if not text:
+            return ""
+        cleaned = re.sub(r"^\s*#{1,6}\s*", "", text, flags=re.MULTILINE)
+        return cleaned

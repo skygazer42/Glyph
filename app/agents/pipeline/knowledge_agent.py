@@ -315,20 +315,8 @@ class KnowledgeAgent:
         return "；".join(lines)
 
     def _append_citations(self, answer: str, docs: List[PolicyDocument]) -> str:
-        if not docs:
-            return answer
-        lines = []
-        for doc in docs[:3]:
-            title = doc.title or "未知文档"
-            source = getattr(doc, "source", "") or doc.metadata.get("source") if hasattr(doc, "metadata") else ""
-            if not source and hasattr(doc, "metadata"):
-                source = doc.metadata.get("path") or doc.metadata.get("origin")
-            display = source or "内部知识库"
-            lines.append(f"- {title}（{display}）")
-        citation_block = "\n【来源】\n" + "\n".join(lines)
-        if citation_block.strip() in answer:
-            return answer
-        return f"{answer}\n{citation_block}"
+        """Disable inline citation block; AgentService will append统一的【引用】段落。"""
+        return answer
 
     def _extract_policy_points(self, text: str) -> List[str]:
         if not text:

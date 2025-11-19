@@ -150,6 +150,11 @@ class Config(BaseSettings):
         description="Optional directory containing seed documents for LightRAG.",
         alias="LIGHTRAG_SEED_DATA_DIR",
     )
+    answer_plain_output: bool = Field(
+        default=False,
+        description="If true, strip Markdown markers and return plain text to frontend.",
+        alias="ANSWER__PLAIN_OUTPUT",
+    )
 
     @classmethod
     def from_file(cls, file_path: str) -> 'Config':
@@ -176,6 +181,7 @@ class Config(BaseSettings):
             "vision": self.vision.dict(),
             "web_search": self.web_search.dict(),
             "user_profile_db_path": self.user_profile_db_path,
+            "answer_plain_output": self.answer_plain_output,
         }
 
     @property

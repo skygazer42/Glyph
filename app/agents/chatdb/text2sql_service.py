@@ -56,9 +56,16 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
     extra_block = "\n" + ("\n".join(intent_lines) if intent_lines else "- 无特别意图推断") + "\n"
 
     prompt = f"""
-你是一名专业的SQL开发专家，专门将自然语言问题转换为精确的SQL查询。
+你是一名专业的 SQL 开发专家，专门将自然语言问题转换为精确的 SQL 查询。
 
-### 数据库结构:
+⚠️ 目标数据库为 **MySQL 8.0**，请务必遵守以下约束：
+- 只能使用 **MySQL 语法**，禁止输出 PostgreSQL/SQLite 专用语法；
+- 禁止使用 `::` 类型转换（如 `col::text`）、`ILIKE`、`jsonb` 运算符（如 `->`、`->>`、`@>` 等）；
+- 如需进行类型转换，请使用 `CAST(col AS CHAR)` 或 MySQL 支持的 `CAST(... AS ...)` 语法；
+- JSON 字段请使用 MySQL 的 JSON 函数（如 `JSON_EXTRACT`、`JSON_CONTAINS`），或将字段 `CAST(... AS CHAR)` 后再配合 `LIKE` 进行模糊匹配；
+- 只生成 **单条 SELECT 查询**，不要包含多条语句或 DML/DDL 语句。
+
+### 数据库结构（MySQL 表结构摘要）:
 ```sql
 {schema_str}
 {mappings_str}

@@ -159,15 +159,13 @@ async def agent_chat_stream(
             )
 
             # 发送内容片段（一次性推送最终答案）
+            full_metadata = final.metadata or {}
+            full_metadata.update({"confidence": final.confidence})
             chunk = ChatStreamChunk(
                 content=final.answer,
                 done=False,
                 session_id=session_id,
-                metadata={
-                    "route": final.metadata.get("route"),
-                    "intent": final.metadata.get("intent"),
-                    "confidence": final.confidence,
-                }
+                metadata=full_metadata,
             )
             yield {
                 "event": "message",
@@ -179,18 +177,22 @@ async def agent_chat_stream(
                 session_id,
                 "assistant",
                 final.answer,
-                metadata=final.metadata,
+                metadata=full_metadata,
             )
 
             # 发送完成信号
+            done_metadata = dict(full_metadata)
+            done_metadata.update(
+                {
+                    "message_count": session.message_count,
+                    "total_length": len(final.answer),
+                }
+            )
             done_chunk = ChatStreamChunk(
                 content="",
                 done=True,
                 session_id=session_id,
-                metadata={
-                    "message_count": session.message_count,
-                    "total_length": len(final.answer),
-                }
+                metadata=done_metadata,
             )
 
             yield {
