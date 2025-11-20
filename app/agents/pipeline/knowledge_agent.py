@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from statistics import mean
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
@@ -39,7 +40,13 @@ class KnowledgeAgent:
         emphasis: Optional[str] = None,
         domain_context: Optional[PolicyDomainContext] = None,
     ) -> FinalAnswer:
+        trace: Dict[str, float] = {}
+        t_search = time.perf_counter()
         docs, scores, used_query = await self._domain_aware_search(query, domain_context)
+        trace["search_ms"] = round((time.perf_counter() - t_search) * 1000, 2)
+        knowledge_timings = getattr(
+            getattr(self.tool, "service", None), "last_timings", {}
+        ) or {}
         focus = emphasis or (intent or {}).get("sub_intent") or "general"
 
         if docs:
@@ -48,6 +55,7 @@ class KnowledgeAgent:
             early_stop_threshold = getattr(getattr(settings, 'system', settings), 'early_stop_conf', 0.8)
 
             if initial_confidence >= early_stop_threshold:
+                t_extract = time.perf_counter()
                 self.logger.info(
                     "早停触发: 置信度 %.2f >= %.2f, 跳过重排和深度分析",
                     initial_confidence,
@@ -57,11 +65,15 @@ class KnowledgeAgent:
                 # 优先走快速抽取，尽量避免 LLM 调用
                 extracted = self._extract_policy_points((docs[0].content or ""))
                 if extracted:
+                    trace["extract_ms"] = round(
+                        (time.perf_counter() - t_extract) * 1000, 2
+                    )
                     answer_text = "\n".join(f"- {b}" for b in extracted[:10])
                     answer_text += "\n\n答复依据：" + (docs[0].title or "相关政策")
                     answer_text = self._append_citations(answer_text, docs[:1])
                 else:
                     # 回退到一次性 LLM 总结
+                    t_llm = time.perf_counter()
                     formatted_context = self._format_documents(docs)
                     summary_prompt = self._build_summary_prompt(
                         query,
@@ -71,6 +83,9 @@ class KnowledgeAgent:
                         domain_context=domain_context,
                     )
                     answer_text = await self._call_llm(summary_prompt)
+                    trace["llm_ms"] = round(
+                        (time.perf_counter() - t_llm) * 1000, 2
+                    )
                     answer_text = self._append_citations(answer_text, docs)
 
                 return FinalAnswer(
@@ -88,6 +103,8 @@ class KnowledgeAgent:
                         "early_stop_confidence": initial_confidence,
                         "search_query": used_query,
                         "domain_context": domain_context.to_metadata() if domain_context else None,
+                        "knowledge_trace_ms": trace,
+                        "search_timings_ms": knowledge_timings,
                     },
                     total_processing_time=0.0,
                 )
@@ -103,6 +120,7 @@ class KnowledgeAgent:
             else:
                 dominant_origin = "knowledge_base"
 
+            t_llm = time.perf_counter()
             formatted_context = self._format_documents(docs)
             summary_prompt = self._build_summary_prompt(
                 query,
@@ -112,6 +130,7 @@ class KnowledgeAgent:
                 domain_context=domain_context,
             )
             answer_text = await self._call_llm(summary_prompt)
+            trace["llm_ms"] = round((time.perf_counter() - t_llm) * 1000, 2)
             answer_text = self._append_citations(answer_text, docs)
             confidence = self._estimate_confidence(scores)
             return FinalAnswer(
@@ -129,6 +148,8 @@ class KnowledgeAgent:
                     "early_stopped": False,
                     "search_query": used_query,
                     "domain_context": domain_context.to_metadata() if domain_context else None,
+                    "knowledge_trace_ms": trace,
+                    "search_timings_ms": knowledge_timings,
                 },
                 total_processing_time=0.0,
             )
@@ -136,6 +157,10 @@ class KnowledgeAgent:
         web_results = await self._search_web(query)
         tool = self.web_tool
         if web_results and tool:
+            trace["web_search_ms"] = round(
+                (time.perf_counter() - t_search) * 1000, 2
+            )
+            t_llm = time.perf_counter()
             formatted_context = tool.format_results(web_results)
             summary_prompt = self._build_summary_prompt(
                 query,
@@ -145,6 +170,7 @@ class KnowledgeAgent:
                 domain_context=domain_context,
             )
             answer_text = await self._call_llm(summary_prompt)
+            trace["llm_ms"] = round((time.perf_counter() - t_llm) * 1000, 2)
             web_docs = self._web_results_to_documents(web_results)
             answer_text = self._append_citations(answer_text, web_docs)
             return FinalAnswer(
@@ -169,11 +195,18 @@ class KnowledgeAgent:
                         for item in web_results
                     ],
                     "domain_context": domain_context.to_metadata() if domain_context else None,
+                    "knowledge_trace_ms": trace,
+                    "search_timings_ms": knowledge_timings,
                 },
                 total_processing_time=0.0,
             )
 
-        return self._build_no_result_answer(query, reason="知识库暂无匹配文档且网络检索为空")
+        return self._build_no_result_answer(
+            query,
+            reason="知识库暂无匹配文档且网络检索为空",
+            trace=trace,
+            search_timings=knowledge_timings,
+        )
 
     async def _domain_aware_search(
         self,
@@ -351,13 +384,25 @@ class KnowledgeAgent:
                 break
         return found
 
-    def _build_no_result_answer(self, query: str, reason: str) -> FinalAnswer:
+    def _build_no_result_answer(
+        self,
+        query: str,
+        reason: str,
+        trace: Optional[Dict[str, float]] = None,
+        search_timings: Optional[Dict[str, Any]] = None,
+    ) -> FinalAnswer:
         return FinalAnswer(
             query_id=uuid4(),
             answer=f"暂未在知识库或联网检索中找到与“{query}”直接相关的政策条目。建议提供更多背景或确认关键词。",
             sources=[],
             confidence=0.2,
             verification_passed=False,
-            metadata={"route": "knowledge", "reason": reason, "doc_origins": []},
+            metadata={
+                "route": "knowledge",
+                "reason": reason,
+                "doc_origins": [],
+                "knowledge_trace_ms": trace or {},
+                "search_timings_ms": search_timings or {},
+            },
             total_processing_time=0.0,
         )

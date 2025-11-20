@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
@@ -29,6 +30,7 @@ class KnowledgeService:
             else settings.system.hybrid_retrieval_enabled
         )
         self.hierarchical_store: Optional[LlamaIndexIntegration] = None
+        self.last_timings: Dict[str, Any] = {}
         if resolved_flag:
             storage_dir = hierarchical_storage or settings.llamaindex.storage_dir
             try:
@@ -65,6 +67,13 @@ class KnowledgeService:
         threshold: float = 0.6,
         filters: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[PolicyDocument], List[float]]:
+        timings: Dict[str, Optional[float]] = {
+            "hierarchical_ms": None,
+            "vector_ms": None,
+            "combine_ms": None,
+            "total_ms": None,
+        }
+        t_total = time.perf_counter()
         combined: Dict[str, Tuple[PolicyDocument, float]] = {}
 
         def _upsert(doc: PolicyDocument, score: float, origin: str) -> None:
@@ -78,6 +87,7 @@ class KnowledgeService:
 
         # 1. 尝试使用分级索引
         if self.hierarchical_store and self.hierarchical_store.has_index:
+            t_h = time.perf_counter()
             try:
                 h_docs, h_scores = await self.hierarchical_store.search(
                     query, top_k=top_k * 2, threshold=threshold
@@ -86,8 +96,12 @@ class KnowledgeService:
                     _upsert(doc, score, "hierarchical_index")
             except Exception as exc:
                 logger.warning("Hierarchical search failed: %s", exc)
+            timings["hierarchical_ms"] = round(
+                (time.perf_counter() - t_h) * 1000, 2
+            )
 
         # 2. 向量检索兜底
+        t_v = time.perf_counter()
         v_docs, v_scores = self.vector_store.search(
             query=query,
             top_k=top_k * 2,
@@ -96,15 +110,22 @@ class KnowledgeService:
         )
         for doc, score in zip(v_docs, v_scores):
             _upsert(doc, score, "knowledge_base")
+        timings["vector_ms"] = round((time.perf_counter() - t_v) * 1000, 2)
 
         if not combined:
+            timings["total_ms"] = round((time.perf_counter() - t_total) * 1000, 2)
+            self.last_timings = timings
             return [], []
 
+        t_sort = time.perf_counter()
         sorted_results = sorted(
             combined.values(), key=lambda item: item[1], reverse=True
         )[:top_k]
         docs = [item[0] for item in sorted_results]
         scores = [item[1] for item in sorted_results]
+        timings["combine_ms"] = round((time.perf_counter() - t_sort) * 1000, 2)
+        timings["total_ms"] = round((time.perf_counter() - t_total) * 1000, 2)
+        self.last_timings = timings
         return docs, scores
 
 

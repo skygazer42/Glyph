@@ -120,6 +120,12 @@ class PerformanceConfig(BaseSettings):
     )
     enable_cache: bool = Field(default=True, env="PERFORMANCE__ENABLE_CACHE")
     cache_ttl: int = Field(default=3600, ge=0, env="PERFORMANCE__CACHE_TTL")
+    trace_latency: bool = Field(default=True, env="PERFORMANCE__TRACE_LATENCY")
+    slow_threshold_ms: int = Field(default=4000, ge=0, env="PERFORMANCE__SLOW_THRESHOLD_MS")
+    log_timing_breakdown: bool = Field(
+        default=False,
+        env="PERFORMANCE__LOG_TIMING_BREAKDOWN",
+    )
 
 
 class Config(BaseSettings):

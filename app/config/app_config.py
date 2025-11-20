@@ -355,6 +355,9 @@ class PerformanceSettings(BaseSettings):
     # 缓存
     enable_cache: bool = Field(default=True)
     cache_ttl: int = Field(default=3600)
+    trace_latency: bool = Field(default=True)
+    slow_threshold_ms: int = Field(default=4000)
+    log_timing_breakdown: bool = Field(default=False)
 
 
 class SystemSettings(BaseSettings):

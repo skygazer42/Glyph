@@ -23,6 +23,9 @@ from app.agents.pipeline import (
     WorkflowAgent,
 )
 from app.agents.framework.common import session_store
+from app.agents.framework.common import autogen_memory_store
+from app.agents.service.agentchat_router import AgentChatRouter, agentchat_enabled
+from app.agents.service.agentchat_team import AgentChatTeam, agentchat_team_enabled
 from .tools import (
     IntentDetectionTool,
     KnowledgeTool,
@@ -70,6 +73,44 @@ def _configure_logging_once() -> None:
     )
     autogen_logger.addHandler(console_handler)
     _LOGGING_CONFIGURED = True
+
+
+class _PerfTrace:
+    """Lightweight stage-level timing recorder."""
+
+    def __init__(self, enabled: bool, slow_log_ms: int) -> None:
+        self.enabled = enabled
+        self._start = time.perf_counter()
+        self._slow_log_ms = slow_log_ms
+        self._marks: List[Dict[str, float]] = []
+
+    def mark(self, stage: str) -> None:
+        if not self.enabled:
+            return
+        now = time.perf_counter()
+        total_ms = (now - self._start) * 1000
+        prev_total = self._marks[-1]["total_ms"] if self._marks else 0.0
+        self._marks.append(
+            {
+                "stage": stage,
+                "total_ms": round(total_ms, 2),
+                "delta_ms": round(total_ms - prev_total, 2),
+            }
+        )
+
+    def summary(self) -> Dict[str, Any]:
+        if not self.enabled:
+            return {}
+        total_ms = (
+            self._marks[-1]["total_ms"]
+            if self._marks
+            else round((time.perf_counter() - self._start) * 1000, 2)
+        )
+        return {"total_ms": total_ms, "stages": self._marks}
+
+    @property
+    def slow_threshold_ms(self) -> int:
+        return self._slow_log_ms
 
 
 class AgentService:
@@ -151,8 +192,37 @@ class AgentService:
         self.faq_responder = FAQResponder()
         self._domain_context_builder = PolicyDomainContextBuilder()
         self._ingest_batch_size = max(1, getattr(self.config.performance, "batch_size", 10))
+        self._trace_latency = bool(getattr(self.config.performance, "trace_latency", True))
+        self._slow_log_ms = int(getattr(self.config.performance, "slow_threshold_ms", 4000))
+        self._log_timing_breakdown = bool(
+            getattr(self.config.performance, "log_timing_breakdown", False)
+        )
+        self._agentchat_enabled = agentchat_enabled()
+        self._agentchat_router: Optional[AgentChatRouter] = None
+        self._agentchat_team_enabled = agentchat_team_enabled()
+        self._agentchat_team: Optional[AgentChatTeam] = None
+        self._agentchat_no_fallback = os.getenv("AGENTCHAT_NO_FALLBACK", "").lower() in {"1", "true", "yes", "on"}
         self._initialized = False
         self._init_lock = asyncio.Lock()
+
+        if self._agentchat_enabled:
+            self._agentchat_router = AgentChatRouter(
+                model_client=model_client,
+                knowledge_tool=self._tool_agentchat_knowledge,
+                rule_tool=self._tool_agentchat_rule,
+                text2sql_tool=self._tool_agentchat_text2sql,
+                workflow_tool=self._tool_agentchat_workflow,
+                memory_buffer_size=int(os.getenv("LLM_CTX_BUFFER_SIZE", "10")),
+            )
+        if self._agentchat_team_enabled:
+            self._agentchat_team = AgentChatTeam(
+                model_client=model_client,
+                knowledge_tool=self._tool_agentchat_knowledge,
+                rule_tool=self._tool_agentchat_rule,
+                text2sql_tool=self._tool_agentchat_text2sql,
+                workflow_tool=self._tool_agentchat_workflow,
+                memory_buffer_size=int(os.getenv("LLM_CTX_BUFFER_SIZE", "10")),
+            )
 
     def _resolve_connection_id(self, connection_id: Optional[int]) -> Optional[int]:
         """
@@ -326,7 +396,9 @@ class AgentService:
         force_text2sql: bool = False,
     ) -> Any:
         start = time.perf_counter()
+        trace = _PerfTrace(self._trace_latency, self._slow_log_ms)
         await self.initialize()
+        trace.mark("initialize")
         attachments = attachments or []
 
         # 尝试解析默认 connection_id（例如 Policy Demo MySQL）
@@ -337,7 +409,13 @@ class AgentService:
             effective_query,
             conversation_context,
             history_used,
-        ) = self._prepare_conversation_context(session_id, user_id, query)
+        ) = await self._prepare_conversation_context(session_id, user_id, query)
+        trace.mark("conversation_context")
+        conversation_meta = {
+            "history_used": history_used,
+            "history_turns": len(conversation_context.get("history", [])),
+            "is_new_session": conversation_context.get("is_new_session", True),
+        }
 
         # 0) 问候/闲聊快速检测：避免短句被 FAQ 模糊命中
         logging_manager.info("[AgentService] 接收到用户提问: %s", query)
@@ -345,29 +423,25 @@ class AgentService:
         if self._looks_like_greeting(query):
             logging_manager.info("[AgentService] 命中问候检测，直接走 dialogue route")
             final = self.dialogue_agent.respond("greeting")
-            session_store.add_answer(session_id, final)
-            metadata = final.metadata or {}
-            metadata.update(
-                {
-                    "route": "dialogue",
-                    "rewritten_query": query,
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "connection_id": connection_id,
-                    "conversation_context": {
-                        "history_used": history_used,
-                        "history_turns": len(conversation_context.get("history", [])),
-                        "is_new_session": conversation_context.get("is_new_session", True),
-                    },
-                }
+            trace.mark("agent:dialogue")
+            return await self._finalize_answer(
+                final=final,
+                route="dialogue",
+                intent_result={"intent": "greeting"},
+                rewritten_query=query,
+                session_id=session_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                conversation_context=conversation_meta,
+                domain_context=None,
+                attachments=attachments,
+                trace=trace,
+                start_time=start,
             )
-            final.metadata = metadata
-            final.total_processing_time = time.perf_counter() - start
-            self._ensure_route_and_citations(final)
-            return final
 
         # 1) FAQ 短路：优先用原始问题命中即可返回
         faq_final = self.faq_responder.maybe_answer(query)
+        trace.mark("faq_check")
         if faq_final:
             logging_manager.info(
                 "[AgentService] FAQ 命中 question=%s similarity=%.3f",
@@ -381,34 +455,87 @@ class AgentService:
             }
             route = "faq_cache"
             final = faq_final
-            # 立刻封装并返回，避免进入改写/意图等后续环节
-            session_store.add_answer(session_id, final)
-            metadata = final.metadata or {}
-            metadata.update(
-                {
-                    "route": route,
-                    "intent": intent_result,
-                    "rewritten_query": query,  # FAQ 命中时未改写
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "connection_id": connection_id,
-                    "conversation_context": {
-                        "history_used": history_used,
-                        "history_turns": len(conversation_context.get("history", [])),
-                        "is_new_session": conversation_context.get("is_new_session", True),
-                    },
-                }
+            trace.mark("agent:faq_cache")
+            return await self._finalize_answer(
+                final=final,
+                route=route,
+                intent_result=intent_result,
+                rewritten_query=query,
+                session_id=session_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                conversation_context=conversation_meta,
+                domain_context=None,
+                attachments=attachments,
+                trace=trace,
+                start_time=start,
             )
-            final.metadata = metadata
-            final.total_processing_time = time.perf_counter() - start
-            self._ensure_route_and_citations(final)
-            return final
+
+        # AgentChat 主路径：启用且非强制 text2sql 时直接交给 AgentChat（绕过改写/意图）
+        agentchat_primary = (self._agentchat_team_enabled or self._agentchat_enabled) and not force_text2sql
+        if agentchat_primary:
+            agentchat_meta: Dict[str, Any] = {}
+            agentchat_used = False
+            if self._agentchat_team_enabled:
+                team_final, team_meta = await self._agentchat_team.run(session_id or "default", effective_query)
+                if team_final:
+                    final = team_final
+                    route = "agentchat_team"
+                    agentchat_used = True
+                    agentchat_meta = team_meta
+                elif self._agentchat_no_fallback:
+                    final = FinalAnswer(
+                        query_id=uuid4(),
+                        answer="抱歉，当前智能路由不可用，请稍后再试。",
+                        sources=[],
+                        confidence=0.2,
+                        verification_passed=False,
+                        metadata={"route": "agentchat_team_error", "agentchat_meta": team_meta},
+                    )
+                    agentchat_used = True
+                    agentchat_meta = team_meta
+            if (not agentchat_used) and self._agentchat_enabled:
+                agentchat_final, ac_meta = await self._agentchat_router.run(session_id or "default", effective_query)
+                if agentchat_final:
+                    final = agentchat_final
+                    route = "agentchat"
+                    agentchat_used = True
+                    agentchat_meta = ac_meta
+                elif self._agentchat_no_fallback:
+                    final = FinalAnswer(
+                        query_id=uuid4(),
+                        answer="抱歉，当前智能路由不可用，请稍后再试。",
+                        sources=[],
+                        confidence=0.2,
+                        verification_passed=False,
+                        metadata={"route": "agentchat_router_error", "agentchat_meta": ac_meta},
+                    )
+                    agentchat_used = True
+                    agentchat_meta = ac_meta
+
+            if agentchat_used:
+                return await self._finalize_answer(
+                    final=final,
+                    route=route,
+                    intent_result={"intent": "agentchat"},
+                    rewritten_query=effective_query,
+                    session_id=session_id,
+                    user_id=user_id,
+                    connection_id=connection_id,
+                    conversation_context=conversation_meta,
+                    domain_context=None,
+                    attachments=attachments,
+                    trace=trace,
+                    start_time=start,
+                    agentchat_meta=agentchat_meta,
+                )
         else:
             rewritten_query = await self.rewrite_agent.rewrite(
                 effective_query,
                 context=conversation_context,
                 domain_hint=None,
             )
+            trace.mark("rewrite")
             logging_manager.info(
                 "[AgentService] 改写结果: %s -> %s",
                 query,
@@ -438,6 +565,7 @@ class AgentService:
                 )
                 if fast_route:
                     logging_manager.info("[AgentService] FastPath 命中 route=%s", fast_route)
+                    trace.mark("routing:fast_path")
                     intent_result = {
                         "intent": "fast_path",
                         "raw_query": query,
@@ -447,6 +575,7 @@ class AgentService:
                 else:
                     logging_manager.info("[AgentService] FastPath 未命中，调用意图检测")
                     intent_result = await self.intent_tool.detect(rewritten_query)
+                    trace.mark("intent_detection")
                     # 保存原始查询供路由逻辑使用
                     intent_result["raw_query"] = query
                     intent_result["domain_context"] = domain_context.to_metadata()
@@ -460,61 +589,105 @@ class AgentService:
 
             rewritten_for_metadata = rewritten_query
 
-            if route == "dialogue":
+            # AgentChat Team 优先，其次 AgentChat Router，最后回退原逻辑
+            agentchat_meta: Dict[str, Any] = {}
+            agentchat_used = False
+            if self._agentchat_team_enabled and route in {"knowledge", "rule_engine", "text2sql", "workflow"}:
+                team_final, team_meta = await self._agentchat_team.run(session_id or "default", rewritten_query)
+                if team_final:
+                    logging_manager.info("[AgentService] AgentChat Team 命中")
+                    final = team_final
+                    route = f"{route}+agentchat_team"
+                    rewritten_for_metadata = rewritten_query
+                    agentchat_used = True
+                    agentchat_meta = team_meta
+                elif self._agentchat_no_fallback:
+                    # 直接失败返回
+                    final = FinalAnswer(
+                        query_id=uuid4(),
+                        answer="抱歉，当前智能路由不可用，请稍后再试。",
+                        sources=[],
+                        confidence=0.2,
+                        verification_passed=False,
+                        metadata={"route": "agentchat_team_error", "agentchat_meta": team_meta},
+                    )
+                    agentchat_used = True
+                    agentchat_meta = team_meta
+            if (not agentchat_used) and self._agentchat_enabled and route in {"knowledge", "rule_engine", "text2sql", "workflow"}:
+                agentchat_final, ac_meta = await self._agentchat_router.run(
+                    session_id or "default", rewritten_query
+                )
+                if agentchat_final:
+                    logging_manager.info("[AgentService] AgentChat Router 命中，使用 agentchat 结果")
+                    final = agentchat_final
+                    route = f"{route}+agentchat"
+                    rewritten_for_metadata = rewritten_query
+                    agentchat_used = True
+                    agentchat_meta = ac_meta
+                elif self._agentchat_no_fallback:
+                    final = FinalAnswer(
+                        query_id=uuid4(),
+                        answer="抱歉，当前智能路由不可用，请稍后再试。",
+                        sources=[],
+                        confidence=0.2,
+                        verification_passed=False,
+                        metadata={"route": "agentchat_router_error", "agentchat_meta": ac_meta},
+                    )
+                    agentchat_used = True
+                    agentchat_meta = ac_meta
+
+            if agentchat_used:
+                pass  # 已得到 final
+            elif route == "dialogue":
                 final = self.dialogue_agent.respond(intent_result.get("intent", "chit_chat"))
+                trace.mark("agent:dialogue")
             elif route == "clarify":
                 # 追问场景下根据原始问题 + 领域元数据，按缺失槽位选择固定模板，不再回显内部拼接的历史上下文
                 final = self.clarifier_agent.ask(query, domain_context.to_metadata())
+                trace.mark("agent:clarify")
             elif route == "rule_engine":
                 # 规则计算场景下，优先保留改写后的业务表述，同时附加本轮用户补充信息，避免丢失价格/能效等槽位
                 combined_query = rewritten_query
                 if query and query not in combined_query:
                     combined_query = f"{rewritten_query}\n\n用户补充信息：{query}"
                 final = await self.rule_agent.compute(combined_query, intent=intent_result)
+                trace.mark("agent:rule_engine")
             elif route == "text2sql":
                 final = await self.text2sql_agent.answer(query, connection_id=connection_id)
                 rewritten_for_metadata = query
+                trace.mark("agent:text2sql")
             elif route == "graph":
                 final = await self.graph_agent.answer(rewritten_query, intent=intent_result)
+                trace.mark("agent:graph")
             elif route == "workflow":
                 final = await self.workflow_agent.answer(
                     rewritten_query,
                     attachments=attachments,
                     intent=intent_result,
                 )
+                trace.mark("agent:workflow")
             else:  # knowledge 默认
                 final = await self.knowledge_agent.answer(
                     rewritten_query,
                     intent=intent_result,
                     domain_context=domain_context,
                 )
+                trace.mark("agent:knowledge")
 
-        session_store.add_answer(session_id, final)
-
-        metadata = final.metadata or {}
-        metadata.update(
-            {
-                "route": route,
-                "intent": intent_result,
-                "routing_debug": getattr(self, "_routing_debug", []),
-                "rewritten_query": rewritten_for_metadata,
-                "session_id": session_id,
-                "user_id": user_id,
-                "connection_id": connection_id,
-                "conversation_context": {
-                    "history_used": history_used,
-                    "history_turns": len(conversation_context.get("history", [])),
-                    "is_new_session": conversation_context.get("is_new_session", True),
-                },
-                "domain_context": domain_context.to_metadata(),
-            }
+        return await self._finalize_answer(
+            final=final,
+            route=route,
+            intent_result=intent_result,
+            rewritten_query=rewritten_for_metadata,
+            session_id=session_id,
+            user_id=user_id,
+            connection_id=connection_id,
+            conversation_context=conversation_meta,
+            domain_context=domain_context,
+            attachments=attachments,
+            trace=trace,
+            start_time=start,
         )
-        if attachments:
-            metadata.setdefault("attachments", [att.model_dump() for att in attachments])
-        final.metadata = metadata
-        final.total_processing_time = time.perf_counter() - start
-        self._ensure_route_and_citations(final)
-        return final
 
     async def ingest_paths(self, paths: List[str]) -> Dict[str, int]:
         batch: List[PolicyDocument] = []
@@ -661,29 +834,23 @@ class AgentService:
         self._routing_debug.append("fallback=>knowledge")
         return "knowledge"
 
-    def _prepare_conversation_context(
+    async def _prepare_conversation_context(
         self,
         session_id: Optional[str],
         user_id: Optional[str],
         query: str,
     ) -> Tuple[str, str, Dict[str, Any], bool]:
-        """Ensure session presence, record用户查询并返回上下文/增强后的查询。"""
+        """Ensure session presence, record用户查询，并用 AgentChat memory 构造上下文。"""
 
         default_context: Dict[str, Any] = {"history": [], "is_new_session": True}
         try:
-            sid, _ = session_store.create_or_update_session(session_id, user_id)
-            context_payload = session_store.get_context(sid, current_query=query)
-            user_query = UserQuery(
-                text=query,
-                session_id=sid,
-                user_id=user_id,
-                context=context_payload,
-            )
-            session_store.add_query(sid, user_query)
-            # 历史仅作为后续 Agent 的参考上下文，不再直接拼入用户原始问题，
-            # 避免改写阶段改变“最后一问”的语义。
-            _, history_used = self._augment_query_with_history(query, context_payload)
-            return sid, query, context_payload, history_used
+            sid, new_or_existing = session_store.create_or_update_session(session_id, user_id)
+            context_payload = {"history": [], "is_new_session": new_or_existing.get("query_count", 0) == 0}
+            # 记录用户消息到 AutoGen Memory
+            await autogen_memory_store.add_user_message(sid, query)
+            # 以 AutoGen memory 为唯一来源构造历史
+            augmented, history_used = self._augment_query_with_history(query, {}, session_id=sid)
+            return sid, augmented, context_payload, history_used
         except Exception as exc:  # pragma: no cover - defensive fallback
             logging_manager.warning("会话上下文处理失败：%s", exc)
             return session_id or "", query, default_context, False
@@ -693,34 +860,40 @@ class AgentService:
         query: str,
         context_payload: Dict[str, Any],
         max_snippets: int = 10,
+        session_id: Optional[str] = None,
     ) -> Tuple[str, bool]:
-        """Append recent multi-turn history to the query when available."""
+        """Append recent multi-turn history to the query using AutoGen memory as source."""
 
-        # 读取 .env 配置窗口（0 表示关闭记忆）
         try:
             from app.config import settings as _settings
             window = int(getattr(getattr(_settings, 'system', _settings), 'conversation_history_window', 5))
         except Exception:
             window = 5
 
-        history = context_payload.get("history") or []
-        if not history or window <= 0:
+        autogen_history: List[str] = []
+        if session_id:
+            try:
+                autogen_history = autogen_memory_store.get_recent_messages(
+                    session_id, limit=max_snippets
+                )
+            except Exception:
+                autogen_history = []
+
+        if (not autogen_history) or window <= 0:
             return query, False
 
         snippets: List[str] = []
         max_snippets = max(1, window * 2)
-        for item in history[-max_snippets:]:
-            text = (item.get("text") or "").strip()
+        for item in autogen_history[-max_snippets:]:
+            text = (item or "").strip()
             if not text:
                 continue
-            role = "用户" if item.get("type") == "query" else "助手"
-            snippets.append(f"{role}:{text}")
+            snippets.append(text)
 
         if not snippets:
             return query, False
 
         history_text = "\n".join(snippets)
-        # 简短问题直接改写成“历史+当前问题”结构，长问题则附加参考段落
         if len(query) <= 200:
             augmented = (
                 "请结合以下对话历史回答用户最新问题。\n"
@@ -1036,6 +1209,188 @@ class AgentService:
         # 多余空行压缩为单个空行
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
         return cleaned.strip()
+
+    # ========== AgentChat 工具封装 ==========
+
+    async def _tool_agentchat_knowledge(self, query: str) -> str:
+        import time
+        t0 = time.perf_counter()
+        try:
+            final = await self.knowledge_agent.answer(query)
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "knowledge_tool", "duration_ms": elapsed})
+            return final.answer or ""
+        except Exception as exc:
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "knowledge_tool", "duration_ms": elapsed, "error": str(exc)})
+            logging_manager.warning("AgentChat knowledge tool failed: %s", exc)
+            return "知识检索失败，请稍后重试。"
+
+    async def _tool_agentchat_rule(self, query: str) -> str:
+        import time
+        t0 = time.perf_counter()
+        try:
+            final = await self.rule_agent.compute(query, intent={"intent": "calculation"})
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed})
+            return final.answer or ""
+        except Exception as exc:
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed, "error": str(exc)})
+            logging_manager.warning("AgentChat rule tool failed: %s", exc)
+            return "规则计算失败，请提供更清晰的金额/能效信息。"
+
+    async def _tool_agentchat_text2sql(self, query: str) -> str:
+        import time
+        t0 = time.perf_counter()
+        try:
+            conn_id = self._resolve_connection_id(None)
+            final = await self.text2sql_agent.answer(query, connection_id=conn_id)
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "text2sql_tool", "duration_ms": elapsed})
+            return final.answer or ""
+        except Exception as exc:
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "text2sql_tool", "duration_ms": elapsed, "error": str(exc)})
+            logging_manager.warning("AgentChat text2sql tool failed: %s", exc)
+            return "数据库查询失败，请检查连接配置或问题是否包含表字段。"
+
+    async def _tool_agentchat_workflow(self, query: str) -> str:
+        import time
+        t0 = time.perf_counter()
+        try:
+            final = await self.workflow_agent.answer(
+                query, attachments=[], intent={"intent": "workflow"}
+            )
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "workflow_tool", "duration_ms": elapsed})
+            return final.answer or ""
+        except Exception as exc:
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "workflow_tool", "duration_ms": elapsed, "error": str(exc)})
+            logging_manager.warning("AgentChat workflow tool failed: %s", exc)
+            return "多模态/协作流程执行失败，请重试。"
+
+    async def _finalize_answer(
+        self,
+        *,
+        final,
+        route: str,
+        intent_result: Dict[str, Any],
+        rewritten_query: str,
+        session_id: str,
+        user_id: Optional[str],
+        connection_id: Optional[int],
+        conversation_context: Dict[str, Any],
+        domain_context,
+        attachments: List[Attachment],
+        trace: _PerfTrace,
+        start_time: float,
+        agentchat_meta: Optional[Dict[str, Any]] = None,
+    ):
+        session_store.add_answer(session_id, final)
+        # 同步写入 AutoGen Memory
+        if session_id:
+            try:
+                await autogen_memory_store.add_assistant_message(session_id, final.answer)
+            except Exception:
+                logging_manager.warning("AutoGen memory 记录助手回答失败", exc_info=True)
+
+        metadata = final.metadata or {}
+        metadata.update(
+            {
+                "route": route,
+                "intent": intent_result,
+                "routing_debug": getattr(self, "_routing_debug", []),
+                "agentchat_meta": agentchat_meta if agentchat_meta else None,
+                "agentchat_flags": {
+                    "team_enabled": self._agentchat_team_enabled,
+                    "router_enabled": self._agentchat_enabled,
+                    "memory_key": session_id,
+                },
+                "rewritten_query": rewritten_query,
+                "session_id": session_id,
+                "user_id": user_id,
+                "connection_id": connection_id,
+                "conversation_context": conversation_context,
+                "domain_context": domain_context.to_metadata()
+                if hasattr(domain_context, "to_metadata")
+                else None,
+            }
+        )
+        if agentchat_meta:
+            # 附加工具级耗时
+            if getattr(self, "_tool_metrics", None):
+                agentchat_meta["tool_metrics"] = getattr(self, "_tool_metrics")
+            metadata["agentchat_meta"] = agentchat_meta
+        if attachments:
+            metadata.setdefault("attachments", [att.model_dump() for att in attachments])
+        timing = trace.summary() if trace else {}
+        if timing:
+            metadata["timings_ms"] = timing
+
+        final.metadata = metadata
+        final.total_processing_time = time.perf_counter() - start_time
+        self._ensure_route_and_citations(final)
+
+        if timing and timing.get("total_ms", 0) >= trace.slow_threshold_ms:
+            logging_manager.info(
+                "[AgentService] 慢请求 %.1f ms route=%s stages=%s",
+                timing["total_ms"],
+                route,
+                timing.get("stages"),
+            )
+        elif timing and getattr(self, "_log_timing_breakdown", False):
+            logging_manager.info(
+                "[AgentService] 请求耗时 %.1f ms route=%s stages=%s",
+                timing["total_ms"],
+                route,
+                timing.get("stages"),
+            )
+
+        return final
+
+    async def process_query_stream(
+        self,
+        query: str,
+        *,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        connection_id: Optional[int] = None,
+        attachments: Optional[List[Attachment]] = None,
+        force_text2sql: bool = False,
+    ):
+        """
+        Streamed processing via AgentChat Team/Router when enabled.
+        Yields dicts: {"type": "chunk", "content": "..."} or {"type": "final", "answer": FinalAnswer, "meta": {...}}.
+        """
+        attachments = attachments or []
+        # 如果未开启 AgentChat 流式，直接走普通处理
+        if not (getattr(self, "_agentchat_team_enabled", False) or getattr(self, "_agentchat_enabled", False)):
+            final = await self.process_query(
+                query,
+                session_id=session_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                attachments=attachments,
+                force_text2sql=force_text2sql,
+            )
+            yield {"type": "final", "answer": final, "meta": final.metadata or {}}
+            return
+
+        sid = session_id or "stream_default"
+        # 记录用户消息到 memory，保持与常规路径一致
+        await autogen_memory_store.add_user_message(sid, query)
+
+        if getattr(self, "_agentchat_team_enabled", False):
+            async for evt in self._agentchat_team.run_stream(sid, query):
+                yield evt
+            return
+
+        if getattr(self, "_agentchat_enabled", False):
+            async for evt in self._agentchat_router.run_stream(sid, query):
+                yield evt
+            return
 
 
 __all__ = ["AgentService"]

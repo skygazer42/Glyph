@@ -149,58 +149,113 @@ async def agent_chat_stream(
             }
 
             logger.info(f"会话 {session_id} 开始流式问答")
-            final = await agent_service.process_query(
-                request.message,
-                session_id=session_id,
-                user_id=request.user_id,
-                connection_id=request.connection_id,
-                attachments=request.attachments,
-                force_text2sql=request.text2sql_mode,
-            )
+            # 若开启 AgentChat 流式，优先尝试流式；否则回退一次性推送
+            use_agentchat_stream = os.getenv("AGENTCHAT_STREAM_ENABLED", "").lower() in {"1", "true", "yes", "on"}
+            if use_agentchat_stream and getattr(agent_service, "_agentchat_team_enabled", False):
+                async for evt in agent_service.process_query_stream(
+                    request.message,
+                    session_id=session_id,
+                    user_id=request.user_id,
+                    connection_id=request.connection_id,
+                    attachments=request.attachments,
+                    force_text2sql=request.text2sql_mode,
+                ):
+                    if evt.get("type") == "chunk":
+                        chunk = ChatStreamChunk(
+                            content=evt.get("content", ""),
+                            done=False,
+                            session_id=session_id,
+                            metadata={},
+                        )
+                        yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
+                    elif evt.get("type") == "final":
+                        final = evt["answer"]
+                        full_metadata = final.metadata or {}
+                        full_metadata.update({"confidence": final.confidence})
+                        # 推送最终内容
+                        chunk = ChatStreamChunk(
+                            content=final.answer,
+                            done=False,
+                            session_id=session_id,
+                            metadata=full_metadata,
+                        )
+                        yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
 
-            # 发送内容片段（一次性推送最终答案）
-            full_metadata = final.metadata or {}
-            full_metadata.update({"confidence": final.confidence})
-            chunk = ChatStreamChunk(
-                content=final.answer,
-                done=False,
-                session_id=session_id,
-                metadata=full_metadata,
-            )
-            yield {
-                "event": "message",
-                "data": chunk.model_dump_json(ensure_ascii=False)
-            }
+                        session_manager.add_message(
+                            session_id,
+                            "assistant",
+                            final.answer,
+                            metadata=full_metadata,
+                        )
 
-            # 添加助手完整响应到会话
-            session_manager.add_message(
-                session_id,
-                "assistant",
-                final.answer,
-                metadata=full_metadata,
-            )
+                        done_metadata = dict(full_metadata)
+                        done_metadata.update(
+                            {
+                                "message_count": session.message_count,
+                                "total_length": len(final.answer),
+                            }
+                        )
+                        done_chunk = ChatStreamChunk(
+                            content="",
+                            done=True,
+                            session_id=session_id,
+                            metadata=done_metadata,
+                        )
+                        yield {"event": "done", "data": done_chunk.model_dump_json(ensure_ascii=False)}
+                        logger.info(f"会话 {session_id} 流式问答完成 (agentchat_stream)")
+            else:
+                final = await agent_service.process_query(
+                    request.message,
+                    session_id=session_id,
+                    user_id=request.user_id,
+                    connection_id=request.connection_id,
+                    attachments=request.attachments,
+                    force_text2sql=request.text2sql_mode,
+                )
 
-            # 发送完成信号
-            done_metadata = dict(full_metadata)
-            done_metadata.update(
-                {
-                    "message_count": session.message_count,
-                    "total_length": len(final.answer),
+                # 发送内容片段（一次性推送最终答案）
+                full_metadata = final.metadata or {}
+                full_metadata.update({"confidence": final.confidence})
+                chunk = ChatStreamChunk(
+                    content=final.answer,
+                    done=False,
+                    session_id=session_id,
+                    metadata=full_metadata,
+                )
+                yield {
+                    "event": "message",
+                    "data": chunk.model_dump_json(ensure_ascii=False)
                 }
-            )
-            done_chunk = ChatStreamChunk(
-                content="",
-                done=True,
-                session_id=session_id,
-                metadata=done_metadata,
-            )
 
-            yield {
-                "event": "done",
-                "data": done_chunk.model_dump_json(ensure_ascii=False)
-            }
+                # 添加助手完整响应到会话
+                session_manager.add_message(
+                    session_id,
+                    "assistant",
+                    final.answer,
+                    metadata=full_metadata,
+                )
 
-            logger.info(f"会话 {session_id} 流式问答完成")
+                # 发送完成信号
+                done_metadata = dict(full_metadata)
+                done_metadata.update(
+                    {
+                        "message_count": session.message_count,
+                        "total_length": len(final.answer),
+                    }
+                )
+                done_chunk = ChatStreamChunk(
+                    content="",
+                    done=True,
+                    session_id=session_id,
+                    metadata=done_metadata,
+                )
+
+                yield {
+                    "event": "done",
+                    "data": done_chunk.model_dump_json(ensure_ascii=False)
+                }
+
+                logger.info(f"会话 {session_id} 流式问答完成")
 
         except Exception as e:
             import traceback
