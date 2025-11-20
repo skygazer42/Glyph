@@ -1,8 +1,9 @@
-"""AgentChat Team orchestration (UserProxy + Router Assistant)."""
+"""AgentChat Team: UserProxy + Router Assistant with tools."""
 
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Callable, Dict, Optional, Tuple
 from uuid import uuid4
 
@@ -12,19 +13,17 @@ from autogen_agentchat.messages import TextMessage, ModelClientStreamingChunkEve
 from autogen_core.model_context import BufferedChatCompletionContext
 
 from app.agents.framework.common import autogen_memory_store
-from app.config import settings
 from app.models.base import FinalAnswer
 
 
 class AgentChatTeam:
-    """UserProxy -> Router Assistant (with tools) using AgentChat Team."""
-
     SYSTEM_PROMPT = (
-        "你是政策问答工具调度助手，只做两件事：\n"
-        "1) 判断应调用哪一个工具：knowledge_tool（内容/流程/依据）、rule_tool（补贴资格与金额计算）、"
-        "text2sql_tool（数据库查询）、workflow_tool（多模态/档案/流程协作）。\n"
-        "2) 调用后把工具结果整理成简洁答案，保留金额/条件/流程要点。\n"
-        "失败时要明确说明原因并给出下一步建议，不要空回复。"
+        "你是政策问答的工具调度助手，必须选择唯一工具并直接给出答案：\n"
+        " knowledge_tool（政策内容/流程/依据）、rule_tool（补贴资格/金额）、\n"
+        " text2sql_tool（数据库查询）、workflow_tool（多模态/档案/流程协作）。\n"
+        "政策解释/流程优先使用 knowledge_tool；仅当用户提供价格/能效/数量等可计算要素时才调用 rule_tool，"
+        "text2sql 仅用于显式数据库/表字段问题，workflow 仅处理多模态或跨档案流程。\n"
+        "调用后整理简洁答案（金额/条件/流程要点），失败时说明原因并给出下一步建议。"
     )
 
     def __init__(
@@ -41,44 +40,49 @@ class AgentChatTeam:
         self._make_tools = [knowledge_tool, rule_tool, text2sql_tool, workflow_tool]
         self._buffer_size = memory_buffer_size
         self._teams: Dict[str, RoundRobinGroupChat] = {}
+        self._reflect_on_tool_use = os.getenv("AGENTCHAT_REFLECT", "").lower() in {"1", "true", "yes", "on"}
+        self._max_tool_iterations = int(os.getenv("AGENTCHAT_MAX_TOOL_ITERATIONS", "1") or "1")
 
     async def _build_context(self, session_id: str) -> BufferedChatCompletionContext:
         try:
-            return await autogen_memory_store.build_buffered_context(
-                session_id, buffer_size=self._buffer_size
-            )
+            return await autogen_memory_store.build_buffered_context(session_id, buffer_size=self._buffer_size)
         except Exception:
             return BufferedChatCompletionContext(buffer_size=self._buffer_size)
 
     async def _ensure_team(self, session_id: str) -> RoundRobinGroupChat:
-        team = self._teams.get(session_id)
+        # Agent 名称必须是合法的 python identifier，简单清洗 session_id
+        safe_id = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in session_id)
+        if not safe_id or safe_id[0].isdigit():
+            safe_id = f"sess_{safe_id}"
+
+        team = self._teams.get(safe_id)
         if team:
             return team
 
         ctx = await self._build_context(session_id)
 
         router = AssistantAgent(
-            name=f"router-{session_id}",
+            name=f"router_{safe_id}",
             system_message=self.SYSTEM_PROMPT,
             model_client=self._model_client,
             tools=self._make_tools,
             model_context=ctx,
-            reflect_on_tool_use=True,
-            max_tool_iterations=2,
+            reflect_on_tool_use=self._reflect_on_tool_use,
+            max_tool_iterations=max(1, self._max_tool_iterations),
         )
 
-        user = UserProxyAgent(name=f"user-{session_id}")
-
-        team = RoundRobinGroupChat(
-            participants=[user, router],
-            max_turns=2,
+        # 禁止在后端终端里等待人工输入，API 场景下直接返回空串
+        user = UserProxyAgent(
+            name=f"user_{safe_id}",
+            description="api_user",
+            input_func=lambda prompt: "",
         )
-        self._teams[session_id] = team
+
+        team = RoundRobinGroupChat(participants=[user, router], max_turns=2)
+        self._teams[safe_id] = team
         return team
 
     async def run(self, session_id: str, query: str) -> Tuple[Optional[FinalAnswer], Dict[str, Any]]:
-        import time
-
         t0 = time.perf_counter()
         team = await self._ensure_team(session_id)
         debug: Dict[str, Any] = {"agentchat_team": True, "memory_key": session_id}
@@ -122,16 +126,10 @@ class AgentChatTeam:
         return traces
 
     async def run_stream(self, session_id: str, query: str):
-        """
-        Streaming wrapper over RoundRobinGroupChat.run_stream.
-        Yields dicts: {"type": "chunk", "content": "..."} and final {"type": "final", "answer": FinalAnswer, "meta": {...}}.
-        """
-        import time
-
         t0 = time.perf_counter()
         team = await self._ensure_team(session_id)
         debug: Dict[str, Any] = {"agentchat_team": True, "memory_key": session_id}
-        final_content: List[str] = []
+        final_content: list[str] = []
         meta: Dict[str, Any] = {}
         try:
             stream = team.run_stream(task=TextMessage(content=query, source="user"))
@@ -141,10 +139,9 @@ class AgentChatTeam:
                     if chunk:
                         final_content.append(chunk)
                         yield {"type": "chunk", "content": chunk}
-                # TaskResult will come last; collect after loop
         except Exception as exc:
             debug["error"] = str(exc)
-            meta.update(debug)
+            debug["duration_ms"] = round((time.perf_counter() - t0) * 1000, 2)
             yield {
                 "type": "final",
                 "answer": FinalAnswer(
@@ -153,13 +150,12 @@ class AgentChatTeam:
                     sources=[],
                     confidence=0.2,
                     verification_passed=False,
-                    metadata={"route": "agentchat_team_error", "agentchat_meta": meta},
+                    metadata={"route": "agentchat_team_error", "agentchat_meta": debug},
                 ),
-                "meta": meta,
+                "meta": debug,
             }
             return
 
-        # 若有 chunk，直接拼接作为最终答案；否则跑一次非流式兜底
         if final_content:
             joined = "".join(final_content).strip()
             meta_final = {

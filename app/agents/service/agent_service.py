@@ -44,6 +44,7 @@ from app.persistence.db.session import SessionLocal
 from app.persistence import crud
 
 import logging
+from app.core.llms import model_client
 from app.core.logging_manager import UTF8JsonFormatter
 
 _LOGGING_CONFIGURED = False
@@ -397,6 +398,8 @@ class AgentService:
     ) -> Any:
         start = time.perf_counter()
         trace = _PerfTrace(self._trace_latency, self._slow_log_ms)
+        # 初始化工具耗时记录（agentchat 工具使用）
+        self._tool_metrics = []
         await self.initialize()
         trace.mark("initialize")
         attachments = attachments or []

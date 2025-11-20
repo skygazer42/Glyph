@@ -4,6 +4,7 @@ Agent 问答相关端点
 """
 
 import json
+import os
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
