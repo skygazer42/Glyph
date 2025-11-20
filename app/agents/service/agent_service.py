@@ -210,6 +210,7 @@ class AgentService:
             self._agentchat_router = AgentChatRouter(
                 model_client=model_client,
                 knowledge_tool=self._tool_agentchat_knowledge,
+                graph_tool=self._tool_agentchat_graph,
                 rule_tool=self._tool_agentchat_rule,
                 text2sql_tool=self._tool_agentchat_text2sql,
                 workflow_tool=self._tool_agentchat_workflow,
@@ -219,6 +220,7 @@ class AgentService:
             self._agentchat_team = AgentChatTeam(
                 model_client=model_client,
                 knowledge_tool=self._tool_agentchat_knowledge,
+                graph_tool=self._tool_agentchat_graph,
                 rule_tool=self._tool_agentchat_rule,
                 text2sql_tool=self._tool_agentchat_text2sql,
                 workflow_tool=self._tool_agentchat_workflow,
@@ -910,6 +912,28 @@ class AgentService:
         q = query.lower()
         return any(keyword in q for keyword in self.SQL_KEYWORDS)
 
+    def _looks_like_calculation(self, query: str) -> bool:
+        """Rudimentary check whether the query asks for numeric subsidy calculation."""
+        q = (query or "").lower()
+        money_keywords = [
+            "多少钱",
+            "补贴多少",
+            "补贴金额",
+            "能补贴",
+            "返现",
+            "金额",
+            "单价",
+            "售价",
+            "价格",
+            "费用",
+            "元",
+            "rmb",
+            "price",
+            "cost",
+        ]
+        has_number = bool(re.search(r"[0-9]+", q))
+        return has_number or any(kw in q for kw in money_keywords)
+
     def _looks_like_user_history(self, query: str) -> bool:
         keywords = [
             "历史查询",
@@ -1140,6 +1164,16 @@ class AgentService:
             route_line = f"【路由】{route}"
         else:
             route_line = None
+        hide_agentchat_route = (
+            os.getenv("AGENTCHAT_HIDE_ROUTE", "false").lower() in {"1", "true", "yes", "on"}
+        )
+        if hide_agentchat_route and route and "agentchat" in route:
+            route_line = None
+        tool_line = None
+        if final.metadata:
+            tool_name = final.metadata.get("agentchat_tool") or final.metadata.get("primary_tool")
+            if tool_name:
+                tool_line = f"【工具】{tool_name}"
         citation_line = self._format_citation_block(final)
 
         blocks = []
@@ -1150,6 +1184,8 @@ class AgentService:
 
         if route_line:
             blocks.append(route_line)
+        if tool_line:
+            blocks.append(tool_line)
         if citation_line:
             blocks.append(citation_line)
         if not blocks:
@@ -1229,10 +1265,31 @@ class AgentService:
             logging_manager.warning("AgentChat knowledge tool failed: %s", exc)
             return "知识检索失败，请稍后重试。"
 
+    async def _tool_agentchat_graph(self, query: str) -> str:
+        import time
+        t0 = time.perf_counter()
+        try:
+            final = await self.graph_agent.answer(query)
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "graph_tool", "duration_ms": elapsed})
+            return final.answer or ""
+        except Exception as exc:
+            elapsed = round((time.perf_counter() - t0) * 1000, 2)
+            self._tool_metrics.append({"tool": "graph_tool", "duration_ms": elapsed, "error": str(exc)})
+            logging_manager.warning("AgentChat graph tool failed: %s", exc)
+            return "图谱/关系推理失败，请稍后再试或提供更具体的比较问题。"
+
     async def _tool_agentchat_rule(self, query: str) -> str:
         import time
         t0 = time.perf_counter()
         try:
+            if not self._looks_like_calculation(query):
+                # 缺少金额/数字类关键词，直接改走知识库回答
+                self._tool_metrics.append(
+                    {"tool": "rule_tool", "duration_ms": 0.0, "note": "fallback_to_knowledge"}
+                )
+                kb_final = await self.knowledge_agent.answer(query)
+                return kb_final.answer or "为保证准确性，请提供补贴计算所需的价格/能效信息。"
             final = await self.rule_agent.compute(query, intent={"intent": "calculation"})
             elapsed = round((time.perf_counter() - t0) * 1000, 2)
             self._tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed})

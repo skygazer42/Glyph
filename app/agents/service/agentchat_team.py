@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 from uuid import uuid4
@@ -19,9 +20,9 @@ from app.models.base import FinalAnswer
 class AgentChatTeam:
     SYSTEM_PROMPT = (
         "你是政策问答的工具调度助手，必须选择唯一工具并直接给出答案：\n"
-        " knowledge_tool（政策内容/流程/依据）、rule_tool（补贴资格/金额）、\n"
-        " text2sql_tool（数据库查询）、workflow_tool（多模态/档案/流程协作）。\n"
-        "政策解释/流程优先使用 knowledge_tool；仅当用户提供价格/能效/数量等可计算要素时才调用 rule_tool，"
+        " knowledge_tool（政策内容/流程/依据）、graph_tool（关系/对比/多文档融合）、\n"
+        " rule_tool（补贴资格/金额）、text2sql_tool（数据库查询）、workflow_tool（多模态/档案/流程协作）。\n"
+        "政策解释/流程优先使用 knowledge_tool；关系/对比/串讲类问题用 graph_tool；仅当用户提供价格/能效/数量等可计算要素时才调用 rule_tool，"
         "text2sql 仅用于显式数据库/表字段问题，workflow 仅处理多模态或跨档案流程。\n"
         "调用后整理简洁答案（金额/条件/流程要点），失败时说明原因并给出下一步建议。"
     )
@@ -31,13 +32,14 @@ class AgentChatTeam:
         *,
         model_client,
         knowledge_tool: Callable[[str], Any],
+        graph_tool: Callable[[str], Any],
         rule_tool: Callable[[str], Any],
         text2sql_tool: Callable[[str], Any],
         workflow_tool: Callable[[str], Any],
         memory_buffer_size: int = 10,
     ) -> None:
         self._model_client = model_client
-        self._make_tools = [knowledge_tool, rule_tool, text2sql_tool, workflow_tool]
+        self._make_tools = [knowledge_tool, graph_tool, rule_tool, text2sql_tool, workflow_tool]
         self._buffer_size = memory_buffer_size
         self._teams: Dict[str, RoundRobinGroupChat] = {}
         self._reflect_on_tool_use = os.getenv("AGENTCHAT_REFLECT", "").lower() in {"1", "true", "yes", "on"}
@@ -96,7 +98,10 @@ class AgentChatTeam:
         debug["stop_reason"] = result.stop_reason
         debug["duration_ms"] = round((time.perf_counter() - t0) * 1000, 2)
         debug["message_count"] = len(result.messages)
-        debug["tool_traces"] = self._extract_tool_traces(result.messages)
+        traces = self._extract_tool_traces(result.messages)
+        debug["tool_traces"] = traces
+        if traces.get("primary_tool"):
+            debug["primary_tool"] = traces["primary_tool"]
 
         content = ""
         for msg in reversed(result.messages):
@@ -111,7 +116,11 @@ class AgentChatTeam:
             sources=[],
             confidence=0.5,
             verification_passed=False,
-            metadata={"route": "agentchat_team", "agentchat_stop_reason": result.stop_reason},
+            metadata={
+                "route": "agentchat_team",
+                "agentchat_stop_reason": result.stop_reason,
+                "agentchat_tool": traces.get("primary_tool"),
+            },
             total_processing_time=0.0,
         )
         return final, debug
@@ -119,10 +128,24 @@ class AgentChatTeam:
     def _extract_tool_traces(self, messages) -> Dict[str, Any]:
         traces: Dict[str, Any] = {"calls": [], "count": 0}
         for msg in messages:
-            name = getattr(msg, "type", None) or getattr(msg, "__class__", None)
+            name = getattr(msg, "tool_name", None) or getattr(msg, "__class__", None)
+            text = str(msg)
             if isinstance(name, str) and "Tool" in name:
-                traces["calls"].append(str(msg))
+                traces["calls"].append(text)
                 traces["count"] += 1
+            elif "tool" in text.lower():
+                traces["calls"].append(text)
+                traces["count"] += 1
+            if not traces.get("primary_tool"):
+                candidate = None
+                if isinstance(name, str):
+                    candidate = name
+                else:
+                    m = re.search(r"tool_name='([^']+)'", text)
+                    if m:
+                        candidate = m.group(1)
+                if candidate and "tool" in candidate:
+                    traces["primary_tool"] = candidate
         return traces
 
     async def run_stream(self, session_id: str, query: str):
@@ -139,6 +162,8 @@ class AgentChatTeam:
                     if chunk:
                         final_content.append(chunk)
                         yield {"type": "chunk", "content": chunk}
+                if primary_tool is None and hasattr(evt, "tool_name"):
+                    primary_tool = getattr(evt, "tool_name", None)
         except Exception as exc:
             debug["error"] = str(exc)
             debug["duration_ms"] = round((time.perf_counter() - t0) * 1000, 2)
@@ -163,6 +188,7 @@ class AgentChatTeam:
                 "memory_key": session_id,
                 "duration_ms": round((time.perf_counter() - t0) * 1000, 2),
                 "stream_chunks": len(final_content),
+                "primary_tool": primary_tool,
             }
             full_final = FinalAnswer(
                 query_id=uuid4(),
@@ -170,7 +196,11 @@ class AgentChatTeam:
                 sources=[],
                 confidence=0.5,
                 verification_passed=False,
-                metadata={"route": "agentchat_team_stream", "agentchat_meta": meta_final},
+                metadata={
+                    "route": "agentchat_team_stream",
+                    "agentchat_meta": meta_final,
+                    "agentchat_tool": primary_tool,
+                },
             )
             yield {"type": "final", "answer": full_final, "meta": meta_final}
         else:
@@ -179,6 +209,8 @@ class AgentChatTeam:
                 meta_full["duration_ms"] = round((time.perf_counter() - t0) * 1000, 2)
                 meta_full["stream_chunks"] = len(final_content)
                 meta_full["memory_key"] = session_id
+                if primary_tool:
+                    meta_full["primary_tool"] = primary_tool
                 yield {"type": "final", "answer": full_final, "meta": meta_full}
             except Exception as exc:
                 meta["error_fallback"] = str(exc)

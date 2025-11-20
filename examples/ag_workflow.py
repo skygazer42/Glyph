@@ -7,10 +7,10 @@ from autogen_agentchat.conditions import TextMentionTermination, MaxMessageTermi
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_core import SingleThreadedAgentRuntime, MessageContext
+from autogen_core import SingleThreadedAgentRuntime
 import logging
 
-from app.agents.ag_prompt import (
+from examples.ag_prompt import (
     POLICY_ANSWER_PROMPT,
     POLICY_COMPARATOR_PROMPT,
     POLICY_QUERY_ANALYZER_PROMPT,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 from uuid import uuid4
@@ -18,10 +19,11 @@ from app.models.base import FinalAnswer
 class AgentChatRouter:
     SYSTEM_PROMPT = (
         "你是政策问答的工具调度助手，必须选择唯一工具并直接给出答案：\n"
-        " knowledge_tool（政策内容/流程/依据）；rule_tool（补贴资格/金额计算）；"
-        " text2sql_tool（数据库查询）；workflow_tool（多模态/档案/流程协作）。\n"
+        " knowledge_tool（政策内容/流程/依据）；graph_tool（关系/对比/多文档融合）；"
+        " rule_tool（补贴资格/金额计算）；text2sql_tool（数据库查询）；"
+        " workflow_tool（多模态/档案/流程协作）。\n"
         "优先使用 knowledge_tool 进行政策解读/流程；只有在用户提供金额/价格/能效等计算要素时才用 rule_tool；"
-        "text2sql 仅用于显式数据库/表字段查询，workflow 仅用于多模态/档案处理。\n"
+        "graph_tool 适用于政策关系/比较/串讲类问题；text2sql 仅用于显式数据库/表字段查询，workflow 仅用于多模态/档案处理。\n"
         "调用后整理简洁答案（金额/条件/流程要点），失败时说明原因并给出下一步建议。"
     )
 
@@ -30,6 +32,7 @@ class AgentChatRouter:
         *,
         model_client,
         knowledge_tool: Callable[[str], Any],
+        graph_tool: Callable[[str], Any],
         rule_tool: Callable[[str], Any],
         text2sql_tool: Callable[[str], Any],
         workflow_tool: Callable[[str], Any],
@@ -38,6 +41,7 @@ class AgentChatRouter:
         self._model_client = model_client
         self._make_tools = {
             "knowledge_tool": knowledge_tool,
+            "graph_tool": graph_tool,
             "rule_tool": rule_tool,
             "text2sql_tool": text2sql_tool,
             "workflow_tool": workflow_tool,
@@ -91,7 +95,10 @@ class AgentChatRouter:
         debug_meta["stop_reason"] = result.stop_reason
         debug_meta["duration_ms"] = round((time.perf_counter() - t0) * 1000, 2)
         debug_meta["message_count"] = len(result.messages)
-        debug_meta["tool_traces"] = self._extract_tool_traces(result.messages)
+        traces = self._extract_tool_traces(result.messages)
+        debug_meta["tool_traces"] = traces
+        if traces.get("primary_tool"):
+            debug_meta["primary_tool"] = traces["primary_tool"]
 
         content = ""
         for msg in reversed(result.messages):
@@ -106,7 +113,11 @@ class AgentChatRouter:
             sources=[],
             confidence=0.5,
             verification_passed=False,
-            metadata={"route": "agentchat", "agentchat_stop_reason": result.stop_reason},
+            metadata={
+                "route": "agentchat",
+                "agentchat_stop_reason": result.stop_reason,
+                "agentchat_tool": traces.get("primary_tool"),
+            },
             total_processing_time=0.0,
         )
         return final, debug_meta
@@ -114,10 +125,24 @@ class AgentChatRouter:
     def _extract_tool_traces(self, messages) -> Dict[str, Any]:
         traces: Dict[str, Any] = {"calls": [], "count": 0}
         for msg in messages:
-            name = getattr(msg, "type", None) or getattr(msg, "__class__", None)
+            name = getattr(msg, "tool_name", None) or getattr(msg, "__class__", None)
+            text = str(msg)
             if isinstance(name, str) and "Tool" in name:
-                traces["calls"].append(str(msg))
+                traces["calls"].append(text)
                 traces["count"] += 1
+            elif "tool" in text.lower():
+                traces["calls"].append(text)
+                traces["count"] += 1
+            if not traces.get("primary_tool"):
+                candidate = None
+                if isinstance(name, str):
+                    candidate = name
+                else:
+                    m = re.search(r"tool_name='([^']+)'", text)
+                    if m:
+                        candidate = m.group(1)
+                if candidate and "tool" in candidate:
+                    traces["primary_tool"] = candidate
         return traces
 
     async def run_stream(self, session_id: str, query: str):
@@ -125,6 +150,7 @@ class AgentChatRouter:
         agent = await self._ensure_agent(session_id)
         debug_meta: Dict[str, Any] = {"agentchat": True, "memory_key": session_id}
         chunks: list[str] = []
+        primary_tool: Optional[str] = None
         try:
             stream = agent.run_stream(task=query)
             async for evt in stream:
@@ -133,6 +159,9 @@ class AgentChatRouter:
                     if chunk:
                         chunks.append(chunk)
                         yield {"type": "chunk", "content": chunk}
+                # 捕捉工具事件，记录首个工具名
+                if primary_tool is None and hasattr(evt, "tool_name"):
+                    primary_tool = getattr(evt, "tool_name", None)
         except Exception as exc:
             debug_meta["error"] = str(exc)
             debug_meta["duration_ms"] = round((time.perf_counter() - t0) * 1000, 2)
@@ -157,6 +186,7 @@ class AgentChatRouter:
                 "memory_key": session_id,
                 "duration_ms": round((time.perf_counter() - t0) * 1000, 2),
                 "stream_chunks": len(chunks),
+                "primary_tool": primary_tool,
             }
             final = FinalAnswer(
                 query_id=uuid4(),
@@ -164,7 +194,11 @@ class AgentChatRouter:
                 sources=[],
                 confidence=0.5,
                 verification_passed=False,
-                metadata={"route": "agentchat_stream", "agentchat_meta": meta_full},
+                metadata={
+                    "route": "agentchat_stream",
+                    "agentchat_meta": meta_full,
+                    "agentchat_tool": primary_tool,
+                },
                 total_processing_time=0.0,
             )
             yield {"type": "final", "answer": final, "meta": meta_full}
@@ -174,6 +208,8 @@ class AgentChatRouter:
             meta_full["duration_ms"] = round((time.perf_counter() - t0) * 1000, 2)
             meta_full["stream_chunks"] = len(chunks)
             meta_full["memory_key"] = session_id
+            if primary_tool:
+                meta_full["primary_tool"] = primary_tool
             yield {"type": "final", "answer": final, "meta": meta_full}
 
 
