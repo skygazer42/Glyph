@@ -154,13 +154,9 @@
                 </li>
               </ul>
             </div>
-            <div v-if="message.metadata" class="message-meta">
-              <el-tag
-                v-if="message.metadata.route"
-                size="small"
-                type="info"
-              >
-                {{ message.metadata.route }}
+            <div v-if="getRouteLabel(message)" class="message-meta route-info">
+              <el-tag size="small" type="info">
+                路由：{{ getRouteLabel(message) }}
               </el-tag>
             </div>
             <Text2SQLResult
@@ -466,6 +462,14 @@ const getTools = (message) => {
   const tools = message?.metadata?.tools_used
   if (!Array.isArray(tools)) return []
   return tools.filter(Boolean)
+}
+
+// 路由标签
+const getRouteLabel = (message) => {
+  const meta = message?.metadata || {}
+  if (meta.route_display) return meta.route_display
+  if (meta.route) return meta.route
+  return ''
 }
 
 // 滚动到底部
@@ -1133,6 +1137,10 @@ onMounted(() => {
 
 .ref-origin {
   color: var(--el-text-color-secondary);
+}
+
+.route-info {
+  margin-top: 8px;
 }
 
 .message-text :deep(code) {

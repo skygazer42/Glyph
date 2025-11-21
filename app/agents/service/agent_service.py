@@ -1163,13 +1163,16 @@ class AgentService:
 
     def _ensure_route_and_citations(self, final) -> None:
         route = (final.metadata or {}).get("route") if hasattr(final, "metadata") else None
-        route_label = self.ROUTE_LABELS.get(route, "") if route else ""
-        if route and route_label:
-            route_line = f"【路由】{route} · {route_label}"
+        route_label = None
+        route_display = (final.metadata or {}).get("route_display") if hasattr(final, "metadata") else None
+        if route_display:
+            route_label = route_display
         elif route:
-            route_line = f"【路由】{route}"
-        else:
-            route_line = None
+            route_label = self.ROUTE_LABELS.get(route, route)
+
+        route_line = None
+        if route_label:
+            route_line = f"【路由】{route_label}"
         hide_agentchat_route = (
             os.getenv("AGENTCHAT_HIDE_ROUTE", "false").lower() in {"1", "true", "yes", "on"}
         )
@@ -1375,9 +1378,14 @@ class AgentService:
                 logging_manager.warning("AutoGen memory 记录助手回答失败", exc_info=True)
 
         metadata = final.metadata or {}
+        base_route = (route or "").split("+")[0] if route else None
         metadata.update(
             {
                 "route": route,
+                "route_chain": [
+                    {"key": seg, "label": self.ROUTE_LABELS.get(seg, seg)}
+                    for seg in (route.split("+") if route else [])
+                ],
                 "intent": intent_result,
                 "routing_debug": getattr(self, "_routing_debug", []),
                 "agentchat_meta": agentchat_meta if agentchat_meta else None,
@@ -1419,22 +1427,77 @@ class AgentService:
         if sources:
             metadata["sources"] = sources
 
-        # 轻量化工具轨迹
+        # 轻量化工具轨迹（高层能力说明）
         tools_used: list[str] = []
         meta_block = metadata.get("agentchat_meta") or {}
-        for candidate in [
-            metadata.get("agentchat_tool"),
-            metadata.get("primary_tool"),
-            meta_block.get("primary_tool"),
-        ]:
-            if candidate and candidate not in tools_used:
-                tools_used.append(candidate)
-        tool_traces = meta_block.get("tool_traces", {}) if isinstance(meta_block, dict) else {}
-        for candidate in tool_traces.get("calls", []) or []:
-            if isinstance(candidate, str) and candidate not in tools_used:
-                tools_used.append(candidate)
+
+        def _add(label: str) -> None:
+            if label and label not in tools_used:
+                tools_used.append(label)
+
+        # 1) 优先根据 AgentChat 选择的 primary_tool 判断
+        primary_tool = (
+            metadata.get("agentchat_tool")
+            or metadata.get("primary_tool")
+            or (meta_block.get("primary_tool") if isinstance(meta_block, dict) else None)
+        )
+        if isinstance(primary_tool, str):
+            key = primary_tool.lower()
+            if "knowledge" in key:
+                _add("知识库检索")
+            elif "graph" in key:
+                _add("知识图谱推理")
+            elif "rule" in key:
+                _add("规则计算")
+            elif "text2sql" in key or "sql" in key:
+                _add("Text2SQL 查询")
+            elif "workflow" in key:
+                _add("多模态工作流")
+
+        # 1.5) 结合工具耗时记录（tool_metrics）进一步还原能力类型
+        tool_metrics = meta_block.get("tool_metrics") if isinstance(meta_block, dict) else None
+        if isinstance(tool_metrics, list):
+            for item in tool_metrics:
+                tool_key = (item or {}).get("tool", "")
+                key = str(tool_key).lower()
+                if "knowledge_tool" in key:
+                    _add("知识库检索")
+                elif "graph_tool" in key:
+                    _add("知识图谱推理")
+                elif "rule_tool" in key:
+                    _add("规则计算")
+                elif "text2sql_tool" in key:
+                    _add("Text2SQL 查询")
+                elif "workflow_tool" in key:
+                    _add("多模态工作流")
+
+        # 2) 结合路由链补全（非 AgentChat 主路径时更明确）
+        route_text = route or ""
+        if "knowledge" in route_text:
+            _add("知识库检索")
+        if "graph" in route_text:
+            _add("知识图谱推理")
+        if "rule_engine" in route_text:
+            _add("规则计算")
+        if "text2sql" in route_text:
+            _add("Text2SQL 查询")
+        if "workflow" in route_text:
+            _add("多模态工作流")
+
+        # 3) 若只看到 AgentChat，而没有具体能力，标明协作式推理
+        if (self._agentchat_team_enabled or self._agentchat_enabled) and "agentchat" in route_text and not tools_used:
+            _add("AgentChat 协作")
+
+        # 4) 兜底：至少说明是对话生成
+        if not tools_used:
+            _add("对话生成")
+
+        metadata["tools_used"] = tools_used
+        # 基于工具推导人类可读的主路由标签
         if tools_used:
-            metadata["tools_used"] = tools_used
+            metadata["route_display"] = " + ".join(tools_used)
+        else:
+            metadata["route_display"] = self.ROUTE_LABELS.get(base_route or route, base_route or route)
 
         timing = trace.summary() if trace else {}
         if timing:

@@ -130,7 +130,7 @@ class AgentChatTeam:
         for msg in messages:
             name = getattr(msg, "tool_name", None) or getattr(msg, "__class__", None)
             text = str(msg)
-            if isinstance(name, str) and "Tool" in name:
+            if isinstance(name, str) and "tool" in name.lower():
                 traces["calls"].append(text)
                 traces["count"] += 1
             elif "tool" in text.lower():
@@ -144,7 +144,7 @@ class AgentChatTeam:
                     m = re.search(r"tool_name='([^']+)'", text)
                     if m:
                         candidate = m.group(1)
-                if candidate and "tool" in candidate:
+                if candidate and "tool" in candidate.lower():
                     traces["primary_tool"] = candidate
         return traces
 
@@ -154,6 +154,7 @@ class AgentChatTeam:
         debug: Dict[str, Any] = {"agentchat_team": True, "memory_key": session_id}
         final_content: list[str] = []
         meta: Dict[str, Any] = {}
+        primary_tool: Optional[str] = None
         try:
             stream = team.run_stream(task=TextMessage(content=query, source="user"))
             async for evt in stream:
