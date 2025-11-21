@@ -199,7 +199,6 @@ const clearAll = () => {
   fileList.value = []
   uploadedFiles.value = []
   emit('change', uploadedFiles.value)
-  ElMessage.success('已清空所有文件')
 }
 
 const formatFileSize = (size) => {

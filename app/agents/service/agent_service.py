@@ -139,6 +139,12 @@ class AgentService:
         "rule_engine": "RuleEngineAgent · DSL 补贴计算",
         "text2sql": "Text2SQLAgent · 结构化查询",
         "workflow": "WorkflowAgent · 多模态协作",
+        "agentchat": "AgentChat Router",
+        "agentchat_stream": "AgentChat Router · 流式",
+        "agentchat_team": "AgentChat Team",
+        "agentchat_team_stream": "AgentChat Team · 流式",
+        "agentchat_router_error": "AgentChat Router · 异常",
+        "agentchat_team_error": "AgentChat Team · 异常",
     }
 
     def __init__(
@@ -1171,9 +1177,13 @@ class AgentService:
             route_line = None
         tool_line = None
         if final.metadata:
-            tool_name = final.metadata.get("agentchat_tool") or final.metadata.get("primary_tool")
-            if tool_name:
-                tool_line = f"【工具】{tool_name}"
+            tools_used = final.metadata.get("tools_used")
+            if tools_used:
+                tool_line = "【工具】" + " / ".join(str(t) for t in tools_used if t)
+            else:
+                tool_name = final.metadata.get("agentchat_tool") or final.metadata.get("primary_tool")
+                if tool_name:
+                    tool_line = f"【工具】{tool_name}"
         citation_line = self._format_citation_block(final)
 
         blocks = []
@@ -1202,13 +1212,21 @@ class AgentService:
 
     def _format_citation_block(self, final) -> Optional[str]:
         sources = getattr(final, "sources", None) or []
+        if not sources:
+            meta_sources = (final.metadata or {}).get("sources") if hasattr(final, "metadata") else None
+            if isinstance(meta_sources, list):
+                sources = meta_sources
         lines: List[str] = []
         for doc in sources[:3]:
-            title = getattr(doc, "title", None) or "未知来源"
-            source = getattr(doc, "source", None) or ""
-            if not source and hasattr(doc, "metadata") and doc.metadata:
-                source = doc.metadata.get("path") or doc.metadata.get("origin") or ""
-            lines.append(f"- {title}（{source or '内部知识库'}）")
+            title = getattr(doc, "title", None) or (doc.get("title") if isinstance(doc, dict) else None) or "未知来源"
+            source = getattr(doc, "source", None) or (doc.get("origin") if isinstance(doc, dict) else None) or ""
+            path = None
+            if hasattr(doc, "metadata") and getattr(doc, "metadata", None):
+                path = doc.metadata.get("path") or doc.metadata.get("origin")
+            elif isinstance(doc, dict):
+                path = doc.get("path") or doc.get("origin")
+            ref = path or source or "内部知识库"
+            lines.append(f"- {title}（{ref}）")
         if not lines:
             meta = final.metadata or {}
             if meta.get("rule_id"):
@@ -1385,6 +1403,39 @@ class AgentService:
             metadata["agentchat_meta"] = agentchat_meta
         if attachments:
             metadata.setdefault("attachments", [att.model_dump() for att in attachments])
+
+        # 轻量化引用源，供前端展示参考文件
+        sources = []
+        for doc in (getattr(final, "sources", None) or [])[:5]:
+            meta = getattr(doc, "metadata", {}) or {}
+            sources.append(
+                {
+                    "title": getattr(doc, "title", None) or meta.get("title") or "未命名来源",
+                    "path": meta.get("path") or meta.get("origin") or "",
+                    "origin": getattr(doc, "source", None) or meta.get("source") or "",
+                    "chunk_idx": meta.get("chunk_idx"),
+                }
+            )
+        if sources:
+            metadata["sources"] = sources
+
+        # 轻量化工具轨迹
+        tools_used: list[str] = []
+        meta_block = metadata.get("agentchat_meta") or {}
+        for candidate in [
+            metadata.get("agentchat_tool"),
+            metadata.get("primary_tool"),
+            meta_block.get("primary_tool"),
+        ]:
+            if candidate and candidate not in tools_used:
+                tools_used.append(candidate)
+        tool_traces = meta_block.get("tool_traces", {}) if isinstance(meta_block, dict) else {}
+        for candidate in tool_traces.get("calls", []) or []:
+            if isinstance(candidate, str) and candidate not in tools_used:
+                tools_used.append(candidate)
+        if tools_used:
+            metadata["tools_used"] = tools_used
+
         timing = trace.summary() if trace else {}
         if timing:
             metadata["timings_ms"] = timing

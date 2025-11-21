@@ -120,6 +120,40 @@
               </div>
             </div>
             <div class="message-text" v-html="formatMessage(message.content)"></div>
+            <div
+              v-if="getTools(message).length"
+              class="ref-block"
+            >
+              <div class="ref-title">使用工具</div>
+              <ul class="ref-list">
+                <li
+                  v-for="(tool, idx) in getTools(message)"
+                  :key="idx"
+                  class="ref-item"
+                  :title="tool"
+                >
+                  <span class="ref-label">{{ tool }}</span>
+                </li>
+              </ul>
+            </div>
+            <div
+              v-if="getReferences(message).length"
+              class="ref-block"
+            >
+              <div class="ref-title">参考来源</div>
+              <ul class="ref-list">
+                <li
+                  v-for="(ref, idx) in getReferences(message)"
+                  :key="idx"
+                  class="ref-item"
+                  :title="ref.path || ref.origin || ref.title"
+                >
+                  <span class="ref-label">{{ ref.title || '引用' }}</span>
+                  <span class="ref-path" v-if="ref.path">{{ ref.path }}</span>
+                  <span class="ref-origin" v-else-if="ref.origin">{{ ref.origin }}</span>
+                </li>
+              </ul>
+            </div>
             <div v-if="message.metadata" class="message-meta">
               <el-tag
                 v-if="message.metadata.route"
@@ -414,6 +448,26 @@ const formatMessage = (text) => {
     .replace(/`(.*?)`/g, '<code>$1</code>')
 }
 
+// 提取引用信息
+const getReferences = (message) => {
+  const refs = message?.metadata?.sources
+  if (!Array.isArray(refs)) return []
+  return refs
+    .map((ref) => ({
+      title: ref.title || '',
+      path: ref.path || '',
+      origin: ref.origin || ''
+    }))
+    .filter((ref) => ref.title || ref.path || ref.origin)
+}
+
+// 提取工具信息
+const getTools = (message) => {
+  const tools = message?.metadata?.tools_used
+  if (!Array.isArray(tools)) return []
+  return tools.filter(Boolean)
+}
+
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
@@ -421,6 +475,78 @@ const scrollToBottom = () => {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
   })
+}
+
+// 轻量型吐字渲染器，提升“流式”观感
+const createTypewriterRenderer = (getTarget) => {
+  const STEP = 6
+  const INTERVAL = 18
+  let queue = ''
+  let timer = null
+  const resolvers = []
+
+  const resolveAll = () => {
+    while (resolvers.length) {
+      const resolve = resolvers.shift()
+      resolve?.()
+    }
+  }
+
+  const stop = () => {
+    if (timer) {
+      clearInterval(timer)
+      timer = null
+    }
+    resolveAll()
+  }
+
+  const tick = () => {
+    if (!queue) {
+      stop()
+      return
+    }
+
+    const target = getTarget()
+    if (!target) {
+      queue = ''
+      stop()
+      return
+    }
+
+    const chunk = queue.slice(0, STEP)
+    queue = queue.slice(STEP)
+    target.content += chunk
+    scrollToBottom()
+
+    if (!queue) {
+      stop()
+    }
+  }
+
+  const ensureTimer = () => {
+    if (!timer) {
+      timer = setInterval(tick, INTERVAL)
+    }
+  }
+
+  return {
+    push(text = '') {
+      if (!text) return
+      queue += text
+      ensureTimer()
+    },
+    async finish() {
+      if (!queue) return
+      return new Promise((resolve) => {
+        resolvers.push(resolve)
+        ensureTimer()
+      })
+    },
+    dispose() {
+      queue = ''
+      stop()
+    }
+  }
 }
 
 // 复制消息到剪贴板
@@ -492,9 +618,10 @@ const sendMessageStream = async (userMessage) => {
   loading.value = true
 
   let streamingSucceeded = false
+  const typewriter = createTypewriterRenderer(() => messages.value[assistantMessageIndex])
+  let aggregatedContent = ''
 
   try {
-    // 使用EventSource接收SSE流
     const url = `/api/agent/chat/stream`
     const resolvedUserId = getResolvedUserId()
     const payload = {
@@ -523,6 +650,7 @@ const sendMessageStream = async (userMessage) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'text/event-stream'
       },
       body: JSON.stringify(payload)
     })
@@ -531,68 +659,123 @@ const sendMessageStream = async (userMessage) => {
       throw new Error('请求失败')
     }
 
+    if (!response.body) {
+      throw new Error('浏览器不支持流式响应')
+    }
+
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let stopReading = false
+
+    const processSSEEvent = (rawEvent) => {
+      const lines = rawEvent.split(/\r?\n/)
+      let eventType = 'message'
+      const dataLines = []
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim()
+        if (!line) continue
+        if (line.startsWith('event:')) {
+          eventType = line.slice(6).trim() || 'message'
+          continue
+        }
+        if (line.startsWith('data:')) {
+          dataLines.push(line.slice(5).trim())
+        }
+      }
+
+      if (!dataLines.length) return null
+      const dataStr = dataLines.join('\n')
+
+      try {
+        const parsed = JSON.parse(dataStr)
+
+        if (parsed.error) {
+          throw new Error(parsed.error)
+        }
+
+        if (parsed.session_id && !sessionId.value) {
+          sessionId.value = parsed.session_id
+        }
+
+        if (eventType === 'session') {
+          return null
+        }
+
+        if (parsed.content) {
+          aggregatedContent += parsed.content
+          typewriter.push(parsed.content)
+        }
+
+        if (parsed.metadata) {
+          messages.value[assistantMessageIndex].metadata = parsed.metadata
+        }
+
+        if (parsed.done || eventType === 'done') {
+          return 'done'
+        }
+
+        return null
+      } catch (e) {
+        console.error('解析SSE数据失败:', e, dataStr)
+        return null
+      }
+    }
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
 
       buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() // 保留不完整的行
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.substring(6)
-          try {
-            const parsed = JSON.parse(data)
+      const segments = buffer.split(/\r?\n\r?\n/)
+      buffer = segments.pop() || ''
 
-            if (parsed.error) {
-              throw new Error(parsed.error)
-            }
-
-            // 更新会话ID
-            if (parsed.session_id && !sessionId.value) {
-              sessionId.value = parsed.session_id
-            }
-
-            // 更新消息内容
-            if (parsed.content) {
-              messages.value[assistantMessageIndex].content += parsed.content
-              scrollToBottom()
-            }
-
-            // 处理完成信号
-            if (parsed.done) {
-              if (parsed.metadata) {
-                messages.value[assistantMessageIndex].metadata = parsed.metadata
-              }
-              break
-            }
-          } catch (e) {
-            console.error('解析SSE数据失败:', e, data)
-          }
+      for (const rawEvent of segments) {
+        if (!rawEvent.trim()) continue
+        const status = processSSEEvent(rawEvent)
+        if (status === 'done') {
+          buffer = ''
+          stopReading = true
+          break
         }
+      }
+
+      if (stopReading) {
+        break
       }
     }
 
+    if (buffer.trim()) {
+      processSSEEvent(buffer)
+    }
+
+    await typewriter.finish()
+
+    const targetMessage = messages.value[assistantMessageIndex]
+    if (aggregatedContent && !targetMessage.content) {
+      targetMessage.content = aggregatedContent
+    }
+
     // 如果没有收到任何内容，显示错误
-    if (!messages.value[assistantMessageIndex].content) {
-      messages.value[assistantMessageIndex].content = '抱歉，没有收到回复。'
+    if (!targetMessage.content) {
+      targetMessage.content = '抱歉，没有收到回复。'
     }
 
     // 更新会话元数据
-    updateSessionMetadata(messages.value[assistantMessageIndex])
+    updateSessionMetadata(targetMessage)
     streamingSucceeded = true
 
   } catch (error) {
     console.error('流式发送消息失败:', error)
 
+    typewriter.dispose()
+
     // 更新错误消息
-    messages.value[assistantMessageIndex].content = '抱歉，我遇到了一些问题，请稍后再试。'
-    updateSessionMetadata(messages.value[assistantMessageIndex])
+    const targetMessage = messages.value[assistantMessageIndex]
+    targetMessage.content = '抱歉，我遇到了一些问题，请稍后再试。'
+    updateSessionMetadata(targetMessage)
   } finally {
     if (streamingSucceeded) {
       resetAttachments()
@@ -907,6 +1090,49 @@ onMounted(() => {
 .message-text {
   line-height: 1.6;
   word-break: break-word;
+}
+
+.ref-block {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.ref-title {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.ref-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ref-item {
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ref-label {
+  font-weight: 600;
+}
+
+.ref-path {
+  color: var(--el-text-color-secondary);
+  word-break: break-all;
+}
+
+.ref-origin {
+  color: var(--el-text-color-secondary);
 }
 
 .message-text :deep(code) {
