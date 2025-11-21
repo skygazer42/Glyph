@@ -486,6 +486,11 @@ class AgentService:
         attachments = self._resolve_session_attachments(session_id, query, attachments)
         # 记录当前请求的附件，供 AgentChat 工具（尤其 workflow_tool）使用
         self._agentchat_attachments = attachments
+        prefer_workflow_for_attachments = self._looks_like_multimodal_invoice_question(
+            original_query=query,
+            rewritten_query=effective_query,
+            attachments=attachments,
+        )
 
         conversation_meta = {
             "history_used": history_used,
@@ -549,6 +554,9 @@ class AgentService:
 
         # AgentChat 主路径：启用且非强制 text2sql 时直接交给 AgentChat（绕过改写/意图）
         agentchat_primary = (self._agentchat_team_enabled or self._agentchat_enabled) and not force_text2sql
+        if agentchat_primary and prefer_workflow_for_attachments:
+            logging_manager.info("[AgentService] 检测到附件输入，跳过 AgentChat，优先走 workflow 路径")
+            agentchat_primary = False
         if agentchat_primary:
             agentchat_meta: Dict[str, Any] = {}
             agentchat_used = False
@@ -1201,13 +1209,15 @@ class AgentService:
     ) -> bool:
         """
         判断是否属于“发票/票据/附件/图片”驱动的多模态问题：
-        - 明确上传了附件；
-        - 且问题或附件元数据中出现发票/票据/图片/截图/照片/附件等关键词。
+        - 只要有附件就直接视为多模态（确保附件被 workflow 读取）；
+        - 关键词匹配用于兼容旧逻辑，但不会阻止附件触发 workflow。
         这类问题应优先路由到 WorkflowAgent，由其串联视觉解析 + 规则计算。
         """
         if not attachments:
             return False
 
+        # 只要当前请求附带任何附件，一律优先走 workflow，确保能读取附件内容
+        # （即便缺少“发票/图片”等显式提示，也按多模态处理）
         text = f"{original_query} {rewritten_query}".strip()
         trigger_terms = ["发票", "票据", "票根", "小票", "凭证", "图片", "照片", "截图", "附件"]
         if any(term in text for term in trigger_terms):
@@ -1224,7 +1234,7 @@ class AgentService:
             combined = f"{meta_label} {att.path or ''} {att.url or ''}"
             if any(term in combined for term in trigger_terms):
                 return True
-        return False
+        return True
 
     def _needs_clarification(
         self,
