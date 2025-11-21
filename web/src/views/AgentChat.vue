@@ -1,5 +1,7 @@
 <template>
   <div class="agent-chat-container">
+    <!-- Main Content Area -->
+    <div class="main-content">
     <el-card class="chat-card">
       <template #header>
         <div class="card-header">
@@ -10,10 +12,17 @@
               @click="showSessionDrawer = true"
               class="session-toggle"
             >
-              会话列表
+              <el-icon><MenuIcon /></el-icon>
+              会话管理
             </el-button>
-            <el-icon size="24"><ChatDotRound /></el-icon>
-            <span class="title">AI 政策助手</span>
+            <div class="connection-status">
+              <el-tag :type="isConnected ? 'success' : 'danger'" effect="light">
+                {{ isConnected ? '已连接' : '未连接' }}
+              </el-tag>
+              <el-tag v-if="sessionId" type="info" size="small" effect="light">
+                会话: {{ sessionId.substring(0, 8) }}...
+              </el-tag>
+            </div>
           </div>
           <div class="header-right">
             <el-select
@@ -64,13 +73,7 @@
               :disabled="loading"
               style="margin-right: 10px"
             />
-            <el-tag :type="isConnected ? 'success' : 'danger'">
-              {{ isConnected ? '已连接' : '未连接' }}
-            </el-tag>
-            <el-tag v-if="sessionId" type="info" size="small">
-              会话: {{ sessionId.substring(0, 8) }}...
-            </el-tag>
-            <el-button
+              <el-button
               size="small"
               :icon="Delete"
               @click="clearChat"
@@ -84,11 +87,26 @@
 
       <!-- 聊天消息区域 -->
       <div class="chat-messages" ref="messagesContainer">
-        <el-empty
-          v-if="messages.length === 0"
-          description="开始和AI助手对话吧！"
-          :image-size="120"
-        />
+        <div v-if="messages.length === 0" class="empty-state">
+          <div class="empty-icon">
+            <el-icon><ChatDotRound /></el-icon>
+          </div>
+          <h3>开始您的政策咨询</h3>
+          <p>向AI助手提问任何政策相关问题，获取专业的解答和建议</p>
+          <div class="quick-questions">
+            <el-button
+              v-for="(question, index) in exampleQuestions.slice(0, 3)"
+              :key="index"
+              class="quick-question-btn"
+              @click="askExample(question)"
+              :disabled="loading"
+              size="small"
+              plain
+            >
+              {{ question }}
+            </el-button>
+          </div>
+        </div>
 
         <div
           v-for="(message, index) in messages"
@@ -121,26 +139,10 @@
             </div>
             <div class="message-text" v-html="formatMessage(message.content)"></div>
             <div
-              v-if="getTools(message).length"
-              class="ref-block"
-            >
-              <div class="ref-title">使用工具</div>
-              <ul class="ref-list">
-                <li
-                  v-for="(tool, idx) in getTools(message)"
-                  :key="idx"
-                  class="ref-item"
-                  :title="tool"
-                >
-                  <span class="ref-label">{{ tool }}</span>
-                </li>
-              </ul>
-            </div>
-            <div
               v-if="getReferences(message).length"
               class="ref-block"
             >
-              <div class="ref-title">参考来源</div>
+              <div class="ref-title">引用</div>
               <ul class="ref-list">
                 <li
                   v-for="(ref, idx) in getReferences(message)"
@@ -186,10 +188,12 @@
         <el-input
           v-model="inputMessage"
           type="textarea"
-          :rows="3"
+          :rows="2"
           placeholder="输入你的问题..."
           @keydown.ctrl.enter="sendMessage"
           :disabled="loading"
+          resize="none"
+          class="chat-input"
         />
 
         <div class="attachment-toolbar">
@@ -270,6 +274,7 @@
         @session-delete="handleSessionDelete"
       />
     </el-drawer>
+    </div> <!-- Close main-content -->
   </div>
 </template>
 
@@ -455,13 +460,6 @@ const getReferences = (message) => {
       origin: ref.origin || ''
     }))
     .filter((ref) => ref.title || ref.path || ref.origin)
-}
-
-// 提取工具信息
-const getTools = (message) => {
-  const tools = message?.metadata?.tools_used
-  if (!Array.isArray(tools)) return []
-  return tools.filter(Boolean)
 }
 
 // 路由标签
@@ -963,21 +961,33 @@ onMounted(() => {
 
 <style scoped>
 .agent-chat-container {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: var(--spacing-lg);
-  height: calc(100vh - 120px);
-  animation: fadeIn 0.4s ease;
+  height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  animation: fadeIn 0.6s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* Main Content Layout */
+.main-content {
+  display: flex;
+  gap: var(--spacing-md);
+  flex: 1;
+  height: 100%;
 }
 
 .chat-card {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   display: flex;
   flex-direction: column;
   height: 100%;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  box-shadow: var(--shadow-lg);
-  background: white;
 }
 
 .chat-card :deep(.el-card__body) {
@@ -992,18 +1002,41 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: linear-gradient(135deg, rgba(0, 82, 217, 0.05) 0%, rgba(200, 35, 44, 0.05) 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--spacing-md);
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--spacing-md);
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.session-toggle {
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
+  transition: all var(--transition-base);
+}
+
+.session-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 82, 217, 0.3);
 }
 
 .user-id-input {
@@ -1018,8 +1051,67 @@ onMounted(() => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-lg);
-  background: linear-gradient(to bottom, #fafbfc 0%, #f0f3f7 100%);
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-sm) var(--spacing-lg);
+  background: linear-gradient(to bottom, #fafbfc 0%, #f5f7fa 100%);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: var(--spacing-2xl);
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  background: var(--primary-gradient);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 32px;
+  margin-bottom: var(--spacing-xl);
+  box-shadow: 0 10px 30px rgba(0, 82, 217, 0.3);
+}
+
+.empty-state h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.empty-state p {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0 0 var(--spacing-xl) 0;
+  line-height: 1.6;
+  max-width: 500px;
+}
+
+.quick-questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  max-width: 400px;
+}
+
+.quick-question-btn {
+  text-align: left;
+  border: 1px solid rgba(0, 82, 217, 0.2);
+  color: var(--primary-color);
+  transition: all var(--transition-base);
+}
+
+.quick-question-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 82, 217, 0.05) 0%, rgba(200, 35, 44, 0.05) 100%);
+  border-color: var(--primary-color);
+  transform: translateX(4px);
 }
 
 .message-wrapper {
@@ -1038,11 +1130,11 @@ onMounted(() => {
 }
 
 .message-content {
-  max-width: 70%;
+  max-width: 80%;
   background: white;
   border-radius: var(--radius-lg);
-  padding: var(--spacing-md) var(--spacing-lg);
-  box-shadow: var(--shadow-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   transition: all var(--transition-base);
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
@@ -1053,9 +1145,10 @@ onMounted(() => {
 }
 
 .message-wrapper.user .message-content {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   color: white;
   border: none;
+  box-shadow: 0 10px 25px rgba(0, 82, 217, 0.3);
 }
 
 .message-header {
@@ -1167,10 +1260,10 @@ onMounted(() => {
 .typing-indicator span {
   width: 8px;
   height: 8px;
-  background: var(--primary-gradient);
+  background: var(--primary-color);
   border-radius: 50%;
   animation: typing 1.4s infinite;
-  box-shadow: 0 0 4px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 0 4px rgba(0, 82, 217, 0.5);
 }
 
 .typing-indicator span:nth-child(2) {
@@ -1191,14 +1284,14 @@ onMounted(() => {
 }
 
 .chat-input-area {
-  border-top: 1px solid var(--border-color);
-  padding: var(--spacing-lg);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding: var(--spacing-sm) var(--spacing-lg);
   background: linear-gradient(to top, #ffffff, #fafbfc);
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
 }
 
 .attachment-toolbar {
-  margin-top: var(--spacing-md);
+  margin-top: var(--spacing-sm);
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-md);
@@ -1214,15 +1307,37 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 0;
+}
+
+.chat-input :deep(.el-textarea__inner) {
+  font-size: 15px;
+  line-height: 1.5;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(0, 0, 0, 0.08);
+  transition: all var(--transition-base);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  min-height: 48px;
+}
+
+.chat-input :deep(.el-textarea__inner):focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(0, 82, 217, 0.1);
+  background: white;
 }
 
 .examples-card {
-  height: 100%;
-  overflow-y: auto;
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  background: white;
+  width: 320px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  height: fit-content;
 }
 
 .example-questions {
@@ -1243,18 +1358,79 @@ onMounted(() => {
 
 .example-btn:hover:not(:disabled) {
   border-color: var(--primary-color);
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+  background: linear-gradient(135deg, rgba(0, 82, 217, 0.05) 0%, rgba(200, 35, 44, 0.05) 100%);
   transform: translateX(4px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 12px rgba(0, 82, 217, 0.15);
 }
 
+/* Animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(3deg);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Responsive Design */
 @media (max-width: 1200px) {
-  .agent-chat-container {
-    grid-template-columns: 1fr;
+  .main-content {
+    padding: 0;
   }
 
   .examples-card {
     display: none;
+  }
+
+  .message-content {
+    max-width: 85%;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding: 0;
+  }
+
+  .card-header {
+    flex-direction: column;
+    gap: var(--spacing-md);
+    align-items: flex-start;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .message-content {
+    max-width: 90%;
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+
+  .quick-questions {
+    max-width: 100%;
   }
 }
 </style>

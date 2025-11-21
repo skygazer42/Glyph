@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@antv/x6": "^2.19.2",
     "@codemirror/lang-yaml": "^6.0.0",
     "@element-plus/icons-vue": "^2.3.1",
     "axios": "^1.6.0",

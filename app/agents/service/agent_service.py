@@ -211,6 +211,12 @@ class AgentService:
         self._agentchat_no_fallback = os.getenv("AGENTCHAT_NO_FALLBACK", "").lower() in {"1", "true", "yes", "on"}
         self._initialized = False
         self._init_lock = asyncio.Lock()
+        # AgentChat 辅助状态：最近一次工具调用的文档与当前/历史附件
+        self._last_agentchat_sources: List[PolicyDocument] = []
+        self._tool_metrics: List[Dict[str, Any]] = []
+        self._agentchat_attachments: List[Attachment] = []
+        # 会话级附件缓存，用于“根据上传的发票…”这类后续追问重用上一轮附件
+        self._session_attachments_store: Dict[str, List[Attachment]] = {}
 
         if self._agentchat_enabled:
             self._agentchat_router = AgentChatRouter(
@@ -221,7 +227,7 @@ class AgentService:
                 text2sql_tool=self._tool_agentchat_text2sql,
                 workflow_tool=self._tool_agentchat_workflow,
                 memory_buffer_size=int(os.getenv("LLM_CTX_BUFFER_SIZE", "10")),
-            )
+        )
         if self._agentchat_team_enabled:
             self._agentchat_team = AgentChatTeam(
                 model_client=model_client,
@@ -258,6 +264,59 @@ class AgentService:
             db.close()
 
         return None
+
+    def _resolve_session_attachments(
+        self,
+        session_id: Optional[str],
+        query: str,
+        attachments: Optional[List[Attachment]],
+    ) -> List[Attachment]:
+        """
+        根据当前请求与会话缓存解析附件：
+        - 本次请求显式携带附件：写入会话缓存并直接返回；
+        - 本次请求未携带附件，但用户语义上引用“上传的发票/图片/附件”等，
+          且该会话下已有缓存附件：复用上一轮附件；
+        - 其他情况：返回原始 attachments（通常为空）。
+        """
+        current = attachments or []
+
+        # 没有会话标识时，不做任何缓存逻辑
+        if not session_id:
+            return current
+
+        # 本轮有新附件：覆盖会话缓存
+        if current:
+            self._session_attachments_store[session_id] = list(current)
+            return current
+
+        # 本轮没有附件，但用户显式提到“上传的发票/图片/附件”等，尝试复用
+        text = (query or "").strip()
+        if not text:
+            return current
+
+        reuse_triggers = [
+            "上传的发票",
+            "这张发票",
+            "刚才的发票",
+            "上一张发票",
+            "上传的小票",
+            "上传的票据",
+            "上传的凭证",
+            "上传的图片",
+            "上传的截图",
+            "上传的照片",
+            "上传的附件",
+            "刚才上传的发票",
+            "根据发票",
+            "根据小票",
+            "根据票据",
+            "根据凭证",
+        ]
+        if any(term in text for term in reuse_triggers):
+            cached = self._session_attachments_store.get(session_id) or []
+            return list(cached)
+
+        return current
 
     async def initialize(self) -> None:
         if self._initialized:
@@ -422,6 +481,12 @@ class AgentService:
             history_used,
         ) = await self._prepare_conversation_context(session_id, user_id, query)
         trace.mark("conversation_context")
+
+        # 基于会话缓存解析附件：支持“根据上传的发票/图片”这类后续追问自动复用上一轮附件
+        attachments = self._resolve_session_attachments(session_id, query, attachments)
+        # 记录当前请求的附件，供 AgentChat 工具（尤其 workflow_tool）使用
+        self._agentchat_attachments = attachments
+
         conversation_meta = {
             "history_used": history_used,
             "history_turns": len(conversation_context.get("history", [])),
@@ -487,8 +552,14 @@ class AgentService:
         if agentchat_primary:
             agentchat_meta: Dict[str, Any] = {}
             agentchat_used = False
+            agentchat_error: Optional[str] = None
             if self._agentchat_team_enabled:
-                team_final, team_meta = await self._agentchat_team.run(session_id or "default", effective_query)
+                try:
+                    team_final, team_meta = await self._agentchat_team.run(session_id or "default", effective_query)
+                except Exception as exc:  # 防御性：AgentChat Team 失败时允许回退
+                    logging_manager.warning("AgentChat Team 调用失败，将尝试回退: %s", exc, exc_info=True)
+                    team_final, team_meta = None, {"error": str(exc)}
+
                 if team_final:
                     final = team_final
                     route = "agentchat_team"
@@ -505,8 +576,16 @@ class AgentService:
                     )
                     agentchat_used = True
                     agentchat_meta = team_meta
+                else:
+                    agentchat_error = (team_meta or {}).get("error")
+
             if (not agentchat_used) and self._agentchat_enabled:
-                agentchat_final, ac_meta = await self._agentchat_router.run(session_id or "default", effective_query)
+                try:
+                    agentchat_final, ac_meta = await self._agentchat_router.run(session_id or "default", effective_query)
+                except Exception as exc:  # 防御性：Router 失败时允许回退
+                    logging_manager.warning("AgentChat Router 调用失败，将尝试回退: %s", exc, exc_info=True)
+                    agentchat_final, ac_meta = None, {"error": str(exc)}
+
                 if agentchat_final:
                     final = agentchat_final
                     route = "agentchat"
@@ -523,6 +602,8 @@ class AgentService:
                     )
                     agentchat_used = True
                     agentchat_meta = ac_meta
+                else:
+                    agentchat_error = agentchat_error or (ac_meta or {}).get("error")
 
             if agentchat_used:
                 return await self._finalize_answer(
@@ -539,6 +620,36 @@ class AgentService:
                     trace=trace,
                     start_time=start,
                     agentchat_meta=agentchat_meta,
+                )
+            # AgentChat 未能产生结果且允许回退：直接走知识库主路径，避免 final 未定义错误
+            if not self._agentchat_no_fallback:
+                logging_manager.warning(
+                    "AgentChat 未产生结果，回退到知识库 pipeline，error=%s",
+                    agentchat_error,
+                )
+                route = "knowledge"
+                intent_result = {"intent": "knowledge_fallback", "from_agentchat": True}
+                rewritten_for_metadata = effective_query
+                domain_context = None
+                final = await self.knowledge_agent.answer(
+                    effective_query,
+                    intent=intent_result,
+                    domain_context=domain_context,
+                )
+                trace.mark("agent:knowledge_fallback")
+                return await self._finalize_answer(
+                    final=final,
+                    route=route,
+                    intent_result=intent_result,
+                    rewritten_query=rewritten_for_metadata,
+                    session_id=session_id,
+                    user_id=user_id,
+                    connection_id=connection_id,
+                    conversation_context=conversation_meta,
+                    domain_context=domain_context,
+                    attachments=attachments,
+                    trace=trace,
+                    start_time=start,
                 )
         else:
             rewritten_query = await self.rewrite_agent.rewrite(
@@ -603,7 +714,8 @@ class AgentService:
             # AgentChat Team 优先，其次 AgentChat Router，最后回退原逻辑
             agentchat_meta: Dict[str, Any] = {}
             agentchat_used = False
-            if self._agentchat_team_enabled and route in {"knowledge", "rule_engine", "text2sql", "workflow"}:
+            # 多模态 / workflow 场景直接由 WorkflowAgent 处理，避免再包一层 AgentChat
+            if self._agentchat_team_enabled and route in {"knowledge", "rule_engine", "text2sql"}:
                 team_final, team_meta = await self._agentchat_team.run(session_id or "default", rewritten_query)
                 if team_final:
                     logging_manager.info("[AgentService] AgentChat Team 命中")
@@ -624,7 +736,7 @@ class AgentService:
                     )
                     agentchat_used = True
                     agentchat_meta = team_meta
-            if (not agentchat_used) and self._agentchat_enabled and route in {"knowledge", "rule_engine", "text2sql", "workflow"}:
+            if (not agentchat_used) and self._agentchat_enabled and route in {"knowledge", "rule_engine", "text2sql"}:
                 agentchat_final, ac_meta = await self._agentchat_router.run(
                     session_id or "default", rewritten_query
                 )
@@ -1053,8 +1165,12 @@ class AgentService:
         attachments: List[Attachment],
         domain_meta: Dict[str, Any],
     ) -> Optional[str]:
-        # Attachments → workflow
-        if attachments and any(att.is_image() for att in attachments) and self.vision_tool.enabled:
+        # Attachments（尤其是发票/票据/图片等）优先走 workflow，多模态/档案协作统一由 WorkflowAgent 处理
+        if self._looks_like_multimodal_invoice_question(
+            original_query=original_query,
+            rewritten_query=rewritten_query,
+            attachments=attachments,
+        ):
             return "workflow"
         # SQL keywords → text2sql
         if self._looks_like_sql_question(rewritten_query) and connection_id:
@@ -1075,6 +1191,40 @@ class AgentService:
         if self._looks_like_policy_content_question(rewritten_query, domain_meta):
             return "knowledge"
         return None
+
+    def _looks_like_multimodal_invoice_question(
+        self,
+        *,
+        original_query: str,
+        rewritten_query: str,
+        attachments: List[Attachment],
+    ) -> bool:
+        """
+        判断是否属于“发票/票据/附件/图片”驱动的多模态问题：
+        - 明确上传了附件；
+        - 且问题或附件元数据中出现发票/票据/图片/截图/照片/附件等关键词。
+        这类问题应优先路由到 WorkflowAgent，由其串联视觉解析 + 规则计算。
+        """
+        if not attachments:
+            return False
+
+        text = f"{original_query} {rewritten_query}".strip()
+        trigger_terms = ["发票", "票据", "票根", "小票", "凭证", "图片", "照片", "截图", "附件"]
+        if any(term in text for term in trigger_terms):
+            return True
+
+        for att in attachments:
+            meta_label = ""
+            if att.metadata:
+                meta_label = str(
+                    att.metadata.get("label")
+                    or att.metadata.get("name")
+                    or ""
+                )
+            combined = f"{meta_label} {att.path or ''} {att.url or ''}"
+            if any(term in combined for term in trigger_terms):
+                return True
+        return False
 
     def _needs_clarification(
         self,
@@ -1162,31 +1312,6 @@ class AgentService:
         return any(t in text for t in eligibility_terms)
 
     def _ensure_route_and_citations(self, final) -> None:
-        route = (final.metadata or {}).get("route") if hasattr(final, "metadata") else None
-        route_label = None
-        route_display = (final.metadata or {}).get("route_display") if hasattr(final, "metadata") else None
-        if route_display:
-            route_label = route_display
-        elif route:
-            route_label = self.ROUTE_LABELS.get(route, route)
-
-        route_line = None
-        if route_label:
-            route_line = f"【路由】{route_label}"
-        hide_agentchat_route = (
-            os.getenv("AGENTCHAT_HIDE_ROUTE", "false").lower() in {"1", "true", "yes", "on"}
-        )
-        if hide_agentchat_route and route and "agentchat" in route:
-            route_line = None
-        tool_line = None
-        if final.metadata:
-            tools_used = final.metadata.get("tools_used")
-            if tools_used:
-                tool_line = "【工具】" + " / ".join(str(t) for t in tools_used if t)
-            else:
-                tool_name = final.metadata.get("agentchat_tool") or final.metadata.get("primary_tool")
-                if tool_name:
-                    tool_line = f"【工具】{tool_name}"
         citation_line = self._format_citation_block(final)
 
         blocks = []
@@ -1195,10 +1320,6 @@ class AgentService:
         if getattr(self.config, "answer_plain_output", False):
             answer_text = self._to_plain_text(answer_text)
 
-        if route_line:
-            blocks.append(route_line)
-        if tool_line:
-            blocks.append(tool_line)
         if citation_line:
             blocks.append(citation_line)
         if not blocks:
@@ -1214,11 +1335,15 @@ class AgentService:
             final.answer = self._to_plain_text(final.answer)
 
     def _format_citation_block(self, final) -> Optional[str]:
+        meta = final.metadata or {}
+        meta_sources = meta.get("sources")
+        # 如果元数据中已经提供了结构化引用（供前端展示），这里就不再追加文本版引用，避免重复
+        if isinstance(meta_sources, list) and meta_sources:
+            return None
+
         sources = getattr(final, "sources", None) or []
-        if not sources:
-            meta_sources = (final.metadata or {}).get("sources") if hasattr(final, "metadata") else None
-            if isinstance(meta_sources, list):
-                sources = meta_sources
+        if not sources and isinstance(meta_sources, list):
+            sources = meta_sources
         lines: List[str] = []
         for doc in sources[:3]:
             title = getattr(doc, "title", None) or (doc.get("title") if isinstance(doc, dict) else None) or "未知来源"
@@ -1277,6 +1402,8 @@ class AgentService:
         t0 = time.perf_counter()
         try:
             final = await self.knowledge_agent.answer(query)
+            # 记录最近一次 AgentChat 调用中使用的文档，供 _finalize_answer 回收
+            self._last_agentchat_sources = getattr(final, "sources", []) or []
             elapsed = round((time.perf_counter() - t0) * 1000, 2)
             self._tool_metrics.append({"tool": "knowledge_tool", "duration_ms": elapsed})
             return final.answer or ""
@@ -1291,6 +1418,7 @@ class AgentService:
         t0 = time.perf_counter()
         try:
             final = await self.graph_agent.answer(query)
+            self._last_agentchat_sources = getattr(final, "sources", []) or []
             elapsed = round((time.perf_counter() - t0) * 1000, 2)
             self._tool_metrics.append({"tool": "graph_tool", "duration_ms": elapsed})
             return final.answer or ""
@@ -1310,8 +1438,10 @@ class AgentService:
                     {"tool": "rule_tool", "duration_ms": 0.0, "note": "fallback_to_knowledge"}
                 )
                 kb_final = await self.knowledge_agent.answer(query)
+                self._last_agentchat_sources = getattr(kb_final, "sources", []) or []
                 return kb_final.answer or "为保证准确性，请提供补贴计算所需的价格/能效信息。"
             final = await self.rule_agent.compute(query, intent={"intent": "calculation"})
+            self._last_agentchat_sources = getattr(final, "sources", []) or []
             elapsed = round((time.perf_counter() - t0) * 1000, 2)
             self._tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed})
             return final.answer or ""
@@ -1327,6 +1457,7 @@ class AgentService:
         try:
             conn_id = self._resolve_connection_id(None)
             final = await self.text2sql_agent.answer(query, connection_id=conn_id)
+            self._last_agentchat_sources = getattr(final, "sources", []) or []
             elapsed = round((time.perf_counter() - t0) * 1000, 2)
             self._tool_metrics.append({"tool": "text2sql_tool", "duration_ms": elapsed})
             return final.answer or ""
@@ -1341,8 +1472,13 @@ class AgentService:
         t0 = time.perf_counter()
         try:
             final = await self.workflow_agent.answer(
-                query, attachments=[], intent={"intent": "workflow"}
+                query,
+                # AgentChat 工具目前只能接受文本参数，这里复用当前请求挂载的附件，
+                # 以便在“上传发票/图片”场景下，workflow_tool 能够真正看到附件内容。
+                attachments=getattr(self, "_agentchat_attachments", []) or [],
+                intent={"intent": "workflow"},
             )
+            self._last_agentchat_sources = getattr(final, "sources", []) or []
             elapsed = round((time.perf_counter() - t0) * 1000, 2)
             self._tool_metrics.append({"tool": "workflow_tool", "duration_ms": elapsed})
             return final.answer or ""
@@ -1424,8 +1560,34 @@ class AgentService:
                     "chunk_idx": meta.get("chunk_idx"),
                 }
             )
+        # 如果 AgentChat 最终结果没有自带 sources，尝试回收最近一次工具调用中的文档
+        if not sources:
+            fallback_sources = getattr(self, "_last_agentchat_sources", []) or []
+            for doc in fallback_sources[:5]:
+                meta = getattr(doc, "metadata", {}) or {}
+                sources.append(
+                    {
+                        "title": getattr(doc, "title", None) or meta.get("title") or "未命名来源",
+                        "path": meta.get("path") or meta.get("origin") or "",
+                        "origin": getattr(doc, "source", None) or meta.get("source") or "",
+                        "chunk_idx": meta.get("chunk_idx"),
+                    }
+                )
         if sources:
-            metadata["sources"] = sources
+            # 去重：按 (title, origin, path) 维度
+            unique = []
+            seen = set()
+            for s in sources:
+                key = (
+                    s.get("title") or "",
+                    s.get("origin") or "",
+                    s.get("path") or "",
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                unique.append(s)
+            metadata["sources"] = unique[:5]
 
         # 轻量化工具轨迹（高层能力说明）
         tools_used: list[str] = []
@@ -1539,6 +1701,29 @@ class AgentService:
         Yields dicts: {"type": "chunk", "content": "..."} or {"type": "final", "answer": FinalAnswer, "meta": {...}}.
         """
         attachments = attachments or []
+        # 结合会话级缓存解析附件：支持“根据上传的发票/截图/附件”等后续追问重用上一轮附件
+        attachments = self._resolve_session_attachments(session_id, query, attachments)
+        # 记录当前请求的附件，供 AgentChat workflow_tool 等内部工具使用
+        self._agentchat_attachments = attachments
+        # 有明显“发票/票据/图片/附件”且需要解析的多模态问题，直接复用非流式主流程，
+        # 由 WorkflowAgent 统一处理（包括视觉解析 + 规则计算），再通过 SSE 一次性推送，
+        # 前端仍然会用吐字效果渲染整段内容。
+        if self._looks_like_multimodal_invoice_question(
+            original_query=query,
+            rewritten_query=query,
+            attachments=attachments,
+        ):
+            final = await self.process_query(
+                query,
+                session_id=session_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                attachments=attachments,
+                force_text2sql=force_text2sql,
+            )
+            yield {"type": "final", "answer": final, "meta": final.metadata or {}}
+            return
+
         # 如果未开启 AgentChat 流式，直接走普通处理
         if not (getattr(self, "_agentchat_team_enabled", False) or getattr(self, "_agentchat_enabled", False)):
             final = await self.process_query(
@@ -1556,13 +1741,128 @@ class AgentService:
         # 记录用户消息到 memory，保持与常规路径一致
         await autogen_memory_store.add_user_message(sid, query)
 
+        async def _enrich_and_yield(stream):
+            async for evt in stream:
+                if evt.get("type") == "final":
+                    final = evt.get("answer")
+                    meta = evt.get("meta") or {}
+                    if final is not None:
+                        # 合并 agentchat 元信息
+                        if isinstance(final.metadata, dict):
+                            merged = dict(final.metadata)
+                            if isinstance(meta, dict):
+                                merged.setdefault("agentchat_meta", meta)
+                            final.metadata = merged
+                        else:
+                            final.metadata = meta if isinstance(meta, dict) else {}
+
+                        # 复用 _finalize_answer 中的轻量元数据填充逻辑（sources / tools_used / route_display）
+                        # 这里不重复写入会话与耗时，只做展示相关的信息补全
+                        metadata = final.metadata or {}
+                        route = metadata.get("route") or meta.get("route")
+                        base_route = (route or "").split("+")[0] if route else None
+
+                        # 引用文档回收（包括 AgentChat 工具调用中的文档）
+                        sources = []
+                        for doc in (getattr(final, "sources", None) or [])[:5]:
+                            doc_meta = getattr(doc, "metadata", {}) or {}
+                            sources.append(
+                                {
+                                    "title": getattr(doc, "title", None) or doc_meta.get("title") or "未命名来源",
+                                    "path": doc_meta.get("path") or doc_meta.get("origin") or "",
+                                    "origin": getattr(doc, "source", None) or doc_meta.get("source") or "",
+                                    "chunk_idx": doc_meta.get("chunk_idx"),
+                                }
+                            )
+                        if not sources:
+                            fallback_sources = getattr(self, "_last_agentchat_sources", []) or []
+                            for doc in fallback_sources[:5]:
+                                doc_meta = getattr(doc, "metadata", {}) or {}
+                                sources.append(
+                                    {
+                                        "title": getattr(doc, "title", None) or doc_meta.get("title") or "未命名来源",
+                                        "path": doc_meta.get("path") or doc_meta.get("origin") or "",
+                                        "origin": getattr(doc, "source", None) or doc_meta.get("source") or "",
+                                        "chunk_idx": doc_meta.get("chunk_idx"),
+                                    }
+                                )
+                        if sources:
+                            unique = []
+                            seen = set()
+                            for s in sources:
+                                key = (
+                                    s.get("title") or "",
+                                    s.get("origin") or "",
+                                    s.get("path") or "",
+                                )
+                                if key in seen:
+                                    continue
+                                seen.add(key)
+                                unique.append(s)
+                            metadata["sources"] = unique[:5]
+
+                        # 高层工具说明
+                        tools_used: list[str] = []
+                        meta_block = metadata.get("agentchat_meta") or {}
+
+                        def _add(label: str) -> None:
+                            if label and label not in tools_used:
+                                tools_used.append(label)
+
+                        primary_tool = (
+                            metadata.get("agentchat_tool")
+                            or metadata.get("primary_tool")
+                            or (meta_block.get("primary_tool") if isinstance(meta_block, dict) else None)
+                        )
+                        if isinstance(primary_tool, str):
+                            key = primary_tool.lower()
+                            if "knowledge" in key:
+                                _add("知识库检索")
+                            elif "graph" in key:
+                                _add("知识图谱推理")
+                            elif "rule" in key:
+                                _add("规则计算")
+                            elif "text2sql" in key or "sql" in key:
+                                _add("Text2SQL 查询")
+                            elif "workflow" in key:
+                                _add("多模态工作流")
+
+                        route_text = route or ""
+                        if "knowledge" in route_text:
+                            _add("知识库检索")
+                        if "graph" in route_text:
+                            _add("知识图谱推理")
+                        if "rule_engine" in route_text:
+                            _add("规则计算")
+                        if "text2sql" in route_text:
+                            _add("Text2SQL 查询")
+                        if "workflow" in route_text:
+                            _add("多模态工作流")
+
+                        if (self._agentchat_team_enabled or self._agentchat_enabled) and "agentchat" in route_text and not tools_used:
+                            _add("AgentChat 协作")
+                        if not tools_used:
+                            _add("对话生成")
+
+                        metadata["tools_used"] = tools_used
+                        # 使用工具信息推导友好路由标签，供前端展示
+                        metadata["route_display"] = " + ".join(tools_used) if tools_used else self.ROUTE_LABELS.get(
+                            base_route or route, base_route or route
+                        )
+
+                        final.metadata = metadata
+                        evt["answer"] = final
+                        evt["meta"] = metadata
+
+                yield evt
+
         if getattr(self, "_agentchat_team_enabled", False):
-            async for evt in self._agentchat_team.run_stream(sid, query):
+            async for evt in _enrich_and_yield(self._agentchat_team.run_stream(sid, query)):
                 yield evt
             return
 
         if getattr(self, "_agentchat_enabled", False):
-            async for evt in self._agentchat_router.run_stream(sid, query):
+            async for evt in _enrich_and_yield(self._agentchat_router.run_stream(sid, query)):
                 yield evt
             return
 

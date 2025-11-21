@@ -1,238 +1,387 @@
 <template>
   <div class="home-page">
-    <!-- 系统公告 -->
+    <!-- SystemAnnouncement - 系统公告 -->
     <SystemAnnouncement />
 
-    <!-- 快速导航 -->
-    <QuickNav />
-
-    <!-- 功能介绍 -->
-    <el-row :gutter="20" class="feature-section">
-      <el-col :xs="24" :sm="12" :md="12" :lg="6" v-for="feature in features" :key="feature.title">
-        <el-card class="feature-card" shadow="hover">
-          <div class="feature-icon" :style="{ background: feature.color }">
-            <el-icon :size="32">
-              <component :is="feature.icon" />
-            </el-icon>
+    <!-- Hero Section - 英雄区域 -->
+    <section class="hero-section">
+      <div class="hero-content">
+        <div class="hero-text">
+          <h1 class="hero-title">
+            <span class="gradient-text">政府政策智能</span>
+            <br>
+            <span class="gradient-text">知识服务平台</span>
+          </h1>
+          <p class="hero-subtitle">
+            基于人工智能技术，提供政策智能问答、DSL规则生成、知识图谱可视化等全方位服务
+          </p>
+          <div class="hero-actions">
+            <el-button
+              size="large"
+              @click="$router.push('/agent-chat')"
+              class="hero-btn primary-btn"
+            >
+              <el-icon><ChatDotRound /></el-icon>
+              开始智能问答
+            </el-button>
+            <el-button
+              size="large"
+              @click="$router.push('/knowledge-graph')"
+              class="hero-btn secondary-btn"
+            >
+              <el-icon><Share /></el-icon>
+              探索知识图谱
+            </el-button>
+            <el-button
+              size="large"
+              @click="$router.push('/dsl-generator')"
+              class="hero-btn secondary-btn"
+            >
+              <el-icon><Document /></el-icon>
+              DSL规则生成
+            </el-button>
           </div>
-          <h3>{{ feature.title }}</h3>
-          <p>{{ feature.description }}</p>
-          <ul class="feature-list">
-            <li v-for="item in feature.items" :key="item">{{ item }}</li>
-          </ul>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- 使用统计 -->
-    <el-card class="stats-card" shadow="never">
-      <template #header>
-        <div class="card-header">
-          <el-icon><DataAnalysis /></el-icon>
-          <span>平台数据</span>
         </div>
-      </template>
-
-      <el-row :gutter="20">
-        <el-col :xs="12" :sm="6" v-for="stat in stats" :key="stat.label">
-          <div class="stat-item">
-            <div class="stat-value">{{ stat.value }}</div>
-            <div class="stat-label">{{ stat.label }}</div>
+        <div class="hero-visual">
+          <div class="floating-cards">
+            <div class="floating-card card-1" :style="{ transform: `translateY(${cardOffset1}px)` }">
+              <div class="card-icon">
+                <el-icon><Document /></el-icon>
+              </div>
+              <span>DSL规则</span>
+            </div>
+            <div class="floating-card card-2" :style="{ transform: `translateY(${cardOffset2}px)` }">
+              <div class="card-icon">
+                <el-icon><Collection /></el-icon>
+              </div>
+              <span>知识库</span>
+            </div>
+            <div class="floating-card card-3" :style="{ transform: `translateY(${cardOffset3}px)` }">
+              <div class="card-icon">
+                <el-icon><Share /></el-icon>
+              </div>
+              <span>知识图谱</span>
+            </div>
+            <div class="floating-card card-4" :style="{ transform: `translateY(${cardOffset4}px)` }">
+              <div class="card-icon">
+                <el-icon><ChatDotRound /></el-icon>
+              </div>
+              <span>AI问答</span>
+            </div>
           </div>
-        </el-col>
-      </el-row>
-    </el-card>
+        </div>
+      </div>
+      <div class="hero-bg">
+        <div class="bg-pattern"></div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ChatDotRound,
   Document,
   Collection,
   Share,
-  DataAnalysis
+  DataAnalysis,
+  ArrowRight,
+  Refresh,
+  Upload,
+  Search,
+  TrendCharts
 } from '@element-plus/icons-vue'
 import SystemAnnouncement from '@/components/SystemAnnouncement.vue'
-import QuickNav from '@/components/QuickNav.vue'
 
-const features = [
-  {
-    title: 'AI智能问答',
-    description: '基于大语言模型的政策智能问答系统',
-    icon: ChatDotRound,
-    color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    items: [
-      '支持多轮对话',
-      '上下文理解',
-      '精准政策匹配',
-      '流式响应'
-    ]
-  },
-  {
-    title: 'DSL规则生成',
-    description: '自动从政策文本生成结构化规则',
-    icon: Document,
-    color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    items: [
-      '智能文本解析',
-      'YAML规则生成',
-      '规则测试验证',
-      '版本管理'
-    ]
-  },
-  {
-    title: '知识库管理',
-    description: '政策文档的向量化存储与检索',
-    icon: Collection,
-    color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    items: [
-      '文档上传解析',
-      '向量化嵌入',
-      '语义搜索',
-      '统计分析'
-    ]
-  },
-  {
-    title: '知识图谱',
-    description: '政策知识的可视化图谱展示与分析',
-    icon: Share,
-    color: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-    items: [
-      '实体关系可视化',
-      '交互式图谱探索',
-      '多层级关系展示',
-      '智能路径分析'
-    ]
-  }
-]
+const router = useRouter()
 
-const stats = reactive([
-  { label: '政策文档', value: '1,234' },
-  { label: '问答次数', value: '5,678' },
-  { label: 'DSL规则', value: '89' },
-  { label: '图谱节点', value: '456' }
-])
+// 浮动卡片动画
+const cardOffset1 = ref(0)
+const cardOffset2 = ref(0)
+const cardOffset3 = ref(0)
+const cardOffset4 = ref(0)
+
+// 动画循环
+const animateCards = () => {
+  const time = Date.now() / 1000
+  cardOffset1.value = Math.sin(time * 2) * 10
+  cardOffset2.value = Math.sin(time * 2 + 1) * 10
+  cardOffset3.value = Math.sin(time * 2 + 2) * 10
+  cardOffset4.value = Math.sin(time * 2 + 3) * 10
+  requestAnimationFrame(animateCards)
+}
+
+onMounted(() => {
+  animateCards()
+})
 </script>
 
 <style scoped>
 .home-page {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Hero Section */
+.hero-section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  overflow: hidden;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
   max-width: 1400px;
   margin: 0 auto;
-  animation: fadeIn 0.4s ease;
-}
-
-/* 功能卡片 */
-.feature-section {
-  margin-bottom: var(--spacing-2xl);
-}
-
-.feature-card {
-  height: 100%;
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-base);
-}
-
-.feature-card:hover {
-  transform: translateY(-8px);
-  box-shadow: var(--shadow-xl);
-}
-
-.feature-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-lg);
-  display: flex;
+  padding: 0 var(--spacing-xl);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-2xl);
   align-items: center;
-  justify-content: center;
-  color: white;
+}
+
+.hero-text {
+  z-index: 2;
+  animation: fadeInUp 1s ease-out;
+}
+
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.2;
   margin-bottom: var(--spacing-lg);
-  box-shadow: var(--shadow-md);
 }
 
-.feature-card h3 {
-  margin: 0 0 var(--spacing-md) 0;
-  font-size: var(--text-xl);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.feature-card p {
-  margin: 0 0 var(--spacing-lg) 0;
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.feature-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.feature-list li {
-  padding: var(--spacing-xs) 0;
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-}
-
-.feature-list li::before {
-  content: '✓';
-  color: var(--success-color);
-  font-weight: bold;
-}
-
-/* 统计卡片 */
-.stats-card {
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-size: var(--text-lg);
-  font-weight: 600;
-}
-
-.stat-item {
-  text-align: center;
-  padding: var(--spacing-lg);
-  background: linear-gradient(135deg, rgba(0, 82, 217, 0.05) 0%, rgba(200, 35, 44, 0.05) 100%);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-}
-
-.stat-item:hover {
-  transform: scale(1.05);
-  box-shadow: var(--shadow-md);
-}
-
-.stat-value {
-  font-size: var(--text-3xl);
-  font-weight: 700;
+.gradient-text {
   background: var(--primary-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: var(--spacing-sm);
 }
 
-.stat-label {
-  font-size: var(--text-sm);
+.hero-subtitle {
+  font-size: 1.25rem;
   color: var(--text-secondary);
+  margin-bottom: var(--spacing-2xl);
+  line-height: 1.6;
+  max-width: 600px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: var(--spacing-lg);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hero-btn {
+  padding: var(--spacing-md) var(--spacing-xl);
+  font-size: 1rem;
   font-weight: 500;
+  border-radius: var(--radius-full);
+  transition: all var(--transition-base);
+  border: 2px solid transparent;
+  background: var(--primary-gradient);
+  color: white;
+}
+
+.hero-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 82, 217, 0.3);
+}
+
+.primary-btn {
+  background: white;
+  color: var(--primary-color);
+  border: none;
+}
+
+.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+.secondary-btn {
+  background: transparent;
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.secondary-btn:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Hero Visual */
+.hero-visual {
+  position: relative;
+  height: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating-cards {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  perspective: 1000px;
+}
+
+.floating-card {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.floating-card:hover {
+  transform: translateY(-10px) scale(1.1);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
+}
+
+.card-icon {
+  width: 60px;
+  height: 60px;
+  background: var(--primary-gradient);
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+}
+
+.floating-card span {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card-1 {
+  top: 20%;
+  left: 20%;
+  animation: float 6s ease-in-out infinite;
+}
+
+.card-2 {
+  top: 60%;
+  left: 10%;
+  animation: float 8s ease-in-out infinite;
+}
+
+.card-3 {
+  top: 30%;
+  right: 15%;
+  animation: float 7s ease-in-out infinite;
+}
+
+.card-4 {
+  top: 70%;
+  right: 20%;
+  animation: float 9s ease-in-out infinite;
+}
+
+/* Background */
+.hero-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.1;
+}
+
+.bg-pattern {
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(0, 82, 217, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(200, 35, 44, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(0, 82, 217, 0.2) 0%, transparent 50%);
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(5deg);
+  }
 }
 
 /* 响应式 */
+@media (max-width: 1200px) {
+  .hero-content {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xl);
+  }
+
+  .hero-visual {
+    height: 400px;
+  }
+
+  .hero-title {
+    font-size: 2.5rem;
+  }
+}
+
 @media (max-width: 768px) {
-  .feature-section {
-    margin-bottom: var(--spacing-xl);
+  .hero-title {
+    font-size: 2rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .hero-btn {
+    width: 200px;
+  }
+
+  .floating-card {
+    width: 100px;
+    height: 100px;
+  }
+
+  .card-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
   }
 }
 </style>
