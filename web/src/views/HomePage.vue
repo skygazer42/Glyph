@@ -15,38 +15,22 @@
           <p class="hero-subtitle">
             基于人工智能技术，提供政策智能问答、DSL规则生成、知识图谱可视化等全方位服务
           </p>
-          <div class="hero-actions">
-            <el-button
-              size="large"
-              @click="$router.push('/agent')"
-              class="hero-btn primary-btn"
-            >
+          <div class="hero-actions hero-actions--inline">
+            <el-button size="medium" @click="$router.push('/agent')" class="hero-btn primary-btn">
               <el-icon><ChatDotRound /></el-icon>
-              开始智能问答
+              问答
             </el-button>
-            <el-button
-              size="large"
-              @click="$router.push('/graph')"
-              class="hero-btn secondary-btn"
-            >
-              <el-icon><Share /></el-icon>
-              探索知识图谱
-            </el-button>
-            <el-button
-              size="large"
-              @click="$router.push('/dsl')"
-              class="hero-btn secondary-btn"
-            >
+            <el-button size="medium" @click="$router.push('/dsl')" class="hero-btn secondary-btn">
               <el-icon><Document /></el-icon>
-              DSL规则生成
+              DSL
             </el-button>
-            <el-button
-              size="large"
-              @click="$router.push('/knowledge')"
-              class="hero-btn secondary-btn"
-            >
+            <el-button size="medium" @click="$router.push('/knowledge')" class="hero-btn secondary-btn">
               <el-icon><DataAnalysis /></el-icon>
-              知识库管理
+              知识库
+            </el-button>
+            <el-button size="medium" @click="$router.push('/graph')" class="hero-btn secondary-btn">
+              <el-icon><Share /></el-icon>
+              图谱
             </el-button>
           </div>
         </div>
@@ -184,24 +168,30 @@ onMounted(() => {
 
 .hero-actions {
   display: flex;
-  gap: var(--spacing-lg);
-  justify-content: center;
+  gap: var(--spacing-md);
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
+.hero-actions--inline {
+  flex-wrap: nowrap;
+  gap: var(--spacing-sm);
+}
+
 .hero-btn {
-  padding: var(--spacing-md) var(--spacing-xl);
-  font-size: 1rem;
-  font-weight: 500;
-  border-radius: var(--radius-full);
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 999px;
   transition: all var(--transition-base);
   border: 2px solid transparent;
   background: var(--primary-gradient);
   color: white;
+  min-width: 90px;
 }
 
 .hero-btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: 0 10px 25px rgba(0, 82, 217, 0.3);
 }
 
@@ -372,13 +362,13 @@ onMounted(() => {
     font-size: 1rem;
   }
 
-  .hero-actions {
-    flex-direction: column;
-    align-items: center;
+  .hero-actions--inline {
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .hero-btn {
-    width: 200px;
+    width: auto;
   }
 
   .floating-card {
