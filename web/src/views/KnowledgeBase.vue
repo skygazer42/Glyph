@@ -405,8 +405,8 @@ const currentResult = ref(null)
 // Search options
 const searchMode = ref('hybrid')
 const searchOptions = reactive({
-  topK: 10,
-  threshold: 0.7,
+  topK: 20,
+  threshold: 0.5,
   rerank: true,
   docType: ''
 })
@@ -565,6 +565,15 @@ const performSearch = async (params) => {
   appStore.kbState.searchResults = []
 
   try {
+    // 若本地还未加载文档，先尝试拉取，便于提示“无文档”场景
+    if (!appStore.kbState.documents.length) {
+      await loadDocuments()
+    }
+    if (!appStore.kbState.documents.length) {
+      appStore.showNotification('info', '知识库暂无文档，请先在“文档管理”上传并嵌入后再搜索')
+      return
+    }
+
     // 当前后端仅提供 /knowledge/search 接口，统一走该接口
     // keyword/ hybrid 模式仅用于前端控制阈值与提示，不改变请求路径
     const response = await knowledgeApi.search(params.query, {
