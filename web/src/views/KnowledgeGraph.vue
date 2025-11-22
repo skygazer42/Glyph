@@ -347,6 +347,45 @@ let minimapSvg = null
 let graphData = null
 let currentLayout = null
 let zoomBehavior = null
+let resizeTimer = null
+const updateMinimap = () => {
+  if (!minimapSvg || !graphData || !graphContainer.value) return
+
+  const width = 200
+  const height = 150
+  const xScale = d3.scaleLinear()
+    .domain([0, graphContainer.value.clientWidth])
+    .range([0, width])
+
+  const yScale = d3.scaleLinear()
+    .domain([0, graphContainer.value.clientHeight])
+    .range([0, height])
+
+  const idOf = (n) => (n && typeof n === 'object' ? n.id : n)
+  const nodeById = (id) => graphData.nodes.find(n => n.id === id)
+
+  minimapSvg.selectAll('.mini-node')
+    .attr('cx', d => xScale(d.x || 0))
+    .attr('cy', d => yScale(d.y || 0))
+
+  minimapSvg.selectAll('.mini-link')
+    .attr('x1', d => {
+      const src = typeof d.source === 'object' ? d.source : nodeById(idOf(d.source))
+      return xScale(src?.x || 0)
+    })
+    .attr('y1', d => {
+      const src = typeof d.source === 'object' ? d.source : nodeById(idOf(d.source))
+      return yScale(src?.y || 0)
+    })
+    .attr('x2', d => {
+      const tgt = typeof d.target === 'object' ? d.target : nodeById(idOf(d.target))
+      return xScale(tgt?.x || 0)
+    })
+    .attr('y2', d => {
+      const tgt = typeof d.target === 'object' ? d.target : nodeById(idOf(d.target))
+      return yScale(tgt?.y || 0)
+    })
+}
 
 // 计算属性
 const nodeTypes = computed(() => {
@@ -600,6 +639,7 @@ const renderGraph = () => {
         .attr('y2', d => d.target.y)
 
       node.attr('transform', d => `translate(${d.x},${d.y})`)
+      if (showMinimap.value) updateMinimap()
     })
 
     // 等待力导向布局稳定后自动缩放到合适的视图
@@ -990,15 +1030,6 @@ const renderMinimap = () => {
 
   const g = minimapSvg.append('g')
 
-  // 缩放比例
-  const xScale = d3.scaleLinear()
-    .domain([0, graphContainer.value.clientWidth])
-    .range([0, width])
-
-  const yScale = d3.scaleLinear()
-    .domain([0, graphContainer.value.clientHeight])
-    .range([0, height])
-
   // 简化的节点和边
   const miniNodes = g.selectAll('.mini-node')
     .data(graphData.nodes)
@@ -1015,6 +1046,8 @@ const renderMinimap = () => {
     .attr('class', 'mini-link')
     .attr('stroke', '#999')
     .attr('stroke-width', 1)
+
+  updateMinimap()
 }
 
 // 应用设置
@@ -1240,19 +1273,23 @@ const handleTypeFilter = () => {
     edges: filteredLinks.length
   }
 
-  // 重新渲染过滤后的数据
-  renderFilteredGraph(filteredNodes, filteredLinks)
-}
+  if (selectedNode.value && !filteredNodeIds.has(selectedNode.value.id)) {
+    selectedNode.value = null
+  }
 
-// 渲染过滤后的图谱
-const renderFilteredGraph = (filteredNodes, filteredLinks) => {
-  if (!graphContainer.value) return
+  if (!svg) return
 
-  // 临时更新数据并重新渲染
-  const originalData = graphData
-  graphData = { nodes: filteredNodes, links: filteredLinks }
-  renderGraph()
-  graphData = originalData
+  const idOf = (n) => (n && typeof n === 'object' ? n.id : n)
+
+  svg.selectAll('.graph-node')
+    .style('display', d => filteredNodeIds.has(d.id) ? null : 'none')
+
+  svg.selectAll('.graph-link')
+    .style('display', d => {
+      const s = idOf(d.source)
+      const t = idOf(d.target)
+      return (filteredNodeIds.has(s) && filteredNodeIds.has(t)) ? null : 'none'
+    })
 }
 
 // 根据节点类型获取颜色
@@ -1348,9 +1385,14 @@ onMounted(() => {
 
   // 监听窗口大小变化
   const handleResize = () => {
-    if (graphData) {
-      renderGraph()
-    }
+    if (!graphData) return
+    if (resizeTimer) clearTimeout(resizeTimer)
+    resizeTimer = setTimeout(() => {
+      fitToView()
+      if (showMinimap.value) {
+        renderMinimap()
+      }
+    }, 150)
   }
 
   window.addEventListener('resize', handleResize)

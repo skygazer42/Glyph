@@ -18,7 +18,7 @@
           <div class="hero-actions">
             <el-button
               size="large"
-              @click="$router.push('/agent-chat')"
+              @click="$router.push('/agent')"
               class="hero-btn primary-btn"
             >
               <el-icon><ChatDotRound /></el-icon>
