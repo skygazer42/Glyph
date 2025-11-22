@@ -565,18 +565,13 @@ const performSearch = async (params) => {
   appStore.kbState.searchResults = []
 
   try {
-    let response
-    const options = {
+    // 当前后端仅提供 /knowledge/search 接口，统一走该接口
+    // keyword/ hybrid 模式仅用于前端控制阈值与提示，不改变请求路径
+    const response = await knowledgeApi.search(params.query, {
       topK: searchOptions.topK,
-      filters: searchOptions.docType ? { doc_type: searchOptions.docType } : {},
-      rerank: searchOptions.rerank
-    }
-
-    if (searchMode.value === 'hybrid') {
-      response = await knowledgeApi.hybridSearch(params.query, options)
-    } else {
-      response = await knowledgeApi.search(params.query, options)
-    }
+      // 关键字模式放宽阈值，避免被相似度过滤掉
+      threshold: searchMode.value === 'keyword' ? 0 : searchOptions.threshold
+    })
 
     appStore.kbState.searchResults = response.results || []
 
