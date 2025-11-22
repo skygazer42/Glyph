@@ -1,0 +1,110 @@
+{
+  "timestamp": "2025-11-22T15:27:35.098228",
+  "api_url": "http://localhost:8000/api/agent/chat",
+  "summary": {
+    "total": 8,
+    "success": 8,
+    "failed": 0,
+    "success_rate": "100.0%",
+    "total_time": "273.29s",
+    "avg_time": "34.16s"
+  },
+  "results": [
+    {
+      "success": true,
+      "elapsed": 2.135204315185547,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 1,
+      "description": "问候语测试",
+      "question": "你好",
+      "expected_route": "dialogue"
+    },
+    {
+      "success": true,
+      "elapsed": 17.80584716796875,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 2,
+      "description": "政策咨询",
+      "question": "您好，我想了解济南市家电以旧换新补贴政策。",
+      "expected_route": "knowledge"
+    },
+    {
+      "success": true,
+      "elapsed": 59.98134636878967,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 3,
+      "description": "资格咨询",
+      "question": "我想知道我是否符合补贴资格？",
+      "expected_route": "knowledge"
+    },
+    {
+      "success": true,
+      "elapsed": 5.0310938358306885,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 4,
+      "description": "补贴计算",
+      "question": "我想买的是一台二级能效的空调，购买价格是8000元，能获得多少补贴？",
+      "expected_route": "rule_engine"
+    },
+    {
+      "success": true,
+      "elapsed": 17.53707981109619,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 5,
+      "description": "操作流程",
+      "question": "那我具体该怎么操作呢？需要什么材料？",
+      "expected_route": "knowledge"
+    },
+    {
+      "success": true,
+      "elapsed": 49.473389863967896,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 6,
+      "description": "补贴次数限制",
+      "question": "我去年换过一台空调，今年还能享受补贴吗？",
+      "expected_route": "knowledge"
+    },
+    {
+      "success": true,
+      "elapsed": 42.8237566947937,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 7,
+      "description": "统计查询",
+      "question": "按政策类别统计数量，看看家电以旧换新、汽车消费补贴、消费券、数码产品补贴各有多少条政策",
+      "expected_route": "text2sql"
+    },
+    {
+      "success": true,
+      "elapsed": 78.50129389762878,
+      "answer": "",
+      "route": "unknown",
+      "confidence": 0,
+      "status_code": 200,
+      "test_id": 8,
+      "description": "政策数量查询",
+      "question": "现在济南市和家电以旧换新相关的政策一共有多少个？",
+      "expected_route": "text2sql"
+    }
+  ]
+}
