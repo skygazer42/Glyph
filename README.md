@@ -220,6 +220,7 @@ docker compose up -d --build web   # 会同时拉起 api + mysql + milvus + redi
 - 前端：http://localhost:8080  
 - 后端健康检查：http://localhost:8000/api/health  
 - 首次启动 api 容器会自动执行数据初始化（建表、Text2SQL 种子、schema 同步、process 文档嵌入、LightRAG 种子）；容器内会打一个 `/app/.initialized` 标记防止重复导入。
+- 端口说明：如需改用 3000 作为前端端口，可将 docker-compose.yaml 中 web 服务的 ports 改为 "3000:80" 后重新 docker compose up -d。
 - 如需手动重建数据，可在运行中的容器内执行：
   ```bash
   docker compose exec api bash -c "\
