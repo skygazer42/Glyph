@@ -25,6 +25,15 @@ const routes = [
     path: '/graph',
     name: 'Graph',
     component: () => import('@/views/KnowledgeGraph.vue')
+  },
+  // 兼容旧链接
+  {
+    path: '/knowledge-graph',
+    redirect: '/graph'
+  },
+  {
+    path: '/dsl-generator',
+    redirect: '/dsl'
   }
 ]
 

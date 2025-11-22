@@ -26,7 +26,7 @@
             </el-button>
             <el-button
               size="large"
-              @click="$router.push('/knowledge-graph')"
+              @click="$router.push('/graph')"
               class="hero-btn secondary-btn"
             >
               <el-icon><Share /></el-icon>
@@ -34,11 +34,19 @@
             </el-button>
             <el-button
               size="large"
-              @click="$router.push('/dsl-generator')"
+              @click="$router.push('/dsl')"
               class="hero-btn secondary-btn"
             >
               <el-icon><Document /></el-icon>
               DSL规则生成
+            </el-button>
+            <el-button
+              size="large"
+              @click="$router.push('/knowledge')"
+              class="hero-btn secondary-btn"
+            >
+              <el-icon><DataAnalysis /></el-icon>
+              知识库管理
             </el-button>
           </div>
         </div>
