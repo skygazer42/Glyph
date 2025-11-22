@@ -76,6 +76,52 @@ services:
       timeout: 10s
       retries: 6
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE__MYSQL_HOST: mysql
+      DATABASE__MYSQL_PORT: 3306
+      DATABASE__MILVUS_HOST: milvus
+      DATABASE__MILVUS_PORT: 19530
+      SECURITY__RATE_LIMIT_REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
+      AGENTCHAT_REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./resources:/app/resources
+      - ./uploads:/app/uploads
+      - ./rules:/app/rules
+      - ./templates:/app/templates
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      milvus:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
 volumes:
   etcd_data:
   minio_data:
