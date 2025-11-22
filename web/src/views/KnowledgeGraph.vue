@@ -158,6 +158,9 @@ const renderChart = (nodes, links, categories) => {
   stats.value = { nodes: nodes.length, links: links.length, categories: categories.length }
 
   const option = {
+    animationDuration: 1500,
+    animationDurationUpdate: 400, // 平滑过渡，避免闪烁
+    animationEasingUpdate: 'quinticInOut',
     tooltip: {
       trigger: 'item',
       confine: true,
@@ -217,6 +220,12 @@ const renderChart = (nodes, links, categories) => {
           formatter: '{b}',
           color: '#333',
         },
+        // 淡出状态，降低对比度而非消失
+        blur: {
+          itemStyle: { opacity: 0.4 },
+          lineStyle: { opacity: 0.1 },
+          label: { show: false },
+        },
         lineStyle: {
           color: 'source',
           curveness: 0.2,
@@ -225,9 +234,12 @@ const renderChart = (nodes, links, categories) => {
         },
         emphasis: {
           focus: 'adjacency',
+          // scale: false, // 如不希望放大可取消注释
           itemStyle: {
             shadowBlur: 10,
             shadowColor: 'rgba(0, 0, 0, 0.3)',
+            borderColor: '#333',
+            borderWidth: 2,
           },
           lineStyle: {
             width: 3,
