@@ -252,7 +252,7 @@
                         </div>
                       </div>
                       <div class="result-content">
-                        <p v-html="highlightKeywords(result.text)"></p>
+                        <p v-html="highlightKeywords(result.content || result.text || '')"></p>
                       </div>
                       <div class="result-footer">
                         <span class="result-source">
@@ -363,7 +363,7 @@
       <div style="margin-top: 20px">
         <h4>内容</h4>
         <div class="detail-content">
-          {{ currentResult?.text }}
+          {{ currentResult?.content || currentResult?.text || '' }}
         </div>
       </div>
 
@@ -571,6 +571,7 @@ const performSearch = async (params) => {
     }
     if (!appStore.kbState.documents.length) {
       appStore.showNotification('info', '知识库暂无文档，请先在“文档管理”上传并嵌入后再搜索')
+      searching.value = false
       return
     }
 
@@ -630,9 +631,11 @@ const showDetail = (result) => {
 }
 
 const highlightKeywords = (text) => {
-  if (!appStore.kbState.searchQuery) return text
+  const source = (text ?? '').toString()
+  if (!source) return ''
+  if (!appStore.kbState.searchQuery) return source
   const keywords = appStore.kbState.searchQuery.split(/\s+/)
-  let highlighted = text
+  let highlighted = source
 
   keywords.forEach(keyword => {
     if (keyword) {
