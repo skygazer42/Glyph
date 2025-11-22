@@ -327,9 +327,12 @@ async def search_knowledge(
         # 转换为响应格式
         results = []
         for doc, score in zip(documents, scores):
+            doc_id = getattr(doc, "id", "") or ""
+            # 确保返回字符串，避免 Pydantic 校验 UUID 类型报错
+            doc_id = str(doc_id)
             results.append(
                 SearchResult(
-                    id=getattr(doc, 'id', ''),
+                    id=doc_id,
                     title=getattr(doc, 'title', ''),
                     content=getattr(doc, 'content', '')[:500],  # 限制长度
                     source=getattr(doc, 'source', ''),
