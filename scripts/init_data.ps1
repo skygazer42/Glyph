@@ -1,4 +1,4 @@
-# Glyph PowerShell 初始化脚本
+﻿# Glyph PowerShell 初始化脚本
 # 更现代化的Windows初始化选项
 
 param(

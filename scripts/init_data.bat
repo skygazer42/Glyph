@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 REM Glyph Windows 初始化脚本
 REM Initialize the local knowledge base using DashScope embeddings by default.
 REM Steps:
