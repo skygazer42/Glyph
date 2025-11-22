@@ -219,9 +219,11 @@ docker compose up -d --build web   # 会同时拉起 api + mysql + milvus + redi
 ```
 - 前端：http://localhost:8080  
 - 后端健康检查：http://localhost:8000/api/health  
-- 首次需要导入示例数据，可执行：
+- 首次启动 api 容器会自动执行数据初始化（建表、Text2SQL 种子、schema 同步、process 文档嵌入、LightRAG 种子）；容器内会打一个 `/app/.initialized` 标记防止重复导入。
+- 如需手动重建数据，可在运行中的容器内执行：
   ```bash
   docker compose exec api bash -c "\
+    rm -f /app/.initialized && \
     python scripts/1_create_tables.py && \
     python scripts/2_seed_mysql_text2sql.py && \
     python scripts/7_sync_text2sql_schema.py && \

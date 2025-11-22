@@ -1,0 +1,19 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+*.pyo
+.idea/
+.vscode/
+.DS_Store
+node_modules/
+web/node_modules/
+.env
+.env.local
+
+# Large local data/cache directories (mount at runtime if needed)
+resources/data/milvus/
+resources/data/neo4j/
+volumes/
+milvus_data/
