@@ -1,0 +1,1724 @@
+{
+  "济南市商务局": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e",
+      "chunk-39c956a301f284a84c66d3204773f29f",
+      "chunk-96bae2d594dcffdefed27367718a6dab",
+      "chunk-140978b15f6a5dd5cc0448e990dc5565",
+      "chunk-16d0af5d38daf31503638e561cd766d9",
+      "chunk-52acdff4195070b5b3a2d39151135f86",
+      "chunk-3d56107a0e614557bb6ce1752d20e324",
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7",
+      "chunk-bab27dd75787fdc29e728a4d88406fbe",
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26"
+    ],
+    "count": 11,
+    "update_time": 1763800250,
+    "_id": "济南市商务局"
+  },
+  "泉城购服务平台": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e",
+      "chunk-39c956a301f284a84c66d3204773f29f",
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 3,
+    "update_time": 1763799899,
+    "_id": "泉城购服务平台"
+  },
+  "市工业和信息化局": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "市工业和信息化局"
+  },
+  "市财政局": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e",
+      "chunk-25075a5d26a87be16bd0da9716bd356c",
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 3,
+    "update_time": 1763799900,
+    "_id": "市财政局"
+  },
+  "市发展改革委": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e",
+      "chunk-25075a5d26a87be16bd0da9716bd356c",
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 3,
+    "update_time": 1763799900,
+    "_id": "市发展改革委"
+  },
+  "市市场监管局": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e",
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 2,
+    "update_time": 1763799900,
+    "_id": "市市场监管局"
+  },
+  "销售企业": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "销售企业"
+  },
+  "第三方机构": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e",
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b",
+      "chunk-25075a5d26a87be16bd0da9716bd356c",
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7"
+    ],
+    "count": 5,
+    "update_time": 1763800223,
+    "_id": "第三方机构"
+  },
+  "移动通信运营商": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "移动通信运营商"
+  },
+  "金融机构和支付机构": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "金融机构和支付机构"
+  },
+  "济南市发展和改革委员会": {
+    "chunk_ids": [
+      "chunk-39c956a301f284a84c66d3204773f29f",
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 2,
+    "update_time": 1763799899,
+    "_id": "济南市发展和改革委员会"
+  },
+  "济南市工业和信息化局": {
+    "chunk_ids": [
+      "chunk-39c956a301f284a84c66d3204773f29f"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "济南市工业和信息化局"
+  },
+  "济南市财政局": {
+    "chunk_ids": [
+      "chunk-39c956a301f284a84c66d3204773f29f",
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 2,
+    "update_time": 1763799899,
+    "_id": "济南市财政局"
+  },
+  "济南市市场监督管理局": {
+    "chunk_ids": [
+      "chunk-39c956a301f284a84c66d3204773f29f",
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 2,
+    "update_time": 1763799899,
+    "_id": "济南市市场监督管理局"
+  },
+  "济南市2025年手机、平板、智能手表(手环)购新补贴实施细则": {
+    "chunk_ids": [
+      "chunk-39c956a301f284a84c66d3204773f29f"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "济南市2025年手机、平板、智能手表(手环)购新补贴实施细则"
+  },
+  "个人消费者": {
+    "chunk_ids": [
+      "chunk-39c956a301f284a84c66d3204773f29f",
+      "chunk-25075a5d26a87be16bd0da9716bd356c",
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61",
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26"
+    ],
+    "count": 6,
+    "update_time": 1763800250,
+    "_id": "个人消费者"
+  },
+  "手机、平板、智能手表(手环)": {
+    "chunk_ids": [
+      "chunk-39c956a301f284a84c66d3204773f29f"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "手机、平板、智能手表(手环)"
+  },
+  "省级资格核验系统": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "省级资格核验系统"
+  },
+  "省商务厅": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b",
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 2,
+    "update_time": 1763799995,
+    "_id": "省商务厅"
+  },
+  "省级平台": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "省级平台"
+  },
+  "购新补贴": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "购新补贴"
+  },
+  "大数据分析": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "大数据分析"
+  },
+  "防套利和预警机制": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "防套利和预警机制"
+  },
+  "专业客服服务": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "专业客服服务"
+  },
+  "对账数据和活动专业数据分析报告": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b"
+    ],
+    "count": 1,
+    "create_time": 1763799812,
+    "update_time": 1763799812,
+    "_id": "对账数据和活动专业数据分析报告"
+  },
+  "政策参与主体": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b",
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 2,
+    "update_time": 1763799951,
+    "_id": "政策参与主体"
+  },
+  "市商务局": {
+    "chunk_ids": [
+      "chunk-9e3d62b48e1287440a8a646aaad8d18b",
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 2,
+    "update_time": 1763799899,
+    "_id": "市商务局"
+  },
+  "消费者": {
+    "chunk_ids": [
+      "chunk-27448eecdd737bc7dc1efa72c3d5936e",
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 2,
+    "update_time": 1763799951,
+    "_id": "消费者"
+  },
+  "济南市": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab",
+      "chunk-5e25ae60970f344c59816dfe8524b797",
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93",
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-3d56107a0e614557bb6ce1752d20e324",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61",
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26",
+      "chunk-e5dd67eef4caa59abb496255dc93151a"
+    ],
+    "count": 9,
+    "update_time": 1763800268,
+    "_id": "济南市"
+  },
+  "2025年家电以旧换新补贴实施细则": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "2025年家电以旧换新补贴实施细则"
+  },
+  "电冰箱": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "电冰箱"
+  },
+  "洗衣机": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "洗衣机"
+  },
+  "电视机": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "电视机"
+  },
+  "空调": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "空调"
+  },
+  "电脑": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "电脑"
+  },
+  "热水器": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "热水器"
+  },
+  "家用灶具": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "家用灶具"
+  },
+  "吸油烟机": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "吸油烟机"
+  },
+  "净水器": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "净水器"
+  },
+  "洗碗机": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "洗碗机"
+  },
+  "微波炉": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "微波炉"
+  },
+  "电饭煲": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "电饭煲"
+  },
+  "国家发展改革委": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab",
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 3,
+    "update_time": 1763799994,
+    "_id": "国家发展改革委"
+  },
+  "财政部": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab",
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 3,
+    "update_time": 1763799994,
+    "_id": "财政部"
+  },
+  "商务部": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab",
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 3,
+    "update_time": 1763799994,
+    "_id": "商务部"
+  },
+  "山东省商务厅": {
+    "chunk_ids": [
+      "chunk-96bae2d594dcffdefed27367718a6dab",
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81",
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 4,
+    "update_time": 1763799994,
+    "_id": "山东省商务厅"
+  },
+  "济南市泉城购服务平台": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "济南市泉城购服务平台"
+  },
+  "电商平台": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "电商平台"
+  },
+  "参与活动企业": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "参与活动企业"
+  },
+  "有资质的拆解企业": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "有资质的拆解企业"
+  },
+  "区县(功能区)商务主管部门": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "区县(功能区)商务主管部门"
+  },
+  "售后服务领跑企业": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799899,
+    "update_time": 1763799899,
+    "_id": "售后服务领跑企业"
+  },
+  "金融机构": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c",
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 2,
+    "update_time": 1763799951,
+    "_id": "金融机构"
+  },
+  "废旧家电": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "废旧家电"
+  },
+  "补贴资格": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "补贴资格"
+  },
+  "补贴范围内的产品": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "补贴范围内的产品"
+  },
+  "销售发票": {
+    "chunk_ids": [
+      "chunk-25075a5d26a87be16bd0da9716bd356c"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "销售发票"
+  },
+  "服务平台": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "服务平台"
+  },
+  "济南市商务局办公室": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "济南市商务局办公室"
+  },
+  "补贴资金": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd",
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 2,
+    "update_time": 1763799999,
+    "_id": "补贴资金"
+  },
+  "虚假交易": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "虚假交易"
+  },
+  "价格欺诈": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "价格欺诈"
+  },
+  "绩效评价工作": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799900,
+    "update_time": 1763799900,
+    "_id": "绩效评价工作"
+  },
+  "补贴资金保障": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799906,
+    "update_time": 1763799906,
+    "_id": "补贴资金保障"
+  },
+  "换新家电产品": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799906,
+    "update_time": 1763799906,
+    "_id": "换新家电产品"
+  },
+  "补贴资格发放": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799906,
+    "update_time": 1763799906,
+    "_id": "补贴资格发放"
+  },
+  "审核报告": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799906,
+    "update_time": 1763799906,
+    "_id": "审核报告"
+  },
+  "本细则": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799906,
+    "update_time": 1763799906,
+    "_id": "本细则"
+  },
+  "消费者个人信息保护": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799907,
+    "update_time": 1763799907,
+    "_id": "消费者个人信息保护"
+  },
+  "家电以旧换新补贴政策": {
+    "chunk_ids": [
+      "chunk-52ef934fd2fb3466ea1982465f45b5fd"
+    ],
+    "count": 1,
+    "create_time": 1763799907,
+    "update_time": 1763799907,
+    "_id": "家电以旧换新补贴政策"
+  },
+  "山东省工业和信息化厅": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "山东省工业和信息化厅"
+  },
+  "购新补贴实施细则": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "购新补贴实施细则"
+  },
+  "手机": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 2,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "手机"
+  },
+  "平板": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 2,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "平板"
+  },
+  "智能手表(手环)": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 2,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "智能手表(手环)"
+  },
+  "山东省发展改革委": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "山东省发展改革委"
+  },
+  "山东省财政厅": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf",
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 2,
+    "update_time": 1763799994,
+    "_id": "山东省财政厅"
+  },
+  "山东省市场监管局": {
+    "chunk_ids": [
+      "chunk-72f0d37cfedf492fc402d911c4c19bdf"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "山东省市场监管局"
+  },
+  "51号政府网站标识码": {
+    "chunk_ids": [
+      "chunk-3f6a50ac9a4e3d83ffda77c6f371cd89"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "51号政府网站标识码"
+  },
+  "中央资金": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "中央资金"
+  },
+  "地方资金": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "地方资金"
+  },
+  "市场监管部门": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "市场监管部门"
+  },
+  "生产企业": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "生产企业"
+  },
+  "流通企业": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "流通企业"
+  },
+  "运营商": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "运营商"
+  },
+  "支付机构": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "支付机构"
+  },
+  "第三方专业机构": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81",
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 2,
+    "update_time": 1763799995,
+    "_id": "第三方专业机构"
+  },
+  "山东国际商务网": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "山东国际商务网"
+  },
+  "中央超长期特别国债": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "中央超长期特别国债"
+  },
+  "线下线上主题活动": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799951,
+    "update_time": 1763799951,
+    "_id": "线下线上主题活动"
+  },
+  "优惠政策": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799953,
+    "update_time": 1763799953,
+    "_id": "优惠政策"
+  },
+  "原创文章": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799953,
+    "update_time": 1763799953,
+    "_id": "原创文章"
+  },
+  "政策参与企业": {
+    "chunk_ids": [
+      "chunk-10da26ada8471ff52bbf7d65cdc44a81"
+    ],
+    "count": 1,
+    "create_time": 1763799953,
+    "update_time": 1763799953,
+    "_id": "政策参与企业"
+  },
+  "山东省发展和改革委员会": {
+    "chunk_ids": [
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 1,
+    "create_time": 1763799994,
+    "update_time": 1763799994,
+    "_id": "山东省发展和改革委员会"
+  },
+  "山东省市场监督管理局": {
+    "chunk_ids": [
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 1,
+    "create_time": 1763799994,
+    "update_time": 1763799994,
+    "_id": "山东省市场监督管理局"
+  },
+  "山东省2025年家电以旧换新实施方案": {
+    "chunk_ids": [
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 1,
+    "create_time": 1763799994,
+    "update_time": 1763799994,
+    "_id": "山东省2025年家电以旧换新实施方案"
+  },
+  "家电以旧换新活动": {
+    "chunk_ids": [
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "家电以旧换新活动"
+  },
+  "家电以旧换新补贴": {
+    "chunk_ids": [
+      "chunk-5f2b572d5235146673e93035890dcedc"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "家电以旧换新补贴"
+  },
+  "家电产品": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "家电产品"
+  },
+  "补贴时间": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "补贴时间"
+  },
+  "平台建设": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "平台建设"
+  },
+  "家电以旧换新": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "家电以旧换新"
+  },
+  "市级平台": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "市级平台"
+  },
+  "山东省家电以旧换新资格核验系统": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b",
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 2,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "山东省家电以旧换新资格核验系统"
+  },
+  "市场环境": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "市场环境"
+  },
+  "家电售后服务体系": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "家电售后服务体系"
+  },
+  "废旧家电回收体系": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "废旧家电回收体系"
+  },
+  "商家报名及产品管理": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "商家报名及产品管理"
+  },
+  "补贴资格发放和领取": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "补贴资格发放和领取"
+  },
+  "补贴核销": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "补贴核销"
+  },
+  "补贴审核": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b",
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2"
+    ],
+    "count": 2,
+    "update_time": 1763800169,
+    "_id": "补贴审核"
+  },
+  "数据分析": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "数据分析"
+  },
+  "废旧家电品类回收统计": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "废旧家电品类回收统计"
+  },
+  "反馈数据安全": {
+    "chunk_ids": [
+      "chunk-97b70d878456711e9cec68d6d826013b"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "反馈数据安全"
+  },
+  "家电生产企业及代理机构": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "家电生产企业及代理机构"
+  },
+  "市商务主管部门": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "市商务主管部门"
+  },
+  "超长期特别国债资金": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "超长期特别国债资金"
+  },
+  "各市人民政府": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "各市人民政府"
+  },
+  "各市发展改革委": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "各市发展改革委"
+  },
+  "各市财政局": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "各市财政局"
+  },
+  "各市市场监督管理局": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "各市市场监督管理局"
+  },
+  "省财政厅": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "省财政厅"
+  },
+  "家电以旧换新工作": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799995,
+    "update_time": 1763799995,
+    "_id": "家电以旧换新工作"
+  },
+  "换新家电产品质量": {
+    "chunk_ids": [
+      "chunk-88703416a46e8354d87d2bdbd3981284"
+    ],
+    "count": 1,
+    "create_time": 1763799999,
+    "update_time": 1763799999,
+    "_id": "换新家电产品质量"
+  },
+  "2025年政府汽车消费补贴活动公告": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "2025年政府汽车消费补贴活动公告"
+  },
+  "齐鲁银行权益平台": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "齐鲁银行权益平台"
+  },
+  "新能源乘用车": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "新能源乘用车"
+  },
+  "燃油车": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "燃油车"
+  },
+  "购车人": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797",
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7"
+    ],
+    "count": 3,
+    "update_time": 1763800223,
+    "_id": "购车人"
+  },
+  "济南市商务局官方网站": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "济南市商务局官方网站"
+  },
+  "机动车销售统一发票": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797",
+      "chunk-140978b15f6a5dd5cc0448e990dc5565",
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61",
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26"
+    ],
+    "count": 6,
+    "update_time": 1763800250,
+    "_id": "机动车销售统一发票"
+  },
+  "机动车登记证书": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797",
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61",
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26"
+    ],
+    "count": 5,
+    "update_time": 1763800250,
+    "_id": "机动车登记证书"
+  },
+  "机动车行驶证": {
+    "chunk_ids": [
+      "chunk-5e25ae60970f344c59816dfe8524b797",
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 4,
+    "update_time": 1763800223,
+    "_id": "机动车行驶证"
+  },
+  "齐鲁银行": {
+    "chunk_ids": [
+      "chunk-140978b15f6a5dd5cc0448e990dc5565"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "齐鲁银行"
+  },
+  "补贴平台": {
+    "chunk_ids": [
+      "chunk-140978b15f6a5dd5cc0448e990dc5565"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "补贴平台"
+  },
+  "行驶证": {
+    "chunk_ids": [
+      "chunk-140978b15f6a5dd5cc0448e990dc5565"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "行驶证"
+  },
+  "车辆登记证书": {
+    "chunk_ids": [
+      "chunk-140978b15f6a5dd5cc0448e990dc5565"
+    ],
+    "count": 1,
+    "create_time": 1763800030,
+    "update_time": 1763800030,
+    "_id": "车辆登记证书"
+  },
+  "银行卡": {
+    "chunk_ids": [
+      "chunk-140978b15f6a5dd5cc0448e990dc5565"
+    ],
+    "count": 1,
+    "create_time": 1763800031,
+    "update_time": 1763800031,
+    "_id": "银行卡"
+  },
+  "4006096588": {
+    "chunk_ids": [
+      "chunk-140978b15f6a5dd5cc0448e990dc5565",
+      "chunk-bab27dd75787fdc29e728a4d88406fbe"
+    ],
+    "count": 2,
+    "update_time": 1763800254,
+    "_id": "4006096588"
+  },
+  "机动车所有人": {
+    "chunk_ids": [
+      "chunk-140978b15f6a5dd5cc0448e990dc5565",
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2"
+    ],
+    "count": 2,
+    "update_time": 1763800169,
+    "_id": "机动车所有人"
+  },
+  "抖音": {
+    "chunk_ids": [
+      "chunk-16d0af5d38daf31503638e561cd766d9"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "抖音"
+  },
+  "政府消费券": {
+    "chunk_ids": [
+      "chunk-16d0af5d38daf31503638e561cd766d9",
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 2,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "政府消费券"
+  },
+  "商家券": {
+    "chunk_ids": [
+      "chunk-16d0af5d38daf31503638e561cd766d9"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "商家券"
+  },
+  "泉城购": {
+    "chunk_ids": [
+      "chunk-16d0af5d38daf31503638e561cd766d9",
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 2,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "泉城购"
+  },
+  "消费券": {
+    "chunk_ids": [
+      "chunk-16d0af5d38daf31503638e561cd766d9"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "消费券"
+  },
+  "团购套餐": {
+    "chunk_ids": [
+      "chunk-16d0af5d38daf31503638e561cd766d9"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "团购套餐"
+  },
+  "抖音APP": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "抖音APP"
+  },
+  "商超": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "商超"
+  },
+  "便利店": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "便利店"
+  },
+  "食品零售店": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "食品零售店"
+  },
+  "餐饮门店": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800073,
+    "update_time": 1763800073,
+    "_id": "餐饮门店"
+  },
+  "住宿酒店的餐厅": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800074,
+    "update_time": 1763800074,
+    "_id": "住宿酒店的餐厅"
+  },
+  "消费券发放活动公告": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800074,
+    "update_time": 1763800074,
+    "_id": "消费券发放活动公告"
+  },
+  "消费券面额设置": {
+    "chunk_ids": [
+      "chunk-65f8206fbd2d2f9f7a4be12600b31f93"
+    ],
+    "count": 1,
+    "create_time": 1763800074,
+    "update_time": 1763800074,
+    "_id": "消费券面额设置"
+  },
+  "政府汽车消费补贴": {
+    "chunk_ids": [
+      "chunk-52acdff4195070b5b3a2d39151135f86"
+    ],
+    "count": 1,
+    "create_time": 1763800095,
+    "update_time": 1763800095,
+    "_id": "政府汽车消费补贴"
+  },
+  "2025年政府汽车消费补贴活动": {
+    "chunk_ids": [
+      "chunk-52acdff4195070b5b3a2d39151135f86"
+    ],
+    "count": 1,
+    "create_time": 1763800095,
+    "update_time": 1763800095,
+    "_id": "2025年政府汽车消费补贴活动"
+  },
+  "市商务局官网公告": {
+    "chunk_ids": [
+      "chunk-52acdff4195070b5b3a2d39151135f86"
+    ],
+    "count": 1,
+    "create_time": 1763800095,
+    "update_time": 1763800095,
+    "_id": "市商务局官网公告"
+  },
+  "先到先得、用完即止的方式": {
+    "chunk_ids": [
+      "chunk-52acdff4195070b5b3a2d39151135f86"
+    ],
+    "count": 1,
+    "create_time": 1763800095,
+    "update_time": 1763800095,
+    "_id": "先到先得、用完即止的方式"
+  },
+  "企业(单位)": {
+    "chunk_ids": [
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 3,
+    "update_time": 1763800223,
+    "_id": "企业(单位)"
+  },
+  "2025年下半年第一轮汽车消费补贴活动": {
+    "chunk_ids": [
+      "chunk-743c14116a6643643ed40af59c4782e8"
+    ],
+    "count": 1,
+    "create_time": 1763800130,
+    "update_time": 1763800130,
+    "_id": "2025年下半年第一轮汽车消费补贴活动"
+  },
+  "加油储值卡": {
+    "chunk_ids": [
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-3d56107a0e614557bb6ce1752d20e324",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 5,
+    "update_time": 1763800223,
+    "_id": "加油储值卡"
+  },
+  "新车商业保险补贴": {
+    "chunk_ids": [
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 3,
+    "update_time": 1763800223,
+    "_id": "新车商业保险补贴"
+  },
+  "工银e生活APP": {
+    "chunk_ids": [
+      "chunk-743c14116a6643643ed40af59c4782e8",
+      "chunk-a12fdedd7628b934ac10d040403ef0ca",
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 3,
+    "update_time": 1763800223,
+    "_id": "工银e生活APP"
+  },
+  "中石油": {
+    "chunk_ids": [
+      "chunk-3d56107a0e614557bb6ce1752d20e324",
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7"
+    ],
+    "count": 3,
+    "update_time": 1763800223,
+    "_id": "中石油"
+  },
+  "中石化": {
+    "chunk_ids": [
+      "chunk-3d56107a0e614557bb6ce1752d20e324",
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7"
+    ],
+    "count": 3,
+    "update_time": 1763800223,
+    "_id": "中石化"
+  },
+  "中国工商银行": {
+    "chunk_ids": [
+      "chunk-3d56107a0e614557bb6ce1752d20e324",
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7"
+    ],
+    "count": 3,
+    "update_time": 1763800223,
+    "_id": "中国工商银行"
+  },
+  "汽车消费补贴活动": {
+    "chunk_ids": [
+      "chunk-3d56107a0e614557bb6ce1752d20e324"
+    ],
+    "count": 1,
+    "create_time": 1763800130,
+    "update_time": 1763800130,
+    "_id": "汽车消费补贴活动"
+  },
+  "商务济南公众号": {
+    "chunk_ids": [
+      "chunk-3d56107a0e614557bb6ce1752d20e324"
+    ],
+    "count": 1,
+    "create_time": 1763800130,
+    "update_time": 1763800130,
+    "_id": "商务济南公众号"
+  },
+  "济南市2025年下半年第三轮汽车消费补贴活动公告": {
+    "chunk_ids": [
+      "chunk-a12fdedd7628b934ac10d040403ef0ca"
+    ],
+    "count": 1,
+    "create_time": 1763800169,
+    "update_time": 1763800169,
+    "_id": "济南市2025年下半年第三轮汽车消费补贴活动公告"
+  },
+  "申请人": {
+    "chunk_ids": [
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2"
+    ],
+    "count": 1,
+    "create_time": 1763800169,
+    "update_time": 1763800169,
+    "_id": "申请人"
+  },
+  "汽车销售企业": {
+    "chunk_ids": [
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7",
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26"
+    ],
+    "count": 3,
+    "update_time": 1763800250,
+    "_id": "汽车销售企业"
+  },
+  "补贴发放流程": {
+    "chunk_ids": [
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2",
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7"
+    ],
+    "count": 2,
+    "update_time": 1763800223,
+    "_id": "补贴发放流程"
+  },
+  "注意事项": {
+    "chunk_ids": [
+      "chunk-1e0c0c090e77bbec49471a0ce1ebe0f2"
+    ],
+    "count": 1,
+    "create_time": 1763800169,
+    "update_time": 1763800169,
+    "_id": "注意事项"
+  },
+  "补贴审核流程": {
+    "chunk_ids": [
+      "chunk-93b04635293bbefe1b12b2f2bf32a7c7"
+    ],
+    "count": 1,
+    "create_time": 1763800223,
+    "update_time": 1763800223,
+    "_id": "补贴审核流程"
+  },
+  "2025年下半年第二轮汽车消费补贴活动": {
+    "chunk_ids": [
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 1,
+    "create_time": 1763800223,
+    "update_time": 1763800223,
+    "_id": "2025年下半年第二轮汽车消费补贴活动"
+  },
+  "汽车消费礼包": {
+    "chunk_ids": [
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 1,
+    "create_time": 1763800223,
+    "update_time": 1763800223,
+    "_id": "汽车消费礼包"
+  },
+  "机动车商业保险保险单": {
+    "chunk_ids": [
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61",
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26"
+    ],
+    "count": 2,
+    "update_time": 1763800250,
+    "_id": "机动车商业保险保险单"
+  },
+  "活动时间": {
+    "chunk_ids": [
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 1,
+    "create_time": 1763800223,
+    "update_time": 1763800223,
+    "_id": "活动时间"
+  },
+  "补贴资料申报及修改时间": {
+    "chunk_ids": [
+      "chunk-08fb68b55785b05d4a4ca3917f46ad61"
+    ],
+    "count": 1,
+    "create_time": 1763800223,
+    "update_time": 1763800223,
+    "_id": "补贴资料申报及修改时间"
+  },
+  "本次活动": {
+    "chunk_ids": [
+      "chunk-bab27dd75787fdc29e728a4d88406fbe"
+    ],
+    "count": 1,
+    "create_time": 1763800250,
+    "update_time": 1763800250,
+    "_id": "本次活动"
+  },
+  "2025年新车首保消费券活动": {
+    "chunk_ids": [
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26",
+      "chunk-e5dd67eef4caa59abb496255dc93151a"
+    ],
+    "count": 2,
+    "update_time": 1763800268,
+    "_id": "2025年新车首保消费券活动"
+  },
+  "保险公司": {
+    "chunk_ids": [
+      "chunk-cea3a708f7ddcdf8ba0065ce70f2cc26"
+    ],
+    "count": 1,
+    "create_time": 1763800250,
+    "update_time": 1763800250,
+    "_id": "保险公司"
+  },
+  "补充公告": {
+    "chunk_ids": [
+      "chunk-e5dd67eef4caa59abb496255dc93151a"
+    ],
+    "count": 1,
+    "create_time": 1763800268,
+    "update_time": 1763800268,
+    "_id": "补充公告"
+  },
+  "车辆商业保险": {
+    "chunk_ids": [
+      "chunk-e5dd67eef4caa59abb496255dc93151a"
+    ],
+    "count": 1,
+    "create_time": 1763800268,
+    "update_time": 1763800268,
+    "_id": "车辆商业保险"
+  },
+  "5月1日至活动补充公告发布前": {
+    "chunk_ids": [
+      "chunk-e5dd67eef4caa59abb496255dc93151a"
+    ],
+    "count": 1,
+    "create_time": 1763800268,
+    "update_time": 1763800268,
+    "_id": "5月1日至活动补充公告发布前"
+  }
+}

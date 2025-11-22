@@ -1,0 +1,3708 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><key id="d13" for="edge" attr.name="truncate" attr.type="string"/>
+<key id="d12" for="edge" attr.name="created_at" attr.type="long"/>
+<key id="d11" for="edge" attr.name="file_path" attr.type="string"/>
+<key id="d10" for="edge" attr.name="source_id" attr.type="string"/>
+<key id="d9" for="edge" attr.name="keywords" attr.type="string"/>
+<key id="d8" for="edge" attr.name="description" attr.type="string"/>
+<key id="d7" for="edge" attr.name="weight" attr.type="double"/>
+<key id="d6" for="node" attr.name="truncate" attr.type="string"/>
+<key id="d5" for="node" attr.name="created_at" attr.type="long"/>
+<key id="d4" for="node" attr.name="file_path" attr.type="string"/>
+<key id="d3" for="node" attr.name="source_id" attr.type="string"/>
+<key id="d2" for="node" attr.name="description" attr.type="string"/>
+<key id="d1" for="node" attr.name="entity_type" attr.type="string"/>
+<key id="d0" for="node" attr.name="entity_id" attr.type="string"/>
+<graph edgedefault="undirected"><node id="济南市商务局">
+  <data key="d0">济南市商务局</data>
+  <data key="d1">organization</data>
+  <data key="d2">济南市商务局是负责制定和实施多项消费补贴政策的政府部门。该部门不仅负责手机、平板、智能手表（手环）购新补贴政策的组织实施，包括企业汇总、信息发布以及资金兑付等工作，还参与了家电以旧换新补贴实施细则的制定与发布。此外，济南市商务局也是公示审核通过名单并发放相应补贴的官方机构。
+
+在汽车消费补贴方面，济南市商务局同样扮演着重要角色。作为审核和发放汽车消费补贴的机构，其官方网站会公示审核通过的名单，并且在公示期满且无异议后发放补贴。济南市商务局还负责监督和管理这些活动，确保各项补贴政策能够顺利实施并惠及广大消费者。&lt;SEP&gt;济南市商务局是负责审核和发放补贴的机构，同时拥有活动解释权。&lt;SEP&gt;济南市商务局是负责本次活动的组织机构，并保留最终解释权。&lt;SEP&gt;济南市商务局是负责此次活动的组织和管理机构，对活动保留最终解释权。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e&lt;SEP&gt;chunk-39c956a301f284a84c66d3204773f29f&lt;SEP&gt;chunk-96bae2d594dcffdefed27367718a6dab&lt;SEP&gt;chunk-140978b15f6a5dd5cc0448e990dc5565&lt;SEP&gt;chunk-16d0af5d38daf31503638e561cd766d9&lt;SEP&gt;chunk-52acdff4195070b5b3a2d39151135f86&lt;SEP&gt;chunk-3d56107a0e614557bb6ce1752d20e324&lt;SEP&gt;chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7&lt;SEP&gt;chunk-bab27dd75787fdc29e728a4d88406fbe&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="泉城购服务平台">
+  <data key="d0">泉城购服务平台</data>
+  <data key="d1">platform</data>
+  <data key="d2">泉城购服务平台是参与活动企业登录的平台，用于支付立减方式补贴消费者，并对补贴资格领取核销、产品销售、消费者签收、激活等信息进行全流程审核监管。&lt;SEP&gt;泉城购服务平台是济南市用于管理和发放手机、平板、智能手表(手环)购新补贴的服务平台。&lt;SEP&gt;泉城购服务平台是本次活动的平台机构，用于个人消费者领取和核销补贴资格。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e&lt;SEP&gt;chunk-39c956a301f284a84c66d3204773f29f&lt;SEP&gt;chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="市工业和信息化局">
+  <data key="d0">市工业和信息化局</data>
+  <data key="d1">organization</data>
+  <data key="d2">市工业和信息化局根据部门职能推进手机、平板、智能手表(手环)购新补贴政策实施。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="市财政局">
+  <data key="d0">市财政局</data>
+  <data key="d1">organization</data>
+  <data key="d2">市财政局负责做好补贴资金保障，并适时开展重点绩效评价工作。&lt;SEP&gt;市财政局负责做好补贴资金保障，并根据活动开展情况适时开展重点绩效评价工作。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e&lt;SEP&gt;chunk-25075a5d26a87be16bd0da9716bd356c&lt;SEP&gt;chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="市发展改革委">
+  <data key="d0">市发展改革委</data>
+  <data key="d1">organization</data>
+  <data key="d2">市发展改革委负责加强统筹协调，推进手机、平板、智能手表(手环)购新补贴政策实施。&lt;SEP&gt;市发展改革委负责加强统筹协调，推进家电以旧换新补贴政策实施。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e&lt;SEP&gt;chunk-25075a5d26a87be16bd0da9716bd356c&lt;SEP&gt;chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="市市场监管局">
+  <data key="d0">市市场监管局</data>
+  <data key="d1">organization</data>
+  <data key="d2">市市场监管局负责加强手机等产品价格和质量监管，依法查处价格欺诈、虚假宣传等违法行为，维护消费者合法权益。&lt;SEP&gt;市市场监管局负责加强换新家电产品价格和质量监管，依法查处价格欺诈、虚假宣传等违法行为，维护消费者合法权益。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e&lt;SEP&gt;chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="销售企业">
+  <data key="d0">销售企业</data>
+  <data key="d1">organization</data>
+  <data key="d2">销售企业是参与购新补贴政策的企业，负责产品销售、消费者签收、激活等流程，并先行垫付补贴资金。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="第三方机构">
+  <data key="d0">第三方机构</data>
+  <data key="d1">organization</data>
+  <data key="d2">第三方机构进行事中、事后审核，制定风险防控措施，并出具审核报告。&lt;SEP&gt;第三方机构受市商务局委托，审核相关信息及材料并出具审核报告，进行整体审核和资金清算。&lt;SEP&gt;第三方机构进行事中、事后审核，制定活动风险防控措施，审核交易是否闭环，销售发票是否真实有效，并出具审核报告。&lt;SEP&gt;第三方机构受市商务局委托，审核相关信息及材料并出具审核报告，对活动进行整体审核。&lt;SEP&gt;第三方机构负责复审提交的资料，确保资料的准确性和合规性。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e&lt;SEP&gt;chunk-9e3d62b48e1287440a8a646aaad8d18b&lt;SEP&gt;chunk-25075a5d26a87be16bd0da9716bd356c&lt;SEP&gt;chunk-52ef934fd2fb3466ea1982465f45b5fd&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="移动通信运营商">
+  <data key="d0">移动通信运营商</data>
+  <data key="d1">organization</data>
+  <data key="d2">移动通信运营商推出消费让利、信用购机等政策，支持购新补贴政策的实施。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="金融机构和支付机构">
+  <data key="d0">金融机构和支付机构</data>
+  <data key="d1">organization</data>
+  <data key="d2">金融机构和支付机构提供配套优惠支持，助力购新补贴政策的实施。</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市发展和改革委员会">
+  <data key="d0">济南市发展和改革委员会</data>
+  <data key="d1">organization</data>
+  <data key="d2">济南市发展和改革委员会是参与制定和实施手机、平板、智能手表(手环)购新补贴政策的政府部门之一。&lt;SEP&gt;济南市发展和改革委员会是制定和发布家电以旧换新补贴实施细则的部门之一。</data>
+  <data key="d3">chunk-39c956a301f284a84c66d3204773f29f&lt;SEP&gt;chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市工业和信息化局">
+  <data key="d0">济南市工业和信息化局</data>
+  <data key="d1">organization</data>
+  <data key="d2">济南市工业和信息化局是参与制定和实施手机、平板、智能手表(手环)购新补贴政策的政府部门之一。</data>
+  <data key="d3">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市财政局">
+  <data key="d0">济南市财政局</data>
+  <data key="d1">organization</data>
+  <data key="d2">济南市财政局是参与制定和实施手机、平板、智能手表(手环)购新补贴政策的政府部门之一。&lt;SEP&gt;济南市财政局是制定和发布家电以旧换新补贴实施细则的部门之一。</data>
+  <data key="d3">chunk-39c956a301f284a84c66d3204773f29f&lt;SEP&gt;chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市市场监督管理局">
+  <data key="d0">济南市市场监督管理局</data>
+  <data key="d1">organization</data>
+  <data key="d2">济南市市场监督管理局是参与制定和实施手机、平板、智能手表(手环)购新补贴政策的政府部门之一。&lt;SEP&gt;济南市市场监督管理局是制定和发布家电以旧换新补贴实施细则的部门之一。</data>
+  <data key="d3">chunk-39c956a301f284a84c66d3204773f29f&lt;SEP&gt;chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则">
+  <data key="d0">济南市2025年手机、平板、智能手表(手环)购新补贴实施细则</data>
+  <data key="d1">content</data>
+  <data key="d2">该文件详细规定了济南市2025年对购买手机、平板、智能手表(手环)的消费者进行补贴的具体细则。</data>
+  <data key="d3">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="个人消费者">
+  <data key="d0">个人消费者</data>
+  <data key="d1">person</data>
+  <data key="d2">个人消费者是指购买手机、平板、智能手表(手环)并享受购新补贴的消费者。&lt;SEP&gt;个人消费者是指参与家电以旧换新活动并领取补贴资格的消费者。&lt;SEP&gt;个人消费者是指参与本次活动并购买新车的个人。&lt;SEP&gt;个人消费者是在活动时间内购买非营运乘用车新车并参与补贴活动的个人。&lt;SEP&gt;个人消费者是指参与本次活动并购买非营运乘用车新车的个人，限购1辆。&lt;SEP&gt;个人消费者是指在活动期间内，在济南市购买非营运乘用车新车并在保险公司首次购买车辆商业保险的个人。</data>
+  <data key="d3">chunk-39c956a301f284a84c66d3204773f29f&lt;SEP&gt;chunk-25075a5d26a87be16bd0da9716bd356c&lt;SEP&gt;chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="手机、平板、智能手表(手环)">
+  <data key="d0">手机、平板、智能手表(手环)</data>
+  <data key="d1">equipment</data>
+  <data key="d2">手机、平板、智能手表(手环)是消费者可以购买并享受购新补贴的数码产品。</data>
+  <data key="d3">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="省级资格核验系统">
+  <data key="d0">省级资格核验系统</data>
+  <data key="d1">system</data>
+  <data key="d2">省级资格核验系统用于对接和验证购新补贴活动的资格。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="省商务厅">
+  <data key="d0">省商务厅</data>
+  <data key="d1">organization</data>
+  <data key="d2">省商务厅是负责监管和管理购新补贴活动的政府部门。&lt;SEP&gt;省商务厅负责联合省财政厅聘请第三方专业机构对各市家电以旧换新工作进行重点核查。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b&lt;SEP&gt;chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="省级平台">
+  <data key="d0">省级平台</data>
+  <data key="d1">platform</data>
+  <data key="d2">省级平台是按照省商务厅要求实时上报信息的平台。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="购新补贴">
+  <data key="d0">购新补贴</data>
+  <data key="d1">subsidy</data>
+  <data key="d2">购新补贴是政府提供的用于支持消费者购买新产品的补贴。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="大数据分析">
+  <data key="d0">大数据分析</data>
+  <data key="d1">method</data>
+  <data key="d2">大数据分析用于监测虚假交易、跨地区重复购买、大量囤货、骗补套补及价格波动等异常情况。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="防套利和预警机制">
+  <data key="d0">防套利和预警机制</data>
+  <data key="d1">mechanism</data>
+  <data key="d2">防套利和预警机制用于发现和拦截各类异常交易订单。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="专业客服服务">
+  <data key="d0">专业客服服务</data>
+  <data key="d1">service</data>
+  <data key="d2">专业客服服务在活动期间提供咨询、投诉处理和资料审核等服务。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="对账数据和活动专业数据分析报告">
+  <data key="d0">对账数据和活动专业数据分析报告</data>
+  <data key="d1">report</data>
+  <data key="d2">对账数据和活动专业数据分析报告定期出具，包含兑付明细清单和相关信息台账等资料。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799812</data>
+  <data key="d6"></data>
+</node>
+<node id="政策参与主体">
+  <data key="d0">政策参与主体</data>
+  <data key="d1">organization</data>
+  <data key="d2">政策参与主体对补贴资金安全负直接责任，需加强自律，诚信守法经营。&lt;SEP&gt;政策参与主体对补贴资金安全负直接责任，需要加强自律，做到诚信守法。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b&lt;SEP&gt;chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="市商务局">
+  <data key="d0">市商务局</data>
+  <data key="d1">organization</data>
+  <data key="d2">市商务局负责解释购新补贴活动的细则，并根据国家和省级政策的新要求进行调整。&lt;SEP&gt;市商务局负责组织实施家电以旧换新工作，包括补贴资金审核、兑付以及活动的组织协调和宣传推介。</data>
+  <data key="d3">chunk-9e3d62b48e1287440a8a646aaad8d18b&lt;SEP&gt;chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="消费者">
+  <data key="d0">消费者</data>
+  <data key="d3">chunk-27448eecdd737bc7dc1efa72c3d5936e&lt;SEP&gt;chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d2">销售企业负责产品销售、消费者签收、激活等流程，并先行垫付补贴资金。&lt;SEP&gt;消费者在购买手机、平板、智能手表(手环)时可以获得政府补贴，并需注意防范不法行为。</data>
+  <data key="d1">person</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市">
+  <data key="d0">济南市</data>
+  <data key="d1">location</data>
+  <data key="d2">济南市是家电以旧换新补贴政策的实施地，同时也是此次活动的举办地。参与此次活动的企业注册地和活动范围均在济南市内。济南市商务局负责审核和发放相关补贴，确保活动顺利进行。&lt;SEP&gt;济南市是新车首保消费券活动的举办地。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab&lt;SEP&gt;chunk-5e25ae60970f344c59816dfe8524b797&lt;SEP&gt;chunk-65f8206fbd2d2f9f7a4be12600b31f93&lt;SEP&gt;chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-3d56107a0e614557bb6ce1752d20e324&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26&lt;SEP&gt;chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800268</data>
+  <data key="d6"></data>
+</node>
+<node id="2025年家电以旧换新补贴实施细则">
+  <data key="d0">2025年家电以旧换新补贴实施细则</data>
+  <data key="d1">content</data>
+  <data key="d2">该细则详细规定了济南市2025年家电以旧换新的补贴范围、标准和流程。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="电冰箱">
+  <data key="d0">电冰箱</data>
+  <data key="d1">artifact</data>
+  <data key="d2">电冰箱是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="洗衣机">
+  <data key="d0">洗衣机</data>
+  <data key="d1">artifact</data>
+  <data key="d2">洗衣机是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="电视机">
+  <data key="d0">电视机</data>
+  <data key="d1">artifact</data>
+  <data key="d2">电视机是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="空调">
+  <data key="d0">空调</data>
+  <data key="d1">artifact</data>
+  <data key="d2">空调是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="电脑">
+  <data key="d0">电脑</data>
+  <data key="d1">artifact</data>
+  <data key="d2">电脑是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="热水器">
+  <data key="d0">热水器</data>
+  <data key="d1">artifact</data>
+  <data key="d2">热水器是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="家用灶具">
+  <data key="d0">家用灶具</data>
+  <data key="d1">artifact</data>
+  <data key="d2">家用灶具是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="吸油烟机">
+  <data key="d0">吸油烟机</data>
+  <data key="d1">artifact</data>
+  <data key="d2">吸油烟机是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="净水器">
+  <data key="d0">净水器</data>
+  <data key="d1">artifact</data>
+  <data key="d2">净水器是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="洗碗机">
+  <data key="d0">洗碗机</data>
+  <data key="d1">artifact</data>
+  <data key="d2">洗碗机是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="微波炉">
+  <data key="d0">微波炉</data>
+  <data key="d1">artifact</data>
+  <data key="d2">微波炉是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="电饭煲">
+  <data key="d0">电饭煲</data>
+  <data key="d1">artifact</data>
+  <data key="d2">电饭煲是12类家电产品之一，符合补贴条件。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="国家发展改革委">
+  <data key="d0">国家发展改革委</data>
+  <data key="d1">organization</data>
+  <data key="d2">国家发展改革委是发布关于2025年大规模设备更新和消费品以旧换新政策的通知的部门之一。&lt;SEP&gt;国家发展改革委是负责制定大规模设备更新和消费品以旧换新政策的中央部门。&lt;SEP&gt;国家发展改革委是发布大规模设备更新和消费品以旧换新政策的中央政府部门。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab&lt;SEP&gt;chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="财政部">
+  <data key="d0">财政部</data>
+  <data key="d1">organization</data>
+  <data key="d2">财政部是发布关于2025年大规模设备更新和消费品以旧换新政策的通知的部门之一。&lt;SEP&gt;财政部是负责财政政策和资金管理的中央部门，参与制定大规模设备更新和消费品以旧换新政策。&lt;SEP&gt;财政部是与国家发展改革委共同发布大规模设备更新和消费品以旧换新政策的中央政府部门。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab&lt;SEP&gt;chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="商务部">
+  <data key="d0">商务部</data>
+  <data key="d1">organization</data>
+  <data key="d2">商务部是发布关于做好2025年家电以旧换新工作的通知的部门之一。&lt;SEP&gt;商务部参与制定和实施手机、平板、智能手表(手环)购新补贴政策。&lt;SEP&gt;商务部是与多个部门联合发布关于做好2025年家电以旧换新工作的通知的中央政府部门。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab&lt;SEP&gt;chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省商务厅">
+  <data key="d0">山东省商务厅</data>
+  <data key="d1">organization</data>
+  <data key="d2">山东省商务厅是发布山东省2025年家电以旧换新实施方案的部门之一。&lt;SEP&gt;山东省商务厅是负责制定和实施手机、平板、智能手表(手环)购新补贴政策的政府部门。&lt;SEP&gt;山东省商务厅是负责制定和实施相关政策的政府部门。&lt;SEP&gt;山东省商务厅是负责制定和实施家电以旧换新实施方案的政府部门之一。</data>
+  <data key="d3">chunk-96bae2d594dcffdefed27367718a6dab&lt;SEP&gt;chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-10da26ada8471ff52bbf7d65cdc44a81&lt;SEP&gt;chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市泉城购服务平台">
+  <data key="d0">济南市泉城购服务平台</data>
+  <data key="d1">platform</data>
+  <data key="d2">济南市“泉城购”服务平台是用于预约回收服务和管理补贴资格核销的平台。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="电商平台">
+  <data key="d0">电商平台</data>
+  <data key="d1">platform</data>
+  <data key="d2">电商平台是消费者购买补贴范围内产品的地方，也提供废旧家电回收预约服务。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="参与活动企业">
+  <data key="d0">参与活动企业</data>
+  <data key="d1">organization</data>
+  <data key="d2">参与活动企业是在活动中销售补贴范围内产品的商家。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="有资质的拆解企业">
+  <data key="d0">有资质的拆解企业</data>
+  <data key="d1">organization</data>
+  <data key="d2">有资质的拆解企业是负责处理回收的废旧家电的企业。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="区县(功能区)商务主管部门">
+  <data key="d0">区县(功能区)商务主管部门</data>
+  <data key="d1">organization</data>
+  <data key="d2">区县(功能区)商务主管部门汇总上报参与活动企业的名单，并进行相关管理。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="售后服务领跑企业">
+  <data key="d0">售后服务领跑企业</data>
+  <data key="d1">organization</data>
+  <data key="d2">售后服务领跑企业是推动售后服务进乡村、进社区、进企事业单位、进平台、进展会的企业。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799899</data>
+  <data key="d6"></data>
+</node>
+<node id="金融机构">
+  <data key="d0">金融机构</data>
+  <data key="d1">organization</data>
+  <data key="d2">金融机构在家电以旧换新活动中叠加优惠让利，支持消费者购买新产品。&lt;SEP&gt;金融机构提供配套优惠支持，参与优惠让利活动。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c&lt;SEP&gt;chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="废旧家电">
+  <data key="d0">废旧家电</data>
+  <data key="d1">artifact</data>
+  <data key="d2">废旧家电是指消费者交售的12类废旧家电，通过回收服务进行处理。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴资格">
+  <data key="d0">补贴资格</data>
+  <data key="d1">category</data>
+  <data key="d2">补贴资格是指个人消费者在参与活动企业或电商平台购买补贴范围内产品时享受的支付立减资格。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴范围内的产品">
+  <data key="d0">补贴范围内的产品</data>
+  <data key="d1">product</data>
+  <data key="d2">补贴范围内的产品是指消费者在参与活动企业或电商平台购买时可以享受补贴的产品。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="销售发票">
+  <data key="d0">销售发票</data>
+  <data key="d1">document</data>
+  <data key="d2">销售发票是消费者购买补贴范围内产品后开具的正规发票，带有税务监制章，填写项目名称及规格型号。</data>
+  <data key="d3">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="服务平台">
+  <data key="d0">服务平台</data>
+  <data key="d1">organization</data>
+  <data key="d2">服务平台提供商家信息录入、产品审核及管理、风险防控、补贴资格发放等功能，确保购买人身份真实性，并保护消费者个人信息。</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市商务局办公室">
+  <data key="d0">济南市商务局办公室</data>
+  <data key="d1">organization</data>
+  <data key="d2">济南市商务局办公室负责解释本细则，并在后续国家、省级政策有新要求时按照有关规定执行。</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴资金">
+  <data key="d0">补贴资金</data>
+  <data key="d1">data</data>
+  <data key="d2">补贴资金是用于支持家电以旧换新活动的资金，需要确保其安全和合规使用。</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd&lt;SEP&gt;chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="虚假交易">
+  <data key="d0">虚假交易</data>
+  <data key="d1">concept</data>
+  <data key="d2">虚假交易是指通过伪造或变造相关材料进行的不正当交易行为，需要被严格防范和查处。</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="价格欺诈">
+  <data key="d0">价格欺诈</data>
+  <data key="d1">concept</data>
+  <data key="d2">价格欺诈是指商家通过虚假标价、先涨价后补贴等手段欺骗消费者的行为，需要被市场监管局依法查处。</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="绩效评价工作">
+  <data key="d0">绩效评价工作</data>
+  <data key="d1">method</data>
+  <data key="d2">绩效评价工作是指对活动开展情况和资金使用效果进行评估的工作，由市财政局和市发展改革委负责。</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799900</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴资金保障">
+  <data key="d0">补贴资金保障</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d2">市财政局负责做好补贴资金保障，并适时开展重点绩效评价工作。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799906</data>
+  <data key="d6"></data>
+</node>
+<node id="换新家电产品">
+  <data key="d0">换新家电产品</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d2">市市场监管局负责加强换新家电产品价格和质量监管，维护消费者合法权益。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799906</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴资格发放">
+  <data key="d0">补贴资格发放</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d2">服务平台提供补贴资格发放等技术功能，确保购买人身份真实性，并保护消费者个人信息。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799906</data>
+  <data key="d6"></data>
+</node>
+<node id="审核报告">
+  <data key="d0">审核报告</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d2">第三方机构进行事中、事后审核，制定风险防控措施，并出具审核报告。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799906</data>
+  <data key="d6"></data>
+</node>
+<node id="本细则">
+  <data key="d0">本细则</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d2">济南市商务局办公室负责解释本细则，并在后续国家、省级政策有新要求时按照有关规定执行。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799906</data>
+  <data key="d6"></data>
+</node>
+<node id="消费者个人信息保护">
+  <data key="d0">消费者个人信息保护</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d2">服务平台负责保护消费者个人信息，确保数据安全。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799907</data>
+  <data key="d6"></data>
+</node>
+<node id="家电以旧换新补贴政策">
+  <data key="d0">家电以旧换新补贴政策</data>
+  <data key="d3">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d2">市发展改革委负责加强统筹协调，推进家电以旧换新补贴政策的实施。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799907</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省工业和信息化厅">
+  <data key="d0">山东省工业和信息化厅</data>
+  <data key="d1">organization</data>
+  <data key="d2">山东省工业和信息化厅参与制定和实施手机、平板、智能手表(手环)购新补贴政策。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="购新补贴实施细则">
+  <data key="d0">购新补贴实施细则</data>
+  <data key="d1">content</data>
+  <data key="d2">购新补贴实施细则是关于2025年个人消费者购买手机、平板、智能手表(手环)等数码产品的补贴政策文件。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="手机">
+  <data key="d0">手机</data>
+  <data key="d1">artifact</data>
+  <data key="d2">手机是购新补贴政策中的一种数码产品，单件销售价格不超过6000元，每件最高补贴500元。&lt;SEP&gt;手机是消费者可以享受补贴的产品之一。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="平板">
+  <data key="d0">平板</data>
+  <data key="d1">artifact</data>
+  <data key="d2">平板是购新补贴政策中的一种数码产品，单件销售价格不超过6000元，每件最高补贴500元。&lt;SEP&gt;平板是消费者可以享受补贴的产品之一。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="智能手表(手环)">
+  <data key="d0">智能手表(手环)</data>
+  <data key="d1">artifact</data>
+  <data key="d2">智能手表(手环)是购新补贴政策中的一种数码产品，单件销售价格不超过6000元，每件最高补贴500元。&lt;SEP&gt;智能手表(手环)是消费者可以享受补贴的产品之一。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省发展改革委">
+  <data key="d0">山东省发展改革委</data>
+  <data key="d1">organization</data>
+  <data key="d2">山东省发展改革委参与制定和实施手机、平板、智能手表(手环)购新补贴政策。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省财政厅">
+  <data key="d0">山东省财政厅</data>
+  <data key="d1">organization</data>
+  <data key="d2">山东省财政厅负责购新补贴实施细则的资金管理和政策支持。&lt;SEP&gt;山东省财政厅是参与制定和实施家电以旧换新实施方案的政府部门之一。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf&lt;SEP&gt;chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省市场监管局">
+  <data key="d0">山东省市场监管局</data>
+  <data key="d1">organization</data>
+  <data key="d2">山东省市场监管局参与购新补贴实施细则的审核和管理。</data>
+  <data key="d3">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="51号政府网站标识码">
+  <data key="d0">51号政府网站标识码</data>
+  <data key="d1">data</data>
+  <data key="d2">51号政府网站标识码是3700000031，用于标识特定的政府网站。</data>
+  <data key="d3">chunk-3f6a50ac9a4e3d83ffda77c6f371cd89</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="中央资金">
+  <data key="d0">中央资金</data>
+  <data key="d1">organization</data>
+  <data key="d2">中央资金是用于支持手机、平板、智能手表(手环)购买的资金来源之一。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="地方资金">
+  <data key="d0">地方资金</data>
+  <data key="d1">organization</data>
+  <data key="d2">地方资金是用于支持手机、平板、智能手表(手环)购买的资金来源之一。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="市场监管部门">
+  <data key="d0">市场监管部门</data>
+  <data key="d1">organization</data>
+  <data key="d2">市场监管部门负责加强手机等产品质量和价格监管，依法查处价格欺诈、虚假宣传等违法行为。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="生产企业">
+  <data key="d0">生产企业</data>
+  <data key="d1">organization</data>
+  <data key="d2">生产企业是指制造手机、平板、智能手表(手环)的企业。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="流通企业">
+  <data key="d0">流通企业</data>
+  <data key="d1">organization</data>
+  <data key="d2">流通企业是指销售和分销手机、平板、智能手表(手环)的企业。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="运营商">
+  <data key="d0">运营商</data>
+  <data key="d1">organization</data>
+  <data key="d2">运营商推出消费让利、信用购机等政策，参与优惠让利活动。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="支付机构">
+  <data key="d0">支付机构</data>
+  <data key="d1">organization</data>
+  <data key="d2">支付机构提供配套优惠支持，参与优惠让利活动。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="第三方专业机构">
+  <data key="d0">第三方专业机构</data>
+  <data key="d1">organization</data>
+  <data key="d2">第三方专业机构被聘请来对各市手机、平板、智能手表(手环)产品购买补贴工作进行合规性、真实性查证。&lt;SEP&gt;第三方专业机构受省商务厅和省财政厅委托，对各市家电以旧换新工作进行重点核查。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81&lt;SEP&gt;chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="山东国际商务网">
+  <data key="d0">山东国际商务网</data>
+  <data key="d1">content</data>
+  <data key="d2">山东国际商务网是一个发布原创和转载文章的网站。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="中央超长期特别国债">
+  <data key="d0">中央超长期特别国债</data>
+  <data key="d1">data</data>
+  <data key="d2">中央超长期特别国债是国家安排的资金来源之一，用于支持手机、平板、智能手表(手环)的购买。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="线下线上主题活动">
+  <data key="d0">线下线上主题活动</data>
+  <data key="d1">event</data>
+  <data key="d2">各市组织的线下线上主题活动，通过制作发放册、解读视频等方式全方位做好政策解读和宣传引导。</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799951</data>
+  <data key="d6"></data>
+</node>
+<node id="优惠政策">
+  <data key="d0">优惠政策</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d2">生产企业开展优惠让利活动，响应政府政策。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799953</data>
+  <data key="d6"></data>
+</node>
+<node id="原创文章">
+  <data key="d0">原创文章</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d2">山东国际商务网发布原创文章，并保留版权。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799953</data>
+  <data key="d6"></data>
+</node>
+<node id="政策参与企业">
+  <data key="d0">政策参与企业</data>
+  <data key="d3">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d2">山东省商务厅指导政策参与企业加强组织领导，强化安全管理，制定应急预案。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799953</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省发展和改革委员会">
+  <data key="d0">山东省发展和改革委员会</data>
+  <data key="d1">organization</data>
+  <data key="d2">山东省发展和改革委员会是参与制定和实施家电以旧换新实施方案的政府部门之一。</data>
+  <data key="d3">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省市场监督管理局">
+  <data key="d0">山东省市场监督管理局</data>
+  <data key="d1">organization</data>
+  <data key="d2">山东省市场监督管理局是参与制定和实施家电以旧换新实施方案的政府部门之一。</data>
+  <data key="d3">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省2025年家电以旧换新实施方案">
+  <data key="d0">山东省2025年家电以旧换新实施方案</data>
+  <data key="d1">content</data>
+  <data key="d2">山东省2025年家电以旧换新实施方案是一项旨在推动家电更新消费的政策文件。</data>
+  <data key="d3">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799994</data>
+  <data key="d6"></data>
+</node>
+<node id="家电以旧换新活动">
+  <data key="d0">家电以旧换新活动</data>
+  <data key="d1">event</data>
+  <data key="d2">家电以旧换新活动是山东省2025年推动家电更新消费的一项重要活动。</data>
+  <data key="d3">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="家电以旧换新补贴">
+  <data key="d0">家电以旧换新补贴</data>
+  <data key="d1">content</data>
+  <data key="d2">家电以旧换新补贴是针对消费者购买高效能家电产品的财政补贴政策。</data>
+  <data key="d3">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="家电产品">
+  <data key="d0">家电产品</data>
+  <data key="d1">artifact</data>
+  <data key="d2">家电产品是指家用电器，包括各种类型的电器设备。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴时间">
+  <data key="d0">补贴时间</data>
+  <data key="d1">category</data>
+  <data key="d2">补贴时间为各市实施细则发布之日起至2025年12月31日止。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="平台建设">
+  <data key="d0">平台建设</data>
+  <data key="d1">method</data>
+  <data key="d2">强化平台建设是指各市选择最多2个平台开展家电以旧换新，并确定其中1家平台负责与省级家电以旧换新资格核验系统对接。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="家电以旧换新">
+  <data key="d0">家电以旧换新</data>
+  <data key="d1">concept</data>
+  <data key="d2">家电以旧换新是一种政策，鼓励消费者用旧家电换取新家电，并获得政府补贴。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="市级平台">
+  <data key="d0">市级平台</data>
+  <data key="d1">platform</data>
+  <data key="d2">市级平台包括商家报名及产品管理、补贴资格发放和领取、补贴核销、补贴审核、数据分析、废旧家电品类回收统计及反馈数据安全等功能。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="山东省家电以旧换新资格核验系统">
+  <data key="d0">山东省家电以旧换新资格核验系统</data>
+  <data key="d1">system</data>
+  <data key="d2">山东省家电以旧换新资格核验系统接收各市商务主管部门上报的信息，用于资格核验。&lt;SEP&gt;山东省家电以旧换新资格核验系统是省商务厅委托第三方开发建设的系统，用于核验家电以旧换新的补贴资格。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b&lt;SEP&gt;chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="市场环境">
+  <data key="d0">市场环境</data>
+  <data key="d1">concept</data>
+  <data key="d2">营造良好市场环境是指引导政策参与主体诚信经营，公开承诺产品销售价格，并对不履行价格承诺的行为进行处罚。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="家电售后服务体系">
+  <data key="d0">家电售后服务体系</data>
+  <data key="d1">service</data>
+  <data key="d2">完善家电售后服务体系是指培育一批售后服务领跑企业，推动售后服务进乡村、进社区、进企事业单位、进平台，不断提升专业化、标准化、便利化水平。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="废旧家电回收体系">
+  <data key="d0">废旧家电回收体系</data>
+  <data key="d1">system</data>
+  <data key="d2">加强废旧家电回收体系建设是指培育一批废旧家电等再生资源回收试点城市和企业，推动健全包括废旧家电在内的再生资源回收体系。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="商家报名及产品管理">
+  <data key="d0">商家报名及产品管理</data>
+  <data key="d1">method</data>
+  <data key="d2">商家报名及产品管理是市级平台的一项功能，用于管理和登记参与家电以旧换新活动的商家及其产品。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴资格发放和领取">
+  <data key="d0">补贴资格发放和领取</data>
+  <data key="d1">method</data>
+  <data key="d2">补贴资格发放和领取是市级平台的一项功能，用于管理和发放家电以旧换新的补贴资格，并允许消费者领取补贴。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴核销">
+  <data key="d0">补贴核销</data>
+  <data key="d1">method</data>
+  <data key="d2">补贴核销是市级平台的一项功能，用于核销已发放的家电以旧换新补贴。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴审核">
+  <data key="d0">补贴审核</data>
+  <data key="d1">method</data>
+  <data key="d2">补贴审核是市级平台的一项功能，用于审核家电以旧换新补贴的申请和发放。&lt;SEP&gt;补贴审核包括系统初审和第三方机构复审，按照提交资料的先后顺序进行。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b&lt;SEP&gt;chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800169</data>
+  <data key="d6"></data>
+</node>
+<node id="数据分析">
+  <data key="d0">数据分析</data>
+  <data key="d1">method</data>
+  <data key="d2">数据分析是市级平台的一项功能，用于收集和分析家电以旧换新活动的数据。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="废旧家电品类回收统计">
+  <data key="d0">废旧家电品类回收统计</data>
+  <data key="d1">method</data>
+  <data key="d2">废旧家电品类回收统计是市级平台的一项功能，用于统计和记录废旧家电的回收情况。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="反馈数据安全">
+  <data key="d0">反馈数据安全</data>
+  <data key="d1">method</data>
+  <data key="d2">反馈数据安全是市级平台的一项功能，确保在家电以旧换新过程中收集和反馈的数据安全。</data>
+  <data key="d3">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="家电生产企业及代理机构">
+  <data key="d0">家电生产企业及代理机构</data>
+  <data key="d1">organization</data>
+  <data key="d2">家电生产企业及代理机构是需要向所在市商务主管部门提报能效或水效产品信息的实体。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="市商务主管部门">
+  <data key="d0">市商务主管部门</data>
+  <data key="d1">organization</data>
+  <data key="d2">市商务主管部门负责审核和兑付补贴，确保信息无误，并将信息上报山东省家电以旧换新资格核验系统。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="超长期特别国债资金">
+  <data key="d0">超长期特别国债资金</data>
+  <data key="d1">data</data>
+  <data key="d2">超长期特别国债资金是用于支持家电以旧换新工作的资金来源之一。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="各市人民政府">
+  <data key="d0">各市人民政府</data>
+  <data key="d1">organization</data>
+  <data key="d2">各市人民政府是资金管理的第一责任主体，确保资金安全和发放及时。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="各市发展改革委">
+  <data key="d0">各市发展改革委</data>
+  <data key="d1">organization</data>
+  <data key="d2">各市发展改革委负责加强统筹协调，推进家电以旧换新政策的实施。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="各市财政局">
+  <data key="d0">各市财政局</data>
+  <data key="d1">organization</data>
+  <data key="d2">各市财政局负责对补贴资金拨付进行监管，确保资金使用的合规性。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="各市市场监督管理局">
+  <data key="d0">各市市场监督管理局</data>
+  <data key="d1">organization</data>
+  <data key="d2">各市市场监督管理局负责加强换新家电产品质量和价格监管，依法查处违法行为，维护消费者权益。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="省财政厅">
+  <data key="d0">省财政厅</data>
+  <data key="d1">organization</data>
+  <data key="d2">省财政厅与省商务厅合作，聘请第三方专业机构对各市家电以旧换新工作进行重点核查。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="家电以旧换新工作">
+  <data key="d0">家电以旧换新工作</data>
+  <data key="d1">event</data>
+  <data key="d2">家电以旧换新工作是指通过补贴等方式鼓励消费者更换旧家电的活动。</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799995</data>
+  <data key="d6"></data>
+</node>
+<node id="换新家电产品质量">
+  <data key="d0">换新家电产品质量</data>
+  <data key="d3">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d2">各市市场监督管理局负责加强换新家电产品质量和价格监管，依法查处违法行为。</data>
+  <data key="d1">UNKNOWN</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763799999</data>
+  <data key="d6"></data>
+</node>
+<node id="2025年政府汽车消费补贴活动公告">
+  <data key="d0">2025年政府汽车消费补贴活动公告</data>
+  <data key="d1">event</data>
+  <data key="d2">2025年政府汽车消费补贴活动公告是一项由政府发起的汽车消费补贴活动，旨在鼓励居民购买新车。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="齐鲁银行权益平台">
+  <data key="d0">齐鲁银行权益平台</data>
+  <data key="d1">platform</data>
+  <data key="d2">齐鲁银行权益平台是消费者申报购车补贴的在线平台之一。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="新能源乘用车">
+  <data key="d0">新能源乘用车</data>
+  <data key="d1">category</data>
+  <data key="d2">新能源乘用车包括纯电动汽车、插电式混合动力汽车(含增程式)和燃料电池汽车三类，机动车行驶证副页有“新能源”标注，挂绿色车牌。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="燃油车">
+  <data key="d0">燃油车</data>
+  <data key="d1">category</data>
+  <data key="d2">燃油车是指使用传统燃油作为动力源的汽车。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="购车人">
+  <data key="d0">购车人</data>
+  <data key="d1">person</data>
+  <data key="d2">购车人是在活动时间内在参与企业购置非营运乘用车新车并完成车辆初次登记上牌的个人消费者。&lt;SEP&gt;购车人是指购买新车并申请补贴的个人或单位。&lt;SEP&gt;购车人是提交资料并申请补贴的个人或单位。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797&lt;SEP&gt;chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市商务局官方网站">
+  <data key="d0">济南市商务局官方网站</data>
+  <data key="d1">website</data>
+  <data key="d2">济南市商务局官方网站用于公示审核通过名单，并在公示期满且无异议后发放补贴。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="机动车销售统一发票">
+  <data key="d0">机动车销售统一发票</data>
+  <data key="d1">document</data>
+  <data key="d2">机动车销售统一发票是用于证明车辆购买的正式票据。&lt;SEP&gt;机动车销售统一发票是购车时开具的正式发票，用于证明购车金额和时间。&lt;SEP&gt;机动车销售统一发票是购车时由汽车销售企业开具的发票，用于申报补贴。&lt;SEP&gt;机动车销售统一发票是购车时开具的发票，用于证明购车时间和金额。&lt;SEP&gt;机动车销售统一发票是由参与活动的汽车销售企业在规定时间段内开具的发票，用于证明购车时间和金额。&lt;SEP&gt;机动车销售统一发票是汽车销售企业开具的证明购车交易的正式文件。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797&lt;SEP&gt;chunk-140978b15f6a5dd5cc0448e990dc5565&lt;SEP&gt;chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="机动车登记证书">
+  <data key="d0">机动车登记证书</data>
+  <data key="d1">document</data>
+  <data key="d2">机动车登记证书是车辆注册登记手续完成后获得的正式文件，用于证明车辆的所有权。&lt;SEP&gt;机动车登记证书是购车后取得的重要证件之一，用于证明车辆的所有权。&lt;SEP&gt;机动车登记证书是车辆注册登记后获得的证书，用于证明车辆的所有权。&lt;SEP&gt;机动车登记证书是购车后需要提交的资料之一，用于证明车辆的所有权。&lt;SEP&gt;机动车登记证书是证明车辆所有权的官方文件，包括车辆信息和所有人的详细资料。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797&lt;SEP&gt;chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="机动车行驶证">
+  <data key="d0">机动车行驶证</data>
+  <data key="d1">artifact</data>
+  <data key="d2">机动车行驶证是车辆初次登记上牌后获得的证件，用于证明车辆的合法行驶。&lt;SEP&gt;机动车行驶证是购车后取得的重要证件之一，用于证明车辆的合法行驶。&lt;SEP&gt;机动车行驶证是车辆上牌后获得的证件，用于证明车辆的合法行驶。&lt;SEP&gt;机动车行驶证是购车后需要提交的资料之一，用于证明车辆的合法行驶资格。</data>
+  <data key="d3">chunk-5e25ae60970f344c59816dfe8524b797&lt;SEP&gt;chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="齐鲁银行">
+  <data key="d0">齐鲁银行</data>
+  <data key="d1">organization</data>
+  <data key="d2">齐鲁银行与市商务局合作，实时监测补贴活动情况。</data>
+  <data key="d3">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴平台">
+  <data key="d0">补贴平台</data>
+  <data key="d1">content</data>
+  <data key="d2">补贴平台是申领人提交信息和修改资料的在线系统。</data>
+  <data key="d3">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="行驶证">
+  <data key="d0">行驶证</data>
+  <data key="d1">artifact</data>
+  <data key="d2">行驶证是证明机动车所有人身份的重要文件。</data>
+  <data key="d3">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="车辆登记证书">
+  <data key="d0">车辆登记证书</data>
+  <data key="d1">artifact</data>
+  <data key="d2">车辆登记证书是证明车辆所有权的正式文件。</data>
+  <data key="d3">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800030</data>
+  <data key="d6"></data>
+</node>
+<node id="银行卡">
+  <data key="d0">银行卡</data>
+  <data key="d1">artifact</data>
+  <data key="d2">银行卡是用于接收补贴款项的金融工具。</data>
+  <data key="d3">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800031</data>
+  <data key="d6"></data>
+</node>
+<node id="4006096588">
+  <data key="d0">4006096588</data>
+  <data key="d1">data</data>
+  <data key="d2">4006096588是客服电话，用于提供咨询服务。</data>
+  <data key="d3">chunk-140978b15f6a5dd5cc0448e990dc5565&lt;SEP&gt;chunk-bab27dd75787fdc29e728a4d88406fbe</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800031</data>
+  <data key="d6"></data>
+</node>
+<node id="机动车所有人">
+  <data key="d0">机动车所有人</data>
+  <data key="d3">chunk-140978b15f6a5dd5cc0448e990dc5565&lt;SEP&gt;chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d2">机动车销售统一发票需要与机动车所有人的信息一致。&lt;SEP&gt;机动车所有人是指车辆的所有者，需要与提交资料的信息一致。</data>
+  <data key="d1">person</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800169</data>
+  <data key="d6"></data>
+</node>
+<node id="抖音">
+  <data key="d0">抖音</data>
+  <data key="d1">organization</data>
+  <data key="d2">抖音是一款应用程序，用户可以在其中支付并核销商家券。</data>
+  <data key="d3">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="政府消费券">
+  <data key="d0">政府消费券</data>
+  <data key="d1">content</data>
+  <data key="d2">政府消费券是一种在特定时间内有效的优惠券，用于抵扣相应金额。&lt;SEP&gt;政府消费券是通过抖音APP发放的优惠券，用户可以在符合条件的商家处使用。</data>
+  <data key="d3">chunk-16d0af5d38daf31503638e561cd766d9&lt;SEP&gt;chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="商家券">
+  <data key="d0">商家券</data>
+  <data key="d1">content</data>
+  <data key="d2">商家券是由商家提供的优惠券，可以与政府消费券叠加使用。</data>
+  <data key="d3">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="泉城购">
+  <data key="d0">泉城购</data>
+  <data key="d1">event</data>
+  <data key="d2">泉城购是2025年济南市举办的一项零售、餐饮消费券活动。&lt;SEP&gt;泉城购是济南市举办的零售和餐饮消费券发放活动。</data>
+  <data key="d3">chunk-16d0af5d38daf31503638e561cd766d9&lt;SEP&gt;chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="消费券">
+  <data key="d0">消费券</data>
+  <data key="d1">content</data>
+  <data key="d2">消费券是一种在特定时间内有效的优惠券，用于抵扣相应金额。</data>
+  <data key="d3">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="团购套餐">
+  <data key="d0">团购套餐</data>
+  <data key="d1">content</data>
+  <data key="d2">团购套餐是用户在“抖音”APP中可以购买的优惠套餐，每单消费限用1张消费券。</data>
+  <data key="d3">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="抖音APP">
+  <data key="d0">抖音APP</data>
+  <data key="d1">artifact</data>
+  <data key="d2">抖音APP是此次消费券发放的平台，用户可以通过该应用领取和使用消费券。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="商超">
+  <data key="d0">商超</data>
+  <data key="d1">organization</data>
+  <data key="d2">商超是参与此次活动的零售类商家之一。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="便利店">
+  <data key="d0">便利店</data>
+  <data key="d1">organization</data>
+  <data key="d2">便利店是参与此次活动的零售类商家之一。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="食品零售店">
+  <data key="d0">食品零售店</data>
+  <data key="d1">organization</data>
+  <data key="d2">食品零售店是参与此次活动的零售类商家之一。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="餐饮门店">
+  <data key="d0">餐饮门店</data>
+  <data key="d1">organization</data>
+  <data key="d2">餐饮门店是参与此次活动的餐饮类商家之一。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800073</data>
+  <data key="d6"></data>
+</node>
+<node id="住宿酒店的餐厅">
+  <data key="d0">住宿酒店的餐厅</data>
+  <data key="d1">organization</data>
+  <data key="d2">住宿酒店的餐厅是参与此次活动的餐饮类商家之一。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800074</data>
+  <data key="d6"></data>
+</node>
+<node id="消费券发放活动公告">
+  <data key="d0">消费券发放活动公告</data>
+  <data key="d1">content</data>
+  <data key="d2">消费券发放活动公告是关于2025年济南市泉城购零售和餐饮消费券发放的官方通知。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800074</data>
+  <data key="d6"></data>
+</node>
+<node id="消费券面额设置">
+  <data key="d0">消费券面额设置</data>
+  <data key="d1">concept</data>
+  <data key="d2">消费券面额设置包括零售消费券和餐饮消费券的不同满减额度。</data>
+  <data key="d3">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800074</data>
+  <data key="d6"></data>
+</node>
+<node id="政府汽车消费补贴">
+  <data key="d0">政府汽车消费补贴</data>
+  <data key="d1">concept</data>
+  <data key="d2">政府汽车消费补贴是为了提振消费而发放的资金，总额为3000万元。</data>
+  <data key="d3">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800095</data>
+  <data key="d6"></data>
+</node>
+<node id="2025年政府汽车消费补贴活动">
+  <data key="d0">2025年政府汽车消费补贴活动</data>
+  <data key="d1">event</data>
+  <data key="d2">2025年政府汽车消费补贴活动是一项旨在释放汽车消费潜力的活动，追加了3000万元资金。</data>
+  <data key="d3">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800095</data>
+  <data key="d6"></data>
+</node>
+<node id="市商务局官网公告">
+  <data key="d0">市商务局官网公告</data>
+  <data key="d1">content</data>
+  <data key="d2">市商务局官网公告详细说明了汽车消费补贴的实施细则和申报平台。</data>
+  <data key="d3">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800095</data>
+  <data key="d6"></data>
+</node>
+<node id="先到先得、用完即止的方式">
+  <data key="d0">先到先得、用完即止的方式</data>
+  <data key="d1">method</data>
+  <data key="d2">先到先得、用完即止的方式是发放汽车消费补贴的具体方法。</data>
+  <data key="d3">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800095</data>
+  <data key="d6"></data>
+</node>
+<node id="企业(单位)">
+  <data key="d0">企业(单位)</data>
+  <data key="d1">organization</data>
+  <data key="d2">企业(单位)是指参与本次活动并购买新车的企业或单位，行政、事业单位除外。&lt;SEP&gt;企业(单位)是在活动时间内购买非营运乘用车新车并参与补贴活动的企业或单位。&lt;SEP&gt;企业(单位)是指参与本次活动并购买非营运乘用车新车的企业或单位，行政、事业单位除外，限购3辆。</data>
+  <data key="d3">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="2025年下半年第一轮汽车消费补贴活动">
+  <data key="d0">2025年下半年第一轮汽车消费补贴活动</data>
+  <data key="d1">event</data>
+  <data key="d2">2025年下半年第一轮汽车消费补贴活动是在济南市举办的购车补贴活动。</data>
+  <data key="d3">chunk-743c14116a6643643ed40af59c4782e8</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800130</data>
+  <data key="d6"></data>
+</node>
+<node id="加油储值卡">
+  <data key="d0">加油储值卡</data>
+  <data key="d1">artifact</data>
+  <data key="d2">加油储值卡是购车补贴礼包中的一部分，用于在加油站充值使用。&lt;SEP&gt;加油储值卡是中石油或中石化提供的储值卡，有效期为90天，用户可在有效期内使用。&lt;SEP&gt;加油储值卡是购车补贴礼包中的一部分，用于加油消费。&lt;SEP&gt;加油储值卡是用户在中石油或中石化领取的卡片，有效期为90天，用于加油。&lt;SEP&gt;加油储值卡是汽车消费礼包的一部分，提供不同金额的加油补贴。</data>
+  <data key="d3">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-3d56107a0e614557bb6ce1752d20e324&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="新车商业保险补贴">
+  <data key="d0">新车商业保险补贴</data>
+  <data key="d1">data</data>
+  <data key="d2">新车商业保险补贴是购车补贴礼包中的一部分，用于补贴新车的商业保险费用。&lt;SEP&gt;新车商业保险补贴是购车补贴礼包中的一部分，用于支付新车的商业保险费用。&lt;SEP&gt;新车商业保险补贴是汽车消费礼包的一部分，提供不同金额的新车商业保险补贴。</data>
+  <data key="d3">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="工银e生活APP">
+  <data key="d0">工银e生活APP</data>
+  <data key="d1">artifact</data>
+  <data key="d2">工银e生活APP是用于申请购车补贴的移动端应用程序。&lt;SEP&gt;工银e生活APP是用于申请购车补贴的移动端应用程序，用户可以通过该应用提交相关资料。&lt;SEP&gt;工银e生活APP是一个移动端应用程序，用户可以通过该应用申请购车补贴。</data>
+  <data key="d3">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="中石油">
+  <data key="d0">中石油</data>
+  <data key="d1">organization</data>
+  <data key="d2">中石油是提供加油储值卡的企业之一，用户可以在其处领取并使用加油储值卡。&lt;SEP&gt;中石油是一家提供加油储值卡的企业。&lt;SEP&gt;中石油是提供加油储值卡的企业之一，用户可以在有效期内使用加油储值卡。</data>
+  <data key="d3">chunk-3d56107a0e614557bb6ce1752d20e324&lt;SEP&gt;chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="中石化">
+  <data key="d0">中石化</data>
+  <data key="d1">organization</data>
+  <data key="d2">中石化是提供加油储值卡的企业之一，用户可以在其处领取并使用加油储值卡。&lt;SEP&gt;中石化是一家提供加油储值卡的企业。&lt;SEP&gt;中石化是提供加油储值卡的企业之一，用户可以在有效期内使用加油储值卡。</data>
+  <data key="d3">chunk-3d56107a0e614557bb6ce1752d20e324&lt;SEP&gt;chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="中国工商银行">
+  <data key="d0">中国工商银行</data>
+  <data key="d1">organization</data>
+  <data key="d2">中国工商银行提供客服热线95588，为用户提供咨询服务。&lt;SEP&gt;中国工商银行是提供客服咨询热线的银行。&lt;SEP&gt;中国工商银行提供客服热线，用于解答与活动相关的问题。</data>
+  <data key="d3">chunk-3d56107a0e614557bb6ce1752d20e324&lt;SEP&gt;chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="汽车消费补贴活动">
+  <data key="d0">汽车消费补贴活动</data>
+  <data key="d1">event</data>
+  <data key="d2">汽车消费补贴活动是由济南市商务局组织的活动，旨在为符合条件的个人消费者和企业提供补贴。</data>
+  <data key="d3">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800130</data>
+  <data key="d6"></data>
+</node>
+<node id="商务济南公众号">
+  <data key="d0">商务济南公众号</data>
+  <data key="d1">content</data>
+  <data key="d2">商务济南公众号是济南市商务局用于发布后续活动开展时间等信息的官方平台。</data>
+  <data key="d3">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800130</data>
+  <data key="d6"></data>
+</node>
+<node id="济南市2025年下半年第三轮汽车消费补贴活动公告">
+  <data key="d0">济南市2025年下半年第三轮汽车消费补贴活动公告</data>
+  <data key="d1">event</data>
+  <data key="d2">济南市2025年下半年第三轮汽车消费补贴活动公告是一项针对个人消费者和企业的汽车消费补贴活动，规定了活动时间、范围、补贴金额与标准以及申领程序。</data>
+  <data key="d3">chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800169</data>
+  <data key="d6"></data>
+</node>
+<node id="申请人">
+  <data key="d0">申请人</data>
+  <data key="d1">person</data>
+  <data key="d2">申请人是指提交补贴申请的个人或单位。</data>
+  <data key="d3">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800169</data>
+  <data key="d6"></data>
+</node>
+<node id="汽车销售企业">
+  <data key="d0">汽车销售企业</data>
+  <data key="d1">organization</data>
+  <data key="d2">汽车销售企业是指依法经营、诚信经营的汽车销售公司。&lt;SEP&gt;汽车销售企业需依法经营、诚信经营，不得通过多开、虚开、伪造销售发票或其他手段协助骗取财政补贴。&lt;SEP&gt;汽车销售企业是指在济南市销售新车的企业，并开具机动车销售统一发票。</data>
+  <data key="d3">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴发放流程">
+  <data key="d0">补贴发放流程</data>
+  <data key="d1">method</data>
+  <data key="d2">补贴发放流程包括审核通过名单公示和补贴资金发放至个人消费者或企业的银行卡或对公账户。&lt;SEP&gt;补贴发放流程包括审核通过名单公示、补贴发放至个人消费者或企业(单位)提供的账户中，并在中石油或中石化领取加油储值卡。</data>
+  <data key="d3">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="注意事项">
+  <data key="d0">注意事项</data>
+  <data key="d1">concept</data>
+  <data key="d2">注意事项包括信息核对、资料准确无误、同一用户识别、真实资料提交、诚信经营要求等。</data>
+  <data key="d3">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800169</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴审核流程">
+  <data key="d0">补贴审核流程</data>
+  <data key="d1">method</data>
+  <data key="d2">补贴审核流程包括系统初审和第三方机构复审，按照提交资料的先后顺序进行审核。</data>
+  <data key="d3">chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d0">2025年下半年第二轮汽车消费补贴活动</data>
+  <data key="d1">event</data>
+  <data key="d2">该活动是济南市在2025年下半年举办的第二轮汽车消费补贴活动，旨在鼓励消费者购买新车。</data>
+  <data key="d3">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="汽车消费礼包">
+  <data key="d0">汽车消费礼包</data>
+  <data key="d1">content</data>
+  <data key="d2">汽车消费礼包是根据购车发票金额不同而提供的不同金额的补贴，包括加油储值卡和新车商业保险补贴。</data>
+  <data key="d3">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="机动车商业保险保险单">
+  <data key="d0">机动车商业保险保险单</data>
+  <data key="d1">document</data>
+  <data key="d2">机动车商业保险保险单是购车后需要提交的资料之一，用于证明车辆的商业保险情况。&lt;SEP&gt;机动车商业保险保险单是保险公司为新购车辆提供的首次商业保险的证明文件。</data>
+  <data key="d3">chunk-08fb68b55785b05d4a4ca3917f46ad61&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="活动时间">
+  <data key="d0">活动时间</data>
+  <data key="d1">category</data>
+  <data key="d2">活动时间为2025年8月1日0时至2025年8月31日24时，期间开具的《机动车销售统一发票》时间须在以上时间段内。</data>
+  <data key="d3">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="补贴资料申报及修改时间">
+  <data key="d0">补贴资料申报及修改时间</data>
+  <data key="d1">category</data>
+  <data key="d2">补贴资料申报及修改时间为2025年8月6日10时至2025年9月5日24时。</data>
+  <data key="d3">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800223</data>
+  <data key="d6"></data>
+</node>
+<node id="本次活动">
+  <data key="d0">本次活动</data>
+  <data key="d1">event</data>
+  <data key="d2">本次活动是一个由济南市商务局组织的活动，可以在较大损失风险时提前终止。</data>
+  <data key="d3">chunk-bab27dd75787fdc29e728a4d88406fbe</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="2025年新车首保消费券活动">
+  <data key="d0">2025年新车首保消费券活动</data>
+  <data key="d1">event</data>
+  <data key="d2">2025年新车首保消费券活动是在济南市举办的，时间为2025年5月1日至6月30日，旨在为购买新车并首次购买车辆商业保险的个人消费者提供补贴。&lt;SEP&gt;2025年新车首保消费券活动是一项由济南市举办的保险补贴活动，旨在扩大保险补贴覆盖面。</data>
+  <data key="d3">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26&lt;SEP&gt;chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800268</data>
+  <data key="d6"></data>
+</node>
+<node id="保险公司">
+  <data key="d0">保险公司</data>
+  <data key="d1">organization</data>
+  <data key="d2">保险公司是指在济南市经营车险业务的公司，为新购车辆提供首次商业保险。</data>
+  <data key="d3">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800250</data>
+  <data key="d6"></data>
+</node>
+<node id="补充公告">
+  <data key="d0">补充公告</data>
+  <data key="d1">content</data>
+  <data key="d2">补充公告是对原公告内容的补充说明，增加了新的申领额度与标准。</data>
+  <data key="d3">chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800268</data>
+  <data key="d6"></data>
+</node>
+<node id="车辆商业保险">
+  <data key="d0">车辆商业保险</data>
+  <data key="d1">data</data>
+  <data key="d2">车辆商业保险是指在新车首保活动中涉及的保险类型，其金额在2000元(含)至3000元之间可领取800元。</data>
+  <data key="d3">chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800268</data>
+  <data key="d6"></data>
+</node>
+<node id="5月1日至活动补充公告发布前">
+  <data key="d0">5月1日至活动补充公告发布前</data>
+  <data key="d1">time</data>
+  <data key="d2">这段时间内，个人消费者可以按照补充后的申领额度与标准参与活动。</data>
+  <data key="d3">chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d4">unknown_source</data>
+  <data key="d5">1763800268</data>
+  <data key="d6"></data>
+</node>
+<edge source="济南市商务局" target="泉城购服务平台">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局通过泉城购服务平台实施购新补贴政策，并进行全流程审核监管。</data>
+  <data key="d9">平台监管,政策实施</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799813</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="市财政局">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局与市财政局合作，确保补贴资金保障并适时开展绩效评价工作。</data>
+  <data key="d9">绩效评价,资金保障</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799813</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="市发展改革委">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局与市发展改革委共同推进购新补贴政策的实施。</data>
+  <data key="d9">政策实施,统筹协调</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799813</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="市市场监管局">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局与市市场监管局合作，加强市场监督，维护消费者权益。</data>
+  <data key="d9">市场监管,消费者权益保护</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799813</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="市工业和信息化局">
+  <data key="d7">1.0</data>
+  <data key="d8">市工业和信息化局与济南市商务局根据各自职能推进购新补贴政策的实施。</data>
+  <data key="d9">政策推进,职能分工</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="第三方机构">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局委托第三方机构审核相关信息及材料并出具审核报告，进行资金兑付。</data>
+  <data key="d9">审核监管,资金兑付</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="销售企业">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局负责组织实施购新补贴政策工作，并根据活动进展和企业报名情况动态调整参与企业名单。</data>
+  <data key="d9">企业动态调整,活动组织</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局参与制定了《济南市2025年手机、平板、智能手表(手环)购新补贴实施细则》。</data>
+  <data key="d9">政策制定,文件发布</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="2025年家电以旧换新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局参与制定了2025年家电以旧换新补贴实施细则。</data>
+  <data key="d9">政策制定,部门职责</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799901</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="补贴平台">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局通过补贴平台发布信息和公示审核通过名单。</data>
+  <data key="d9">信息发布,在线系统</data>
+  <data key="d10">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800032</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="齐鲁银行">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局与齐鲁银行合作，实时监测补贴活动情况。</data>
+  <data key="d9">合作,监测</data>
+  <data key="d10">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="泉城购">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局负责监督和管理泉城购活动，并有权根据情况调整活动规则。</data>
+  <data key="d9">活动管理,监督</data>
+  <data key="d10">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="政府汽车消费补贴">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局负责发放政府汽车消费补贴。</data>
+  <data key="d9">政府政策,资金发放</data>
+  <data key="d10">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800095</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="2025年政府汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局组织并管理2025年政府汽车消费补贴活动。</data>
+  <data key="d9">活动组织,资金管理</data>
+  <data key="d10">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800095</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="先到先得、用完即止的方式">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局采用先到先得、用完即止的方式发放汽车消费补贴。</data>
+  <data key="d9">政策实施,资金发放</data>
+  <data key="d10">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800095</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="济南市">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局位于济南市，负责管理和执行汽车消费补贴活动。</data>
+  <data key="d9">机构所在地,行政管理</data>
+  <data key="d10">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800132</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局组织并管理汽车消费补贴活动，负责审核和发放补贴。</data>
+  <data key="d9">活动组织,补贴发放</data>
+  <data key="d10">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800132</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="商务济南公众号">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局通过商务济南公众号发布后续活动开展时间等信息。</data>
+  <data key="d9">信息发布,官方平台</data>
+  <data key="d10">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800132</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="申请人">
+  <data key="d7">1.0</data>
+  <data key="d8">申请人向济南市商务局提交补贴申请，并由其进行审核。</data>
+  <data key="d9">审核,补贴申请</data>
+  <data key="d10">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="中石油">
+  <data key="d7">2.0</data>
+  <data key="d8">济南市商务局通过中石油发放加油储值卡给符合条件的个人消费者和企业。&lt;SEP&gt;济南市商务局将补贴发放至个人消费者提供的银行卡或企业(单位)提供的对公账户中，用户可在中石油领取加油储值卡。</data>
+  <data key="d9">加油储值卡,补贴发放</data>
+  <data key="d10">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="中石化">
+  <data key="d7">2.0</data>
+  <data key="d8">济南市商务局通过中石化发放加油储值卡给符合条件的个人消费者和企业。&lt;SEP&gt;济南市商务局将补贴发放至个人消费者提供的银行卡或企业(单位)提供的对公账户中，用户可在中石化领取加油储值卡。</data>
+  <data key="d9">加油储值卡,补贴发放</data>
+  <data key="d10">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="中国工商银行">
+  <data key="d7">1.0</data>
+  <data key="d8">中国工商银行提供客服专线电话支持济南市商务局的补贴活动。</data>
+  <data key="d9">专线电话,客服支持</data>
+  <data key="d10">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800180</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="汽车销售企业">
+  <data key="d7">1.0</data>
+  <data key="d8">汽车销售企业应依法经营、诚信经营，避免协助骗取财政补贴。</data>
+  <data key="d9">合法经营,诚信经营</data>
+  <data key="d10">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800180</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="购车人">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局负责审核购车人提交的资料，并在审核通过后发放补贴。</data>
+  <data key="d9">补贴审核,资料提交</data>
+  <data key="d10">chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800223</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="补贴审核流程">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局负责执行补贴审核流程，包括系统初审和第三方机构复审。</data>
+  <data key="d9">补贴审核,资料提交</data>
+  <data key="d10">chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="补贴发放流程">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局负责执行补贴发放流程，包括审核通过名单公示和补贴发放。</data>
+  <data key="d9">名单公示,补贴发放</data>
+  <data key="d10">chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="本次活动">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局对本次活动保留最终解释权。</data>
+  <data key="d9">活动管理,解释权</data>
+  <data key="d10">chunk-bab27dd75787fdc29e728a4d88406fbe</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800253</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局" target="2025年新车首保消费券活动">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局负责组织和管理2025年新车首保消费券活动。</data>
+  <data key="d9">政策制定,活动管理</data>
+  <data key="d10">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800254</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购服务平台" target="销售企业">
+  <data key="d7">1.0</data>
+  <data key="d8">销售企业登录泉城购服务平台，采取支付立减方式按规定比例补贴消费者。</data>
+  <data key="d9">平台运作,补贴发放</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799813</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购服务平台" target="个人消费者">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者通过泉城购服务平台完成实名认证并领取购新补贴资格。</data>
+  <data key="d9">服务平台,补贴领取</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购服务平台" target="2025年家电以旧换新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">泉城购服务平台是实施2025年家电以旧换新补贴政策的平台机构。</data>
+  <data key="d9">平台支持,补贴发放</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799902</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市财政局" target="补贴资金保障">
+  <data key="d7">1.0</data>
+  <data key="d8">市财政局负责做好补贴资金保障，并适时开展重点绩效评价工作。</data>
+  <data key="d9">绩效评价,资金管理</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市财政局" target="市商务局">
+  <data key="d7">1.0</data>
+  <data key="d8">市财政局负责做好补贴资金保障，并根据活动开展情况适时开展重点绩效评价工作。</data>
+  <data key="d9">绩效评价,资金保障</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市财政局" target="绩效评价工作">
+  <data key="d7">1.0</data>
+  <data key="d8">市财政局根据活动开展情况适时开展重点绩效评价工作，确保资金使用的科学化和精细化。</data>
+  <data key="d9">绩效评价,资金管理</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市发展改革委" target="市商务局">
+  <data key="d7">1.0</data>
+  <data key="d8">市发展改革委负责加强统筹协调，推进家电以旧换新补贴政策的实施。</data>
+  <data key="d9">政策协调,政策实施</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市发展改革委" target="家电以旧换新补贴政策">
+  <data key="d7">1.0</data>
+  <data key="d8">市发展改革委负责加强统筹协调，推进家电以旧换新补贴政策的实施。</data>
+  <data key="d9">政策实施,统筹协调</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市市场监管局" target="换新家电产品">
+  <data key="d7">1.0</data>
+  <data key="d8">市市场监管局负责加强换新家电产品价格和质量监管，维护消费者合法权益。</data>
+  <data key="d9">价格监管,消费者权益保护,质量监管</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市市场监管局" target="价格欺诈">
+  <data key="d7">1.0</data>
+  <data key="d8">市市场监管局负责依法查处价格欺诈等违法行为，维护消费者合法权益。</data>
+  <data key="d9">消费者权益保护,违法行为查处</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="销售企业" target="消费者">
+  <data key="d7">1.0</data>
+  <data key="d8">销售企业负责产品销售、消费者签收、激活等流程，并先行垫付补贴资金。</data>
+  <data key="d9">产品销售,补贴发放</data>
+  <data key="d10">chunk-27448eecdd737bc7dc1efa72c3d5936e</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799813</data>
+  <data key="d13"></data>
+</edge>
+<edge source="第三方机构" target="购新补贴">
+  <data key="d7">1.0</data>
+  <data key="d8">第三方机构对购新补贴活动进行事中、事后审核，制定风险防控措施。</data>
+  <data key="d9">审核,风险防控</data>
+  <data key="d10">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="第三方机构" target="市商务局">
+  <data key="d7">1.0</data>
+  <data key="d8">市商务局委托第三方机构审核相关信息及材料并出具审核报告。</data>
+  <data key="d9">政府监管,第三方审核</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="第三方机构" target="参与活动企业">
+  <data key="d7">1.0</data>
+  <data key="d8">市商务局委托第三方机构审核相关信息及材料，对参与活动企业进行资金兑付。</data>
+  <data key="d9">审核监管,资金兑付</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="第三方机构" target="审核报告">
+  <data key="d7">1.0</data>
+  <data key="d8">第三方机构进行事中、事后审核，制定风险防控措施，并出具审核报告。</data>
+  <data key="d9">审核交易,风险防控</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="第三方机构" target="虚假交易">
+  <data key="d7">1.0</data>
+  <data key="d8">第三方机构审核交易是否闭环，销售发票是否真实有效，防止虚假交易的发生。</data>
+  <data key="d9">审核,风险防控</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="第三方机构" target="购车人">
+  <data key="d7">1.0</data>
+  <data key="d8">购车人提交的资料由第三方机构进行复审，确保资料的准确性和合规性。</data>
+  <data key="d9">复审,资料审核</data>
+  <data key="d10">chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市发展和改革委员会" target="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市发展和改革委员会参与制定了《济南市2025年手机、平板、智能手表(手环)购新补贴实施细则》。</data>
+  <data key="d9">政策制定,文件发布</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市发展和改革委员会" target="2025年家电以旧换新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市发展和改革委员会参与制定了2025年家电以旧换新补贴实施细则。</data>
+  <data key="d9">政策制定,部门职责</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799901</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市工业和信息化局" target="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市工业和信息化局参与制定了《济南市2025年手机、平板、智能手表(手环)购新补贴实施细则》。</data>
+  <data key="d9">政策制定,文件发布</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市财政局" target="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市财政局参与制定了《济南市2025年手机、平板、智能手表(手环)购新补贴实施细则》。</data>
+  <data key="d9">政策制定,文件发布</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市财政局" target="2025年家电以旧换新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市财政局参与制定了2025年家电以旧换新补贴实施细则。</data>
+  <data key="d9">政策制定,部门职责</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799901</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市市场监督管理局" target="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市市场监督管理局参与制定了《济南市2025年手机、平板、智能手表(手环)购新补贴实施细则》。</data>
+  <data key="d9">政策制定,文件发布</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市市场监督管理局" target="2025年家电以旧换新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市市场监督管理局参与制定了2025年家电以旧换新补贴实施细则。</data>
+  <data key="d9">政策制定,部门职责</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799902</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则" target="个人消费者">
+  <data key="d7">1.0</data>
+  <data key="d8">《济南市2025年手机、平板、智能手表(手环)购新补贴实施细则》为个人消费者提供购新补贴。</data>
+  <data key="d9">政策实施,补贴对象</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市2025年手机、平板、智能手表(手环)购新补贴实施细则" target="手机、平板、智能手表(手环)">
+  <data key="d7">1.0</data>
+  <data key="d8">《济南市2025年手机、平板、智能手表(手环)购新补贴实施细则》为购买手机、平板、智能手表(手环)的消费者提供购新补贴。</data>
+  <data key="d9">政策实施,补贴对象</data>
+  <data key="d10">chunk-39c956a301f284a84c66d3204773f29f</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="补贴资格">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者在参与活动企业或电商平台购买补贴范围内产品时，核销补贴资格，享受支付立减。</data>
+  <data key="d9">消费者权益,补贴领取</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="废旧家电">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者在购买新产品的同时交售废旧家电，通过济南市“泉城购”服务平台或电商平台预约回收服务。</data>
+  <data key="d9">以旧换新,废旧物回收</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="参与活动企业">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者在参与活动企业购买补贴范围内的产品。</data>
+  <data key="d9">企业销售,消费者购买</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="电商平台">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者在电商平台购买补贴范围内的产品。</data>
+  <data key="d9">平台交易,消费者购买</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="2025年下半年第一轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者可以参与2025年下半年第一轮汽车消费补贴活动。</data>
+  <data key="d9">参与,活动</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800131</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="机动车销售统一发票">
+  <data key="d7">3.0</data>
+  <data key="d8">个人消费者需要提交机动车销售统一发票以申请补贴。&lt;SEP&gt;个人消费者需要提供机动车销售统一发票作为补贴申报资料。&lt;SEP&gt;个人消费者在申报补贴时需要提交机动车销售统一发票作为购车凭证。</data>
+  <data key="d9">document,requirement,发票提交,提交,购车凭证,资料</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800254</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="机动车登记证书">
+  <data key="d7">3.0</data>
+  <data key="d8">个人消费者需要提交机动车登记证书以申请补贴。&lt;SEP&gt;个人消费者需要提供机动车登记证书作为补贴申报资料。&lt;SEP&gt;个人消费者在申报补贴时需要提交机动车登记证书以证明车辆所有权。</data>
+  <data key="d9">document,requirement,提交,证书提交,资料,车辆登记</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca&lt;SEP&gt;chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800255</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="机动车行驶证">
+  <data key="d7">2.0</data>
+  <data key="d8">个人消费者需要提交机动车行驶证以申请补贴。&lt;SEP&gt;个人消费者需要提供机动车行驶证作为补贴申报资料。</data>
+  <data key="d9">document,requirement,提交,资料</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="加油储值卡">
+  <data key="d7">2.0</data>
+  <data key="d8">个人消费者可以领取加油储值卡作为购车补贴的一部分。&lt;SEP&gt;个人消费者可以获得加油储值卡作为购车补贴的一部分。</data>
+  <data key="d9">benefit,subsidy,补贴,领取</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="新车商业保险补贴">
+  <data key="d7">2.0</data>
+  <data key="d8">个人消费者可以领取新车商业保险补贴作为购车补贴的一部分。&lt;SEP&gt;个人消费者可以获得新车商业保险补贴作为购车补贴的一部分。</data>
+  <data key="d9">benefit,subsidy,补贴,领取</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="工银e生活APP">
+  <data key="d7">2.0</data>
+  <data key="d8">个人消费者可以通过工银e生活APP申请购车补贴。&lt;SEP&gt;个人消费者可以通过工银e生活APP提交购车补贴申报资料。</data>
+  <data key="d9">application,submission,使用,申请</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800180</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="济南市2025年下半年第三轮汽车消费补贴活动公告">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者参与济南市2025年下半年第三轮汽车消费补贴活动。</data>
+  <data key="d9">activity,participant</data>
+  <data key="d10">chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800178</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者可以参与2025年下半年第二轮汽车消费补贴活动。</data>
+  <data key="d9">参与者,活动对象</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="企业(单位)">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者限购1辆，企业(单位)限购3辆。</data>
+  <data key="d9">参与限制,购车数量</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="汽车销售企业">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者在汽车销售企业购买新车并获得机动车销售统一发票。</data>
+  <data key="d9">发票开具,购车交易</data>
+  <data key="d10">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800253</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="保险公司">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者在保险公司首次购买车辆商业保险并获得保险单。</data>
+  <data key="d9">保险单,保险购买</data>
+  <data key="d10">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800254</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="2025年新车首保消费券活动">
+  <data key="d7">1.0</data>
+  <data key="d8">2025年新车首保消费券活动为符合条件的个人消费者提供购车补贴。</data>
+  <data key="d9">消费激励,补贴政策</data>
+  <data key="d10">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800254</data>
+  <data key="d13"></data>
+</edge>
+<edge source="个人消费者" target="机动车商业保险保险单">
+  <data key="d7">1.0</data>
+  <data key="d8">个人消费者在申报补贴时需要提交机动车商业保险保险单作为保险凭证。</data>
+  <data key="d9">保险凭证,保险单提交</data>
+  <data key="d10">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800254</data>
+  <data key="d13"></data>
+</edge>
+<edge source="省级资格核验系统" target="省商务厅">
+  <data key="d7">1.0</data>
+  <data key="d8">省级资格核验系统与省商务厅对接，按照要求实时上报有关信息。</data>
+  <data key="d9">信息上报,资格核验</data>
+  <data key="d10">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="省商务厅" target="购新补贴">
+  <data key="d7">1.0</data>
+  <data key="d8">省商务厅负责监管购新补贴的发放和使用。</data>
+  <data key="d9">政策监管,补贴发放</data>
+  <data key="d10">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="省商务厅" target="省财政厅">
+  <data key="d7">1.0</data>
+  <data key="d8">省商务厅与省财政厅联合聘请第三方专业机构对各市家电以旧换新工作进行重点核查。</data>
+  <data key="d9">第三方机构,联合核查</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="省商务厅" target="第三方专业机构">
+  <data key="d7">1.0</data>
+  <data key="d8">省商务厅聘请第三方专业机构对各市家电以旧换新工作的合规性和真实性进行查证。</data>
+  <data key="d9">合规性,核查</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购新补贴" target="防套利和预警机制">
+  <data key="d7">1.0</data>
+  <data key="d8">防套利和预警机制用于确保购新补贴的合理发放，防止骗补行为。</data>
+  <data key="d9">补贴发放,风险防控</data>
+  <data key="d10">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购新补贴" target="政策参与主体">
+  <data key="d7">1.0</data>
+  <data key="d8">政策参与主体对购新补贴资金安全负直接责任，需加强自律，诚信守法经营。</data>
+  <data key="d9">诚信经营,资金安全</data>
+  <data key="d10">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799815</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购新补贴" target="市商务局">
+  <data key="d7">1.0</data>
+  <data key="d8">市商务局负责解释购新补贴活动的细则，并根据国家和省级政策的新要求进行调整。</data>
+  <data key="d9">政策解释,调整执行</data>
+  <data key="d10">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799816</data>
+  <data key="d13"></data>
+</edge>
+<edge source="大数据分析" target="防套利和预警机制">
+  <data key="d7">1.0</data>
+  <data key="d8">大数据分析用于加强监测预警，有效拦截各类异常交易订单。</data>
+  <data key="d9">数据分析,监测预警</data>
+  <data key="d10">chunk-9e3d62b48e1287440a8a646aaad8d18b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799814</data>
+  <data key="d13"></data>
+</edge>
+<edge source="政策参与主体" target="消费者">
+  <data key="d7">1.0</data>
+  <data key="d8">政策参与主体对补贴资金安全负直接责任，确保消费者在支付环节明确提示获取政府补贴金额。</data>
+  <data key="d9">诚信守法,资金安全</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市商务局" target="参与活动企业">
+  <data key="d7">2.0</data>
+  <data key="d8">市商务局负责组织实施家电以旧换新工作，会同有关部门做好补贴资金审核、兑付。&lt;SEP&gt;参与活动企业自愿申报，由区县(功能区)商务主管部门汇总上报市商务局。</data>
+  <data key="d9">企业参与,企业申报,政府审核,政府管理</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="市商务局" target="区县(功能区)商务主管部门">
+  <data key="d7">1.0</data>
+  <data key="d8">市商务局指导各区县(功能区)做好活动推广、信息发布及促销活动开展等。</data>
+  <data key="d9">区县协调,政府管理</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市" target="2025年家电以旧换新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市发布了2025年家电以旧换新补贴实施细则。</data>
+  <data key="d9">地方政策,政策实施</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799901</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市" target="2025年政府汽车消费补贴活动公告">
+  <data key="d7">1.0</data>
+  <data key="d8">2025年政府汽车消费补贴活动公告的活动范围限定在济南市。</data>
+  <data key="d9">地理位置,活动范围</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800032</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市" target="泉城购">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市是泉城购活动的举办地。</data>
+  <data key="d9">举办城市,活动地点</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市" target="2025年下半年第一轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">2025年下半年第一轮汽车消费补贴活动在济南市举办。</data>
+  <data key="d9">举办地,活动地点</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800132</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市" target="济南市2025年下半年第三轮汽车消费补贴活动公告">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市2025年下半年第三轮汽车消费补贴活动公告在济南市举行。</data>
+  <data key="d9">activity,event location</data>
+  <data key="d10">chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800178</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市" target="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市是2025年下半年第二轮汽车消费补贴活动的举办地。</data>
+  <data key="d9">举办城市,活动地点</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市" target="2025年新车首保消费券活动">
+  <data key="d7">2.0</data>
+  <data key="d8">济南市是2025年新车首保消费券活动的举办地。&lt;SEP&gt;济南市是2025年新车首保消费券活动的举办地。</data>
+  <data key="d9">地点,政府支持,活动举办,活动地点</data>
+  <data key="d10">chunk-cea3a708f7ddcdf8ba0065ce70f2cc26&lt;SEP&gt;chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800268</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="电冰箱">
+  <data key="d7">1.0</data>
+  <data key="d8">电冰箱是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799902</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="洗衣机">
+  <data key="d7">1.0</data>
+  <data key="d8">洗衣机是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799903</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="电视机">
+  <data key="d7">1.0</data>
+  <data key="d8">电视机是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799903</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="空调">
+  <data key="d7">1.0</data>
+  <data key="d8">空调是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799903</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="电脑">
+  <data key="d7">1.0</data>
+  <data key="d8">电脑是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799903</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="热水器">
+  <data key="d7">1.0</data>
+  <data key="d8">热水器是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799904</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="家用灶具">
+  <data key="d7">1.0</data>
+  <data key="d8">家用灶具是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799904</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="吸油烟机">
+  <data key="d7">1.0</data>
+  <data key="d8">吸油烟机是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799904</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="净水器">
+  <data key="d7">1.0</data>
+  <data key="d8">净水器是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799904</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="洗碗机">
+  <data key="d7">1.0</data>
+  <data key="d8">洗碗机是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="微波炉">
+  <data key="d7">1.0</data>
+  <data key="d8">微波炉是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="电饭煲">
+  <data key="d7">1.0</data>
+  <data key="d8">电饭煲是2025年家电以旧换新补贴实施细则中的补贴对象之一。</data>
+  <data key="d9">产品类别,补贴对象</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="国家发展改革委">
+  <data key="d7">1.0</data>
+  <data key="d8">国家发展改革委发布的政策文件为济南市2025年家电以旧换新补贴实施细则提供了指导。</data>
+  <data key="d9">政策制定,政策支持</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="财政部">
+  <data key="d7">1.0</data>
+  <data key="d8">财政部发布的政策文件为济南市2025年家电以旧换新补贴实施细则提供了指导。</data>
+  <data key="d9">政策制定,政策支持</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="商务部">
+  <data key="d7">1.0</data>
+  <data key="d8">商务部发布的政策文件为济南市2025年家电以旧换新补贴实施细则提供了指导。</data>
+  <data key="d9">政策制定,政策支持</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年家电以旧换新补贴实施细则" target="山东省商务厅">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅发布的政策文件为济南市2025年家电以旧换新补贴实施细则提供了指导。</data>
+  <data key="d9">政策制定,政策支持</data>
+  <data key="d10">chunk-96bae2d594dcffdefed27367718a6dab</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="国家发展改革委" target="购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">国家发展改革委提供了购新补贴实施细则的政策指导和支持。</data>
+  <data key="d9">支持,政策指导</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799952</data>
+  <data key="d13"></data>
+</edge>
+<edge source="国家发展改革委" target="山东省2025年家电以旧换新实施方案">
+  <data key="d7">1.0</data>
+  <data key="d8">国家发展改革委发布的政策为山东省2025年家电以旧换新实施方案提供了指导。</data>
+  <data key="d9">实施方案,政策指导</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="财政部" target="购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">财政部负责购新补贴实施细则的资金管理和政策支持。</data>
+  <data key="d9">政策支持,资金管理</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799952</data>
+  <data key="d13"></data>
+</edge>
+<edge source="财政部" target="山东省2025年家电以旧换新实施方案">
+  <data key="d7">1.0</data>
+  <data key="d8">财政部发布的政策为山东省2025年家电以旧换新实施方案提供了指导。</data>
+  <data key="d9">实施方案,政策指导</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="商务部" target="购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">商务部参与了购新补贴实施细则的制定和实施。</data>
+  <data key="d9">实施,政策制定</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="商务部" target="山东省2025年家电以旧换新实施方案">
+  <data key="d7">1.0</data>
+  <data key="d8">商务部发布的政策为山东省2025年家电以旧换新实施方案提供了指导。</data>
+  <data key="d9">实施方案,政策指导</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅制定了购新补贴实施细则并负责其实施。</data>
+  <data key="d9">实施,政策制定</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799952</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="山东省工业和信息化厅">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅与山东省工业和信息化厅合作制定了购新补贴实施细则。</data>
+  <data key="d9">合作,政策制定</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799952</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="山东省财政厅">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅与山东省财政厅合作，确保购新补贴实施细则的资金管理和政策支持。</data>
+  <data key="d9">政策支持,资金管理</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799952</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="山东省市场监管局">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅与山东省市场监管局合作，对购新补贴实施细则进行监管和审核。</data>
+  <data key="d9">审核,监管</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="第三方专业机构">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅聘请第三方专业机构对各市手机、平板、智能手表(手环)产品购买补贴工作进行合规性、真实性查证。</data>
+  <data key="d9">合规性查证,监督检查</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="政策参与企业">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅指导政策参与企业加强组织领导，强化安全管理，制定应急预案。</data>
+  <data key="d9">安全管理,政策指导</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799954</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="山东省2025年家电以旧换新实施方案">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅参与制定了山东省2025年家电以旧换新实施方案。</data>
+  <data key="d9">实施方案,政策制定</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="家电以旧换新活动">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅负责组织实施家电以旧换新活动。</data>
+  <data key="d9">政策实施,活动组织</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省商务厅" target="家电以旧换新补贴">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省商务厅负责实施家电以旧换新补贴政策。</data>
+  <data key="d9">政策实施,补贴发放</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市泉城购服务平台" target="参与活动企业">
+  <data key="d7">1.0</data>
+  <data key="d8">参与活动企业登录济南市“泉城购”服务平台，进行全流程审核监管。</data>
+  <data key="d9">企业管理,平台运作</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799905</data>
+  <data key="d13"></data>
+</edge>
+<edge source="有资质的拆解企业" target="废旧家电">
+  <data key="d7">1.0</data>
+  <data key="d8">废旧家电应全部交予有资质的拆解企业进行处理。</data>
+  <data key="d9">废旧物回收,拆解处理</data>
+  <data key="d10">chunk-25075a5d26a87be16bd0da9716bd356c</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="金融机构" target="优惠政策">
+  <data key="d7">1.0</data>
+  <data key="d8">金融机构提供配套优惠支持，响应政府政策。</data>
+  <data key="d9">优惠让利,政策支持</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799954</data>
+  <data key="d13"></data>
+</edge>
+<edge source="服务平台" target="补贴资格发放">
+  <data key="d7">1.0</data>
+  <data key="d8">服务平台提供补贴资格发放等技术功能，确保购买人身份真实性，并保护消费者个人信息。</data>
+  <data key="d9">信息保护,技术功能,风险防控</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799906</data>
+  <data key="d13"></data>
+</edge>
+<edge source="服务平台" target="消费者个人信息保护">
+  <data key="d7">1.0</data>
+  <data key="d8">服务平台负责保护消费者个人信息，确保数据安全。</data>
+  <data key="d9">信息保护,数据安全</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="服务平台" target="虚假交易">
+  <data key="d7">1.0</data>
+  <data key="d8">服务平台通过大数据分析加强监测预警，有效拦截各类异常交易订单，包括虚假交易。</data>
+  <data key="d9">交易监测,风险防控</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="济南市商务局办公室" target="本细则">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局办公室负责解释本细则，并在后续国家、省级政策有新要求时按照有关规定执行。</data>
+  <data key="d9">政策执行,政策解释</data>
+  <data key="d10">chunk-52ef934fd2fb3466ea1982465f45b5fd</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799907</data>
+  <data key="d13"></data>
+</edge>
+<edge source="补贴资金" target="各市财政局">
+  <data key="d7">1.0</data>
+  <data key="d8">各市财政局负责对补贴资金拨付进行监管，确保资金使用的合规性。</data>
+  <data key="d9">拨付,资金监管</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省工业和信息化厅" target="购新补贴实施细则">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省工业和信息化厅参与了购新补贴实施细则的制定和实施。</data>
+  <data key="d9">实施,政策制定</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799952</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购新补贴实施细则" target="手机">
+  <data key="d7">1.0</data>
+  <data key="d8">购新补贴实施细则规定了对手机的补贴政策和条件。</data>
+  <data key="d9">产品范围,补贴政策</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购新补贴实施细则" target="平板">
+  <data key="d7">1.0</data>
+  <data key="d8">购新补贴实施细则规定了对平板的补贴政策和条件。</data>
+  <data key="d9">产品范围,补贴政策</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购新补贴实施细则" target="智能手表(手环)">
+  <data key="d7">1.0</data>
+  <data key="d8">购新补贴实施细则规定了对智能手表(手环)的补贴政策和条件。</data>
+  <data key="d9">产品范围,补贴政策</data>
+  <data key="d10">chunk-72f0d37cfedf492fc402d911c4c19bdf</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="手机" target="市场监管部门">
+  <data key="d7">1.0</data>
+  <data key="d8">市场监管部门负责加强手机等产品质量和价格监管。</data>
+  <data key="d9">价格监管,质量监管</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省财政厅" target="山东省2025年家电以旧换新实施方案">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省财政厅参与制定了山东省2025年家电以旧换新实施方案。</data>
+  <data key="d9">实施方案,政策制定</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省财政厅" target="家电以旧换新活动">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省财政厅参与组织实施家电以旧换新活动。</data>
+  <data key="d9">政策实施,活动组织</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省财政厅" target="家电以旧换新补贴">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省财政厅参与实施家电以旧换新补贴政策。</data>
+  <data key="d9">政策实施,补贴发放</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="中央资金" target="地方资金">
+  <data key="d7">1.0</data>
+  <data key="d8">中央资金和地方资金需要协同配合，确保资金安全和发放及时。</data>
+  <data key="d9">协同配合,资金管理</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799952</data>
+  <data key="d13"></data>
+</edge>
+<edge source="生产企业" target="优惠政策">
+  <data key="d7">1.0</data>
+  <data key="d8">生产企业开展优惠让利活动，响应政府政策。</data>
+  <data key="d9">优惠让利,政策支持</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="流通企业" target="优惠政策">
+  <data key="d7">1.0</data>
+  <data key="d8">流通企业开展优惠让利活动，响应政府政策。</data>
+  <data key="d9">优惠让利,政策支持</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="运营商" target="优惠政策">
+  <data key="d7">1.0</data>
+  <data key="d8">运营商推出消费让利、信用购机等政策，响应政府政策。</data>
+  <data key="d9">优惠让利,政策支持</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="支付机构" target="优惠政策">
+  <data key="d7">1.0</data>
+  <data key="d8">支付机构提供配套优惠支持，响应政府政策。</data>
+  <data key="d9">优惠让利,政策支持</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799954</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东国际商务网" target="原创文章">
+  <data key="d7">1.0</data>
+  <data key="d8">山东国际商务网发布原创文章，并保留版权。</data>
+  <data key="d9">内容发布,版权声明</data>
+  <data key="d10">chunk-10da26ada8471ff52bbf7d65cdc44a81</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799953</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省发展和改革委员会" target="山东省2025年家电以旧换新实施方案">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省发展和改革委员会参与制定了山东省2025年家电以旧换新实施方案。</data>
+  <data key="d9">实施方案,政策制定</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省发展和改革委员会" target="家电以旧换新活动">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省发展和改革委员会参与组织实施家电以旧换新活动。</data>
+  <data key="d9">政策实施,活动组织</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省发展和改革委员会" target="家电以旧换新补贴">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省发展和改革委员会参与实施家电以旧换新补贴政策。</data>
+  <data key="d9">政策实施,补贴发放</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省市场监督管理局" target="山东省2025年家电以旧换新实施方案">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省市场监督管理局参与制定了山东省2025年家电以旧换新实施方案。</data>
+  <data key="d9">实施方案,政策制定</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799996</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省市场监督管理局" target="家电以旧换新活动">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省市场监督管理局参与组织实施家电以旧换新活动。</data>
+  <data key="d9">政策实施,活动组织</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省市场监督管理局" target="家电以旧换新补贴">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省市场监督管理局参与实施家电以旧换新补贴政策。</data>
+  <data key="d9">政策实施,补贴发放</data>
+  <data key="d10">chunk-5f2b572d5235146673e93035890dcedc</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电产品" target="补贴时间">
+  <data key="d7">1.0</data>
+  <data key="d8">家电产品的补贴时间从各市实施细则发布之日起至2025年12月31日止。</data>
+  <data key="d9">政策期限,补贴有效期</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="平台建设" target="家电以旧换新">
+  <data key="d7">1.0</data>
+  <data key="d8">各市通过选择最多2个平台来支持家电以旧换新政策的实施。</data>
+  <data key="d9">平台支持,政策实施</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="市级平台">
+  <data key="d7">1.0</data>
+  <data key="d8">市级平台提供商家报名及产品管理、补贴资格发放和领取、补贴核销、补贴审核、数据分析、废旧家电品类回收统计及反馈数据安全等功能，支持家电以旧换新的一站式全流程服务。</data>
+  <data key="d9">一站式服务,平台功能</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="山东省家电以旧换新资格核验系统">
+  <data key="d7">1.0</data>
+  <data key="d8">山东省家电以旧换新资格核验系统用于核验家电以旧换新的补贴资格，并与中央部级系统实时对接。</data>
+  <data key="d9">系统对接,资格核验</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="市场环境">
+  <data key="d7">1.0</data>
+  <data key="d8">营造良好的市场环境，要求政策参与主体诚信经营，公开承诺产品销售价格，并对不履行价格承诺的行为进行处罚。</data>
+  <data key="d9">价格承诺,诚信经营</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799997</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="家电售后服务体系">
+  <data key="d7">1.0</data>
+  <data key="d8">完善家电售后服务体系，提升专业化、标准化、便利化水平，支持家电以旧换新政策的实施。</data>
+  <data key="d9">售后服务,服务体系</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799998</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="废旧家电回收体系">
+  <data key="d7">1.0</data>
+  <data key="d8">加强废旧家电回收体系建设，推动健全包括废旧家电在内的再生资源回收体系，支持家电以旧换新政策的实施。</data>
+  <data key="d9">再生资源,回收体系</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799998</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="商家报名及产品管理">
+  <data key="d7">1.0</data>
+  <data key="d8">商家报名及产品管理功能支持家电以旧换新政策的实施，管理和登记参与活动的商家及其产品。</data>
+  <data key="d9">商家管理,平台功能</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799998</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="补贴资格发放和领取">
+  <data key="d7">1.0</data>
+  <data key="d8">补贴资格发放和领取功能支持家电以旧换新政策的实施，管理和发放补贴资格，并允许消费者领取补贴。</data>
+  <data key="d9">平台功能,补贴管理</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="补贴核销">
+  <data key="d7">1.0</data>
+  <data key="d8">补贴核销功能支持家电以旧换新政策的实施，核销已发放的补贴。</data>
+  <data key="d9">平台功能,补贴核销</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="补贴审核">
+  <data key="d7">1.0</data>
+  <data key="d8">补贴审核功能支持家电以旧换新政策的实施，审核补贴的申请和发放。</data>
+  <data key="d9">平台功能,补贴审核</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="数据分析">
+  <data key="d7">1.0</data>
+  <data key="d8">数据分析功能支持家电以旧换新政策的实施，收集和分析活动数据。</data>
+  <data key="d9">平台功能,数据分析</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="废旧家电品类回收统计">
+  <data key="d7">1.0</data>
+  <data key="d8">废旧家电品类回收统计功能支持家电以旧换新政策的实施，统计和记录废旧家电的回收情况。</data>
+  <data key="d9">回收统计,平台功能</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电以旧换新" target="反馈数据安全">
+  <data key="d7">1.0</data>
+  <data key="d8">反馈数据安全功能支持家电以旧换新政策的实施，确保收集和反馈的数据安全。</data>
+  <data key="d9">平台功能,数据安全</data>
+  <data key="d10">chunk-97b70d878456711e9cec68d6d826013b</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="山东省家电以旧换新资格核验系统" target="市商务主管部门">
+  <data key="d7">1.0</data>
+  <data key="d8">市商务主管部门将审核后的信息上报至山东省家电以旧换新资格核验系统进行资格核验。</data>
+  <data key="d9">信息上报,资格核验</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799998</data>
+  <data key="d13"></data>
+</edge>
+<edge source="补贴审核" target="购车人">
+  <data key="d7">1.0</data>
+  <data key="d8">购车人按要求提交资料后，应及时登录平台查看审核进度。</data>
+  <data key="d9">审核进度,资料提交</data>
+  <data key="d10">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800180</data>
+  <data key="d13"></data>
+</edge>
+<edge source="家电生产企业及代理机构" target="市商务主管部门">
+  <data key="d7">1.0</data>
+  <data key="d8">家电生产企业及代理机构向市商务主管部门提报能效或水效产品信息，市商务主管部门进行审核。</data>
+  <data key="d9">信息提报,审核</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799998</data>
+  <data key="d13"></data>
+</edge>
+<edge source="超长期特别国债资金" target="各市人民政府">
+  <data key="d7">1.0</data>
+  <data key="d8">各市人民政府作为资金管理的第一责任主体，负责统筹使用超长期特别国债资金。</data>
+  <data key="d9">使用,资金管理</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="各市人民政府" target="家电以旧换新工作">
+  <data key="d7">1.0</data>
+  <data key="d8">各市人民政府作为资金管理的第一责任主体，负责统筹使用中央和地方资金做好家电以旧换新工作。</data>
+  <data key="d9">政策实施,资金管理</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="各市发展改革委" target="家电以旧换新工作">
+  <data key="d7">1.0</data>
+  <data key="d8">各市发展改革委负责加强统筹协调，推进家电以旧换新政策的实施。</data>
+  <data key="d9">政策实施,统筹协调</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="各市市场监督管理局" target="换新家电产品质量">
+  <data key="d7">1.0</data>
+  <data key="d8">各市市场监督管理局负责加强换新家电产品质量和价格监管，依法查处违法行为。</data>
+  <data key="d9">价格监管,质量监管</data>
+  <data key="d10">chunk-88703416a46e8354d87d2bdbd3981284</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763799999</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年政府汽车消费补贴活动公告" target="购车人">
+  <data key="d7">1.0</data>
+  <data key="d8">购车人在活动时间内可以申请购车补贴。</data>
+  <data key="d9">参与者,申请</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年政府汽车消费补贴活动公告" target="新能源乘用车">
+  <data key="d7">1.0</data>
+  <data key="d8">新能源乘用车在符合一定条件的情况下可以获得相应的补贴。</data>
+  <data key="d9">补贴对象,补贴标准</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年政府汽车消费补贴活动公告" target="燃油车">
+  <data key="d7">1.0</data>
+  <data key="d8">燃油车在符合一定条件的情况下可以获得相应的补贴。</data>
+  <data key="d9">补贴对象,补贴标准</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年政府汽车消费补贴活动公告" target="齐鲁银行权益平台">
+  <data key="d7">1.0</data>
+  <data key="d8">齐鲁银行权益平台是消费者申报购车补贴的一种方式。</data>
+  <data key="d9">在线平台,申报途径</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年政府汽车消费补贴活动公告" target="济南市商务局官方网站">
+  <data key="d7">1.0</data>
+  <data key="d8">济南市商务局官方网站用于公示审核通过名单，并在公示期满且无异议后发放补贴。</data>
+  <data key="d9">公示平台,结果发布</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800034</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购车人" target="机动车销售统一发票">
+  <data key="d7">1.0</data>
+  <data key="d8">购车人需要提交机动车销售统一发票作为申请补贴的材料之一。</data>
+  <data key="d9">申请材料,购车凭证</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800032</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购车人" target="机动车登记证书">
+  <data key="d7">1.0</data>
+  <data key="d8">购车人需要提交机动车登记证书作为申请补贴的材料之一。</data>
+  <data key="d9">申请材料,车辆所有权</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800032</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购车人" target="机动车行驶证">
+  <data key="d7">1.0</data>
+  <data key="d8">购车人需要提交机动车行驶证作为申请补贴的材料之一。</data>
+  <data key="d9">申请材料,车辆行驶许可</data>
+  <data key="d10">chunk-5e25ae60970f344c59816dfe8524b797</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购车人" target="补贴发放流程">
+  <data key="d7">2.0</data>
+  <data key="d8">购车人在审核通过后，补贴资金将发放至提供的银行卡或对公账户。&lt;SEP&gt;购车人在审核通过后，可在中石油或中石化领取加油储值卡，并在有效期内使用。</data>
+  <data key="d9">加油储值卡,补贴资格,补贴领取,资金发放</data>
+  <data key="d10">chunk-1e0c0c090e77bbec49471a0ce1ebe0f2&lt;SEP&gt;chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购车人" target="汽车销售企业">
+  <data key="d7">1.0</data>
+  <data key="d8">汽车销售企业应依法经营、诚信经营，不得通过多开、虚开、伪造销售发票或其他手段协助购车人骗取财政补贴。</data>
+  <data key="d9">诚信经营,销售发票</data>
+  <data key="d10">chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="购车人" target="补贴审核流程">
+  <data key="d7">1.0</data>
+  <data key="d8">购车人按要求提交资料后，应及时登录平台查看审核进度。</data>
+  <data key="d9">审核进度,资料提交</data>
+  <data key="d10">chunk-93b04635293bbefe1b12b2f2bf32a7c7</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="机动车销售统一发票" target="机动车所有人">
+  <data key="d7">1.0</data>
+  <data key="d8">机动车销售统一发票需要与机动车所有人的信息一致。</data>
+  <data key="d9">一致性,购车凭证</data>
+  <data key="d10">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="机动车销售统一发票" target="企业(单位)">
+  <data key="d7">2.0</data>
+  <data key="d8">企业(单位)需要提交机动车销售统一发票以申请补贴。&lt;SEP&gt;企业(单位)需要提供机动车销售统一发票作为补贴申报资料。</data>
+  <data key="d9">document,requirement,提交,资料</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="机动车销售统一发票" target="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">机动车销售统一发票是参与活动的必要凭证，发票日期须在活动期内。</data>
+  <data key="d9">凭证,发票要求</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800225</data>
+  <data key="d13"></data>
+</edge>
+<edge source="机动车登记证书" target="企业(单位)">
+  <data key="d7">2.0</data>
+  <data key="d8">企业(单位)需要提交机动车登记证书以申请补贴。&lt;SEP&gt;企业(单位)需要提供机动车登记证书作为补贴申报资料。</data>
+  <data key="d9">document,requirement,提交,资料</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="机动车登记证书" target="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">机动车登记证书是购车后需要提交的资料之一。</data>
+  <data key="d9">提交资料,证明文件</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800225</data>
+  <data key="d13"></data>
+</edge>
+<edge source="机动车行驶证" target="企业(单位)">
+  <data key="d7">2.0</data>
+  <data key="d8">企业(单位)需要提交机动车行驶证以申请补贴。&lt;SEP&gt;企业(单位)需要提供机动车行驶证作为补贴申报资料。</data>
+  <data key="d9">document,requirement,提交,资料</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="机动车行驶证" target="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">机动车行驶证是购车后需要提交的资料之一。</data>
+  <data key="d9">提交资料,证明文件</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800225</data>
+  <data key="d13"></data>
+</edge>
+<edge source="补贴平台" target="银行卡">
+  <data key="d7">1.0</data>
+  <data key="d8">补贴平台将补贴资金发放至消费者提交的银行卡中，并提供信息提示。</data>
+  <data key="d9">信息提示,资金发放</data>
+  <data key="d10">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="行驶证" target="机动车所有人">
+  <data key="d7">1.0</data>
+  <data key="d8">行驶证需要与机动车所有人的信息一致。</data>
+  <data key="d9">一致性,身份证明</data>
+  <data key="d10">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800033</data>
+  <data key="d13"></data>
+</edge>
+<edge source="车辆登记证书" target="机动车所有人">
+  <data key="d7">1.0</data>
+  <data key="d8">车辆登记证书需要与机动车所有人的信息一致。</data>
+  <data key="d9">一致性,所有权证明</data>
+  <data key="d10">chunk-140978b15f6a5dd5cc0448e990dc5565</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800034</data>
+  <data key="d13"></data>
+</edge>
+<edge source="4006096588" target="本次活动">
+  <data key="d7">1.0</data>
+  <data key="d8">本次活动可以通过拨打4006096588进行咨询。</data>
+  <data key="d9">咨询,电话号码</data>
+  <data key="d10">chunk-bab27dd75787fdc29e728a4d88406fbe</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800254</data>
+  <data key="d13"></data>
+</edge>
+<edge source="抖音" target="政府消费券">
+  <data key="d7">1.0</data>
+  <data key="d8">用户在“抖音”APP中使用政府消费券进行支付。</data>
+  <data key="d9">优惠券使用,支付方式</data>
+  <data key="d10">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="抖音" target="泉城购">
+  <data key="d7">1.0</data>
+  <data key="d8">用户通过抖音APP参与泉城购活动，并在该平台上进行支付和核销。</data>
+  <data key="d9">支付平台,活动参与</data>
+  <data key="d10">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800075</data>
+  <data key="d13"></data>
+</edge>
+<edge source="政府消费券" target="商家券">
+  <data key="d7">1.0</data>
+  <data key="d8">政府消费券可以与商家券叠加使用，但每单消费限用1张消费券。</data>
+  <data key="d9">优惠叠加,使用规则</data>
+  <data key="d10">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="政府消费券" target="抖音APP">
+  <data key="d7">1.0</data>
+  <data key="d8">政府消费券通过抖音APP发放并使用。</data>
+  <data key="d9">使用平台,消费券发放</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="抖音APP">
+  <data key="d7">1.0</data>
+  <data key="d8">泉城购活动通过抖音APP发放消费券。</data>
+  <data key="d9">活动平台,消费券发放</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="商超">
+  <data key="d7">1.0</data>
+  <data key="d8">商超是参与泉城购活动的零售类商家之一。</data>
+  <data key="d9">参与商家,零售类</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="便利店">
+  <data key="d7">1.0</data>
+  <data key="d8">便利店是参与泉城购活动的零售类商家之一。</data>
+  <data key="d9">参与商家,零售类</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800075</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="食品零售店">
+  <data key="d7">1.0</data>
+  <data key="d8">食品零售店是参与泉城购活动的零售类商家之一。</data>
+  <data key="d9">参与商家,零售类</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800075</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="餐饮门店">
+  <data key="d7">1.0</data>
+  <data key="d8">餐饮门店是参与泉城购活动的餐饮类商家之一。</data>
+  <data key="d9">参与商家,餐饮类</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800075</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="住宿酒店的餐厅">
+  <data key="d7">1.0</data>
+  <data key="d8">住宿酒店的餐厅是参与泉城购活动的餐饮类商家之一。</data>
+  <data key="d9">参与商家,餐饮类</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800076</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="消费券发放活动公告">
+  <data key="d7">1.0</data>
+  <data key="d8">泉城购活动通过消费券发放活动公告发布相关信息。</data>
+  <data key="d9">信息发布,活动公告</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800076</data>
+  <data key="d13"></data>
+</edge>
+<edge source="泉城购" target="消费券面额设置">
+  <data key="d7">1.0</data>
+  <data key="d8">泉城购活动中的消费券设置了不同的满减额度。</data>
+  <data key="d9">优惠方式,消费券设置</data>
+  <data key="d10">chunk-65f8206fbd2d2f9f7a4be12600b31f93</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800076</data>
+  <data key="d13"></data>
+</edge>
+<edge source="消费券" target="团购套餐">
+  <data key="d7">1.0</data>
+  <data key="d8">用户在“抖音”APP单笔订单中使用消费券不可购买2个或以上团购套餐。</data>
+  <data key="d9">优惠叠加,使用限制</data>
+  <data key="d10">chunk-16d0af5d38daf31503638e561cd766d9</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800074</data>
+  <data key="d13"></data>
+</edge>
+<edge source="政府汽车消费补贴" target="2025年政府汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">政府汽车消费补贴资金用于支持2025年政府汽车消费补贴活动。</data>
+  <data key="d9">活动支持,资金用途</data>
+  <data key="d10">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800095</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年政府汽车消费补贴活动" target="市商务局官网公告">
+  <data key="d7">1.0</data>
+  <data key="d8">市商务局官网公告提供了2025年政府汽车消费补贴活动的实施细则和申报平台信息。</data>
+  <data key="d9">信息发布,详细说明</data>
+  <data key="d10">chunk-52acdff4195070b5b3a2d39151135f86</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800096</data>
+  <data key="d13"></data>
+</edge>
+<edge source="企业(单位)" target="2025年下半年第一轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">企业(单位)可以参与2025年下半年第一轮汽车消费补贴活动。</data>
+  <data key="d9">参与,活动</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800131</data>
+  <data key="d13"></data>
+</edge>
+<edge source="企业(单位)" target="加油储值卡">
+  <data key="d7">2.0</data>
+  <data key="d8">企业(单位)可以领取加油储值卡作为购车补贴的一部分。&lt;SEP&gt;企业(单位)可以获得加油储值卡作为购车补贴的一部分。</data>
+  <data key="d9">benefit,subsidy,补贴,领取</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800179</data>
+  <data key="d13"></data>
+</edge>
+<edge source="企业(单位)" target="新车商业保险补贴">
+  <data key="d7">2.0</data>
+  <data key="d8">企业(单位)可以领取新车商业保险补贴作为购车补贴的一部分。&lt;SEP&gt;企业(单位)可以获得新车商业保险补贴作为购车补贴的一部分。</data>
+  <data key="d9">benefit,subsidy,补贴,领取</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800180</data>
+  <data key="d13"></data>
+</edge>
+<edge source="企业(单位)" target="工银e生活APP">
+  <data key="d7">2.0</data>
+  <data key="d8">企业(单位)可以通过工银e生活APP申请购车补贴。&lt;SEP&gt;企业(单位)可以通过工银e生活APP提交购车补贴申报资料。</data>
+  <data key="d9">application,submission,使用,申请</data>
+  <data key="d10">chunk-743c14116a6643643ed40af59c4782e8&lt;SEP&gt;chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800180</data>
+  <data key="d13"></data>
+</edge>
+<edge source="企业(单位)" target="济南市2025年下半年第三轮汽车消费补贴活动公告">
+  <data key="d7">1.0</data>
+  <data key="d8">企业(单位)参与济南市2025年下半年第三轮汽车消费补贴活动。</data>
+  <data key="d9">activity,participant</data>
+  <data key="d10">chunk-a12fdedd7628b934ac10d040403ef0ca</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800178</data>
+  <data key="d13"></data>
+</edge>
+<edge source="企业(单位)" target="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">企业(单位)可以参与2025年下半年第二轮汽车消费补贴活动。</data>
+  <data key="d9">参与者,活动对象</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="加油储值卡" target="中石油">
+  <data key="d7">1.0</data>
+  <data key="d8">中石油提供加油储值卡，并规定了使用规则。</data>
+  <data key="d9">使用规则,储值卡提供</data>
+  <data key="d10">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800132</data>
+  <data key="d13"></data>
+</edge>
+<edge source="加油储值卡" target="中石化">
+  <data key="d7">1.0</data>
+  <data key="d8">中石化提供加油储值卡，并规定了使用规则。</data>
+  <data key="d9">使用规则,储值卡提供</data>
+  <data key="d10">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800132</data>
+  <data key="d13"></data>
+</edge>
+<edge source="加油储值卡" target="汽车消费礼包">
+  <data key="d7">1.0</data>
+  <data key="d8">加油储值卡是汽车消费礼包的一部分，提供不同金额的加油补贴。</data>
+  <data key="d9">补贴组成,金额标准</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="新车商业保险补贴" target="汽车消费礼包">
+  <data key="d7">1.0</data>
+  <data key="d8">新车商业保险补贴是汽车消费礼包的一部分，提供不同金额的新车商业保险补贴。</data>
+  <data key="d9">补贴组成,金额标准</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800224</data>
+  <data key="d13"></data>
+</edge>
+<edge source="工银e生活APP" target="2025年下半年第二轮汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">用户可以通过工银e生活APP申请购车补贴。</data>
+  <data key="d9">申领方式,移动端应用</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800225</data>
+  <data key="d13"></data>
+</edge>
+<edge source="中国工商银行" target="汽车消费补贴活动">
+  <data key="d7">1.0</data>
+  <data key="d8">中国工商银行提供7*24小时专业客服电话，为汽车消费补贴活动提供咨询服务。</data>
+  <data key="d9">咨询热线,客户服务</data>
+  <data key="d10">chunk-3d56107a0e614557bb6ce1752d20e324</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800132</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年下半年第二轮汽车消费补贴活动" target="汽车消费礼包">
+  <data key="d7">1.0</data>
+  <data key="d8">汽车消费礼包是根据购车发票金额不同而提供的不同金额的补贴。</data>
+  <data key="d9">补贴内容,金额标准</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800225</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年下半年第二轮汽车消费补贴活动" target="机动车商业保险保险单">
+  <data key="d7">1.0</data>
+  <data key="d8">机动车商业保险保险单是购车后需要提交的资料之一。</data>
+  <data key="d9">提交资料,证明文件</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800226</data>
+  <data key="d13"></data>
+</edge>
+<edge source="活动时间" target="补贴资料申报及修改时间">
+  <data key="d7">1.0</data>
+  <data key="d8">活动时间与补贴资料申报及修改时间是两个不同的时间段，后者在前者之后开始。</data>
+  <data key="d9">时间范围,申报期限</data>
+  <data key="d10">chunk-08fb68b55785b05d4a4ca3917f46ad61</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800225</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年新车首保消费券活动" target="补充公告">
+  <data key="d7">1.0</data>
+  <data key="d8">补充公告对2025年新车首保消费券活动的申领额度与标准进行了补充说明。</data>
+  <data key="d9">活动调整,补充说明</data>
+  <data key="d10">chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800269</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年新车首保消费券活动" target="车辆商业保险">
+  <data key="d7">1.0</data>
+  <data key="d8">车辆商业保险在2025年新车首保消费券活动中作为保险补贴的对象。</data>
+  <data key="d9">保险类型,保险补贴</data>
+  <data key="d10">chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800269</data>
+  <data key="d13"></data>
+</edge>
+<edge source="2025年新车首保消费券活动" target="5月1日至活动补充公告发布前">
+  <data key="d7">1.0</data>
+  <data key="d8">在5月1日至活动补充公告发布前的时间段内，个人消费者可以按补充后的申领额度与标准参与活动。</data>
+  <data key="d9">时间范围,活动参与</data>
+  <data key="d10">chunk-e5dd67eef4caa59abb496255dc93151a</data>
+  <data key="d11">unknown_source</data>
+  <data key="d12">1763800269</data>
+  <data key="d13"></data>
+</edge>
+</graph></graphml>
