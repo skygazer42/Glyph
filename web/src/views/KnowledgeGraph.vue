@@ -158,12 +158,14 @@ const renderChart = (nodes, links, categories) => {
   stats.value = { nodes: nodes.length, links: links.length, categories: categories.length }
 
   const option = {
+    // 柔和过渡，降低闪烁感
     animationDuration: 1500,
-    animationDurationUpdate: 400, // 平滑过渡，避免闪烁
-    animationEasingUpdate: 'quinticInOut',
+    animationDurationUpdate: 500,
+    animationEasingUpdate: 'cubicInOut',
     tooltip: {
       trigger: 'item',
       confine: true,
+      enterable: true,
       formatter: (params) => {
         if (params.dataType === 'node') {
           const categoryName = categories[params.data.category]?.name || '未知'
@@ -196,8 +198,6 @@ const renderChart = (nodes, links, categories) => {
       itemGap: 15,
       textStyle: { color: '#666' },
     },
-    animationDuration: 1500,
-    animationEasingUpdate: 'quinticInOut',
     series: [
       {
         type: 'graph',
@@ -212,40 +212,39 @@ const renderChart = (nodes, links, categories) => {
         itemStyle: {
           borderColor: '#fff',
           borderWidth: 1,
-          shadowBlur: 5,
-          shadowColor: 'rgba(0, 0, 0, 0.1)',
+          shadowBlur: 0,
         },
         label: {
           position: 'right',
           formatter: '{b}',
           color: '#333',
+          show: true,
         },
-        // 淡出状态，降低对比度而非消失
+        // 淡出：只变暗，不消失标签
         blur: {
-          itemStyle: { opacity: 0.4 },
+          itemStyle: { opacity: 0.6 },
           lineStyle: { opacity: 0.1 },
-          label: { show: false },
+          label: { show: true, color: '#ccc' },
         },
         lineStyle: {
           color: 'source',
           curveness: 0.2,
-          opacity: 0.6,
+          opacity: 0.5,
           width: 1.5,
         },
         emphasis: {
           focus: 'adjacency',
-          // scale: false, // 如不希望放大可取消注释
+          scale: false, // 禁止缩放，避免忽大忽小
           itemStyle: {
-            shadowBlur: 10,
-            shadowColor: 'rgba(0, 0, 0, 0.3)',
             borderColor: '#333',
             borderWidth: 2,
-          },
-          lineStyle: {
-            width: 3,
             opacity: 1,
           },
-          label: { show: true },
+          lineStyle: {
+            width: 2.5,
+            opacity: 1,
+          },
+          label: { show: true, color: '#000', fontWeight: 'bold' },
         },
         force: {
           repulsion: 500,
