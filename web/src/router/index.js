@@ -7,7 +7,7 @@ const routes = [
     component: () => import('@/views/HomePage.vue')
   },
   {
-    path: '/agent',
+    path: '/agent-chat',
     name: 'Agent',
     component: () => import('@/views/AgentChat.vue')
   },
