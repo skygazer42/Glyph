@@ -68,6 +68,7 @@ class KnowledgeAgent:
                         "route": "knowledge",
                         "origin": "dify",
                         "doc_count": len(docs),
+                        "images": self._collect_images(docs),
                         "early_stopped": True,
                         "dify_direct": True,
                         "search_query": used_query,
@@ -126,6 +127,7 @@ class KnowledgeAgent:
                         "focus": focus,
                         "doc_count": len(docs),
                         "origin": "knowledge_base",
+                        "images": self._collect_images(docs),
                         "early_stopped": True,
                         "early_stop_confidence": initial_confidence,
                         "search_query": used_query,
@@ -172,6 +174,7 @@ class KnowledgeAgent:
                     "doc_count": len(docs),
                     "origin": dominant_origin,
                     "doc_origins": doc_origins,
+                    "images": self._collect_images(docs),
                     "early_stopped": False,
                     "search_query": used_query,
                     "domain_context": domain_context.to_metadata() if domain_context else None,
@@ -426,6 +429,16 @@ class KnowledgeAgent:
         first = docs[0]
         origin = getattr(first, "retrieval_origin", "") or first.metadata.get("origin")
         return origin == "dify"
+
+    def _collect_images(self, docs: List[PolicyDocument]) -> List[str]:
+        """Collect image URLs from metadata of retrieved documents."""
+        images: List[str] = []
+        for doc in docs or []:
+            imgs = (getattr(doc, "metadata", {}) or {}).get("images") or []
+            for img in imgs:
+                if img and img not in images:
+                    images.append(img)
+        return images
 
     def _build_no_result_answer(
         self,

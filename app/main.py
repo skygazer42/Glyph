@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.agents.service import AgentService
@@ -85,6 +86,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # 静态资源：暴露 resources 目录用于图片等引用
+    application.mount("/resources", StaticFiles(directory="resources"), name="resources")
 
     @application.on_event("startup")
     async def on_startup():

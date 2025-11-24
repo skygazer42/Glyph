@@ -176,6 +176,12 @@ class DocumentLoader:
         # Extract regions
         metadata["regions"] = self._extract_regions(content)
 
+        # Extract images from markdown/text（仅处理相对 images/ 路径）
+        if file_path.suffix.lower() == ".md":
+            images = self._extract_images(file_path, content)
+            if images:
+                metadata["images"] = images
+
         return metadata
 
     def _extract_title(self, content: str) -> Optional[str]:
@@ -191,6 +197,29 @@ class DocumentLoader:
                 return line
 
         return None
+
+    def _extract_images(self, file_path: Path, content: str) -> List[str]:
+        """Extract image paths from markdown and convert to serve-able URLs."""
+        images: List[str] = []
+        pattern = re.compile(r"!\[[^\]]*\]\((images/[^\)]+)\)")
+        for match in pattern.findall(content or ""):
+            img_path = (file_path.parent / match).resolve()
+            try:
+                # 将资源目录下的路径转成 /resources/... 形式，便于静态访问
+                resources_root = Path("resources").resolve()
+                url = "/" + img_path.relative_to(resources_root).as_posix()
+                images.append(url)
+            except Exception:
+                images.append(img_path.as_posix())
+        # 去重
+        seen = set()
+        uniq: List[str] = []
+        for i in images:
+            if i in seen:
+                continue
+            seen.add(i)
+            uniq.append(i)
+        return uniq
 
     def _extract_dates(self, content: str) -> Dict[str, Optional[datetime]]:
         """Extract dates from content."""
@@ -394,4 +423,3 @@ class DocumentLoader:
             return "济南市"
         else:
             return "未知地区"
-
