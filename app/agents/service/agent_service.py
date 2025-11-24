@@ -723,7 +723,7 @@ class AgentService:
             agentchat_meta: Dict[str, Any] = {}
             agentchat_used = False
             # 多模态 / workflow 场景直接由 WorkflowAgent 处理，避免再包一层 AgentChat
-            if self._agentchat_team_enabled and route in {"knowledge", "rule_engine", "text2sql"}:
+            if self._agentchat_team_enabled and route in {"knowledge", "rule_engine", "text2sql"} and not force_text2sql and route != "text2sql":
                 team_final, team_meta = await self._agentchat_team.run(session_id or "default", rewritten_query)
                 if team_final:
                     logging_manager.info("[AgentService] AgentChat Team 命中")
@@ -744,7 +744,7 @@ class AgentService:
                     )
                     agentchat_used = True
                     agentchat_meta = team_meta
-            if (not agentchat_used) and self._agentchat_enabled and route in {"knowledge", "rule_engine", "text2sql"}:
+            if (not agentchat_used) and self._agentchat_enabled and route in {"knowledge", "rule_engine", "text2sql"} and not force_text2sql and route != "text2sql":
                 agentchat_final, ac_meta = await self._agentchat_router.run(
                     session_id or "default", rewritten_query
                 )
@@ -784,6 +784,7 @@ class AgentService:
                 final = await self.rule_agent.compute(combined_query, intent=intent_result)
                 trace.mark("agent:rule_engine")
             elif route == "text2sql":
+                # 强制 text2sql 时不再进入 AgentChat 包装，直接运行 Text2SQLAgent
                 final = await self.text2sql_agent.answer(query, connection_id=connection_id)
                 rewritten_for_metadata = query
                 trace.mark("agent:text2sql")

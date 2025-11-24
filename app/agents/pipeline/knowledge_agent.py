@@ -213,6 +213,9 @@ class KnowledgeAgent:
         query: str,
         domain_context: Optional[PolicyDomainContext],
     ) -> Tuple[List[PolicyDocument], List[float], str]:
+        filters: Dict[str, Any] = {}
+        if domain_context and domain_context.region:
+            filters["region"] = domain_context.region
         variants = []
         if domain_context:
             variants.extend(domain_context.search_variants)
@@ -223,16 +226,16 @@ class KnowledgeAgent:
             if not candidate or candidate in seen:
                 continue
             seen.add(candidate)
-            docs, scores = await self._safe_search(candidate)
+            docs, scores = await self._safe_search(candidate, filters=filters)
             if docs:
                 return docs, scores, candidate
         return [], [], query
 
     async def _safe_search(
-        self, query: str
+        self, query: str, filters: Optional[Dict[str, Any]] = None
     ) -> Tuple[List[PolicyDocument], List[float]]:
         try:
-            docs, scores = await self.tool.search(query, top_k=self.top_k)
+            docs, scores = await self.tool.search(query, top_k=self.top_k, filters=filters)
             return docs or [], scores or []
         except Exception as exc:  # pragma: no cover - defensive
             self.logger.error("知识检索失败: %s", exc)
@@ -321,13 +324,16 @@ class KnowledgeAgent:
         hints = self._format_domain_hints(domain_context)
         return (
             "你是政府政策问答系统的知识专家。"
-            "请结合提供的资料回答用户问题，列出关键信息（条件、金额、流程、时间等），"
-            "以条列方式输出，并在结尾用一句话总结答复依据。\n\n"
+            "请严格根据【参考资料】回答，禁止臆造未出现的信息，无法确认时写“未明确”。"
+            "输出格式使用条列，涵盖以下要素：\n"
+            "1) 适用地区/主体；2) 适用品类及能效/档次；3) 补贴标准（档次+封顶）；"
+            "4) 申请/核销方式（渠道、发票/旧机回收要求）；5) 时间窗口/截止日期；"
+            "6) 其他限制条件；7) 官方渠道或凭证要求。最后用一句话总结主要依据。\n\n"
             f"用户问题：{query}\n"
             f"关注点/意图：{focus}\n"
             f"领域提示：{hints}\n\n"
             f"{context_label}：\n{context}\n\n"
-            "请直接给出回答，不要重复引用原文。"
+            "请直接给出条列答案，不要重复引用原文。"
         )
 
     def _format_domain_hints(self, domain_context: Optional[PolicyDomainContext]) -> str:

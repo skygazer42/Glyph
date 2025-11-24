@@ -58,6 +58,8 @@ class Text2SQLAgent:
 
     def _build_answer(self, response: QueryResponse, connection_id: int) -> FinalAnswer:
         rows = response.results or []
+        chart_meta = None
+        table_preview = None
         metadata = {
             "route": "text2sql",
             "sql": response.sql,
@@ -88,6 +90,25 @@ class Text2SQLAgent:
                     answer_text += f"\n{idx}) {kv}"
                 if total > max_preview:
                     answer_text += f"\n... 其余 {total - max_preview} 条已省略。"
+
+                # 生成表格和简易 ECharts 数据（假设首列为类别，次列为数值）
+                if len(cols) >= 2:
+                    cat_col = cols[0]
+                    val_col = cols[1]
+                    table_preview = {"columns": cols, "rows": preview}
+                    try:
+                        values = [float(row.get(val_col, 0) or 0) for row in preview]
+                    except Exception:
+                        values = []
+                    chart_meta = {
+                        "type": "bar",
+                        "xField": cat_col,
+                        "yField": val_col,
+                        "data": [{cat_col: row.get(cat_col), val_col: row.get(val_col)} for row in preview],
+                        "title": "政策类别统计",
+                    }
+                    metadata["chart"] = chart_meta
+                    metadata["table_preview"] = table_preview
 
             confidence = 0.75 if rows else 0.5
 
