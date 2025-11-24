@@ -40,7 +40,15 @@
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(mysql:*)",
+      "Bash(ss:*)",
+      "Bash(docker-compose:*)",
+      "Bash(for i in {1..30})",
+      "Bash(do)",
+      "Bash(break)",
+      "Bash(echo:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

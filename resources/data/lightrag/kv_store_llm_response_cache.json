@@ -538,5 +538,89 @@
     "create_time": 1763800268,
     "update_time": 1763800268,
     "_id": "default:extract:cba083e016717f5620fe9f807b709c25"
+  },
+  "hybrid:keywords:1d3c2da7f797c44fbda4b043763aaa6d": {
+    "return": "{\"high_level_keywords\": [\"\\u653f\\u7b56\\u7c7b\\u522b\\u7edf\\u8ba1\", \"\\u6570\\u91cf\\u5c55\\u793a\", \"\\u8865\\u8d34\\u653f\\u7b56\"], \"low_level_keywords\": [\"\\u5bb6\\u7535\\u4ee5\\u65e7\\u6362\\u65b0\", \"\\u6c7d\\u8f66\\u6d88\\u8d39\\u8865\\u8d34\", \"\\u6d88\\u8d39\\u5238\", \"\\u6570\\u7801\\u4ea7\\u54c1\\u8865\\u8d34\", \"\\u8868\\u683c\", \"\\u56fe\"]}",
+    "cache_type": "keywords",
+    "chunk_id": null,
+    "original_prompt": "按政策类别统计数量，展示家电以旧换新、汽车消费补贴、消费券、数码产品补贴各有多少条政策。请用表格和图展示结果。",
+    "queryparam": {
+      "mode": "hybrid",
+      "response_type": "Multiple Paragraphs",
+      "top_k": 40,
+      "chunk_top_k": 20,
+      "max_entity_tokens": 6000,
+      "max_relation_tokens": 8000,
+      "max_total_tokens": 30000,
+      "user_prompt": "",
+      "enable_rerank": true
+    },
+    "create_time": 1763950943,
+    "update_time": 1763950943,
+    "_id": "hybrid:keywords:1d3c2da7f797c44fbda4b043763aaa6d"
+  },
+  "hybrid:keywords:99aa7568127ad5faf12f1e87a90ef7e9": {
+    "return": "{\"high_level_keywords\": [\"\\u5bb6\\u7535\\u4ee5\\u65e7\\u6362\\u65b0\\u653f\\u7b56\", \"\\u6d4e\\u5357\\u5e02\", \"\\u653f\\u7b56\\u5206\\u7c7b\", \"\\u8868\\u683c\\u5c55\\u793a\", \"\\u56fe\\u5c55\\u793a\"], \"low_level_keywords\": [\"\\u5bb6\\u7535\", \"\\u65e7\\u6362\\u65b0\", \"\\u653f\\u7b56\\u6570\\u91cf\", \"\\u7c7b\\u578b\"]}",
+    "cache_type": "keywords",
+    "chunk_id": null,
+    "original_prompt": "现在济南市和家电以旧换新相关的政策一共有多少个？按类型分一分，用表格和图展示一下。",
+    "queryparam": {
+      "mode": "hybrid",
+      "response_type": "Multiple Paragraphs",
+      "top_k": 40,
+      "chunk_top_k": 20,
+      "max_entity_tokens": 6000,
+      "max_relation_tokens": 8000,
+      "max_total_tokens": 30000,
+      "user_prompt": "",
+      "enable_rerank": true
+    },
+    "create_time": 1763950947,
+    "update_time": 1763950947,
+    "_id": "hybrid:keywords:99aa7568127ad5faf12f1e87a90ef7e9"
+  },
+  "hybrid:query:7a071d3c5044b1ff510ad941fad842dd": {
+    "return": "根据提供的信息，济南市与家电以旧换新相关的政策文件主要有以下几个：\n\n1. **《济南市2025年家电以旧换新补贴实施细则》** - 该文件详细规定了济南市2025年家电以旧换新的补贴范围、标准和流程。\n2. **《山东省2025年家电以旧换新实施方案》** - 该文件是山东省层面的政策，指导全省各市实施家电以旧换新活动。\n\n这些政策可以按照类型分为两类：市级政策和省级政策。以下是详细的分类表格和图示。\n\n### 表格\n\n| 类型 | 政策文件名称 |\n|------|--------------|\n| 市级政策 | 《济南市2025年家电以旧换新补贴实施细则》 |\n| 省级政策 | 《山东省2025年家电以旧换新实施方案》 |\n\n### 图示\n\n```\n+-------------------+\n|    家电以旧换新   |\n|    相关政策       |\n+-------------------+\n|                   |\n|  +---------------+  +---------------+\n|  |  市级政策     |  |  省级政策     |\n|  +---------------+  +---------------+\n|  |  《济南市2025年  |  |  《山东省2025年  |\n|  |  家电以旧换新补  |  |  家电以旧换新实  |\n|  |  贴实施细则》    |  |  施方案》        |\n|  +---------------+  +---------------+\n+-------------------+\n```\n\n### 参考资料\n\n- [1] 《济南市2025年家电以旧换新补贴实施细则》\n- [2] 《山东省2025年家电以旧换新实施方案》\n\n这些政策文件为济南市和山东省的家电以旧换新活动提供了详细的指导和支持。",
+    "cache_type": "query",
+    "chunk_id": null,
+    "original_prompt": "现在济南市和家电以旧换新相关的政策一共有多少个？按类型分一分，用表格和图展示一下。",
+    "queryparam": {
+      "mode": "hybrid",
+      "response_type": "Multiple Paragraphs",
+      "top_k": 40,
+      "chunk_top_k": 20,
+      "max_entity_tokens": 6000,
+      "max_relation_tokens": 8000,
+      "max_total_tokens": 30000,
+      "hl_keywords": "家电以旧换新政策, 济南市, 政策分类, 表格展示, 图展示",
+      "ll_keywords": "家电, 旧换新, 政策数量, 类型",
+      "user_prompt": "",
+      "enable_rerank": true
+    },
+    "create_time": 1763950972,
+    "update_time": 1763950972,
+    "_id": "hybrid:query:7a071d3c5044b1ff510ad941fad842dd"
+  },
+  "hybrid:query:acf67eab5e1528082985940ec84745e8": {
+    "return": "根据提供的信息，我将统计各类政策的数量，并以表格和图表的形式展示结果。\n\n### 统计结果\n\n| 政策类别 | 数量 |\n| --- | --- |\n| 家电以旧换新 | 3 |\n| 汽车消费补贴 | 4 |\n| 消费券 | 1 |\n| 数码产品补贴 | 2 |\n\n### 表格展示\n\n| 政策类别 | 数量 |\n| --- | --- |\n| 家电以旧换新 | 3 |\n| 汽车消费补贴 | 4 |\n| 消费券 | 1 |\n| 数码产品补贴 | 2 |\n\n### 图表展示\n\n```markdown\n```\n家电以旧换新: 3\n汽车消费补贴: 4\n消费券: 1\n数码产品补贴: 2\n```\n\n为了更直观地展示这些数据，可以使用条形图或饼图。以下是条形图的示例：\n\n```\n家电以旧换新:   [███]\n汽车消费补贴:   [████]\n消费券:         [█]\n数码产品补贴:   [██]\n```\n\n### 参考文献\n\n- [1] 山东省商务厅等4部门关于印发山东省2025年家电以旧换新实施方案的通知\n- [2] 关于印发《济南市2025年家电以旧换新补贴实施细则》的通知\n- [3] 济南市2025年下半年第一轮汽车消费补贴活动公告\n- [4] 济南市2025年下半年第二轮汽车消费补贴活动公告\n- [5] 济南市2025年下半年第三轮汽车消费补贴活动公告\n- [6] 关于追加2025年政府汽车消费补贴资金额度的公告\n- [7] 2025年济南市“泉城购”零售、餐饮消费券发放活动公告\n- [8] 关于印发济南市2025年手机平板智能手表手环购新补贴实施细则的通知\n- [9] 山东省商务厅等5部门关于印发《山东省手机、平板、智能手表（补贴实施细则）的通知\n```\n\n### References\n\n- [1] 山东省商务厅等4部门关于印发山东省2025年家电以旧换新实施方案的通知\n- [2] 关于印发《济南市2025年家电以旧换新补贴实施细则》的通知\n- [3] 济南市2025年下半年第一轮汽车消费补贴活动公告\n- [4] 济南市2025年下半年第二轮汽车消费补贴活动公告\n- [5] 济南市2025年下半年第三轮汽车消费补贴活动公告\n- [6] 关于追加2025年政府汽车消费补贴资金额度的公告\n- [7] 2025年济南市“泉城购”零售、餐饮消费券发放活动公告\n- [8] 关于印发济南市2025年手机平板智能手表手环购新补贴实施细则的通知\n- [9] 山东省商务厅等5部门关于印发《山东省手机、平板、智能手表（补贴实施细则）的通知",
+    "cache_type": "query",
+    "chunk_id": null,
+    "original_prompt": "按政策类别统计数量，展示家电以旧换新、汽车消费补贴、消费券、数码产品补贴各有多少条政策。请用表格和图展示结果。",
+    "queryparam": {
+      "mode": "hybrid",
+      "response_type": "Multiple Paragraphs",
+      "top_k": 40,
+      "chunk_top_k": 20,
+      "max_entity_tokens": 6000,
+      "max_relation_tokens": 8000,
+      "max_total_tokens": 30000,
+      "hl_keywords": "政策类别统计, 数量展示, 补贴政策",
+      "ll_keywords": "家电以旧换新, 汽车消费补贴, 消费券, 数码产品补贴, 表格, 图",
+      "user_prompt": "",
+      "enable_rerank": true
+    },
+    "create_time": 1763950992,
+    "update_time": 1763950992,
+    "_id": "hybrid:query:acf67eab5e1528082985940ec84745e8"
   }
 }
