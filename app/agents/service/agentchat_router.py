@@ -158,7 +158,6 @@ class AgentChatRouter:
                     chunk = (evt.content or "")
                     if chunk:
                         chunks.append(chunk)
-                        yield {"type": "chunk", "content": chunk}
                 # 捕捉工具事件，记录首个工具名
                 if primary_tool is None and hasattr(evt, "tool_name"):
                     primary_tool = getattr(evt, "tool_name", None)

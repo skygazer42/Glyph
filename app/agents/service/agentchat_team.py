@@ -162,7 +162,6 @@ class AgentChatTeam:
                     chunk = evt.content or ""
                     if chunk:
                         final_content.append(chunk)
-                        yield {"type": "chunk", "content": chunk}
                 if primary_tool is None and hasattr(evt, "tool_name"):
                     primary_tool = getattr(evt, "tool_name", None)
         except Exception as exc:

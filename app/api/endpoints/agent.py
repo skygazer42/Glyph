@@ -148,7 +148,6 @@ async def agent_chat_stream(
                     "message_count": session.message_count
                 }, ensure_ascii=False)
             }
-
             logger.info(f"会话 {session_id} 开始流式问答")
             # 若开启 AgentChat 流式，优先尝试流式；否则回退一次性推送
             use_agentchat_stream = os.getenv("AGENTCHAT_STREAM_ENABLED", "").lower() in {"1", "true", "yes", "on"}
