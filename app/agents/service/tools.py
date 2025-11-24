@@ -15,6 +15,7 @@ from loguru import logger
 from openai import AsyncOpenAI
 
 from app.agents.framework.base.types import PolicyDocument
+from app.models.base import PolicyType
 from app.agents.packs.intent_router.utils import LLMIntentClassifier
 from app.knowledge.service import KnowledgeService
 from app.models.base import Attachment
@@ -52,6 +53,7 @@ class KnowledgeTool:
 
     def __init__(self, service: KnowledgeService | None = None) -> None:
         self._service = service
+        self._dify = DifyKnowledgeProxy()
 
     @property
     def service(self) -> KnowledgeService:
@@ -70,6 +72,11 @@ class KnowledgeTool:
         threshold: float = 0.6,
         filters: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[PolicyDocument], List[float]]:
+        # 优先使用 Dify 知识库（若启用）
+        if self._dify.enabled:
+            docs, scores = await self._dify.search(query, top_k=top_k)
+            if docs:
+                return docs, scores
         return await self.service.search(
             query, top_k=top_k, threshold=threshold, filters=filters
         )
@@ -215,6 +222,7 @@ class VisionTool:
         if self._mode == "dashscope":
             return await self._describe_dashscope(query, attachments)
         return await self._describe_openai(query, attachments)
+
 
     def _build_openai_contents(self, query: str, attachments: List[Attachment]) -> List[Dict[str, Any]]:
         prompt = self.prompt_template.format(query=query)
@@ -402,6 +410,82 @@ class VisionTool:
                 if texts:
                     return "\n".join(texts)
         return ""
+
+
+class DifyKnowledgeProxy:
+    """Lightweight Dify KB retriever (dataset retrieve API)."""
+
+    def __init__(self) -> None:
+        self.enabled = os.getenv("DIFY_KB_ENABLED", "").lower() in {"1", "true", "yes", "on"}
+        self.base_url = (os.getenv("DIFY_KB_BASE_URL") or "").rstrip("/")
+        self.api_key = os.getenv("DIFY_KB_API_KEY")
+        self.dataset_id = os.getenv("DIFY_KB_ID") or os.getenv("DIFY_DATASET_ID")
+        self.top_k = int(os.getenv("DIFY_KB_TOP_K", "5") or "5")
+        if self.enabled and (not self.base_url or not self.api_key or not self.dataset_id):
+            logger.warning("Dify KB 启用失败：缺少 base_url / api_key / dataset_id，已回退本地知识库。")
+            self.enabled = False
+
+    async def search(self, query: str, top_k: Optional[int] = None) -> Tuple[List[PolicyDocument], List[float]]:
+        if not self.enabled:
+            return [], []
+        limit = top_k or self.top_k
+        try:
+            return await asyncio.to_thread(self._search_sync, query, limit)
+        except Exception as exc:  # pragma: no cover - 网络调用失败回退
+            logger.warning("Dify KB 搜索失败，回退本地知识库：%s", exc)
+            return [], []
+
+    def _search_sync(self, query: str, top_k: int) -> Tuple[List[PolicyDocument], List[float]]:
+        import requests  # 延迟引入，避免硬依赖
+
+        url = f"{self.base_url}/v1/datasets/{self.dataset_id}/retrieve"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {"query": query, "top_k": top_k}
+        resp = requests.post(url, headers=headers, json=payload, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("data") or data.get("hits") or data.get("items") or []
+
+        docs: List[PolicyDocument] = []
+        scores: List[float] = []
+        for item in items:
+            text = item.get("content") or item.get("text") or ""
+            if not text:
+                continue
+            title = (
+                item.get("title")
+                or item.get("document_name")
+                or item.get("metadata", {}).get("title")
+                or "Dify 知识库条目"
+            )
+            score = float(item.get("score") or item.get("similarity") or 0.0)
+            regions = []
+            meta = item.get("metadata") or {}
+            if "region" in meta:
+                regions = [meta["region"]] if isinstance(meta["region"], str) else list(meta["region"])
+            doc = PolicyDocument(
+                title=title,
+                content=text,
+                summary=None,
+                source=meta.get("source") or "Dify",
+                doc_type=PolicyType.GUIDELINE,
+                publish_date=None,
+                effective_date=None,
+                expiry_date=None,
+                relevant_departments=[],
+                target_groups=[],
+                regions=regions,
+                keywords=meta.get("keywords") or [],
+                embedding=None,
+                metadata={"origin": "dify", **meta},
+                retrieval_origin="dify",
+            )
+            docs.append(doc)
+            scores.append(score)
+        return docs, scores
 
 
 class UserProfileTool:

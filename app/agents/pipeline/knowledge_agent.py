@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from statistics import mean
 from typing import Any, Dict, List, Optional, Tuple
@@ -50,6 +51,32 @@ class KnowledgeAgent:
         focus = emphasis or (intent or {}).get("sub_intent") or "general"
 
         if docs:
+            # Dify KB 直返：启用时直接用 Dify 文本，不再调用本地 LLM
+            if self._should_direct_return_dify(docs):
+                top_doc = docs[0]
+                preview_len = int(os.getenv("DIFY_KB_PREVIEW_CHARS", "1500") or "1500")
+                preview = (top_doc.content or "")[:preview_len].strip()
+                answer_text = preview or "暂未从 Dify 知识库获取到有效内容。"
+                answer_text = self._append_citations(answer_text, docs[:1])
+                return FinalAnswer(
+                    query_id=uuid4(),
+                    answer=answer_text,
+                    sources=docs,
+                    confidence=self._estimate_confidence(scores),
+                    verification_passed=True,
+                    metadata={
+                        "route": "knowledge",
+                        "origin": "dify",
+                        "doc_count": len(docs),
+                        "early_stopped": True,
+                        "dify_direct": True,
+                        "search_query": used_query,
+                        "domain_context": domain_context.to_metadata() if domain_context else None,
+                        "knowledge_trace_ms": trace,
+                        "search_timings_ms": knowledge_timings,
+                    },
+                    total_processing_time=0.0,
+                )
             # 早停检查：如果检索置信度足够高，直接生成简化答案，无需重排和深度分析
             initial_confidence = self._estimate_confidence(scores)
             early_stop_threshold = getattr(getattr(settings, 'system', settings), 'early_stop_conf', 0.8)
@@ -389,6 +416,16 @@ class KnowledgeAgent:
             if len(found) >= 8:
                 break
         return found
+
+    def _should_direct_return_dify(self, docs: List[PolicyDocument]) -> bool:
+        if not docs:
+            return False
+        direct = os.getenv("DIFY_KB_DIRECT_ANSWER", "").lower() in {"1", "true", "yes", "on"}
+        if not direct:
+            return False
+        first = docs[0]
+        origin = getattr(first, "retrieval_origin", "") or first.metadata.get("origin")
+        return origin == "dify"
 
     def _build_no_result_answer(
         self,
