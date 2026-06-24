@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="docs/images/glyph-logo.png" alt="Glyph Logo" width="420" />
+
 **基于 AutoGen Core 的企业级政策分析与问答系统**
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org)
@@ -310,6 +312,12 @@ python scripts/unified_cli.py --interactive
 ## 系统架构
 
 ### 整体架构
+
+<div align="center">
+  <img src="docs/images/glyph-architecture.png" alt="Glyph 政策智能问答系统架构图" width="100%" />
+</div>
+
+架构图展示了从用户交互、AI 语义理解、多智能体编排、检索执行到数据与治理运维的完整链路。下面保留文本版结构，便于快速浏览与差异比对。
 
 ```
 ┌─────────────────────────────────────────────────────┐
