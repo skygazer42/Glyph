@@ -1,24 +1,10 @@
-# Glyph - 政策智能问答系统
+## 基于 AutoGen Core / AgentChat 的多智能体政策问答系统
 
-<div align="center">
+## 项目简介
 
-<img src="docs/images/glyph-logo.png" alt="Glyph Logo" width="420" />
+政策咨询场景天然同时具备强规则、强时效与强地域属性。一类问题需要依赖确定性规则完成补贴测算、资格判断与流程约束，另一类问题又需要从大量政策正文、FAQ、附件表格和结构化库表中完成检索、比对与归纳。仅依赖关键词搜索或单一问答链路，通常很难同时兼顾准确性、可解释性与响应效率。
 
-**基于 AutoGen Core 的企业级政策分析与问答系统**
-
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-[功能特性](#功能特性) • [快速开始](#快速开始) • [系统架构](#系统架构) • [部署指南](#部署指南) • [开发文档](#开发指南)
-
-</div>
-
----
-
-## 简介
-
-Glyph 是一个企业级政策智能问答系统，专为政府机构和企业提供精准的政策咨询服务。系统采用多Agent协作架构，结合知识图谱、向量检索和大语言模型，实现政策文档的深度理解和智能问答。
+Glyph 以政策知识服务为核心，围绕“政策检索、资格判断、补贴测算、结构化查询、流程问答”等高频场景，构建了一个可扩展的多 Agent 政策智能问答系统。项目融合 AutoGen Core / AgentChat 多智能体协作、Milvus 向量检索、LightRAG 图谱增强、YAML DSL 规则引擎与 Text2SQL 能力，使系统既能回答政策内容，也能处理计算、对比、追问和结构化数据查询。
 
 ### 核心能力
 
