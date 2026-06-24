@@ -465,3 +465,16 @@ calculation:
 ```
 
 ---
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE)。
+
+---
+
+## 致谢
+
+- [AutoGen](https://github.com/microsoft/autogen) - 多 Agent 协作框架
+- [LightRAG](https://github.com/HKUDS/LightRAG) - 轻量级知识图谱检索
+- [Milvus](https://milvus.io/) - 向量数据库
+- [FastAPI](https://fastapi.tiangolo.com/) - Web 框架
