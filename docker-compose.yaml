@@ -78,10 +78,10 @@ services:
 
   api:
     build:
-      context: ..
-      dockerfile: ../Dockerfile
+      context: .
+      dockerfile: Dockerfile
     env_file:
-      - ../.env
+      - .env
     environment:
       DATABASE__MYSQL_HOST: mysql
       DATABASE__MYSQL_PORT: 3306
@@ -113,8 +113,8 @@ services:
 
   web:
     build:
-      context: ../web
-      dockerfile: ../web/Dockerfile
+      context: ./web
+      dockerfile: ./web/Dockerfile
     depends_on:
       api:
         condition: service_healthy
