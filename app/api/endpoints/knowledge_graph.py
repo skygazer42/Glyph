@@ -6,7 +6,7 @@
 import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -39,8 +39,16 @@ class GraphData(BaseModel):
     links: List[GraphLink]
 
 
+class GraphStats(BaseModel):
+    exists: bool
+    nodes: int
+    edges: int
+    file_size: int
+    type_distribution: Optional[Dict[str, int]] = None
+
+
 @router.get("/graph", response_model=GraphData)
-async def get_knowledge_graph():
+def get_knowledge_graph():
     """
     获取知识图谱数据
 
@@ -63,12 +71,14 @@ async def get_knowledge_graph():
 
         return GraphData(nodes=nodes, links=links)
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"加载知识图谱失败: {e}")
+        logger.exception(f"加载知识图谱失败: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"加载知识图谱失败: {str(e)}"
-        )
+        ) from e
 
 
 def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
@@ -99,7 +109,7 @@ def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
 
     # 解析节点
     for node in root.findall('.//graphml:node', ns):
-        node_id = node.get('id')
+        node_id = node.attrib['id']
         node_data = {}
 
         for data in node.findall('graphml:data', ns):
@@ -117,8 +127,8 @@ def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
 
     # 解析边
     for edge in root.findall('.//graphml:edge', ns):
-        source = edge.get('source')
-        target = edge.get('target')
+        source = edge.attrib['source']
+        target = edge.attrib['target']
         edge_data = {}
 
         for data in edge.findall('graphml:data', ns):
@@ -127,11 +137,7 @@ def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
             edge_data[key_name] = data.text or ""
 
         # 解析权重
-        weight = 1.0
-        try:
-            weight = float(edge_data.get('weight', 1.0))
-        except (ValueError, TypeError):
-            pass
+        weight = float(edge_data.get('weight', 1.0))
 
         links.append(GraphLink(
             source=source,
@@ -144,8 +150,8 @@ def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
     return nodes, links
 
 
-@router.get("/graph/stats")
-async def get_graph_stats():
+@router.get("/graph/stats", response_model=GraphStats, response_model_exclude_none=True)
+def get_graph_stats():
     """
     获取知识图谱统计信息
     """
@@ -164,7 +170,7 @@ async def get_graph_stats():
         file_size = graph_file.stat().st_size
 
         # 统计节点类型分布
-        type_distribution = {}
+        type_distribution: Dict[str, int] = {}
         for node in nodes:
             node_type = node.type
             type_distribution[node_type] = type_distribution.get(node_type, 0) + 1
@@ -178,11 +184,11 @@ async def get_graph_stats():
         }
 
     except Exception as e:
-        logger.error(f"获取图谱统计信息失败: {e}")
+        logger.exception(f"获取图谱统计信息失败: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"获取统计信息失败: {str(e)}"
-        )
+        ) from e
 
 
 __all__ = ["router"]

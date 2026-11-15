@@ -10,27 +10,21 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import anyio
 import json
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from loguru import logger
+from loguru import logger  # noqa: E402 - executable script bootstraps the repository path
 
-try:
-    from app.agents.packs.graph_retriever.node import GraphRetrieverAgent
-except Exception as exc:  # pragma: no cover - missing LightRAG extras
-    GraphRetrieverAgent = None  # type: ignore[assignment]
-    IMPORT_ERROR = exc
-else:
-    IMPORT_ERROR = None
-
-from app.knowledge import DocumentLoader
+from app.agents.packs.graph_retriever.node import GraphRetrieverAgent  # noqa: E402 - executable script bootstraps the repository path
+from app.knowledge.document_loader import DocumentLoader  # noqa: E402 - executable script bootstraps the repository path
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,41 +62,43 @@ async def seed_lightrag(
     batch_size: int,
     limit: Optional[int],
 ) -> None:
-    if GraphRetrieverAgent is None:
-        raise RuntimeError(
-            "无法导入 GraphRetrieverAgent。请先在虚拟环境中安装 LightRAG 依赖（pip install lightrag-hku）\n"
-            f"原始错误：{IMPORT_ERROR}"
-        )
-
-    loader = DocumentLoader()
-    agent = GraphRetrieverAgent(working_dir=workdir)
-
     source_path = Path(input_dir)
-    if not source_path.exists():
+    if not await asyncio.to_thread(source_path.exists):
         raise FileNotFoundError(f"输入目录不存在：{input_dir}")
 
-    docs = []
-    loaded = 0
+    loader = DocumentLoader()
+    agent = await asyncio.to_thread(GraphRetrieverAgent, working_dir=workdir)
 
-    async def flush():
-        nonlocal docs
-        if not docs:
-            return
-        await agent.add_documents(docs)
-        logger.info("已向 LightRAG 写入 %s 篇文档", len(docs))
-        docs = []
+    try:
+        docs: list[Any] = []
+        loaded = 0
 
-    for document in loader.iter_documents_from_directory(str(source_path), limit=limit):
-        docs.append(document)
-        loaded += 1
-        if len(docs) >= batch_size:
+        async def flush():
+            nonlocal docs
+            if not docs:
+                return
+            await agent.add_documents(docs)
+            logger.info("已向 LightRAG 写入 {} 篇文档", len(docs))
+            docs = []
+
+        documents = iter(loader.iter_documents_from_directory(str(source_path), limit=limit))
+        while True:
+            document = await asyncio.to_thread(next, documents, None)
+            if document is None:
+                break
+            docs.append(document)
+            loaded += 1
+            if len(docs) >= batch_size:
+                await flush()
+
+        if docs:
             await flush()
 
-    if docs:
-        await flush()
-
-    write_seed_manifest(source_path, Path(workdir))
-    logger.success("LightRAG 导入完成，共处理 %s 篇文档，工作目录：%s", loaded, workdir)
+        await asyncio.to_thread(write_seed_manifest, source_path, Path(workdir))
+        logger.success("LightRAG 导入完成，共处理 {} 篇文档，工作目录：{}", loaded, workdir)
+    finally:
+        with anyio.fail_after(5, shield=True):
+            await agent.close()
 
 
 def write_seed_manifest(source_dir: Path, workdir: Path) -> None:
@@ -122,7 +118,7 @@ def write_seed_manifest(source_dir: Path, workdir: Path) -> None:
     workdir.mkdir(parents=True, exist_ok=True)
     manifest_path = workdir / "seed_manifest.json"
     manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("已更新种子清单：%s", manifest_path)
+    logger.info("已更新种子清单：{}", manifest_path)
 
 
 def main() -> None:

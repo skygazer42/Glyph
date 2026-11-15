@@ -2,26 +2,60 @@
 Question understanding agent for analyzing user queries.
 """
 
-import json
-import asyncio
+import logging
+import anyio
+
 from typing import Dict, Any, List, Optional
 import re
 
-from app.agents.framework.base.base_agent import BaseAgent
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from app.agents.framework.common.model_client import create_openai_client
+from autogen_core.models import SystemMessage, UserMessage
 from app.agents.framework.base.types import MessageTypes, AnalysisReport
 
 
-class QuestionUnderstander(BaseAgent):
+class QuestionAnalysis(BaseModel):
+    """Structured question interpretation returned by the analysis prompt."""
+
+    model_config = ConfigDict(strict=True, extra="ignore")
+
+    intent: str = Field(min_length=1)
+    entities: list[str]
+    keywords: list[str]
+    policy_types: list[str]
+    time_constraints: str | None = None
+    location_constraints: str | None = None
+    target_groups: list[str]
+    question_type: str
+    confidence: float = Field(ge=0, le=1)
+    reasoning: str
+
+    @field_validator("intent")
+    @classmethod
+    def require_nonempty_intent(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Question analysis requires a nonempty intent")
+        return value
+
+
+class QuestionUnderstander:
     """Agent responsible for understanding and analyzing user questions."""
 
     def __init__(
         self,
         name: str,
         llm_config: Dict[str, Any],
-        vector_store: Optional[Any] = None
+        vector_store: Optional[Any] = None,
+        *, model_client=None,
     ):
         """Initialize the question understander."""
-        super().__init__(name, "question_understander", llm_config)
+        self.name = name
+        self.llm_config = llm_config
+        self.logger = logging.getLogger(f"{__name__}.{name}")
+        self.system_message = self._get_default_system_message()
+        self._owns_model_client = model_client is None
+        self.model_client = create_openai_client(llm_config=llm_config) if model_client is None else model_client
         self.vector_store = vector_store
 
     def _get_default_system_message(self) -> str:
@@ -64,22 +98,20 @@ class QuestionUnderstander(BaseAgent):
             # Create analysis report
             report = AnalysisReport(
                 original_query=message,
-                intent=analysis.get("intent", ""),
-                entities=analysis.get("entities", []),
-                keywords=analysis.get("keywords", []),
-                policy_types=analysis.get("policy_types", []),
-                time_constraints=analysis.get("time_constraints"),
-                location_constraints=analysis.get("location_constraints"),
-                confidence=analysis.get("confidence", 0.0)
+                intent=analysis["intent"],
+                entities=analysis["entities"],
+                keywords=analysis["keywords"],
+                policy_types=analysis["policy_types"],
+                time_constraints=analysis["time_constraints"],
+                location_constraints=analysis["location_constraints"],
+                confidence=analysis["confidence"]
             )
 
-            return self.format_success_response(
-                report.__dict__,
-                MessageTypes.ANALYSIS_RESULT
-            )
+            return {"success": True, "data": report.__dict__, "type": MessageTypes.ANALYSIS_RESULT.value}
 
         except Exception as e:
-            return self.format_error_response(str(e))
+            self.logger.exception("Policy request failed")
+            return {"success": False, "error": str(e)}
 
     def _preprocess_question(self, question: str) -> str:
         """Preprocess the user's question."""
@@ -126,26 +158,12 @@ Focus on extracting information that would be useful for searching policy docume
             }
         ]
 
-        response = await self.a_create(messages)
+        response = await self._request_completion(messages)
 
         try:
-            # Try to parse JSON response
-            analysis = json.loads(response.content)
-
-            # Validate and clean the analysis
-            if not isinstance(analysis, dict):
-                raise ValueError("Response is not a dictionary")
-
-            # Ensure required fields exist
-            required_fields = ["intent", "entities", "keywords", "policy_types"]
-            for field in required_fields:
-                if field not in analysis:
-                    analysis[field] = []
-
-            return analysis
-
-        except json.JSONDecodeError:
-            # Fallback: simple rule-based analysis
+            return QuestionAnalysis.model_validate_json(response).model_dump()
+        except ValidationError as exc:
+            self.logger.warning("Invalid question analysis; using rule analysis: %s", exc, exc_info=True)
             return self._rule_based_analysis(question)
 
     def _rule_based_analysis(self, question: str) -> Dict[str, Any]:
@@ -195,14 +213,21 @@ Focus on extracting information that would be useful for searching policy docume
             "reasoning": "Rule-based analysis (fallback)"
         }
 
-    async def a_create(self, messages: List[Dict[str, str]]) -> Any:
-        """Async wrapper for creating messages."""
-        # This is a simplified version - in real implementation,
-        # you would use async API calls
-        return self.generate_reply(
-            messages=[msg["content"] for msg in messages],
-            sender=None
-        )
 
-QuestionGenerator = QuestionUnderstander
+    async def _request_completion(self, messages: List[Dict[str, str]]) -> str:
+        """Send complete role-tagged messages through the current async SDK."""
+        sdk_messages = [SystemMessage(content=message["content"])
+                        if message["role"] == "system"
+                        else UserMessage(content=message["content"], source="user")
+                        for message in messages]
+        response = await self.model_client.create(sdk_messages)
+        if not isinstance(response.content, str):
+            raise ValueError("Policy model must return text")
+        return response.content
 
+    async def close(self):
+        """Release only the model client created by this business object."""
+        if self._owns_model_client:
+            self._owns_model_client = False
+            with anyio.fail_after(5, shield=True):
+                await self.model_client.close()

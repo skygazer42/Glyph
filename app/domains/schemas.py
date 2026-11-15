@@ -4,7 +4,6 @@
 
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from datetime import datetime
 from enum import Enum
 
 # ==================== 汽车补贴 Schema ====================
@@ -80,7 +79,7 @@ class ApplianceSubsidySchema(BaseModel):
     # 能效补贴率
     efficiency_rates: Dict[str, float] = Field(
         description="能效等级对应补贴率",
-        example={"2级及以上": 0.15, "1级额外": 0.05}
+        json_schema_extra={"example": {"2级及以上": 0.15, "1级额外": 0.05}}
     )
 
     # 类别限额
@@ -125,7 +124,7 @@ class ConsumerCouponSchema(BaseModel):
     # 发放规则
     distribution: Dict[str, Any] = Field(
         description="发放规则",
-        example={"method": "lottery", "quota_per_person": 5}
+        json_schema_extra={"example": {"method": "lottery", "quota_per_person": 5}}
     )
 
     # 使用限制
@@ -150,7 +149,7 @@ class TradeInSchema(BaseModel):
     # 旧品回收标准
     trade_in_criteria: Dict[str, Any] = Field(
         description="旧品回收标准",
-        example={"min_years": 5, "condition": "working"}
+        json_schema_extra={"example": {"min_years": 5, "condition": "working"}}
     )
 
     # 新品补贴率
@@ -162,7 +161,7 @@ class TradeInSchema(BaseModel):
     # 叠加规则
     stacking_rules: Dict[str, bool] = Field(
         description="是否可叠加其他优惠",
-        example={"with_energy_subsidy": True}
+        json_schema_extra={"example": {"with_energy_subsidy": True}}
     )
 
     output: Dict[str, Any]

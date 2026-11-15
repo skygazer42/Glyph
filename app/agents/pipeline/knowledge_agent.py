@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 from statistics import mean
 from typing import Any, Dict, List, Optional, Tuple
@@ -13,10 +14,10 @@ from uuid import uuid4
 from autogen_core.models import UserMessage
 
 from app.agents.service.tools import KnowledgeTool, WebSearchTool
-from app.config import settings
+from app.config.app_config import settings
 from app.core.llms import model_client
 from app.models.base import FinalAnswer, PolicyDocument, PolicyType
-from app.agents.domain import PolicyDomainContext
+from app.agents.domain.policy_domain import PolicyDomainContext
 
 
 class KnowledgeAgent:
@@ -45,9 +46,7 @@ class KnowledgeAgent:
         t_search = time.perf_counter()
         docs, scores, used_query = await self._domain_aware_search(query, domain_context)
         trace["search_ms"] = round((time.perf_counter() - t_search) * 1000, 2)
-        knowledge_timings = getattr(
-            getattr(self.tool, "service", None), "last_timings", {}
-        ) or {}
+        knowledge_timings = self.tool.last_timings
         focus = emphasis or (intent or {}).get("sub_intent") or "general"
 
         if docs:
@@ -55,9 +54,8 @@ class KnowledgeAgent:
             if self._should_direct_return_dify(docs):
                 top_doc = docs[0]
                 preview_len = int(os.getenv("DIFY_KB_PREVIEW_CHARS", "1500") or "1500")
-                preview = (top_doc.content or "")[:preview_len].strip()
+                preview = top_doc.content[:preview_len].strip()
                 answer_text = preview or "暂未从 Dify 知识库获取到有效内容。"
-                answer_text = self._append_citations(answer_text, docs[:1])
                 return FinalAnswer(
                     query_id=uuid4(),
                     answer=answer_text,
@@ -80,7 +78,7 @@ class KnowledgeAgent:
                 )
             # 早停检查：如果检索置信度足够高，直接生成简化答案，无需重排和深度分析
             initial_confidence = self._estimate_confidence(scores)
-            early_stop_threshold = getattr(getattr(settings, 'system', settings), 'early_stop_conf', 0.8)
+            early_stop_threshold = settings.system.early_stop_conf
 
             if initial_confidence >= early_stop_threshold:
                 t_extract = time.perf_counter()
@@ -91,14 +89,13 @@ class KnowledgeAgent:
                 )
                 # 快速通道：直接生成答案
                 # 优先走快速抽取，尽量避免 LLM 调用
-                extracted = self._extract_policy_points((docs[0].content or ""))
+                extracted = self._extract_policy_points(docs[0].content)
                 if extracted:
                     trace["extract_ms"] = round(
                         (time.perf_counter() - t_extract) * 1000, 2
                     )
                     answer_text = "\n".join(f"- {b}" for b in extracted[:10])
                     answer_text += "\n\n答复依据：" + (docs[0].title or "相关政策")
-                    answer_text = self._append_citations(answer_text, docs[:1])
                 else:
                     # 回退到一次性 LLM 总结
                     t_llm = time.perf_counter()
@@ -114,7 +111,6 @@ class KnowledgeAgent:
                     trace["llm_ms"] = round(
                         (time.perf_counter() - t_llm) * 1000, 2
                     )
-                    answer_text = self._append_citations(answer_text, docs)
 
                 return FinalAnswer(
                     query_id=uuid4(),
@@ -140,7 +136,7 @@ class KnowledgeAgent:
 
             # 常规流程：继续重排和深度分析
             doc_origins = [
-                getattr(doc, "retrieval_origin", "knowledge_base") for doc in docs
+                doc.retrieval_origin for doc in docs
             ]
             if doc_origins and all(origin == doc_origins[0] for origin in doc_origins):
                 dominant_origin = doc_origins[0]
@@ -160,7 +156,6 @@ class KnowledgeAgent:
             )
             answer_text = await self._call_llm(summary_prompt)
             trace["llm_ms"] = round((time.perf_counter() - t_llm) * 1000, 2)
-            answer_text = self._append_citations(answer_text, docs)
             confidence = self._estimate_confidence(scores)
             return FinalAnswer(
                 query_id=uuid4(),
@@ -202,7 +197,6 @@ class KnowledgeAgent:
             answer_text = await self._call_llm(summary_prompt)
             trace["llm_ms"] = round((time.perf_counter() - t_llm) * 1000, 2)
             web_docs = self._web_results_to_documents(web_results)
-            answer_text = self._append_citations(answer_text, web_docs)
             return FinalAnswer(
                 query_id=uuid4(),
                 answer=answer_text,
@@ -218,9 +212,9 @@ class KnowledgeAgent:
                     "early_stopped": False,
                     "web_results": [
                         {
-                            "title": item.get("title", ""),
-                            "url": item.get("url", ""),
-                            "score": item.get("score", 0.0),
+                            "title": item["title"],
+                            "url": item["url"],
+                            "score": item["score"],
                         }
                         for item in web_results
                     ],
@@ -256,20 +250,18 @@ class KnowledgeAgent:
             if not candidate or candidate in seen:
                 continue
             seen.add(candidate)
-            docs, scores = await self._safe_search(candidate, filters=filters)
+            docs, scores = await self._search_knowledge(candidate, filters=filters)
             if docs:
                 return docs, scores, candidate
         return [], [], query
 
-    async def _safe_search(
+    async def _search_knowledge(
         self, query: str, filters: Optional[Dict[str, Any]] = None
     ) -> Tuple[List[PolicyDocument], List[float]]:
-        try:
-            docs, scores = await self.tool.search(query, top_k=self.top_k, filters=filters)
-            return docs or [], scores or []
-        except Exception as exc:  # pragma: no cover - defensive
-            self.logger.error("知识检索失败: %s", exc)
-            return [], []
+        docs, scores = await self.tool.search(query, top_k=self.top_k, filters=filters)
+        if len(docs) != len(scores):
+            raise ValueError("Knowledge documents and scores must have matching lengths")
+        return docs, scores
 
     async def _search_web(self, query: str) -> List[Dict[str, Any]]:
         tool = self.web_tool
@@ -278,22 +270,18 @@ class KnowledgeAgent:
         return await asyncio.to_thread(tool.search, query, tool.max_results)
 
     async def _call_llm(self, prompt: str) -> str:
-        try:
-            response = await model_client.create(
-                [UserMessage(content=prompt, source="user")]
-            )
-            return (response.content or "").strip() or "抱歉，目前无法根据知识库生成可靠回答。"
-        except Exception as exc:  # pragma: no cover - defensive
-            self.logger.error("知识总结 LLM 调用失败: %s", exc)
-            return "抱歉，生成答案时出现问题，请稍后再试。"
+        response = await model_client.create(
+            [UserMessage(content=prompt, source="user")]
+        )
+        if not isinstance(response.content, str) or not response.content.strip():
+            raise ValueError("Knowledge summary model returned no text")
+        return response.content.strip()
 
     def _format_documents(self, docs: List[PolicyDocument]) -> str:
         chunks = []
-        max_chars = getattr(getattr(settings, "system", settings), "knowledge_max_context_per_doc", 6000)
-        if max_chars <= 0:
-            max_chars = 6000
+        max_chars = settings.system.knowledge_max_context_per_doc
         for idx, doc in enumerate(docs[: self.top_k], 1):
-            preview = (doc.content or "")[:max_chars].replace("\n", " ")
+            preview = doc.content[:max_chars].replace("\n", " ")
             chunks.append(
                 f"[资料{idx}] 标题：{doc.title}\n来源：{doc.source}\n内容摘录：{preview}\n"
             )
@@ -304,10 +292,10 @@ class KnowledgeAgent:
         for idx, item in enumerate(results, 1):
             docs.append(
                 PolicyDocument(
-                    title=item.get("title") or f"网络检索结果{idx}",
-                    content=item.get("content") or "",
+                    title=item["title"] or f"网络检索结果{idx}",
+                    content=item["content"],
                     summary=None,
-                    source=item.get("url") or "web_search",
+                    source=item["url"] or "web_search",
                     doc_type=PolicyType.GUIDELINE,
                     publish_date=None,
                     effective_date=None,
@@ -319,8 +307,8 @@ class KnowledgeAgent:
                     embedding=None,
                     metadata={
                         "origin": "web_search",
-                        "url": item.get("url", ""),
-                        "score": item.get("score", 0.0),
+                        "url": item["url"],
+                        "score": item["score"],
                     },
                 )
             )
@@ -336,7 +324,7 @@ class KnowledgeAgent:
     def _estimate_web_confidence(self, results: List[Dict[str, Any]]) -> float:
         if not results:
             return 0.3
-        scores = [item.get("score", 0.0) for item in results]
+        scores = [item["score"] for item in results]
         avg = sum(scores) / len(scores)
         # Tavily score roughly 0-3 -> normalize to 0.35-0.65
         normalized = 0.35 + min(max(avg, 0.0), 3.0) / 3.0 * 0.3
@@ -383,14 +371,9 @@ class KnowledgeAgent:
             return "无"
         return "；".join(lines)
 
-    def _append_citations(self, answer: str, docs: List[PolicyDocument]) -> str:
-        """Disable inline citation block; AgentService will append统一的【引用】段落。"""
-        return answer
-
     def _extract_policy_points(self, text: str) -> List[str]:
         if not text:
             return []
-        import re
         # 规则优先：抓取常用要点段落
         rules = [
             r"补贴范围[:：].{0,200}",
@@ -427,14 +410,14 @@ class KnowledgeAgent:
         if not direct:
             return False
         first = docs[0]
-        origin = getattr(first, "retrieval_origin", "") or first.metadata.get("origin")
+        origin = first.retrieval_origin
         return origin == "dify"
 
     def _collect_images(self, docs: List[PolicyDocument]) -> List[str]:
         """Collect image URLs from metadata of retrieved documents."""
         images: List[str] = []
-        for doc in docs or []:
-            imgs = (getattr(doc, "metadata", {}) or {}).get("images") or []
+        for doc in docs:
+            imgs = doc.metadata.get("images", [])
             for img in imgs:
                 if img and img not in images:
                     images.append(img)

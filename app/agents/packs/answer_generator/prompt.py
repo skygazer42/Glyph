@@ -2,7 +2,7 @@
 用于 LLM 的答案生成提示（中文）。
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict
 
 
 def generation_system_prompt() -> str:

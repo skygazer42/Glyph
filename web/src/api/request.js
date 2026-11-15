@@ -15,7 +15,8 @@ instance.interceptors.request.use(
     // 为每个请求添加重试配置（如果没有的话）
     if (!config.retryConfig) {
       config.retryConfig = {
-        retries: 3, // 最多重试3次
+        // 写请求的失败不代表服务端未执行，默认只重试读取。
+        retries: ['get', 'head', 'options'].includes(config.method?.toLowerCase()) ? 3 : 0,
         retryDelay: 1000, // 初始延迟1秒
         retryCondition: (error) => {
           // 只对网络错误和5xx错误重试
@@ -33,6 +34,9 @@ instance.interceptors.request.use(
 instance.interceptors.response.use(
   response => response.data,
   async error => {
+    if (axios.isCancel(error)) {
+      return Promise.reject(error)
+    }
     const config = error.config
 
     // 如果没有配置或不应该重试，直接拒绝
@@ -58,9 +62,23 @@ instance.interceptors.response.use(
         config.url
       )
 
-      // 等待后重试
-      await new Promise(resolve => setTimeout(resolve, delay))
+      // 请求取消时立即结束退避，同时清理两种完成路径的资源。
+      await new Promise(resolve => {
+        const finishWaiting = () => {
+          clearTimeout(retryTimer)
+          config.signal?.removeEventListener('abort', finishWaiting)
+          resolve()
+        }
+        const retryTimer = setTimeout(finishWaiting, delay)
+        config.signal?.addEventListener('abort', finishWaiting, { once: true })
+        if (config.signal?.aborted) {
+          finishWaiting()
+        }
+      })
 
+      if (config.signal?.aborted) {
+        return Promise.reject(error)
+      }
       return instance(config)
     }
 
@@ -74,12 +92,15 @@ instance.interceptors.response.use(
  * 统一错误处理
  */
 function handleError(error, retryCount = 0) {
+  if (error.config?.silentError) {
+    return
+  }
   const retryInfo = retryCount > 0 ? ` (重试${retryCount}次后仍失败)` : ''
 
   if (error.response) {
     // 服务器返回错误状态码
-    const status = error.response.status
-    const message = error.response.data?.message || error.response.data?.detail || '请求失败'
+    const { status, data } = error.response
+    const message = data?.message || data?.detail || '请求失败'
 
     switch (status) {
       case 400:
@@ -136,9 +157,9 @@ export function withRetryConfig(config, retryConfig) {
   return {
     ...config,
     retryConfig: {
-      retries: retryConfig.retries || 3,
-      retryDelay: retryConfig.retryDelay || 1000,
-      retryCondition: retryConfig.retryCondition || ((error) => {
+      retries: retryConfig.retries ?? 3,
+      retryDelay: retryConfig.retryDelay ?? 1000,
+      retryCondition: retryConfig.retryCondition ?? ((error) => {
         return !error.response || (error.response.status >= 500 && error.response.status < 600)
       })
     }

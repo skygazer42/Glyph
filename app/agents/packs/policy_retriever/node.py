@@ -3,21 +3,47 @@ Policy retrieval agent for finding relevant policy documents.
 """
 
 import asyncio
-import json
-from typing import Dict, Any, List, Optional
-import numpy as np
-import os
+import logging
+import anyio
 
-from app.agents.framework.base.base_agent import BaseAgent
+from typing import Dict, Any, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError, field_validator
+
+from app.agents.framework.common.model_client import create_openai_client
+from autogen_core.models import SystemMessage, UserMessage
 from app.agents.framework.base.types import (
     MessageTypes,
-    PolicyDocument,
     QueryResult,
     RetrievalMethod
 )
+from app.models.base import PolicyDocument
 
 
-class PolicyRetriever(BaseAgent):
+class RetrievalRequest(BaseModel):
+    """Policy-search input shared by JSON messages and direct mapping callers."""
+
+    model_config = ConfigDict(strict=True, extra="ignore")
+
+    query: str = Field(min_length=1)
+    filters: dict[str, Any] = Field(default_factory=dict)
+    method: RetrievalMethod = Field(default=RetrievalMethod.HYBRID, strict=False)
+
+    @field_validator("query")
+    @classmethod
+    def require_nonempty_query(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Policy retrieval requires a nonempty query")
+        return value
+
+
+class PolicyEntities(RootModel[list[str]]):
+    """Text entities accepted by the graph-search boundary."""
+
+    model_config = ConfigDict(strict=True)
+
+
+class PolicyRetriever:
     """Agent responsible for retrieving relevant policy documents."""
 
     def __init__(
@@ -27,18 +53,20 @@ class PolicyRetriever(BaseAgent):
         vector_store: Optional[Any] = None,
         graph_db: Optional[Any] = None,
         top_k: int = 5,
-        similarity_threshold: float = 0.7
+        similarity_threshold: float = 0.7,
+        *, model_client=None,
     ):
         """Initialize the policy retriever."""
-        super().__init__(name, "policy_retriever", llm_config)
+        self.name = name
+        self.llm_config = llm_config
+        self.logger = logging.getLogger(f"{__name__}.{name}")
+        self.system_message = self._get_default_system_message()
+        self._owns_model_client = model_client is None
+        self.model_client = create_openai_client(llm_config=llm_config) if model_client is None else model_client
         self.vector_store = vector_store
         self.graph_db = graph_db
         self.top_k = top_k
         self.similarity_threshold = similarity_threshold
-        # Embedding backend config（默认 openai，避免强制安装 torch）
-        self.embedding_backend = (os.getenv("EMBEDDING_BACKEND") or "openai").lower()
-        self.embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-
     def _get_default_system_message(self) -> str:
         """Get the default system message."""
         return """您是政策检索专员，负责根据用户查询找到相关的政策文档。
@@ -61,33 +89,31 @@ class PolicyRetriever(BaseAgent):
 
     async def process_message(
         self,
-        message: str,
+        message: str | Dict[str, Any],
         sender: Optional[Any] = None,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process retrieval request."""
         try:
             # Parse the message
-            data = json.loads(message) if isinstance(message, str) else message
-            query = data.get("query", "")
-            filters = data.get("filters", {})
-            method = RetrievalMethod(data.get("method", "hybrid"))
+            if isinstance(message, str):
+                request = RetrievalRequest.model_validate_json(message)
+            else:
+                request = RetrievalRequest.model_validate(message)
 
             # Perform retrieval
-            if method == RetrievalMethod.VECTOR_SEARCH:
-                results = await self._vector_search(query, filters)
-            elif method == RetrievalMethod.GRAPH_SEARCH:
-                results = await self._graph_search(query, filters)
+            if request.method == RetrievalMethod.VECTOR_SEARCH:
+                results = await self._vector_search(request.query, request.filters)
+            elif request.method == RetrievalMethod.GRAPH_SEARCH:
+                results = await self._graph_search(request.query, request.filters)
             else:  # HYBRID
-                results = await self._hybrid_search(query, filters)
+                results = await self._hybrid_search(request.query, request.filters)
 
-            return self.format_success_response(
-                results,
-                MessageTypes.RETRIEVAL_RESULT
-            )
+            return {"success": True, "data": results, "type": MessageTypes.RETRIEVAL_RESULT.value}
 
         except Exception as e:
-            return self.format_error_response(str(e))
+            self.logger.exception("Policy request failed")
+            return {"success": False, "error": str(e)}
 
     async def _vector_search(
         self,
@@ -95,24 +121,21 @@ class PolicyRetriever(BaseAgent):
         filters: Dict[str, Any]
     ) -> QueryResult:
         """Perform vector similarity search."""
-        # Encode the query（按后端选择嵌入方式）
-        query_embedding = await self._embed_query(query)
-
-        # Search in vector store
-        if self.vector_store:
-            docs, scores = await self.vector_store.search(
-                query_embedding,
-                top_k=self.top_k,
-                filters=filters
-            )
-        else:
-            # Fallback to mock search
-            docs, scores = self._mock_vector_search(query)
+        if self.vector_store is None:
+            raise ValueError("PolicyRetriever requires a configured vector_store")
+        # MilvusStore.search owns embedding and exposes a synchronous text API.
+        docs, scores = await asyncio.to_thread(
+            self.vector_store.search, query, top_k=self.top_k,
+            threshold=self.similarity_threshold, filters=filters,
+        )
+        if len(docs) != len(scores):
+            raise ValueError("Vector store returned mismatched documents and scores")
 
         # Filter by similarity threshold
         filtered_docs = []
         filtered_scores = []
-        for doc, score in zip(docs, scores):
+        for index, doc in enumerate(docs):
+            score = scores[index]
             if score >= self.similarity_threshold:
                 filtered_docs.append(doc)
                 filtered_scores.append(score)
@@ -131,9 +154,8 @@ class PolicyRetriever(BaseAgent):
         filters: Dict[str, Any]
     ) -> QueryResult:
         """Perform graph-based search."""
-        if not self.graph_db:
-            # Fallback to vector search
-            return await self._vector_search(query, filters)
+        if self.graph_db is None:
+            raise RuntimeError("PolicyRetriever requires a configured graph_db for graph search")
 
         # Extract entities from query
         entities = await self._extract_entities(query)
@@ -171,6 +193,8 @@ class PolicyRetriever(BaseAgent):
         """Perform hybrid search combining vector and graph methods."""
         # Get results from both methods
         vector_results = await self._vector_search(query, filters)
+        if self.graph_db is None:
+            return vector_results
         graph_results = await self._graph_search(query, filters)
 
         # Combine and re-rank results
@@ -178,8 +202,10 @@ class PolicyRetriever(BaseAgent):
         all_scores = vector_results.scores + graph_results.scores
 
         # Re-rank based on combined scores
+        if len(all_docs) != len(all_scores):
+            raise ValueError("Retrieval results have mismatched documents and scores")
         ranked_docs = sorted(
-            zip(all_docs, all_scores),
+            [(doc, all_scores[index]) for index, doc in enumerate(all_docs)],
             key=lambda x: x[1],
             reverse=True
         )[:self.top_k]
@@ -212,11 +238,11 @@ class PolicyRetriever(BaseAgent):
             }
         ]
 
-        response = await self.a_create(messages)
+        response = await self._request_completion(messages)
         try:
-            entities = json.loads(response.content)
-            return entities if isinstance(entities, list) else []
-        except:
+            return PolicyEntities.model_validate_json(response).root
+        except ValidationError:
+            self.logger.warning("Invalid policy entities; using query keywords", exc_info=True)
             # Fallback: extract keywords
             return [word for word in query.split() if len(word) > 3]
 
@@ -230,57 +256,20 @@ class PolicyRetriever(BaseAgent):
                 unique_docs.append(doc)
         return unique_docs
 
-    def _mock_vector_search(self, query: str) -> tuple:
-        """Mock vector search for testing."""
-        # Create mock documents
-        mock_docs = [
-            PolicyDocument(
-                id="doc1",
-                title="2025年家电以旧换新政策",
-                content="2025年家电以旧换新实施细则...",
-                source="山东省商务厅",
-                doc_type="policy"
-            ),
-            PolicyDocument(
-                id="doc2",
-                title="济南市消费券发放方案",
-                content="济南市消费券发放活动方案...",
-                source="济南市政府",
-                doc_type="policy"
-            )
-        ]
-        mock_scores = [0.85, 0.72]
-        return mock_docs, mock_scores
+    async def _request_completion(self, messages: List[Dict[str, str]]) -> str:
+        """Send complete role-tagged messages through the current async SDK."""
+        sdk_messages = [SystemMessage(content=message["content"])
+                        if message["role"] == "system"
+                        else UserMessage(content=message["content"], source="user")
+                        for message in messages]
+        response = await self.model_client.create(sdk_messages)
+        if not isinstance(response.content, str):
+            raise ValueError("Policy model must return text")
+        return response.content
 
-    async def _embed_query(self, query: str) -> np.ndarray:
-        backend = self.embedding_backend
-        if backend == "openai":
-            try:
-                from openai import OpenAI
-            except Exception as e:
-                raise RuntimeError("openai 包未安装，无法使用 openai 嵌入后端") from e
-            api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
-            base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-            model = self.embedding_model_name or "text-embedding-3-small"
-            if not api_key:
-                raise RuntimeError("未配置 LLM_API_KEY/OPENAI_API_KEY，无法使用 openai 嵌入后端")
-            client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-            res = client.embeddings.create(model=model, input=[query])
-            vecs = np.array([res.data[0].embedding], dtype=np.float32)
-            from faiss import normalize_L2
-            normalize_L2(vecs)
-            return vecs
-        if backend == "ollama":
-            try:
-                from lightrag.llm.ollama import ollama_embed
-            except Exception as e:
-                raise RuntimeError("需要安装 lightrag 以使用 ollama 嵌入后端") from e
-            host = os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434")
-            model = self.embedding_model_name or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-            vecs = ollama_embed([query], embed_model=model, host=host)
-            vecs = np.array(vecs, dtype=np.float32)
-            from faiss import normalize_L2
-            normalize_L2(vecs)
-            return vecs
-        # fallback zeros
-        return np.zeros((1, int(os.getenv("EMBEDDING_DIM", "768"))), dtype=np.float32)
+    async def close(self):
+        """Release only the model client created by this business object."""
+        if self._owns_model_client:
+            self._owns_model_client = False
+            with anyio.fail_after(5, shield=True):
+                await self.model_client.close()

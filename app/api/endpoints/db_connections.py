@@ -31,17 +31,17 @@ def list_connections() -> List[DBConnectionInfo]:
     """List all registered DB connections (for Text2SQL etc.)."""
     db = SessionLocal()
     try:
-        conns = db.query(crud.db_connection.model).all()
+        connections = db.query(crud.db_connection.model).all()
         return [
             DBConnectionInfo(
-                id=c.id,
-                name=c.name,
-                db_type=c.db_type,
-                host=c.host,
-                port=c.port,
-                database_name=c.database_name,
+                id=connection.id,
+                name=connection.name,
+                db_type=connection.db_type,
+                host=connection.host,
+                port=connection.port,
+                database_name=connection.database_name,
             )
-            for c in conns
+            for connection in connections
         ]
     finally:
         db.close()
@@ -52,16 +52,16 @@ def get_connection(connection_id: int) -> DBConnectionInfo:
     """Get a single DB connection by id."""
     db = SessionLocal()
     try:
-        conn = crud.db_connection.get(db, id=connection_id)
-        if not conn:
+        connection = crud.db_connection.get(db, id=connection_id)
+        if connection is None:
             raise HTTPException(status_code=404, detail="DB connection not found")
         return DBConnectionInfo(
-            id=conn.id,
-            name=conn.name,
-            db_type=conn.db_type,
-            host=conn.host,
-            port=conn.port,
-            database_name=conn.database_name,
+            id=connection.id,
+            name=connection.name,
+            db_type=connection.db_type,
+            host=connection.host,
+            port=connection.port,
+            database_name=connection.database_name,
         )
     finally:
         db.close()

@@ -1,301 +1,464 @@
 <template>
-  <div class="agent-chat-container">
-    <!-- Main Content Area -->
-    <div class="main-content">
-    <el-card class="chat-card">
-      <template #header>
-        <div class="card-header">
-          <div class="header-left">
-            <el-button
-              :icon="MenuIcon"
-              size="small"
-              @click="showSessionDrawer = true"
-              class="session-toggle"
-            >
-              <el-icon><MenuIcon /></el-icon>
-              会话管理
-            </el-button>
-            <div class="connection-status">
-              <el-tag :type="isConnected ? 'success' : 'danger'" effect="light">
-                {{ isConnected ? '已连接' : '未连接' }}
-              </el-tag>
-              <el-tag v-if="sessionId" type="info" size="small" effect="light">
-                会话: {{ sessionId.substring(0, 8) }}...
-              </el-tag>
-            </div>
-          </div>
-          <div class="header-right">
-            <el-select
-              v-model="userId"
-              size="small"
-              class="user-id-input"
-              placeholder="选择或输入用户ID"
-              clearable
-              filterable
-              allow-create
-              default-first-option
-              :disabled="loading"
-            >
-              <el-option
-                v-for="id in presetUserIds"
-                :key="id"
-                :label="`示例ID：${id}`"
-                :value="id"
-              />
-            </el-select>
-            <el-select
-              v-model="selectedConnectionId"
-              size="small"
-              class="connection-select"
-              placeholder="选择数据库连接"
-              clearable
-              :disabled="loading || dbConnections.length === 0"
-              style="min-width: 180px; margin-right: 8px"
-            >
-              <el-option
-                v-for="conn in dbConnections"
-                :key="conn.id"
-                :label="conn.name"
-                :value="conn.id"
-              />
-            </el-select>
-            <el-switch
-              v-model="text2sqlMode"
-              active-text="Text2SQL"
-              inactive-text="普通问答"
-              :disabled="loading || !dbConnections.length"
-              style="margin-right: 10px"
-            />
-            <el-switch
-              v-model="useStreaming"
-              active-text="流式"
-              inactive-text="普通"
-              :disabled="loading"
-              style="margin-right: 10px"
-            />
-              <el-button
-              size="small"
-              :icon="Delete"
-              @click="clearChat"
-              :disabled="messages.length === 0"
-            >
-              清空对话
-            </el-button>
-          </div>
-        </div>
-      </template>
-
-      <!-- 聊天消息区域 -->
-      <div class="chat-messages" ref="messagesContainer">
-        <div v-if="messages.length === 0" class="empty-state">
-          <div class="empty-icon">
-            <el-icon><ChatDotRound /></el-icon>
-          </div>
-          <h3>开始您的政策咨询</h3>
-          <p>向AI助手提问任何政策相关问题，获取专业的解答和建议</p>
-          <div class="quick-questions">
-            <el-button
-              v-for="(question, index) in exampleQuestions.slice(0, 3)"
-              :key="index"
-              class="quick-question-btn"
-              @click="askExample(question)"
-              :disabled="loading"
-              size="small"
-              plain
-            >
-              {{ question }}
-            </el-button>
-          </div>
-        </div>
-
-        <div
-          v-for="(message, index) in messages"
-          :key="index"
-          class="message-wrapper"
-          :class="message.role"
+<div class="policy-workbench" :class="{ 'navigation-collapsed': navigationCollapsed, 'evidence-collapsed': !evidenceVisible }">
+  <WorkbenchSidebar
+    :collapsed="navigationCollapsed"
+    :sessions="sessions"
+    :current-session-id="sessionId"
+    @create="startConsultation"
+    @select="handleSessionChange"
+    @manage="showSessionDrawer = true"
+    @settings="settingsVisible = true"
+  />
+  <header class="workbench-header">
+    <el-tooltip :content="navigationCollapsed ? '展开导航' : '收起导航'" placement="bottom">
+      <span>
+        <button
+          type="button"
+          class="workbench-icon"
+          :aria-label="navigationCollapsed ? '展开导航' : '收起导航'"
+          :aria-expanded="!navigationCollapsed"
+          aria-controls="workbench-navigation"
+          @click="navigationCollapsed = !navigationCollapsed"
         >
-          <div class="message-avatar">
-            <el-avatar
-              :icon="message.role === 'user' ? User : Service"
-              :style="{ backgroundColor: message.role === 'user' ? '#409eff' : '#67c23a' }"
-            />
-          </div>
-          <div class="message-content">
-            <div class="message-header">
-              <span class="message-role">
-                {{ message.role === 'user' ? '你' : 'AI助手' }}
+          <el-icon>
+            <Expand v-if="navigationCollapsed" />
+            <Fold v-else />
+          </el-icon>
+        </button>
+      </span>
+    </el-tooltip>
+    <div class="consultation-heading">
+      <h1>
+        {{ currentSession?.title === '新对话' ? '政策咨询工作台' : currentSession?.title || '政策咨询工作台' }}
+      </h1>
+      <span>
+        智能问答
+      </span>
+    </div>
+    <div class="workbench-header-actions">
+      <el-tooltip :content="isConnected ? '服务连接正常' : '服务暂未连接，可查看历史记录'" placement="bottom">
+        <span class="service-status" :class="{ 'is-connected': isConnected }" :aria-label="isConnected ? '服务已连接' : '服务未连接'">
+          <i />
+          {{ isConnected ? '已连接' : '未连接' }}
+        </span>
+      </el-tooltip>
+      <el-tooltip content="使用帮助" placement="bottom">
+        <button type="button" class="workbench-icon" aria-label="使用帮助" @click="helpVisible = true">
+          <el-icon>
+            <QuestionFilled />
+          </el-icon>
+        </button>
+      </el-tooltip>
+      <button
+        type="button"
+        class="evidence-toggle"
+        :aria-expanded="evidenceVisible"
+        aria-controls="policy-evidence"
+        @click="evidenceVisible = !evidenceVisible"
+      >
+        <el-icon>
+          <Reading />
+        </el-icon>
+        <span>
+          政策依据
+        </span>
+        <span v-if="activeSources.length" class="evidence-count">
+          {{ activeSources.length }}
+        </span>
+      </button>
+    </div>
+  </header>
+  <main class="conversation-workspace" aria-label="政策咨询">
+    <div ref="messagesContainer" class="conversation-scroll" role="log" aria-label="咨询记录" :aria-busy="loading">
+      <div class="conversation-reading">
+        <section v-if="!messages.length" class="consultation-welcome">
+          <span class="welcome-mark">
+            <GlyphMark />
+          </span>
+          <p class="welcome-eyebrow">
+            GLYPH · 政策智能服务
+          </p>
+          <h2>
+            查政策，理条件，算补贴。
+          </h2>
+          <p class="welcome-description">
+            从一个具体问题开始，让政策依据和测算过程都清楚可查。
+          </p>
+          <div class="consultation-suggestions">
+            <button
+              v-for="(question, index) in exampleQuestions"
+              :key="question"
+              type="button"
+              :disabled="loading"
+              @click="askExample(question)"
+            >
+              <el-icon>
+                <component :is="index === 0 ? Reading : index === 1 ? DataAnalysis : ChatDotRound" />
+              </el-icon>
+              <span>
+                {{ question }}
               </span>
-              <div class="message-actions">
-                <el-button
-                  :icon="CopyDocument"
-                  size="small"
-                  text
-                  @click="copyMessage(message)"
-                  title="复制消息"
-                  class="copy-btn"
-                />
-                <span class="message-time">{{ message.time }}</span>
+              <el-icon>
+                <Right />
+              </el-icon>
+            </button>
+          </div>
+          <button type="button" class="welcome-measure" @click="openMeasurement">
+            <el-icon>
+              <Plus />
+            </el-icon>
+            填写条件，开始补贴测算
+          </button>
+        </section>
+        <article v-for="(message, index) in messages" :key="getMessageKey(message)" class="conversation-message" :class="message.role">
+          <div v-if="message.role === 'user'" class="user-question">
+            <p>
+              {{ message.content }}
+            </p>
+          </div>
+          <template v-else>
+            <div class="assistant-heading">
+              <span class="assistant-mark">
+                <GlyphMark />
+              </span>
+              <strong>
+                Glyph 政策助手
+              </strong>
+              <span class="answer-number">
+                答复 {{ getAnswerNumber(index) }}
+              </span>
+            </div>
+            <SubsidyResultCard
+              v-if="getSubsidyResult(message.metadata)"
+              :result="getSubsidyResult(message.metadata)"
+              :source-count="getReferences(message).length"
+              @source="showEvidence(message, $event)"
+              @expanded="revealDetails"
+            />
+            <div v-else class="answer-prose">
+              <span v-if="message.metadata?.engine_result?.status === 'EXPIRED'" class="answer-status">
+                政策已结束
+              </span>
+              <div v-if="message.content" class="formatted-answer" v-html="formatMessage(message.content)" />
+              <span v-else-if="loading" class="answer-pending">
+                <span class="loading-dot" />
+                正在查询政策与整理依据…
+              </span>
+              <span v-else>
+                本条答复未返回正文。
+              </span>
+              <div v-if="getReferences(message).length" class="answer-source-links">
+                <span>
+                  政策依据
+                </span>
+                <button
+                  v-for="(source, sourceIndex) in getReferences(message)"
+                  :key="sourceIndex"
+                  type="button"
+                  class="citation"
+                  :aria-label="`查看政策依据 ${sourceIndex + 1}：${source.title}`"
+                  @click="showEvidence(message, sourceIndex)"
+                >
+                  {{ sourceIndex + 1 }}
+                </button>
               </div>
             </div>
-            <div class="message-text" v-html="formatMessage(message.content)"></div>
-            <div
-              v-if="getReferences(message).length"
-              class="ref-block"
-            >
-              <div class="ref-title">引用</div>
-              <ul class="ref-list">
-                <li
-                  v-for="(ref, idx) in getReferences(message)"
-                  :key="idx"
-                  class="ref-item"
-                  :title="ref.path || ref.origin || ref.title"
-                >
-                  <span class="ref-label">{{ ref.title || '引用' }}</span>
-                  <span class="ref-path" v-if="ref.path">{{ ref.path }}</span>
-                  <span class="ref-origin" v-else-if="ref.origin">{{ ref.origin }}</span>
-                </li>
-              </ul>
+            <details v-if="getSubsidyResult(message.metadata)" class="answer-details" @toggle="revealDetails($event.target)">
+              <summary>
+                查看完整答复
+              </summary>
+              <div class="formatted-answer" v-html="formatMessage(message.content)" />
+            </details>
+            <Text2SQLResult v-if="message.metadata?.route === 'text2sql'" :metadata="message.metadata" />
+            <div class="answer-actions">
+              <el-tooltip content="复制答复" placement="bottom">
+                <button type="button" class="workbench-icon" aria-label="复制答复" :disabled="!message.content" @click="copyMessage(message)">
+                  <el-icon>
+                    <CopyDocument />
+                  </el-icon>
+                </button>
+              </el-tooltip>
+              <span v-if="getRouteLabel(message)" class="answer-route">
+                {{ getRouteLabel(message) }}
+              </span>
+              <button v-if="getReferences(message).length" type="button" class="answer-evidence-link" @click="showEvidence(message, 0)">
+                <el-icon>
+                  <Reading />
+                </el-icon>
+                {{ activeMessage === message && evidenceVisible ? '正在查看本轮依据' : '查看本轮依据' }}
+              </button>
+              <time v-else class="answer-time">
+                {{ message.time || '' }}
+              </time>
             </div>
-            <div v-if="getRouteLabel(message)" class="message-meta route-info">
-              <el-tag size="small" type="info">
-                路由：{{ getRouteLabel(message) }}
-              </el-tag>
-            </div>
-            <Text2SQLResult
-              v-if="message.role === 'assistant' && message.metadata && message.metadata.route === 'text2sql'"
-              :metadata="message.metadata"
-            />
-          </div>
-        </div>
-
-        <!-- 加载动画 -->
-        <div v-if="loading" class="message-wrapper assistant">
-          <div class="message-avatar">
-            <el-avatar :icon="Service" style="background-color: #67c23a" />
-          </div>
-          <div class="message-content">
-            <div class="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          </div>
+          </template>
+        </article>
+        <div v-if="loading && (!messages.length || messages[messages.length - 1].role !== 'assistant')" class="answer-pending">
+          <span class="loading-dot" />
+          正在查询政策与整理依据…
         </div>
       </div>
-
-      <!-- 输入区域 -->
-      <div class="chat-input-area">
-        <el-input
-          v-model="inputMessage"
-          type="textarea"
-          :rows="2"
-          placeholder="输入你的问题..."
-          @keydown.ctrl.enter="sendMessage"
-          :disabled="loading"
-          resize="none"
-          class="chat-input"
-        />
-
-        <div class="attachment-toolbar">
-          <FileUploader
-            ref="attachmentUploaderRef"
-            :upload-url="'/api/uploads'"
-            :multiple="true"
-            :limit="5"
-            :drag="false"
-            :accept="attachmentAccepts"
-            :button-text="hasAttachments ? '继续添加附件' : '上传附件'"
-            :tip-text="'支持图片、PDF、Office 文档，单个不超过10MB'"
-            :max-size="10 * 1024 * 1024"
-            :show-file-list="true"
-            @change="handleAttachmentChange"
+    </div>
+    <div class="composer-area">
+      <div class="composer-reading">
+        <div class="composer-shortcuts">
+          <button type="button" :disabled="loading" @click="openMeasurement">
+            <el-icon>
+              <Plus />
+            </el-icon>
+            补贴测算
+          </button>
+          <button type="button" :disabled="loading" @click="setFollowup('请列出这项政策的适用条件和所需材料。')">
+            <el-icon>
+              <Plus />
+            </el-icon>
+            查询条件与材料
+          </button>
+        </div>
+        <div class="consultation-composer">
+          <div v-if="currentConditions.length" class="composer-context">
+            <span>
+              本轮条件
+            </span>
+            <span v-for="condition in currentConditions.slice(0, 3)" :key="condition.name" class="context-chip">
+              {{ condition.label }} · {{ condition.value }}
+            </span>
+          </div>
+          <el-input
+            ref="composerRef"
+            v-model="inputMessage"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 5 }"
+            resize="none"
+            maxlength="10000"
+            aria-label="政策咨询问题"
+            placeholder="输入政策问题，或补充地区、购买金额、能效等级…"
+            @keydown="handleComposerKeydown"
           />
-          <div class="attachment-info" v-if="hasAttachments">
-            <el-tag size="small" type="info">
-              已选择 {{ attachments.length }} 个附件
+          <div v-if="hasAttachments" class="composer-attachments">
+            <el-tag
+              v-for="file in attachments"
+              :key="file.uid || file.path || file.name"
+              size="small"
+              effect="plain"
+              :closable="!loading"
+              @close="attachmentUploaderRef?.removeFile(file)"
+            >
+              {{ file.name }}
             </el-tag>
+            <button type="button" :disabled="loading" @click="resetAttachments">
+              清空附件
+            </button>
+          </div>
+          <div class="composer-toolbar">
+            <div class="composer-tools">
+              <FileUploader
+                ref="attachmentUploaderRef"
+                variant="quiet"
+                upload-url="/api/uploads"
+                :drag="false"
+                :multiple="true"
+                :limit="5"
+                :accept="attachmentAccepts"
+                :max-size="10 * 1024 * 1024"
+                :show-file-list="false"
+                :disabled="loading"
+                button-text="附件"
+                @change="handleAttachmentChange"
+              />
+              <el-tooltip content="切换流式响应、数据库查询等设置" placement="top">
+                <button type="button" class="workbench-icon" aria-label="咨询设置" @click="settingsVisible = true">
+                  <el-icon>
+                    <SetUp />
+                  </el-icon>
+                </button>
+              </el-tooltip>
+              <span class="keyboard-hint">
+                <kbd>
+                  Enter
+                </kbd>
+                发送 ·
+                <kbd>
+                  Shift+Enter
+                </kbd>
+                换行
+              </span>
+            </div>
+            <button v-if="loading" type="button" class="send-question" @click="cancelPendingMessage">
+              <el-icon>
+                <VideoPause />
+              </el-icon>
+              停止生成
+            </button>
+            <button v-else type="button" class="send-question" :disabled="!inputMessage.trim()" @click="sendMessage">
+              发送
+              <el-icon>
+                <Right />
+              </el-icon>
+            </button>
           </div>
         </div>
-
-        <div class="input-actions">
-          <div class="input-tips">
-            <el-text size="small" type="info">
-              按 Ctrl+Enter 发送
-            </el-text>
-          </div>
-          <el-button
-            type="primary"
-            :icon="Promotion"
-            @click="sendMessage"
-            :loading="loading"
-            :disabled="!inputMessage.trim()"
-          >
-            发送
-          </el-button>
-        </div>
+        <p class="consultation-disclaimer">
+          智能答复与测算结果仅供参考，具体办理请以政策原文及主管部门要求为准。
+        </p>
       </div>
-    </el-card>
-
-    <!-- 侧边栏：示例问题 -->
-    <el-card class="examples-card">
-      <template #header>
-        <div class="card-header">
-          <el-icon><QuestionFilled /></el-icon>
-          <span>示例问题</span>
-        </div>
-      </template>
-
-      <div class="example-questions">
+    </div>
+  </main>
+  <PolicyEvidence
+    v-if="evidenceVisible && !isCompact"
+    :message="activeMessage"
+    :source-index="activeSourceIndex"
+    :reveal-token="evidenceRevealToken"
+    @close="evidenceVisible = false"
+  />
+  <el-drawer
+    v-if="isCompact"
+    v-model="evidenceVisible"
+    title="政策依据"
+    :with-header="false"
+    size="min(356px, 100vw)"
+    class="glyph-dialog evidence-drawer"
+  >
+    <PolicyEvidence
+      :message="activeMessage"
+      :source-index="activeSourceIndex"
+      :reveal-token="evidenceRevealToken"
+      @close="evidenceVisible = false"
+    />
+  </el-drawer>
+  <el-drawer v-model="showSessionDrawer" title="会话管理" direction="ltr" size="min(380px, 100vw)" class="glyph-dialog">
+    <SessionManager
+      ref="sessionManagerRef"
+      :current-session-id="sessionId"
+      @session-change="handleSessionChange"
+      @session-create="handleSessionCreate"
+      @session-delete="handleSessionDelete"
+    />
+  </el-drawer>
+  <el-drawer v-model="settingsVisible" title="咨询设置" size="min(380px, 100vw)" class="glyph-dialog">
+    <el-form label-position="top" class="consultation-settings">
+      <el-form-item label="用户 ID">
+        <el-select v-model="userId" :disabled="loading" filterable allow-create default-first-option clearable placeholder="可选，用于关联咨询身份">
+          <el-option v-for="id in presetUserIds" :key="id" :label="id" :value="id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="数据库连接">
+        <el-select v-model="selectedConnectionId" :disabled="loading || !dbConnections.length" clearable placeholder="选择数据库连接">
+          <el-option v-for="connection in dbConnections" :key="connection.id" :label="connection.name" :value="connection.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="数据库查询模式">
+        <el-switch v-model="text2sqlMode" :disabled="loading || !dbConnections.length" />
+        <p>
+          将问题转换为 SQL，查询所选数据库。
+        </p>
+      </el-form-item>
+      <el-form-item label="逐步显示答复">
+        <el-switch v-model="useStreaming" :disabled="loading" />
+        <p>
+          关闭后，完整答复将一次性显示。
+        </p>
+      </el-form-item>
+      <el-form-item label="界面主题">
+        <button type="button" class="settings-theme" @click="toggleTheme">
+          {{ isDark ? '切换到亮色模式' : '切换到暗色模式' }}
+        </button>
+      </el-form-item>
+      <el-divider />
+      <el-popconfirm title="清空当前会话的全部消息？" confirm-button-text="清空" cancel-button-text="保留" @confirm="clearChat">
+        <template #reference>
+          <el-button :icon="Delete" :disabled="loading || !messages.length" plain>
+            清空当前对话
+          </el-button>
+        </template>
+      </el-popconfirm>
+      <p class="settings-storage-note">
+        清空仅影响当前会话，其他咨询记录会保留。
+      </p>
+    </el-form>
+  </el-drawer>
+  <el-dialog v-model="measurementVisible" title="补贴测算" width="480px" class="glyph-dialog" :close-on-click-modal="false">
+    <p class="measurement-intro">
+      补充具体条件，由政策助手查询适用规则并测算。
+    </p>
+    <el-form label-position="top" @submit.prevent="submitMeasurement">
+      <div class="measurement-grid">
+        <el-form-item label="地区">
+          <el-input v-model="measurementForm.region" placeholder="例如：山东省济南市" maxlength="60" />
+        </el-form-item>
+        <el-form-item label="政策年度">
+          <el-input-number v-model="measurementForm.year" :min="2000" :max="2100" :controls="false" />
+        </el-form-item>
+      </div>
+      <el-form-item label="家电品类">
+        <el-input v-model="measurementForm.category" placeholder="例如：冰箱、空调" maxlength="40" />
+      </el-form-item>
+      <div class="measurement-grid">
+        <el-form-item label="购买金额（元）">
+          <el-input-number v-model="measurementForm.price" :min="0" :max="100000000" :precision="2" :controls="false" placeholder="请输入金额" />
+        </el-form-item>
+        <el-form-item label="能效等级">
+          <el-select v-model="measurementForm.energyLevel">
+            <el-option label="一级能效" :value="1" />
+            <el-option label="二级能效" :value="2" />
+            <el-option label="不确定 / 无标识" :value="0" />
+          </el-select>
+        </el-form-item>
+      </div>
+      <p class="measurement-note">
+        历史年度将按问题中的时间查询；是否仍可申领需以政策有效期为准。
+      </p>
+      <div class="measurement-actions">
+        <el-button @click="measurementVisible = false">
+          取消
+        </el-button>
         <el-button
-          v-for="(question, index) in exampleQuestions"
-          :key="index"
-          class="example-btn"
-          @click="askExample(question)"
-          :disabled="loading"
-          text
+          type="primary"
+          native-type="submit"
+          :disabled="loading || !measurementForm.region.trim() || !measurementForm.category.trim() || !Number.isFinite(measurementForm.price) || !Number.isFinite(measurementForm.year)"
         >
-          {{ question }}
+          查询并测算
         </el-button>
       </div>
-    </el-card>
-
-    <!-- 会话管理抽屉 -->
-    <el-drawer
-      v-model="showSessionDrawer"
-      title="会话管理"
-      direction="ltr"
-      :size="360"
-    >
-      <SessionManager
-        ref="sessionManagerRef"
-        :current-session-id="sessionId"
-        @session-change="handleSessionChange"
-        @session-create="handleSessionCreate"
-        @session-delete="handleSessionDelete"
-      />
-    </el-drawer>
-    </div> <!-- Close main-content -->
-  </div>
+    </el-form>
+  </el-dialog>
+  <el-dialog v-model="helpVisible" title="如何使用政策工作台" width="480px" class="glyph-dialog">
+    <div class="workbench-help">
+      <p>
+        直接描述问题，并尽量提供地区、政策年度和个人或企业条件。
+      </p>
+      <p>
+        需要测算家电补贴时，可点击「补贴测算」填写金额与能效等级。
+      </p>
+      <p>
+        答复中的引用编号会打开右侧政策依据；会话管理可重命名、复制或删除历史咨询。
+      </p>
+      <p>
+        支持图片、PDF 和 Office 附件，每个文件不超过 10 MB，单次最多 5 个。
+      </p>
+      <p>
+        Enter 发送，Shift+Enter 换行。生成过程中可停止，发送失败会保留输入内容。
+      </p>
+    </div>
+  </el-dialog>
+</div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { agentApi, dbApi } from '@/api'
 import { ElMessage } from 'element-plus'
-import {
-  ChatDotRound,
-  Delete,
-  User,
-  Service,
-  Promotion,
-  QuestionFilled,
-  CopyDocument,
-  Menu as MenuIcon
-} from '@element-plus/icons-vue'
+import { ChatDotRound, Delete, QuestionFilled, CopyDocument, Expand, Fold, Reading, DataAnalysis, Right, Plus, SetUp, VideoPause } from '@element-plus/icons-vue'
 import SessionManager from '@/components/SessionManager.vue'
 import FileUploader from '@/components/FileUploader.vue'
 import Text2SQLResult from '@/components/Text2SQLResult.vue'
 import { useChatHistory, useSessionList } from '@/composables/useLocalStorage'
+import { useTheme } from '@/composables/useTheme'
+import WorkbenchSidebar from '@/components/workbench/WorkbenchSidebar.vue'
+import GlyphMark from '@/components/workbench/GlyphMark.vue'
+import PolicyEvidence from '@/components/workbench/PolicyEvidence.vue'
+import SubsidyResultCard from '@/components/workbench/SubsidyResultCard.vue'
+import { getSubsidyResult, getPolicySources, getPolicyConditions } from '@/utils/policyPresentation'
 
 // 状态
 const inputMessage = ref('')
@@ -310,7 +473,15 @@ const attachmentUploaderRef = ref(null)
 
 const USER_ID_STORAGE_KEY = 'agent_chat_user_id'
 const presetUserIds = ['12345', '67890', '88888']
-const userId = ref(localStorage.getItem(USER_ID_STORAGE_KEY) || '')
+const readStoredUserId = () => {
+  try {
+    return localStorage.getItem(USER_ID_STORAGE_KEY) ?? ''
+  } catch {
+    console.warn('用户ID无法读取，当前可继续临时对话')
+    return ''
+  }
+}
+const userId = ref(readStoredUserId())
 const attachments = ref([])
 const attachmentAccepts = '.png,.jpg,.jpeg,.webp,.bmp,.pdf,.doc,.docx,.xls,.xlsx'
 const hasAttachments = computed(() => attachments.value.length > 0)
@@ -321,61 +492,75 @@ const selectedConnectionId = ref(null)
 const text2sqlMode = ref(false)
 
 const normalizeUserId = (value) => {
-  if (!value) return ''
+  if (!value) {
+    return ''
+  }
   return value.trim()
 }
 
 const getResolvedUserId = () => {
   const normalized = normalizeUserId(userId.value)
-  return normalized || null
+  return normalized.length > 0 ? normalized : null
 }
 
 watch(userId, (value) => {
   const normalized = normalizeUserId(value)
-  if (!normalized) {
-    localStorage.removeItem(USER_ID_STORAGE_KEY)
-    if (value) {
-      userId.value = ''
+  try {
+    if (normalized.length === 0) {
+      localStorage.removeItem(USER_ID_STORAGE_KEY)
+      if (value) {
+        userId.value = ''
+      }
+      return
     }
-    return
-  }
 
-  if (normalized !== value) {
-    userId.value = normalized
-    return
-  }
+    if (normalized !== value) {
+      userId.value = normalized
+      return
+    }
 
-  localStorage.setItem(USER_ID_STORAGE_KEY, normalized)
+    localStorage.setItem(USER_ID_STORAGE_KEY, normalized)
+  } catch {
+    console.warn('用户ID无法保存，当前可继续临时对话')
+  }
 })
 
 // 加载可用的数据库连接，并优先选择 Policy Demo MySQL
+let connectionsRequest = null
 onMounted(async () => {
+  const request = {}
+  connectionsRequest = request
   try {
     const connections = await dbApi.listConnections()
+    if (connectionsRequest !== request) {
+      return
+    }
     dbConnections.value = Array.isArray(connections) ? connections : []
-    const policyConn = dbConnections.value.find(c => c.name === 'Policy Demo MySQL')
-    if (policyConn) {
-      selectedConnectionId.value = policyConn.id
+    const policyConnection = dbConnections.value.find(connection => connection.name === 'Policy Demo MySQL')
+    if (policyConnection) {
+      selectedConnectionId.value = policyConnection.id
     } else if (dbConnections.value.length > 0) {
       selectedConnectionId.value = dbConnections.value[0].id
     }
-  } catch (e) {
-    console.warn('加载数据库连接失败:', e)
+  } catch (error) {
+    if (connectionsRequest === request) {
+      console.warn('加载数据库连接失败:', error)
+    }
   }
 })
 
 const normalizeAttachmentRecords = (files = []) => {
   return files
     .map((item) => {
-      const resp = item.response || {}
-      const mime = resp.mime_type || item.raw?.type || ''
+      const response = item.response || {}
+      const mime = response.mime_type || item.raw?.type || ''
       return {
         uid: item.uid,
         name: item.name,
         size: item.size,
         mime_type: mime,
-        path: resp.path || resp.file_path || '',
-        url: resp.url || '',
+        path: response.path || response.file_path || '',
+        url: response.url || '',
         type: mime.toLowerCase().startsWith('image/') ? 'image' : 'file'
       }
     })
@@ -387,17 +572,17 @@ const handleAttachmentChange = (fileItems) => {
 }
 
 const buildAttachmentPayload = () => {
-  if (!attachments.value.length) {
+  if (attachments.value.length === 0) {
     return []
   }
-  return attachments.value.map((record) => ({
-    type: record.type,
-    path: record.path,
-    url: record.url,
-    mime_type: record.mime_type,
+  return attachments.value.map(({ type, path, url, mime_type, name, size }) => ({
+    type,
+    path,
+    url,
+    mime_type,
     metadata: {
-      name: record.name,
-      size: record.size
+      name,
+      size
     }
   }))
 }
@@ -413,9 +598,30 @@ const { sessions, upsertSession, updateSessionActivity } = useSessionList()
 // 当前会话的消息历史（使用 localStorage 持久化）
 let chatHistory = null
 const messages = ref([])
+const messageKeys = new WeakMap()
+let nextMessageKey = 0
+const getMessageKey = (message) => {
+  if (!messageKeys.has(message)) {
+    messageKeys.set(message, nextMessageKey++)
+  }
+  return messageKeys.get(message)
+}
 
 // 初始化或切换会话时加载历史
+let chatRequest = null
+let connectionTimer = null
+let healthRequest = null
+
+const cancelPendingMessage = () => {
+  chatRequest?.controller?.abort()
+  chatRequest?.typewriter?.dispose()
+  chatRequest = null
+  loading.value = false
+}
+
 const loadSession = (newSessionId) => {
+  cancelPendingMessage()
+  chatHistory?.stop?.()
   sessionId.value = newSessionId
 
   // 创建或加载会话历史
@@ -423,7 +629,11 @@ const loadSession = (newSessionId) => {
   messages.value = chatHistory.messages.value
 
   // 更新会话活跃时间
-  updateSessionActivity(newSessionId)
+  try {
+    updateSessionActivity(newSessionId)
+  } catch {
+    ElMessage.error('会话活动记录保存失败')
+  }
 
   // 滚动到底部
   nextTick(() => scrollToBottom())
@@ -431,18 +641,22 @@ const loadSession = (newSessionId) => {
 
 // 示例问题
 const exampleQuestions = [
-  '什么是政策DSL？',
-  '如何使用知识库功能？',
-  '济南市有哪些消费补贴政策？',
-  '如何上传和管理文档？'
+  '济南市目前有哪些消费补贴政策？',
+  '家电以旧换新补贴需要满足哪些条件？',
+  '新能源汽车补贴需要准备什么材料？'
 ]
 
 // 格式化消息（支持简单的Markdown）
 const formatMessage = (text) => {
-  if (!text) return ''
+  if (!text) {
+    return ''
+  }
 
   // 简单的markdown转换
-  return text
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -450,23 +664,17 @@ const formatMessage = (text) => {
 }
 
 // 提取引用信息
-const getReferences = (message) => {
-  const refs = message?.metadata?.sources
-  if (!Array.isArray(refs)) return []
-  return refs
-    .map((ref) => ({
-      title: ref.title || '',
-      path: ref.path || '',
-      origin: ref.origin || ''
-    }))
-    .filter((ref) => ref.title || ref.path || ref.origin)
-}
+const getReferences = (message) => getPolicySources(message?.metadata)
 
 // 路由标签
 const getRouteLabel = (message) => {
-  const meta = message?.metadata || {}
-  if (meta.route_display) return meta.route_display
-  if (meta.route) return meta.route
+  const { route_display, route } = message?.metadata || {}
+  if (route_display) {
+    return route_display
+  }
+  if (route) {
+    return route
+  }
   return ''
 }
 
@@ -488,14 +696,14 @@ const createTypewriterRenderer = (getTarget) => {
   const resolvers = []
 
   const resolveAll = () => {
-    while (resolvers.length) {
+    while (resolvers.length > 0) {
       const resolve = resolvers.shift()
       resolve?.()
     }
   }
 
   const stop = () => {
-    if (timer) {
+    if (timer !== null) {
       clearInterval(timer)
       timer = null
     }
@@ -503,7 +711,7 @@ const createTypewriterRenderer = (getTarget) => {
   }
 
   const tick = () => {
-    if (!queue) {
+    if (queue.length === 0) {
       stop()
       return
     }
@@ -520,25 +728,29 @@ const createTypewriterRenderer = (getTarget) => {
     target.content += chunk
     scrollToBottom()
 
-    if (!queue) {
+    if (queue.length === 0) {
       stop()
     }
   }
 
   const ensureTimer = () => {
-    if (!timer) {
+    if (timer === null) {
       timer = setInterval(tick, INTERVAL)
     }
   }
 
   return {
     push(text = '') {
-      if (!text) return
+      if (!text) {
+        return
+      }
       queue += text
       ensureTimer()
     },
     async finish() {
-      if (!queue) return
+      if (queue.length === 0) {
+        return
+      }
       return new Promise((resolve) => {
         resolvers.push(resolve)
         ensureTimer()
@@ -556,7 +768,7 @@ const copyMessage = async (message) => {
   try {
     await navigator.clipboard.writeText(message.content)
     ElMessage.success('已复制到剪贴板')
-  } catch (error) {
+  } catch {
     // 降级方案：使用 document.execCommand
     const textarea = document.createElement('textarea')
     textarea.value = message.content
@@ -566,9 +778,11 @@ const copyMessage = async (message) => {
     textarea.select()
 
     try {
-      document.execCommand('copy')
+      if (!document.execCommand('copy')) {
+        throw new Error('复制失败')
+      }
       ElMessage.success('已复制到剪贴板')
-    } catch (err) {
+    } catch {
       ElMessage.error('复制失败')
     } finally {
       document.body.removeChild(textarea)
@@ -585,14 +799,19 @@ const addMessageToHistory = (message) => {
 
 // 更新会话元数据
 const updateSessionMetadata = (message) => {
-  // 更新会话信息
-  const session = sessions.value.find(s => s.id === sessionId.value)
-  if (session && sessionManagerRef.value) {
-    sessionManagerRef.value.updateSession(sessionId.value, {
+  const session = sessions.value.find(candidateSession => candidateSession.id === sessionId.value)
+  if (!session) return
+  const firstQuestion = messages.value.find(item => item.role === 'user')?.content
+  try {
+    upsertSession({
+      ...session,
+      title: session.title === '新对话' && firstQuestion ? firstQuestion.slice(0, 28) : session.title,
       lastMessage: message.content,
       lastActive: new Date().toISOString(),
       messageCount: messages.value.length
     })
+  } catch {
+    ElMessage.error('回复已收到，但会话记录保存失败')
   }
 }
 
@@ -607,7 +826,6 @@ const sendMessageStream = async (userMessage) => {
   addMessageToHistory(userMsg)
 
   // 添加空的助手消息（用于流式更新）
-  const assistantMessageIndex = messages.value.length
   const assistantMsg = {
     role: 'assistant',
     content: '',
@@ -620,11 +838,15 @@ const sendMessageStream = async (userMessage) => {
   loading.value = true
 
   let streamingSucceeded = false
-  const typewriter = createTypewriterRenderer(() => messages.value[assistantMessageIndex])
+  const targetMessage = messages.value[messages.value.length - 1]
+  const request = { controller: new AbortController() }
+  chatRequest = request
+  const typewriter = createTypewriterRenderer(() => chatRequest === request ? targetMessage : null)
+  request.typewriter = typewriter
   let aggregatedContent = ''
 
   try {
-    const url = `/api/agent/chat/stream`
+    const url = '/api/agent/chat/stream'
     const resolvedUserId = getResolvedUserId()
     const payload = {
       message: userMessage,
@@ -636,7 +858,7 @@ const sendMessageStream = async (userMessage) => {
     }
 
     const attachmentPayload = buildAttachmentPayload()
-    if (attachmentPayload.length) {
+    if (attachmentPayload.length > 0) {
       payload.attachments = attachmentPayload
     }
 
@@ -654,9 +876,13 @@ const sendMessageStream = async (userMessage) => {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: request.controller.signal
     })
 
+    if (chatRequest !== request) {
+      return false
+    }
     if (!response.ok) {
       throw new Error('请求失败')
     }
@@ -677,7 +903,9 @@ const sendMessageStream = async (userMessage) => {
 
       for (const rawLine of lines) {
         const line = rawLine.trim()
-        if (!line) continue
+        if (line.length === 0) {
+          continue
+        }
         if (line.startsWith('event:')) {
           eventType = line.slice(6).trim() || 'message'
           continue
@@ -687,47 +915,53 @@ const sendMessageStream = async (userMessage) => {
         }
       }
 
-      if (!dataLines.length) return null
-      const dataStr = dataLines.join('\n')
-
-      try {
-        const parsed = JSON.parse(dataStr)
-
-        if (parsed.error) {
-          throw new Error(parsed.error)
-        }
-
-        if (parsed.session_id && !sessionId.value) {
-          sessionId.value = parsed.session_id
-        }
-
-        if (eventType === 'session') {
-          return null
-        }
-
-        if (parsed.content) {
-          aggregatedContent += parsed.content
-          typewriter.push(parsed.content)
-        }
-
-        if (parsed.metadata) {
-          messages.value[assistantMessageIndex].metadata = parsed.metadata
-        }
-
-        if (parsed.done || eventType === 'done') {
-          return 'done'
-        }
-
-        return null
-      } catch (e) {
-        console.error('解析SSE数据失败:', e, dataStr)
+      if (dataLines.length === 0) {
         return null
       }
+      const dataStr = dataLines.join('\n')
+
+      const parsed = JSON.parse(dataStr)
+
+      if (chatRequest !== request) {
+        return 'done'
+      }
+      const { error, session_id, content, metadata, done } = parsed
+      if (error || eventType === 'error') {
+        throw new Error(error || '流式响应失败')
+      }
+
+      if (session_id && !sessionId.value) {
+        sessionId.value = session_id
+      }
+
+      if (eventType === 'session') {
+        return null
+      }
+
+      if (content) {
+        aggregatedContent += content
+        typewriter.push(content)
+      }
+
+      if (metadata) {
+        targetMessage.metadata = metadata
+      }
+
+      if (done || eventType === 'done') {
+        return 'done'
+      }
+
+      return null
     }
 
     while (true) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (chatRequest !== request) {
+        return false
+      }
+      if (done) {
+        break
+      }
 
       buffer += decoder.decode(value, { stream: true })
 
@@ -735,7 +969,9 @@ const sendMessageStream = async (userMessage) => {
       buffer = segments.pop() || ''
 
       for (const rawEvent of segments) {
-        if (!rawEvent.trim()) continue
+        if (rawEvent.trim().length === 0) {
+          continue
+        }
         const status = processSSEEvent(rawEvent)
         if (status === 'done') {
           buffer = ''
@@ -749,61 +985,78 @@ const sendMessageStream = async (userMessage) => {
       }
     }
 
-    if (buffer.trim()) {
-      processSSEEvent(buffer)
+    if (buffer.trim().length > 0) {
+      stopReading = processSSEEvent(buffer) === 'done'
+    }
+    if (!stopReading) {
+      throw new Error('流式响应意外中断')
     }
 
     await typewriter.finish()
 
-    const targetMessage = messages.value[assistantMessageIndex]
-    if (aggregatedContent && !targetMessage.content) {
+    if (chatRequest !== request) {
+      return false
+    }
+    if (aggregatedContent.length > 0 && targetMessage.content.length === 0) {
       targetMessage.content = aggregatedContent
     }
 
     // 如果没有收到任何内容，显示错误
-    if (!targetMessage.content) {
-      targetMessage.content = '抱歉，没有收到回复。'
+    if (targetMessage.content.length === 0) {
+      throw new Error('没有收到回复')
     }
 
     // 更新会话元数据
     updateSessionMetadata(targetMessage)
     streamingSucceeded = true
+    return true
 
   } catch (error) {
+    if (chatRequest !== request) {
+      return false
+    }
     console.error('流式发送消息失败:', error)
 
     typewriter.dispose()
 
     // 更新错误消息
-    const targetMessage = messages.value[assistantMessageIndex]
     targetMessage.content = '抱歉，我遇到了一些问题，请稍后再试。'
     updateSessionMetadata(targetMessage)
+    return false
   } finally {
-    if (streamingSucceeded) {
+    typewriter.dispose()
+    request.controller.abort()
+    if (chatRequest === request && streamingSucceeded) {
       resetAttachments()
     }
-    loading.value = false
-    scrollToBottom()
+    if (chatRequest === request) {
+      chatRequest = null
+      loading.value = false
+      scrollToBottom()
+    }
   }
 }
 
 // 发送消息
 const sendMessage = async () => {
-  if (!inputMessage.value.trim() || loading.value) return
+  if (inputMessage.value.trim().length === 0 || loading.value) {
+    return
+  }
 
   const userMessage = inputMessage.value.trim()
-  inputMessage.value = ''
-
-  // 根据设置选择流式或非流式
-  if (useStreaming.value) {
-    await sendMessageStream(userMessage)
-  } else {
-    await sendMessageNonStream(userMessage)
+  // 根据设置选择流式或非流式，失败时保留输入以便重试
+  const succeeded = useStreaming.value
+    ? await sendMessageStream(userMessage)
+    : await sendMessageNonStream(userMessage)
+  if (succeeded && inputMessage.value.trim() === userMessage) {
+    inputMessage.value = ''
   }
 }
 
 // 发送消息（非流式）
 const sendMessageNonStream = async (userMessage) => {
+  const request = {}
+  chatRequest = request
   // 添加用户消息
   const userMsg = {
     role: 'user',
@@ -828,26 +1081,35 @@ const sendMessageNonStream = async (userMessage) => {
       text2sqlMode.value ? { text2sql_mode: true } : {}
     )
 
-    if (response.success) {
+    if (chatRequest !== request) {
+      return false
+    }
+    const { success } = response
+    if (success) {
+      const { session_id, message, metadata } = response
       // 更新会话ID
-      if (response.session_id) {
-        sessionId.value = response.session_id
+      if (session_id) {
+        sessionId.value = session_id
       }
 
       // 添加助手回复
       const assistantMsg = {
         role: 'assistant',
-        content: response.message,
+        content: message,
         time: new Date().toLocaleTimeString(),
-        metadata: response.metadata
+        metadata
       }
       addMessageToHistory(assistantMsg)
       updateSessionMetadata(assistantMsg)
       resetAttachments()
+      return true
     } else {
       throw new Error('获取回复失败')
     }
   } catch (error) {
+    if (chatRequest !== request) {
+      return false
+    }
     console.error('发送消息失败:', error)
 
     // 添加错误消息
@@ -858,25 +1120,37 @@ const sendMessageNonStream = async (userMessage) => {
     }
     addMessageToHistory(errorMsg)
     updateSessionMetadata(errorMsg)
+    return false
   } finally {
-    loading.value = false
-    scrollToBottom()
+    if (chatRequest === request) {
+      chatRequest = null
+      loading.value = false
+      scrollToBottom()
+    }
   }
 }
 
 // 清空对话
 const clearChat = () => {
+  cancelPendingMessage()
   if (chatHistory) {
-    chatHistory.clearMessages()
+    try {
+      chatHistory.clearMessages()
+    } catch {
+      ElMessage.error('清空对话失败，记录已保留')
+      return
+    }
   }
-  messages.value = []
+  messages.value = chatHistory ? chatHistory.messages.value : []
 
-  // 更新会话信息
-  if (sessionManagerRef.value) {
-    sessionManagerRef.value.updateSession(sessionId.value, {
-      lastMessage: '',
-      messageCount: 0
-    })
+  const session = sessions.value.find(item => item.id === sessionId.value)
+  if (session) {
+    try {
+      upsertSession({ ...session, lastMessage: '', messageCount: 0 })
+    } catch {
+      ElMessage.warning('对话已清空，但会话记录保存失败')
+      return
+    }
   }
 
   ElMessage.success('对话已清空')
@@ -890,11 +1164,18 @@ const askExample = (question) => {
 
 // 检查连接状态
 const checkConnection = async () => {
+  healthRequest?.controller.abort()
+  const request = { controller: new AbortController() }
+  healthRequest = request
   try {
-    const response = await fetch('/api/health')
-    isConnected.value = response.ok
+    const response = await fetch('/api/health', { signal: request.controller.signal })
+    if (healthRequest === request) {
+      isConnected.value = response.ok
+    }
   } catch {
-    isConnected.value = false
+    if (healthRequest === request) {
+      isConnected.value = false
+    }
   }
 }
 
@@ -910,13 +1191,11 @@ const handleSessionCreate = (newSessionId) => {
   showSessionDrawer.value = false
 }
 
-// 删除会话
-const handleSessionDelete = (deletedSessionId) => {
-  // 如果删除的是当前会话，创建新会话
-  if (deletedSessionId === sessionId.value || !deletedSessionId) {
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
-    // 创建新会话
+const createNewSession = () => {
+  const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  // 先切换内存会话并停止旧请求，存储不可写时仍可继续临时对话。
+  loadSession(newSessionId)
+  try {
     upsertSession({
       id: newSessionId,
       title: '新对话',
@@ -925,512 +1204,126 @@ const handleSessionDelete = (deletedSessionId) => {
       messageCount: 0,
       lastMessage: ''
     })
-
-    loadSession(newSessionId)
+  } catch {
+    ElMessage.warning('会话记录无法保存，当前可继续临时对话')
   }
+}
+
+// 删除会话
+const handleSessionDelete = (deletedSessionId) => {
+  if (deletedSessionId === sessionId.value || !deletedSessionId) {
+    createNewSession()
+  }
+}
+
+
+// Workbench presentation reads the existing per-message snapshots.
+const { isDark, toggleTheme } = useTheme()
+const compactQuery = window.matchMedia('(max-width: 1099px)')
+const isCompact = ref(compactQuery.matches)
+const updateCompactLayout = (event) => {
+  isCompact.value = event.matches
+  navigationCollapsed.value = event.matches
+  if (event.matches) evidenceVisible.value = false
+}
+const navigationCollapsed = ref(window.innerWidth < 1100)
+const evidenceVisible = ref(window.innerWidth >= 1200)
+const settingsVisible = ref(false)
+const measurementVisible = ref(false)
+const helpVisible = ref(false)
+const composerRef = ref(null)
+const selectedAnswerKey = ref(null)
+const activeSourceIndex = ref(0)
+const evidenceRevealToken = ref(0)
+const measurementForm = ref({ region: '', year: new Date().getFullYear(), category: '', price: undefined, energyLevel: 1 })
+const currentSession = computed(() => sessions.value.find(session => session.id === sessionId.value))
+const latestAnswer = computed(() => [...messages.value].reverse().find(message => message.role === 'assistant') || null)
+const activeMessage = computed(() => messages.value.find(message => message.role === 'assistant' && getMessageKey(message) === selectedAnswerKey.value) || latestAnswer.value)
+const activeSources = computed(() => getPolicySources(activeMessage.value?.metadata))
+const currentConditions = computed(() => getPolicyConditions(latestAnswer.value?.metadata))
+watch(() => messages.value.length, () => { selectedAnswerKey.value = null })
+
+const getAnswerNumber = (index) => messages.value.slice(0, index + 1).filter(message => message.role === 'assistant').length
+const showEvidence = (message, sourceIndex) => {
+  selectedAnswerKey.value = getMessageKey(message)
+  activeSourceIndex.value = sourceIndex
+  evidenceRevealToken.value++
+  evidenceVisible.value = true
+}
+const revealDetails = (element) => {
+  if (!element.open) return
+  nextTick(() => {
+    const container = messagesContainer.value
+    if (!container) return
+    const overflow = element.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 16
+    if (overflow > 0) container.scrollBy({ top: overflow, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  })
+}
+const startConsultation = () => {
+  createNewSession()
+  selectedAnswerKey.value = null
+  inputMessage.value = ''
+  resetAttachments()
+  nextTick(() => composerRef.value?.focus())
+}
+const setFollowup = (question) => {
+  inputMessage.value = question
+  nextTick(() => composerRef.value?.focus())
+}
+const handleComposerKeydown = (event) => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+    event.preventDefault()
+    sendMessage()
+  }
+}
+const openMeasurement = () => {
+  const metadata = latestAnswer.value?.metadata
+  const inputs = metadata?.inputs
+  measurementForm.value = {
+    region: typeof metadata?.domain_context?.region === 'string' ? metadata.domain_context.region : '',
+    year: new Date().getFullYear(),
+    category: typeof inputs?.category === 'string' ? inputs.category : '',
+    price: typeof inputs?.price === 'number' ? inputs.price : undefined,
+    energyLevel: [1, 2].includes(inputs?.energy_level) ? inputs.energy_level : 0
+  }
+  measurementVisible.value = true
+}
+const submitMeasurement = () => {
+  const form = measurementForm.value
+  if (loading.value || !form.region.trim() || !form.category.trim() || !Number.isFinite(form.price) || !Number.isFinite(form.year)) return
+  const energy = form.energyLevel ? `${form.energyLevel}级能效` : '能效等级不确定'
+  inputMessage.value = `请查询${form.year}年${form.region.trim()}的家电补贴政策：购买${form.category.trim()}，金额${form.price}元，${energy}。请核对政策有效期、适用条件，并在规则支持时测算补贴金额，给出政策依据。`
+  measurementVisible.value = false
+  sendMessage()
 }
 
 // 初始化
 onMounted(() => {
+  compactQuery.addEventListener('change', updateCompactLayout)
   checkConnection()
   // 每30秒检查一次连接状态
-  setInterval(checkConnection, 30000)
+  connectionTimer = setInterval(checkConnection, 30000)
 
   // 加载或创建第一个会话
   if (sessions.value.length > 0) {
     // 加载最近的会话
-    const latestSession = sessions.value.sort((a, b) =>
+    const latestSession = [...sessions.value].sort((a, b) =>
       new Date(b.lastActive) - new Date(a.lastActive)
     )[0]
     loadSession(latestSession.id)
   } else {
-    // 创建新会话
-    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    upsertSession({
-      id: newSessionId,
-      title: '新对话',
-      createdAt: new Date().toISOString(),
-      lastActive: new Date().toISOString(),
-      messageCount: 0,
-      lastMessage: ''
-    })
-    loadSession(newSessionId)
+    createNewSession()
   }
+})
+onBeforeUnmount(() => {
+  compactQuery.removeEventListener('change', updateCompactLayout)
+  cancelPendingMessage()
+  connectionsRequest = null
+  healthRequest?.controller.abort()
+  healthRequest = null
+  clearInterval(connectionTimer)
+  chatHistory?.stop?.()
 })
 </script>
 
-<style scoped>
-.agent-chat-container {
-  height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  animation: fadeIn 0.6s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-
-/* Main Content Layout */
-.main-content {
-  display: flex;
-  gap: var(--spacing-md);
-  flex: 1;
-  height: 100%;
-}
-
-.chat-card {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.chat-card :deep(.el-card__body) {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  overflow: hidden;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: linear-gradient(135deg, rgba(0, 82, 217, 0.05) 0%, rgba(200, 35, 44, 0.05) 100%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.connection-status {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-.session-toggle {
-  background: var(--primary-gradient);
-  color: white;
-  border: none;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-sm) var(--spacing-md);
-  transition: all var(--transition-base);
-}
-
-.session-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 82, 217, 0.3);
-}
-
-.user-id-input {
-  width: 190px;
-}
-
-.title {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-sm) var(--spacing-lg);
-  background: linear-gradient(to bottom, #fafbfc 0%, #f5f7fa 100%);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  text-align: center;
-  padding: var(--spacing-2xl);
-}
-
-.empty-icon {
-  width: 80px;
-  height: 80px;
-  background: var(--primary-gradient);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 32px;
-  margin-bottom: var(--spacing-xl);
-  box-shadow: 0 10px 30px rgba(0, 82, 217, 0.3);
-}
-
-.empty-state h3 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 var(--spacing-md) 0;
-}
-
-.empty-state p {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  margin: 0 0 var(--spacing-xl) 0;
-  line-height: 1.6;
-  max-width: 500px;
-}
-
-.quick-questions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-  max-width: 400px;
-}
-
-.quick-question-btn {
-  text-align: left;
-  border: 1px solid rgba(0, 82, 217, 0.2);
-  color: var(--primary-color);
-  transition: all var(--transition-base);
-}
-
-.quick-question-btn:hover {
-  background: linear-gradient(135deg, rgba(0, 82, 217, 0.05) 0%, rgba(200, 35, 44, 0.05) 100%);
-  border-color: var(--primary-color);
-  transform: translateX(4px);
-}
-
-.message-wrapper {
-  display: flex;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-  animation: slideIn 0.3s ease;
-}
-
-.message-wrapper.user {
-  flex-direction: row-reverse;
-}
-
-.message-avatar {
-  flex-shrink: 0;
-}
-
-.message-content {
-  max-width: 80%;
-  background: white;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg) var(--spacing-xl);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: all var(--transition-base);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.message-content:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-1px);
-}
-
-.message-wrapper.user .message-content {
-  background: var(--primary-gradient);
-  color: white;
-  border: none;
-  box-shadow: 0 10px 25px rgba(0, 82, 217, 0.3);
-}
-
-.message-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-.message-role {
-  font-weight: 600;
-}
-
-.message-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-}
-
-.copy-btn {
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-  padding: 4px;
-}
-
-.message-content:hover .copy-btn {
-  opacity: 1;
-}
-
-.session-toggle {
-  margin-right: var(--spacing-sm);
-}
-
-.message-text {
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.ref-block {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.08);
-}
-
-.ref-title {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 6px;
-  letter-spacing: 0.5px;
-}
-
-.ref-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ref-item {
-  font-size: 13px;
-  color: var(--el-text-color-primary);
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.ref-label {
-  font-weight: 600;
-}
-
-.ref-path {
-  color: var(--el-text-color-secondary);
-  word-break: break-all;
-}
-
-.ref-origin {
-  color: var(--el-text-color-secondary);
-}
-
-.route-info {
-  margin-top: 8px;
-}
-
-.message-text :deep(code) {
-  background: rgba(0,0,0,0.05);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-}
-
-.message-wrapper.user .message-text :deep(code) {
-  background: rgba(255,255,255,0.2);
-}
-
-.message-meta {
-  margin-top: 8px;
-}
-
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 8px 0;
-}
-
-.typing-indicator span {
-  width: 8px;
-  height: 8px;
-  background: var(--primary-color);
-  border-radius: 50%;
-  animation: typing 1.4s infinite;
-  box-shadow: 0 0 4px rgba(0, 82, 217, 0.5);
-}
-
-.typing-indicator span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-indicator span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typing {
-  0%, 60%, 100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-10px);
-  }
-}
-
-.chat-input-area {
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: linear-gradient(to top, #ffffff, #fafbfc);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
-}
-
-.attachment-toolbar {
-  margin-top: var(--spacing-sm);
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-md);
-}
-
-.attachment-info {
-  display: flex;
-  align-items: center;
-  height: 40px;
-}
-
-.input-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 0;
-}
-
-.chat-input :deep(.el-textarea__inner) {
-  font-size: 15px;
-  line-height: 1.5;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  transition: all var(--transition-base);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  min-height: 48px;
-}
-
-.chat-input :deep(.el-textarea__inner):focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(0, 82, 217, 0.1);
-  background: white;
-}
-
-.examples-card {
-  width: 320px;
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  height: fit-content;
-}
-
-.example-questions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.example-btn {
-  width: 100%;
-  text-align: left;
-  padding: var(--spacing-md);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-  background: white;
-}
-
-.example-btn:hover:not(:disabled) {
-  border-color: var(--primary-color);
-  background: linear-gradient(135deg, rgba(0, 82, 217, 0.05) 0%, rgba(200, 35, 44, 0.05) 100%);
-  transform: translateX(4px);
-  box-shadow: 0 4px 12px rgba(0, 82, 217, 0.15);
-}
-
-/* Animations */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-10px) rotate(3deg);
-  }
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Responsive Design */
-@media (max-width: 1200px) {
-  .main-content {
-    padding: 0;
-  }
-
-  .examples-card {
-    display: none;
-  }
-
-  .message-content {
-    max-width: 85%;
-  }
-}
-
-@media (max-width: 768px) {
-  .main-content {
-    padding: 0;
-  }
-
-  .card-header {
-    flex-direction: column;
-    gap: var(--spacing-md);
-    align-items: flex-start;
-  }
-
-  .header-right {
-    flex-wrap: wrap;
-    width: 100%;
-  }
-
-  .message-content {
-    max-width: 90%;
-    padding: var(--spacing-md) var(--spacing-lg);
-  }
-
-  .quick-questions {
-    max-width: 100%;
-  }
-}
-</style>
+<style src="@/styles/workbench.css"></style>

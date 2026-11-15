@@ -4,9 +4,9 @@ Type definitions for the policy QA system.
 
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from app.models.base import PolicyDocument as PydanticPolicyDocument
+from app.models.base import PolicyDocument as PolicyDocument
 
 
 class AgentTypes(Enum):
@@ -50,9 +50,6 @@ class RetrievalMethod(Enum):
     HYBRID = "hybrid"
 
 
-PolicyDocument = PydanticPolicyDocument
-
-
 @dataclass
 class QueryResult:
     """Query result data structure."""
@@ -60,7 +57,7 @@ class QueryResult:
     documents: List[PolicyDocument]
     scores: List[float]
     method: RetrievalMethod
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -83,7 +80,7 @@ class GeneratedAnswer:
     sources: List[str]
     confidence: float
     reasoning: str
-    additional_info: List[str] = None
+    additional_info: List[str] = field(default_factory=list)
 
 
 @dataclass

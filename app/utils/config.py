@@ -5,7 +5,9 @@ Configuration management for the policy QA system.
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
-from pydantic import Field
+
+import yaml
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,17 +17,17 @@ class ModelConfig(BaseSettings):
     model_name: str = Field(
         default="deepseek-chat",
         description="Model name",
-        env="LLM_MODEL_NAME",
+        validation_alias=AliasChoices('LLM_MODEL_NAME', 'model_name'),
     )
-    api_key: str = Field(default="", description="API key", env="LLM_API_KEY")
+    api_key: str = Field(default="", description="API key", validation_alias=AliasChoices('LLM_API_KEY', 'api_key'))
     base_url: str = Field(
         default="https://api.deepseek.com",
         description="API base URL",
-        env="LLM_BASE_URL",
+        validation_alias=AliasChoices('LLM_BASE_URL', 'base_url'),
     )
-    temperature: float = Field(default=0.1, ge=0, le=2, env="LLM_TEMPERATURE")
-    max_tokens: int = Field(default=4000, ge=1, le=32000, env="LLM_MAX_TOKENS")
-    timeout: int = Field(default=120, ge=1, env="LLM_TIMEOUT")
+    temperature: float = Field(default=0.1, ge=0, le=2, validation_alias=AliasChoices('LLM_TEMPERATURE', 'temperature'))
+    max_tokens: int = Field(default=4000, ge=1, le=32000, validation_alias=AliasChoices('LLM_MAX_TOKENS', 'max_tokens'))
+    timeout: int = Field(default=120, ge=1, validation_alias=AliasChoices('LLM_TIMEOUT', 'timeout'))
 
 
 class VectorStoreConfig(BaseSettings):
@@ -61,8 +63,8 @@ class VisionConfig(BaseSettings):
 
     enabled: bool = Field(default=False, description="Enable multimodal vision reasoning")
     model: str = Field(default="gpt-4o-mini", description="Vision-capable model name")
-    api_key: str = Field(default="", description="API key for the vision model")
-    base_url: str = Field(default="", description="Optional custom base URL for the vision model")
+    api_key: str | None = Field(default=None, description="API key for the vision model")
+    base_url: str | None = Field(default=None, description="Optional custom base URL for the vision model")
     prompt_template: str = Field(
         default="请结合用户问题，描述图片中的关键信息（地点、票据、金额、日期、主体等），并输出结构化要点。",
         description="Prompt template used when asking the vision model to describe attachments.",
@@ -72,19 +74,31 @@ class VisionConfig(BaseSettings):
         default=800, ge=100, le=2000, description="Maximum output tokens for a single vision call"
     )
 
+    @field_validator("api_key", "base_url", mode="before")
+    @classmethod
+    def empty_setting_is_unconfigured(cls, value: Any) -> Any:
+        """Treat empty .env entries as absent optional vision settings."""
+        return None if value == "" else value
+
 
 class WebSearchConfig(BaseSettings):
     """Fallback web search configuration."""
 
     enabled: bool = Field(default=False, description="Enable fallback web search via external APIs")
     provider: str = Field(default="tavily", description="Search provider identifier")
-    tavily_api_key: str = Field(default="", description="API key for Tavily")
+    tavily_api_key: str | None = Field(default=None, description="API key for Tavily")
     search_depth: str = Field(default="basic", description="Tavily search depth, e.g., basic/advanced")
     max_results: int = Field(default=3, ge=1, le=10, description="Maximum number of web results to request")
     site_filter: str = Field(
         default="",
         description="Optional site/domain limiter, e.g., gov.cn (will be appended as site:gov.cn).",
     )
+
+    @field_validator("tavily_api_key", mode="before")
+    @classmethod
+    def empty_api_key_is_unconfigured(cls, value: Any) -> Any:
+        """Treat an empty .env entry as an absent optional search key."""
+        return None if value == "" else value
 
 
 class DatabaseConfig(BaseSettings):
@@ -103,28 +117,28 @@ class PerformanceConfig(BaseSettings):
     max_concurrent_queries: int = Field(
         default=5,
         ge=1,
-        env="PERFORMANCE__MAX_CONCURRENT_QUERIES",
+        validation_alias=AliasChoices('PERFORMANCE__MAX_CONCURRENT_QUERIES', 'max_concurrent_queries'),
     )
-    query_timeout: int = Field(default=30, ge=1, env="PERFORMANCE__QUERY_TIMEOUT")
-    batch_size: int = Field(default=10, ge=1, env="PERFORMANCE__BATCH_SIZE")
-    batch_timeout: int = Field(default=300, ge=1, env="PERFORMANCE__BATCH_TIMEOUT")
+    query_timeout: int = Field(default=30, ge=1, validation_alias=AliasChoices('PERFORMANCE__QUERY_TIMEOUT', 'query_timeout'))
+    batch_size: int = Field(default=10, ge=1, validation_alias=AliasChoices('PERFORMANCE__BATCH_SIZE', 'batch_size'))
+    batch_timeout: int = Field(default=300, ge=1, validation_alias=AliasChoices('PERFORMANCE__BATCH_TIMEOUT', 'batch_timeout'))
     embedding_batch_size: int = Field(
         default=32,
         ge=1,
-        env="PERFORMANCE__EMBEDDING_BATCH_SIZE",
+        validation_alias=AliasChoices('PERFORMANCE__EMBEDDING_BATCH_SIZE', 'embedding_batch_size'),
     )
     vector_search_timeout: int = Field(
         default=10,
         ge=1,
-        env="PERFORMANCE__VECTOR_SEARCH_TIMEOUT",
+        validation_alias=AliasChoices('PERFORMANCE__VECTOR_SEARCH_TIMEOUT', 'vector_search_timeout'),
     )
-    enable_cache: bool = Field(default=True, env="PERFORMANCE__ENABLE_CACHE")
-    cache_ttl: int = Field(default=3600, ge=0, env="PERFORMANCE__CACHE_TTL")
-    trace_latency: bool = Field(default=True, env="PERFORMANCE__TRACE_LATENCY")
-    slow_threshold_ms: int = Field(default=4000, ge=0, env="PERFORMANCE__SLOW_THRESHOLD_MS")
+    enable_cache: bool = Field(default=True, validation_alias=AliasChoices('PERFORMANCE__ENABLE_CACHE', 'enable_cache'))
+    cache_ttl: int = Field(default=3600, ge=0, validation_alias=AliasChoices('PERFORMANCE__CACHE_TTL', 'cache_ttl'))
+    trace_latency: bool = Field(default=True, validation_alias=AliasChoices('PERFORMANCE__TRACE_LATENCY', 'trace_latency'))
+    slow_threshold_ms: int = Field(default=4000, ge=0, validation_alias=AliasChoices('PERFORMANCE__SLOW_THRESHOLD_MS', 'slow_threshold_ms'))
     log_timing_breakdown: bool = Field(
         default=False,
-        env="PERFORMANCE__LOG_TIMING_BREAKDOWN",
+        validation_alias=AliasChoices('PERFORMANCE__LOG_TIMING_BREAKDOWN', 'log_timing_breakdown'),
     )
 
 
@@ -165,9 +179,8 @@ class Config(BaseSettings):
     @classmethod
     def from_file(cls, file_path: str) -> 'Config':
         """Load configuration from file."""
-        import yaml
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
+        with open(file_path, 'r', encoding='utf-8') as config_file:
+            data = yaml.safe_load(config_file)
         return cls(**data)
 
     @classmethod
@@ -178,14 +191,14 @@ class Config(BaseSettings):
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
         return {
-            "model": self.model.dict(),
-            "vector_store": self.vector_store.dict(),
-            "logging": self.logging.dict(),
-            "conversation": self.conversation.dict(),
-            "database": self.database.dict(),
-            "performance": self.performance.dict(),
-            "vision": self.vision.dict(),
-            "web_search": self.web_search.dict(),
+            "model": self.model.model_dump(),
+            "vector_store": self.vector_store.model_dump(),
+            "logging": self.logging.model_dump(),
+            "conversation": self.conversation.model_dump(),
+            "database": self.database.model_dump(),
+            "performance": self.performance.model_dump(),
+            "vision": self.vision.model_dump(),
+            "web_search": self.web_search.model_dump(),
             "user_profile_db_path": self.user_profile_db_path,
             "answer_plain_output": self.answer_plain_output,
         }
@@ -193,7 +206,7 @@ class Config(BaseSettings):
     @property
     def embedding_model(self) -> str:
         """Backward-compatible accessor for legacy code/tests."""
-        return getattr(self.vector_store, "model_name", "")
+        return self.vector_store.model_name
 
     @property
     def rerank_model(self) -> str:

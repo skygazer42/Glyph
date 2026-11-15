@@ -2,10 +2,9 @@
 Base agents and utilities for the policy QA system.
 """
 
-from .base_agent import BaseAgent
+from autogen_core import BaseAgent
 from .types import AgentTypes, TopicTypes, MessageTypes
 from app.agents.chatdb.base import StreamResponseCollector
-# from .factory import AgentFactory  # 暂时禁用，因为使用了旧版autogen
 
 __all__ = [
     "BaseAgent",
@@ -13,5 +12,4 @@ __all__ = [
     "TopicTypes",
     "MessageTypes",
     "StreamResponseCollector",
-    # "AgentFactory"
 ]

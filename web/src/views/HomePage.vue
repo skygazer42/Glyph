@@ -7,28 +7,48 @@
     <section class="hero-section">
       <div class="hero-content">
         <div class="hero-text">
-          <h1 class="hero-title">
+          <h2 class="hero-title">
             <span class="gradient-text">政府政策智能</span>
             <br>
             <span class="gradient-text">知识服务平台</span>
-          </h1>
+          </h2>
           <p class="hero-subtitle">
             基于人工智能技术，提供政策智能问答、DSL规则生成、知识图谱可视化等全方位服务
           </p>
           <div class="hero-actions hero-actions--inline">
-            <el-button size="medium" @click="$router.push('/agent')" class="hero-btn primary-btn">
+            <el-button
+              size="medium"
+              :tag="RouterLink"
+              to="/agent"
+              class="hero-btn primary-btn"
+            >
               <el-icon><ChatDotRound /></el-icon>
               问答
             </el-button>
-            <el-button size="medium" @click="$router.push('/dsl')" class="hero-btn secondary-btn">
+            <el-button
+              size="medium"
+              :tag="RouterLink"
+              to="/dsl"
+              class="hero-btn secondary-btn"
+            >
               <el-icon><Document /></el-icon>
               DSL
             </el-button>
-            <el-button size="medium" @click="$router.push('/knowledge')" class="hero-btn secondary-btn">
+            <el-button
+              size="medium"
+              :tag="RouterLink"
+              to="/knowledge"
+              class="hero-btn secondary-btn"
+            >
               <el-icon><DataAnalysis /></el-icon>
               知识库
             </el-button>
-            <el-button size="medium" @click="$router.push('/graph')" class="hero-btn secondary-btn">
+            <el-button
+              size="medium"
+              :tag="RouterLink"
+              to="/graph"
+              class="hero-btn secondary-btn"
+            >
               <el-icon><Share /></el-icon>
               图谱
             </el-button>
@@ -36,25 +56,37 @@
         </div>
         <div class="hero-visual">
           <div class="floating-cards">
-            <div class="floating-card card-1" :style="{ transform: `translateY(${cardOffset1}px)` }">
+            <div
+              class="floating-card card-1"
+              :style="{ transform: `translateY(${cardOffset1}px)` }"
+            >
               <div class="card-icon">
                 <el-icon><Document /></el-icon>
               </div>
               <span>DSL规则</span>
             </div>
-            <div class="floating-card card-2" :style="{ transform: `translateY(${cardOffset2}px)` }">
+            <div
+              class="floating-card card-2"
+              :style="{ transform: `translateY(${cardOffset2}px)` }"
+            >
               <div class="card-icon">
                 <el-icon><Collection /></el-icon>
               </div>
               <span>知识库</span>
             </div>
-            <div class="floating-card card-3" :style="{ transform: `translateY(${cardOffset3}px)` }">
+            <div
+              class="floating-card card-3"
+              :style="{ transform: `translateY(${cardOffset3}px)` }"
+            >
               <div class="card-icon">
                 <el-icon><Share /></el-icon>
               </div>
               <span>知识图谱</span>
             </div>
-            <div class="floating-card card-4" :style="{ transform: `translateY(${cardOffset4}px)` }">
+            <div
+              class="floating-card card-4"
+              :style="{ transform: `translateY(${cardOffset4}px)` }"
+            >
               <div class="card-icon">
                 <el-icon><ChatDotRound /></el-icon>
               </div>
@@ -71,29 +103,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { RouterLink } from 'vue-router'
 import {
   ChatDotRound,
   Document,
   Collection,
   Share,
-  DataAnalysis,
-  ArrowRight,
-  Refresh,
-  Upload,
-  Search,
-  TrendCharts
+  DataAnalysis
 } from '@element-plus/icons-vue'
 import SystemAnnouncement from '@/components/SystemAnnouncement.vue'
-
-const router = useRouter()
 
 // 浮动卡片动画
 const cardOffset1 = ref(0)
 const cardOffset2 = ref(0)
 const cardOffset3 = ref(0)
 const cardOffset4 = ref(0)
+
+let animationFrame = null
 
 // 动画循环
 const animateCards = () => {
@@ -102,11 +129,14 @@ const animateCards = () => {
   cardOffset2.value = Math.sin(time * 2 + 1) * 10
   cardOffset3.value = Math.sin(time * 2 + 2) * 10
   cardOffset4.value = Math.sin(time * 2 + 3) * 10
-  requestAnimationFrame(animateCards)
+  animationFrame = requestAnimationFrame(animateCards)
 }
 
 onMounted(() => {
   animateCards()
+})
+onBeforeUnmount(() => {
+  cancelAnimationFrame(animationFrame)
 })
 </script>
 
@@ -203,7 +233,7 @@ onMounted(() => {
 
 .primary-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
 .secondary-btn {
@@ -330,7 +360,7 @@ onMounted(() => {
 
 @keyframes float {
   0%, 100% {
-    transform: translateY(0px) rotate(0deg);
+    transform: translateY(0) rotate(0deg);
   }
   50% {
     transform: translateY(-20px) rotate(5deg);

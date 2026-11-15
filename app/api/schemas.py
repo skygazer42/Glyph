@@ -3,8 +3,8 @@ API 请求/响应模型
 使用 Pydantic 进行数据验证
 """
 
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.base import Attachment as AttachmentModel
 
 
@@ -26,7 +26,7 @@ class SaveDSLRequest(BaseModel):
     """保存DSL请求"""
     rule_id: str = Field(..., description="规则ID")
     yaml_content: str = Field(..., description="YAML内容")
-    filename: Optional[str] = Field(None, description="文件名（可选）")
+    filename: Optional[str] = Field(default=None, description="文件名（可选）")
 
 
 class SaveDSLResponse(BaseModel):
@@ -75,7 +75,10 @@ class GetDSLResponse(BaseModel):
 
 class EmbedRequest(BaseModel):
     """嵌入文档请求"""
+    model_config = ConfigDict(extra="forbid")
     doc_id: str = Field(..., description="文档ID")
+    source_version: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    parsed_version: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class EmbedResponse(BaseModel):
@@ -87,7 +90,12 @@ class EmbedResponse(BaseModel):
 
 class ParseRequest(BaseModel):
     """解析文档请求"""
+    model_config = ConfigDict(extra="forbid")
     doc_id: str = Field(..., description="上传后的文档ID（文件名）")
+    options: "ProcessingConfig | None" = None
+    parser: Literal["auto", "mineru", "llamaindex", "text"] | None = None
+    ocr: Literal["auto", "on", "off"] | None = None
+    source_version: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class ParseResponse(BaseModel):
@@ -97,6 +105,8 @@ class ParseResponse(BaseModel):
     markdown_path: str
     content_length: int
     message: Optional[str] = None
+    source_version: str | None = None
+    parsed_version: str | None = None
 
 
 class SearchRequest(BaseModel):
@@ -128,6 +138,8 @@ class UploadResponse(BaseModel):
     doc_id: str
     file_path: str
     content_length: int
+    parsed: bool = False
+    source_version: str | None = None
 
 
 class AttachmentUploadResponse(BaseModel):
@@ -148,6 +160,122 @@ class DocumentInfo(BaseModel):
     size: int
     modified: float
     embedded: bool = Field(default=False, description="是否已成功嵌入知识库")
+    parsed: bool = Field(default=False, description="是否存在与原文版本匹配的真实解析正文")
+    source_version: str | None = None
+    content_length: int = 0
+
+
+class ChunkingConfig(BaseModel):
+    """预览按 Unicode 字符计数，独立于向量服务的 token 切块。"""
+
+    model_config = ConfigDict(extra="forbid")
+    size: int = Field(default=800, ge=16, le=20000, strict=True)
+    overlap: int = Field(default=100, ge=0, strict=True)
+    boundary: Literal["sentence", "fixed"] = "sentence"
+
+    @model_validator(mode="after")
+    def require_overlap_smaller_than_size(self) -> "ChunkingConfig":
+        if self.overlap >= self.size:
+            raise ValueError("overlap must be smaller than size")
+        return self
+
+
+class ProcessingConfig(ChunkingConfig):
+    index: Literal["document", "hierarchical"] = "document"
+    parser: Literal["auto", "mineru", "llamaindex", "text"] = "auto"
+    ocr: Literal["auto", "on", "off"] = "auto"
+
+
+class ParserCapability(BaseModel):
+    value: Literal["auto", "mineru", "llamaindex", "text"]
+    label: str
+    available: bool
+
+
+class ProcessingCapabilities(BaseModel):
+    parsers: list[ParserCapability]
+    ocr: bool
+    hierarchical_index: bool
+
+
+class CapabilitiesResponse(BaseModel):
+    success: bool
+    capabilities: ProcessingCapabilities
+
+
+class WorkspacePage(BaseModel):
+    number: int
+    text: str
+    start: int
+    end: int
+    image_url: str | None = None
+    has_text: bool
+
+
+class ParsedContent(BaseModel):
+    available: bool
+    text: str | None = None
+    version: str | None = None
+    source_version: str | None = None
+    parser: str | None = None
+    content_length: int = 0
+    page_mapping: Literal["exact", "unavailable"] = "unavailable"
+
+
+class DocumentWorkspaceResponse(BaseModel):
+    success: bool
+    doc_id: str
+    name: str
+    format: str
+    size: int
+    modified: float
+    source_version: str
+    source_url: str
+    page_count: int
+    pages: list[WorkspacePage]
+    parsed: ParsedContent
+    config: ProcessingConfig
+    config_revision: str
+    saved_at: str | None
+    embedded: bool
+    capabilities: ProcessingCapabilities
+
+
+class ChunkPreviewRequest(ChunkingConfig):
+    source_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    parsed_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class ChunkPreview(BaseModel):
+    id: str
+    number: int
+    text: str
+    start: int
+    end: int
+    pages: list[int]
+    overlap: int
+
+
+class ChunkPreviewResponse(BaseModel):
+    success: bool
+    source_version: str
+    parsed_version: str
+    config: ChunkingConfig
+    chunks: list[ChunkPreview]
+    total: int
+
+
+class SaveProcessingConfigRequest(ProcessingConfig):
+    source_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+    revision: str = Field(min_length=1, max_length=64)
+
+
+class SaveProcessingConfigResponse(BaseModel):
+    success: bool
+    config: ProcessingConfig
+    revision: str
+    saved_at: str
+    source_version: str
 
 
 class ListDocumentsResponse(BaseModel):
@@ -174,8 +302,8 @@ class StatsResponse(BaseModel):
 class ChatRequest(BaseModel):
     """聊天请求"""
     message: str = Field(..., description="用户消息")
-    session_id: Optional[str] = Field(None, description="会话ID（用于多轮对话）")
-    user_id: Optional[str] = Field(None, description="调用方传入的用户ID，用于画像/上下文关联")
+    session_id: Optional[str] = Field(default=None, description="会话ID（用于多轮对话）")
+    user_id: Optional[str] = Field(default=None, description="调用方传入的用户ID，用于画像/上下文关联")
     stream: bool = Field(default=False, description="是否使用流式响应")
     connection_id: Optional[int] = Field(
         default=None,
@@ -202,8 +330,8 @@ class ChatResponse(BaseModel):
 class ChatStreamRequest(BaseModel):
     """流式聊天请求"""
     message: str = Field(..., description="用户消息")
-    session_id: Optional[str] = Field(None, description="会话ID（用于多轮对话）")
-    user_id: Optional[str] = Field(None, description="调用方传入的用户ID，用于画像/上下文关联")
+    session_id: Optional[str] = Field(default=None, description="会话ID（用于多轮对话）")
+    user_id: Optional[str] = Field(default=None, description="调用方传入的用户ID，用于画像/上下文关联")
     connection_id: Optional[int] = Field(
         default=None,
         description="Text2SQL 场景使用的数据库连接ID"
@@ -222,9 +350,9 @@ class ChatStreamChunk(BaseModel):
     """流式响应数据块"""
     content: str = Field(default="", description="内容片段")
     done: bool = Field(default=False, description="是否完成")
-    error: Optional[str] = Field(None, description="错误信息")
-    session_id: Optional[str] = Field(None, description="会话ID")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="元数据")
+    error: Optional[str] = Field(default=None, description="错误信息")
+    session_id: Optional[str] = Field(default=None, description="会话ID")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="元数据")
 
 
 # ==================== 会话管理相关模型 ====================
@@ -248,6 +376,22 @@ class ListSessionsResponse(BaseModel):
     """会话列表响应"""
     success: bool
     sessions: List[SessionInfo]
+    total: int
+
+
+class DeleteSessionResponse(BaseModel):
+    success: bool
+    message: str
+
+
+class SessionMessagesQuery(BaseModel):
+    limit: int | None = Field(default=None, ge=0)
+
+
+class SessionMessagesResponse(BaseModel):
+    success: bool
+    session_id: str
+    messages: List[Dict[str, Any]]
     total: int
 
 

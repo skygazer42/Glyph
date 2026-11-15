@@ -3,14 +3,33 @@
 from __future__ import annotations
 
 from typing import List, Dict, Any
+from dataclasses import dataclass
 
 from app.models.db_connection import DBConnection
 from app.persistence.db.dbaccess import DBAccess
 
 
-def _build_db_access(connection: DBConnection) -> DBAccess:
+@dataclass(frozen=True)
+class ConnectionSettings:
+    """Plain connection values that can safely leave an ORM Session's thread."""
+
+    db_type: str
+    host: str
+    database_name: str
+    username: str
+    password_encrypted: str
+    port: int
+
+    @classmethod
+    def from_connection(cls, connection: DBConnection) -> "ConnectionSettings":
+        return cls(db_type=connection.db_type, host=connection.host,
+                   database_name=connection.database_name, username=connection.username,
+                   password_encrypted=connection.password_encrypted, port=connection.port)
+
+
+def _build_db_access(connection: DBConnection | ConnectionSettings) -> DBAccess:
     db_access = DBAccess()
-    db_type = (connection.db_type or "").lower()
+    db_type = connection.db_type.lower()
 
     if db_type == "mysql":
         db_access.connect_to_mysql(
@@ -37,15 +56,13 @@ def _build_db_access(connection: DBConnection) -> DBAccess:
     return db_access
 
 
-def execute_query(connection: DBConnection, sql: str) -> List[Dict[str, Any]]:
+def execute_query(connection: DBConnection | ConnectionSettings, sql: str) -> List[Dict[str, Any]]:
     """Execute ``sql`` against the provided ``connection`` and return dictionaries."""
     db_access = _build_db_access(connection)
-    result = db_access.run_sql(sql)
-    if result is None:
-        return []
-    if hasattr(result, "to_dict"):
-        return result.to_dict("records")
-    return list(result)
+    try:
+        return db_access.run_sql(sql).to_dict("records")
+    finally:
+        db_access.close()
 
 
-__all__ = ["execute_query"]
+__all__ = ["ConnectionSettings", "execute_query"]

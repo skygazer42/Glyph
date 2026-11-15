@@ -4,7 +4,6 @@
 
 from pathlib import Path
 from typing import Dict, List, Any
-import json
 import yaml
 
 from app.domains.prompt_catalog import get_domain_prompt
@@ -13,7 +12,7 @@ class DomainConfig:
     """领域配置管理器"""
 
     def __init__(self):
-        self.domains = {
+        self.domains: Dict[str, Dict[str, Any]] = {
             "汽车补贴": {
                 "detect_keywords": ["汽车", "购车", "新能源", "燃油车", "发票不含税", "乘用车", "绿牌"],
                 "prompt_key": "auto_subsidy",
@@ -82,7 +81,7 @@ class DomainConfig:
             }
         }
 
-    def detect_domain(self, text: str) -> str:
+    def detect_domain(self, text: str) -> str | None:
         """
         根据文本内容自动检测政策领域
 
@@ -94,7 +93,7 @@ class DomainConfig:
 
         """
         # 统计各领域关键词匹配数
-        scores = {}
+        scores: Dict[str, int] = {}
         for domain, config in self.domains.items():
             score = sum(1 for keyword in config["detect_keywords"] if keyword in text)
             if score > 0:
@@ -102,10 +101,10 @@ class DomainConfig:
 
         # 返回得分最高的领域
         if scores:
-            return max(scores, key=scores.get)
+            return max(scores, key=scores.__getitem__)
         return None
 
-    def get_domain_config(self, domain: str) -> Dict[str, Any]:
+    def get_domain_config(self, domain: str) -> Dict[str, Any] | None:
         """获取指定领域的配置"""
         return self.domains.get(domain)
 
@@ -121,7 +120,7 @@ class DomainConfig:
             标准化后的术语
         """
         config = self.get_domain_config(domain)
-        if not config:
+        if config is None:
             return term
 
         normalization = config.get("normalization", {})
@@ -136,10 +135,10 @@ class DomainConfig:
 
         return term
 
-    def get_prompt_template(self, domain: str) -> str:
+    def get_prompt_template(self, domain: str) -> str | None:
         """获取领域的提示词模板"""
         config = self.get_domain_config(domain)
-        if not config:
+        if config is None:
             return None
 
         prompt_key = config.get("prompt_key")
@@ -148,15 +147,17 @@ class DomainConfig:
             if template:
                 return template
 
-        template_path = Path(config.get("prompt_template", "")) if config.get("prompt_template") else None
-        if template_path and template_path.exists():
-            return template_path.read_text(encoding='utf-8')
+        template_filename = config.get("prompt_template")
+        if template_filename:
+            template_path = Path(template_filename)
+            if template_path.exists():
+                return template_path.read_text(encoding='utf-8')
         return None
 
-    def get_dsl_template(self, domain: str) -> str:
+    def get_dsl_template(self, domain: str) -> str | None:
         """获取领域的DSL模板"""
         config = self.get_domain_config(domain)
-        if not config:
+        if config is None:
             return None
 
         template_path = Path(config["dsl_template"])
@@ -174,14 +175,17 @@ class DomainConfig:
 
     def save_config(self, path: str = "config/domains.yaml"):
         """保存配置到文件"""
-        with open(path, 'w', encoding='utf-8') as f:
-            yaml.dump(self.domains, f, allow_unicode=True)
+        with open(path, 'w', encoding='utf-8') as config_file:
+            yaml.dump(self.domains, config_file, allow_unicode=True)
 
     def load_config(self, path: str = "config/domains.yaml"):
         """从文件加载配置"""
         if Path(path).exists():
-            with open(path, 'r', encoding='utf-8') as f:
-                self.domains = yaml.safe_load(f)
+            with open(path, 'r', encoding='utf-8') as config_file:
+                domains = yaml.safe_load(config_file)
+            if not isinstance(domains, dict):
+                raise ValueError("Domain configuration must be a mapping")
+            self.domains = domains
 
 # 全局实例
 domain_config = DomainConfig()

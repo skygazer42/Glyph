@@ -4,13 +4,14 @@
 """
 
 import yaml
-import json
+import ast
+import operator
 import jinja2
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime, date
-import re
+from jinja2.sandbox import SandboxedEnvironment
 
 from app.agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
 
@@ -29,10 +30,11 @@ class PolicyEngine:
         """
         self.rule_dir = Path(rule_dir)
         self.rule_dir.mkdir(exist_ok=True)
-        self.rules = {}
-        self.env = jinja2.Environment(
+        self.rules: Dict[str, Dict[str, Any]] = {}
+        self.env = SandboxedEnvironment(
             loader=jinja2.BaseLoader(),
-            autoescape=False
+            autoescape=False,
+            undefined=jinja2.StrictUndefined,
         )
         self.env.globals.update({
             'str': str,
@@ -48,7 +50,7 @@ class PolicyEngine:
 
     def _load_all_rules(self):
         """加载所有规则文件"""
-        self.rules = {}
+        rules: Dict[str, Dict[str, Any]] = {}
 
         if not self.rule_dir.exists():
             logger.warning(f"规则目录不存在: {self.rule_dir}")
@@ -58,11 +60,14 @@ class PolicyEngine:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     rule_data = yaml.safe_load(f)
-                    if rule_data and 'rule_id' in rule_data:
-                        self.rules[rule_data['rule_id']] = rule_data
-                        logger.info(f"加载规则: {rule_data['rule_id']}")
+                    if not isinstance(rule_data, dict) or not isinstance(rule_data['rule_id'], str):
+                        raise ValueError(f"规则文件必须包含rule_id: {file_path}")
+                    rules[rule_data['rule_id']] = rule_data
+                    logger.info(f"加载规则: {rule_data['rule_id']}")
             except Exception as e:
-                logger.error(f"加载规则文件 {file_path} 失败: {e}")
+                logger.error(f"加载规则文件 {file_path} 失败: {e}", exc_info=True)
+                raise
+        self.rules = rules
 
     def reload_rules(self):
         """重新加载所有规则（热更新）"""
@@ -90,31 +95,29 @@ class PolicyEngine:
 
         rule = self.rules[rule_id]
 
-        # 检查规则有效期
-        if not self._is_valid_period(rule, inputs):
-            return {
-                'status': 'EXPIRED',
-                'message': '政策已过期',
-                'rule_id': rule_id,
-                'policy_source': rule.get('policy_source', {})
-            }
-
-        # 验证输入参数
-        validation_errors = self._validate_inputs(rule, inputs)
-        if validation_errors:
-            return {
-                'status': 'INVALID_INPUT',
-                'message': '输入参数错误',
-                'errors': validation_errors,
-                'rule_id': rule_id
-            }
-
-        # 执行计算
         try:
-            result = self._execute_calculation(rule, inputs, user_state)
-            return result
+            # 检查规则有效期
+            if not self._is_valid_period(rule, inputs):
+                return {
+                    'status': 'EXPIRED',
+                    'message': '政策已过期',
+                    'rule_id': rule_id,
+                    'policy_source': rule.get('policy_source', {})
+                }
+
+            # 验证输入参数
+            validation_errors = self._validate_inputs(rule, inputs)
+            if validation_errors:
+                return {
+                    'status': 'INVALID_INPUT',
+                    'message': '输入参数错误',
+                    'errors': validation_errors,
+                    'rule_id': rule_id
+                }
+
+            return self._execute_calculation(rule, inputs, user_state)
         except Exception as e:
-            logger.error(f"执行规则 {rule_id} 时出错: {e}")
+            logger.error(f"执行规则 {rule_id} 时出错: {e}", exc_info=True)
             return {
                 'status': 'ERROR',
                 'message': f'执行错误: {str(e)}',
@@ -151,7 +154,7 @@ class PolicyEngine:
         candidates = ['claim_time', 'purchase_time', 'invoice_time', 'apply_time']
         for key in candidates:
             value = inputs.get(key)
-            if not value:
+            if value is None:
                 continue
             if isinstance(value, datetime):
                 return value.date()
@@ -159,19 +162,21 @@ class PolicyEngine:
                 return value
             if isinstance(value, str):
                 parsed = self._parse_date_string(value)
-                if parsed:
-                    return parsed
+                if parsed is None:
+                    raise ValueError(f"Invalid reference date: {key}")
+                return parsed
+            raise ValueError(f"Invalid reference date type: {key}")
         return None
 
     def _parse_date_string(self, value: str) -> Optional[date]:
         """尝试解析 ISO 日期/时间."""
         try:
             return datetime.fromisoformat(value.replace('Z', '+00:00')).date()
-        except Exception:
+        except ValueError:
             pass
         try:
             return datetime.strptime(value[:10], '%Y-%m-%d').date()
-        except Exception:
+        except ValueError:
             return None
 
     def _validate_inputs(self, rule: Dict[str, Any], inputs: Dict[str, Any]) -> List[str]:
@@ -185,7 +190,7 @@ class PolicyEngine:
             input_type = spec.get('type', 'string')
 
             # 检查必填参数
-            if required and name not in inputs:
+            if required and (name not in inputs or inputs[name] is None):
                 errors.append(f"缺少必填参数: {name}")
                 continue
 
@@ -198,11 +203,14 @@ class PolicyEngine:
                             float(value)
                         except (ValueError, TypeError):
                             errors.append(f"参数 {name} 应为浮点数")
-                    elif input_type == 'int':
+                    elif input_type in {'int', 'integer'}:
                         try:
                             int(value)
                         except (ValueError, TypeError):
                             errors.append(f"参数 {name} 应为整数")
+                    elif input_type in {'bool', 'boolean'}:
+                        if not isinstance(value, bool):
+                            errors.append(f"参数 {name} 应为布尔值")
                     elif input_type == 'string':
                         if not isinstance(value, str):
                             errors.append(f"参数 {name} 应为字符串")
@@ -214,30 +222,22 @@ class PolicyEngine:
         context = self._build_eval_context(rule, inputs, user_state)
 
         # 执行计算逻辑
-        calc_result = {}
+        calc_result: Dict[str, Any] = {}
         calc_spec = rule.get('calc', {})
-
         for key, expr in calc_spec.items():
-            try:
-                # 使用安全的表达式求值
-                value = self._eval_expression(expr, {**context, 'calc': calc_result})
-                calc_result[key] = value
-                context['calc'] = calc_result
-            except Exception as e:
-                logger.error(f"计算 {key} 时出错: {e}")
-                calc_result[key] = None
+            calc_result[key] = self._eval_expression(expr, {**context, 'calc': calc_result})
 
         context['calc'] = calc_result
 
         # 生成输出
-        output_spec = rule.get('output', {})
+        output_spec = rule['output']
 
         # 计算状态
-        status_expr = output_spec.get('status', 'QUALIFIED')
+        status_expr = output_spec['status']
         status = self._eval_template(status_expr, context)
 
         # 计算最终结果
-        result_expr = output_spec.get('final_result', '')
+        result_expr = output_spec['final_result']
         final_result = self._eval_template(result_expr, context)
 
         # 生成追踪信息
@@ -260,49 +260,103 @@ class PolicyEngine:
             'calculation_details': calc_result
         }
 
-    def _eval_expression(self, expr: str, context: Dict[str, Any]) -> Any:
-        """安全地执行表达式"""
-        if isinstance(expr, (int, float, bool)):
-            return expr
+    def _eval_expression(self, expr: Any, context: Dict[str, Any]) -> Any:
+        """Evaluate the DSL's arithmetic, comparisons, mapping access and helpers.
 
+        Rules can be generated from documents, so Python execution and arbitrary
+        object access are deliberately outside this expression language.
+        """
         if not isinstance(expr, str):
             return expr
-
-        # 简单的数学表达式
-        if re.match(r'^[\d\.\+\-\*\/\(\)\s]+$', expr):
-            try:
-                return eval(expr)
-            except:
-                return expr
-
-        # 复杂表达式使用受限的环境执行
-        safe_globals = {
-            'min': min,
-            'max': max,
-            'abs': abs,
-            'round': round,
-            'len': len,
-            'sum': sum,
-            'int': int,
-            'float': float,
-            'str': str,
-            'bool': bool,
-            'None': None,
-            'True': True,
-            'False': False,
-            'dsl_helpers': DSLRuntimeHelpers
-        }
-
-        # 合并上下文
-        safe_globals.update(context)
-
-        try:
-            # 使用 compile 和 eval 执行
-            compiled = compile(expr, '<string>', 'eval')
-            return eval(compiled, safe_globals, {})
-        except:
-            # 如果执行失败，尝试作为模板处理
+        if '{{' in expr or '{%' in expr:
             return self._eval_template(expr, context)
+        node = ast.parse(expr, mode='eval').body
+        return self._evaluate_node(node, context)
+
+    def _evaluate_node(self, node: ast.AST, context: Dict[str, Any]) -> Any:
+        functions: Dict[str, Callable[..., Any]] = {'min': min, 'max': max, 'abs': abs, 'round': round,
+                     'len': len, 'sum': sum, 'int': int, 'float': float,
+                     'str': str, 'bool': bool}
+        binary: Dict[type, Callable[..., Any]] = {ast.Add: operator.add, ast.Sub: operator.sub,
+                  ast.Mult: operator.mul, ast.Div: operator.truediv,
+                  ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod,
+                  ast.Pow: operator.pow}
+        comparisons: Dict[type, Callable[..., Any]] = {ast.Eq: operator.eq, ast.NotEq: operator.ne,
+                       ast.Lt: operator.lt, ast.LtE: operator.le,
+                       ast.Gt: operator.gt, ast.GtE: operator.ge,
+                       ast.Is: operator.is_, ast.IsNot: operator.is_not,
+                       ast.In: lambda a, b: a in b,
+                       ast.NotIn: lambda a, b: a not in b}
+        def evaluate(value: ast.AST) -> Any:
+            return self._evaluate_node(value, context)
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name) and not node.id.startswith('_'):
+            return context[node.id]
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            values = [evaluate(item) for item in node.elts]
+            return tuple(values) if isinstance(node, ast.Tuple) else set(values) if isinstance(node, ast.Set) else values
+        if isinstance(node, ast.Dict) and all(key is not None for key in node.keys):
+            return {evaluate(key): evaluate(node.values[index]) for index, key in enumerate(node.keys) if key is not None}
+        if isinstance(node, ast.BinOp) and type(node.op) in binary:
+            return binary[type(node.op)](evaluate(node.left), evaluate(node.right))
+        if isinstance(node, ast.UnaryOp):
+            unary: Dict[type, Callable[..., Any]] = {ast.UAdd: operator.pos, ast.USub: operator.neg, ast.Not: operator.not_}
+            if type(node.op) in unary:
+                return unary[type(node.op)](evaluate(node.operand))
+        if isinstance(node, ast.BoolOp):
+            value = evaluate(node.values[0])
+            for child in node.values[1:]:
+                if (isinstance(node.op, ast.And) and not value) or (isinstance(node.op, ast.Or) and value):
+                    return value
+                value = evaluate(child)
+            return value
+        if isinstance(node, ast.Compare):
+            left = evaluate(node.left)
+            for index, operation in enumerate(node.ops):
+                child = node.comparators[index]
+                right = evaluate(child)
+                if type(operation) not in comparisons or not comparisons[type(operation)](left, right):
+                    return False
+                left = right
+            return True
+        if isinstance(node, ast.IfExp):
+            return evaluate(node.body if evaluate(node.test) else node.orelse)
+        if isinstance(node, ast.Subscript):
+            return evaluate(node.value)[evaluate(node.slice)]
+        if isinstance(node, ast.Attribute) and not node.attr.startswith('_'):
+            value = evaluate(node.value)
+            if isinstance(value, dict):
+                return value[node.attr]
+        if isinstance(node, ast.Call) and not any(keyword.arg is None for keyword in node.keywords):
+            function: Callable[..., Any]
+            if isinstance(node.func, ast.Name):
+                if node.func.id not in functions:
+                    raise ValueError(f'Unsupported DSL function: {node.func.id}')
+                function = functions[node.func.id]
+            elif isinstance(node.func, ast.Attribute):
+                owner = node.func.value
+                if isinstance(owner, ast.Name) and owner.id == 'dsl_helpers':
+                    helpers: Dict[str, Callable[..., Any]] = {
+                        'appliance_subsidy': DSLRuntimeHelpers.appliance_subsidy,
+                        'auto_subsidy': DSLRuntimeHelpers.auto_subsidy,
+                        'consumer_coupon': DSLRuntimeHelpers.consumer_coupon,
+                    }
+                    if node.func.attr not in helpers:
+                        raise ValueError(f'Unsupported DSL helper: {node.func.attr}')
+                    function = helpers[node.func.attr]
+                elif node.func.attr == 'get':
+                    mapping = evaluate(owner)
+                    if not isinstance(mapping, dict):
+                        raise ValueError('DSL get() requires a mapping')
+                    function = mapping.get
+                else:
+                    raise ValueError(f'Unsupported DSL method: {node.func.attr}')
+            else:
+                raise ValueError('Unsupported DSL callable')
+            return function(*[evaluate(arg) for arg in node.args],
+                            **{keyword.arg: evaluate(keyword.value) for keyword in node.keywords if keyword.arg is not None})
+        raise ValueError(f'Unsupported DSL expression: {type(node).__name__}')
 
     def _build_eval_context(self, rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Assemble the evaluation context exposed to DSL expressions."""
@@ -318,6 +372,7 @@ class PolicyEngine:
 
         optional_sections = [
             'windows',
+            'eligibility',
             'budget',
             'matching',
             'efficiency_rates',
@@ -343,17 +398,9 @@ class PolicyEngine:
 
     def _eval_template(self, template_str: str, context: Dict[str, Any]) -> str:
         """使用 Jinja2 模板引擎求值"""
-        try:
-            # 处理简单的变量替换
-            if '{{' in template_str and '}}' in template_str:
-                template = self.env.from_string(template_str)
-                return template.render(**context)
-            else:
-                # 没有模板标记，直接返回
-                return template_str
-        except Exception as e:
-            logger.error(f"模板求值失败: {e}")
-            return str(template_str)
+        if '{{' in template_str or '{%' in template_str:
+            return self.env.from_string(template_str).render(**context)
+        return template_str
 
     def check_limits(self, rule_id: str, user_id: str, category: str, user_state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -379,7 +426,9 @@ class PolicyEngine:
         if category in per_user_per_category:
             limit = per_user_per_category[category]
         else:
-            limit = per_user_per_category.get('default', 1)
+            limit = per_user_per_category.get('default')
+        if limit is None:
+            return {'allowed': True, 'limit': None, 'remaining': None}
 
         # 获取当前计数
         key = f"{category}_count"

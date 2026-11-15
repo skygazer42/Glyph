@@ -1,13 +1,22 @@
 <template>
-  <div class="empty-state" role="status">
-    <div class="empty-icon">
+  <div
+    class="empty-state"
+    role="status"
+  >
+    <div
+      class="empty-icon"
+      aria-hidden="true"
+    >
       <el-icon :size="64">
         <component :is="iconComponent" />
       </el-icon>
     </div>
     <h3 class="empty-title">{{ title }}</h3>
     <p class="empty-description">{{ description }}</p>
-    <div v-if="$slots.action" class="empty-action">
+    <div
+      v-if="$slots.action"
+      class="empty-action"
+    >
       <slot name="action"></slot>
     </div>
   </div>

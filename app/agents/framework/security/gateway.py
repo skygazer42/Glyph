@@ -15,10 +15,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.config import settings
+from app.config.app_config import settings
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +28,7 @@ class User:
     username: str
     roles: List[str]
     permissions: List[str]
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -62,6 +61,10 @@ class SecurityGateway:
         self.input_validator = InputValidator()
         self.content_filter = ContentFilter()
         self.audit_logger = AuditLogger()
+
+    def close(self) -> None:
+        """Release the audit handler owned by this gateway."""
+        self.audit_logger.close()
 
     async def process_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -145,8 +148,8 @@ class SecurityGateway:
         except SecurityError:
             raise
         except Exception as e:
-            logger.error(f"[{request_id}] 安全检查异常: {e}")
-            raise SecurityError(f"安全检查失败: {str(e)}")
+            logger.exception("[%s] 安全检查异常", request_id)
+            raise SecurityError(f"安全检查失败: {e}") from e
 
     @staticmethod
     def _generate_request_id() -> str:
@@ -162,7 +165,7 @@ class AuthenticationManager:
     """
 
     def __init__(self):
-        self.jwt_secret = os.getenv('JWT_SECRET', 'your-secret-key-change-in-production')
+        self.jwt_secret = os.getenv('JWT_SECRET', settings.security.jwt_secret_key)
         self.jwt_algorithm = 'HS256'
         self.token_expire_time = timedelta(hours=24)
 
@@ -218,9 +221,6 @@ class AuthenticationManager:
             return None
         except jwt.InvalidTokenError as e:
             logger.warning(f"JWT令牌无效: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"认证异常: {e}")
             return None
 
     def _verify_jwt(self, token: str) -> Dict:
@@ -304,7 +304,7 @@ class AuthorizationManager:
             True表示有权限，False表示无权限
         """
         if not action:
-            return True
+            return False
 
         # 检查用户的所有角色
         for role in user.roles:
@@ -355,7 +355,7 @@ class RateLimiter:
 
     def __init__(self):
         # 令牌桶
-        self.buckets = defaultdict(lambda: {
+        self.buckets: dict[str, dict[str, float]] = defaultdict(lambda: {
             'tokens': 100,  # 初始令牌数
             'last_update': time.time(),
             'capacity': 100,  # 桶容量
@@ -363,7 +363,7 @@ class RateLimiter:
         })
 
         # 不同时间窗口的限制
-        self.time_windows = defaultdict(lambda: defaultdict(list))
+        self.time_windows: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
         # 限制配置
         self.limits = {
@@ -604,11 +604,12 @@ class AuditLogger:
     def __init__(self):
         self.log_dir = settings.system.logs_dir / "audit"
         self.log_dir.mkdir(parents=True, exist_ok=True)
-
+        self._handler: Optional[logging.FileHandler] = None
         self.setup_logger()
 
     def setup_logger(self):
         """配置日志记录器"""
+        self.close()
         self.logger = logging.getLogger('audit')
         self.logger.setLevel(logging.INFO)
 
@@ -622,6 +623,15 @@ class AuditLogger:
         )
         fh.setFormatter(formatter)
         self.logger.addHandler(fh)
+        self._handler = fh
+
+    def close(self) -> None:
+        """Leave borrowed log handlers untouched when releasing our own."""
+        handler = self._handler
+        self._handler = None
+        if handler is not None:
+            self.logger.removeHandler(handler)
+            handler.close()
 
     async def log_request(self, user_id: str, query: str, request: Dict, request_id: str):
         """记录正常请求"""
@@ -632,12 +642,9 @@ class AuditLogger:
 
     def log_auth_failure(self, request: Dict, request_id: str):
         """记录认证失败"""
-        token = request.get('token', 'None')
-        token_preview = token[:20] if token and token != 'None' else 'None'
-
         self.logger.warning(
             f"AUTH_FAILURE | ID={request_id} | "
-            f"IP={request.get('ip_address', 'unknown')} | TOKEN={token_preview}"
+            f"IP={request.get('ip_address', 'unknown')} | TOKEN_PRESENT={bool(request.get('token'))}"
         )
 
     def log_authz_failure(self, user_id: str, action: str, request_id: str):
@@ -726,8 +733,11 @@ async def example_usage():
 
     except SecurityError as e:
         print(f"✗ 安全检查失败: {e}")
+    finally:
+        gateway.close()
 
 
 if __name__ == '__main__':
     import asyncio
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(example_usage())

@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.chat_history import ChatMessage, ChatSession
 from app.persistence.db.session import SessionLocal
-from app.persistence.crud import (
+from app.persistence.crud.crud_chat_history import (
     chat_session as chat_session_crud,
     chat_message as chat_message_crud,
     chat_history_snapshot as snapshot_crud,
-    db_connection as db_connection_crud,
 )
+from app.persistence.crud.crud_db_connection import db_connection as db_connection_crud
 from app.schemas.chat_history import (
     ChatSessionCreate,
     ChatMessageCreate,
@@ -33,9 +35,6 @@ class ChatHistoryStore:
     def __init__(self, session_factory=SessionLocal):
         self._session_factory = session_factory
 
-    def _get_db(self) -> Session:
-        return self._session_factory()
-
     def ensure_session(
         self,
         session_id: str,
@@ -43,12 +42,12 @@ class ChatHistoryStore:
         title: str,
         connection_id: Optional[int] = None,
     ) -> None:
-        db = self._get_db()
+        db = self._session_factory()
         try:
             valid_connection_id = self._sanitize_connection_id(db, connection_id)
             existing = chat_session_crud.get(db, session_id)
             if existing:
-                updates = {}
+                updates: Dict[str, Any] = {}
                 if title and existing.title != title:
                     updates["title"] = title
                 if (
@@ -72,7 +71,7 @@ class ChatHistoryStore:
             db.close()
 
     def update_title(self, session_id: str, title: str) -> None:
-        db = self._get_db()
+        db = self._session_factory()
         try:
             existing = chat_session_crud.get(db, session_id)
             if existing and existing.title != title:
@@ -90,26 +89,27 @@ class ChatHistoryStore:
         metadata: Optional[Dict[str, Any]] = None,
         region: Optional[str] = None,
     ) -> None:
-        db = self._get_db()
+        db = self._session_factory()
         try:
             message_type = ROLE_TO_MESSAGE_TYPE.get(role, role)
-            chat_message_crud.create(
-                db,
-                obj_in=ChatMessageCreate(
-                    session_id=session_id,
-                    message_type=message_type,
-                    content=content,
-                    order_index=order_index,
-                    message_metadata=metadata or {},
-                    region=region,
-                ),
+            message = ChatMessageCreate(
+                session_id=session_id,
+                message_type=message_type,
+                content=content,
+                order_index=order_index,
+                message_metadata=metadata or {},
+                region=region,
             )
-            chat_session_crud.update_activity(db, session_id=session_id)
+            with db.begin():
+                db.add(ChatMessage(**message.model_dump()))
+                session = db.get(ChatSession, session_id)
+                if session is not None:
+                    session.updated_at = datetime.utcnow()
         finally:
             db.close()
 
     def list_sessions(self, *, limit: int = 100, connection_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        db = self._get_db()
+        db = self._session_factory()
         try:
             records = chat_session_crud.get_by_user_sessions(
                 db, limit=limit, connection_id=connection_id
@@ -124,7 +124,7 @@ class ChatHistoryStore:
                         "created_at": record.created_at,
                         "updated_at": record.updated_at,
                         "is_active": record.is_active,
-                        "message_count": len(record.messages or []),
+                        "message_count": len(record.messages),
                     }
                 )
             return results
@@ -132,7 +132,7 @@ class ChatHistoryStore:
             db.close()
 
     def fetch_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        db = self._get_db()
+        db = self._session_factory()
         try:
             record = chat_session_crud.get(db, session_id)
             if not record:
@@ -144,17 +144,19 @@ class ChatHistoryStore:
                 "created_at": record.created_at,
                 "updated_at": record.updated_at,
                 "is_active": record.is_active,
-                "message_count": len(record.messages or []),
+                "message_count": len(record.messages),
             }
         finally:
             db.close()
 
     def list_messages(self, session_id: str, *, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        db = self._get_db()
+        if limit is not None and limit < 0:
+            raise ValueError("limit must not be negative")
+        db = self._session_factory()
         try:
             records = chat_message_crud.get_by_session(db, session_id=session_id)
-            if limit:
-                records = records[-limit:]
+            if limit is not None:
+                records = records[-limit:] if limit > 0 else []
             return [
                 {
                     "session_id": m.session_id,
@@ -171,17 +173,20 @@ class ChatHistoryStore:
             db.close()
 
     def delete_session(self, session_id: str) -> None:
-        db = self._get_db()
+        db = self._session_factory()
         try:
             existing = chat_session_crud.get(db, session_id)
             if existing:
                 db.delete(existing)
                 db.commit()
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
     def create_snapshot(self, session_id: str, *, query: str, response_data: Dict[str, Any]) -> None:
-        db = self._get_db()
+        db = self._session_factory()
         try:
             snapshot_crud.create(
                 db,

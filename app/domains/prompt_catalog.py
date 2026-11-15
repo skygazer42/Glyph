@@ -15,9 +15,15 @@ CATALOG_PATH = Path(__file__).with_name("catalog.yaml")
 def _load_catalog() -> Dict[str, Dict[str, str]]:
     if not CATALOG_PATH.exists():
         return {"domains": {}}
-    with open(CATALOG_PATH, "r", encoding="utf-8") as fp:
-        data = yaml.safe_load(fp) or {}
+    with open(CATALOG_PATH, "r", encoding="utf-8") as catalog_file:
+        data = yaml.safe_load(catalog_file)
+    if data is None:
+        return {"domains": {}}
+    if not isinstance(data, dict):
+        raise ValueError("Prompt catalog must be a mapping")
     domains = data.get("domains", {})
+    if not isinstance(domains, dict):
+        raise ValueError("Prompt catalog domains must be a mapping")
     return {"domains": domains}
 
 

@@ -21,7 +21,7 @@ def main() -> None:
     if str(root_dir) not in sys.path:
         sys.path.insert(0, str(root_dir))
 
-    from app.core.config import settings
+    from app.config.app_config import settings
     from app.persistence.db.session import SessionLocal
     from app.persistence import crud
     from app.schemas.db_connection import DBConnectionCreate

@@ -7,10 +7,8 @@ from typing import Optional
 from uuid import uuid4
 
 from app.models.base import FinalAnswer
-from app.persistence import crud
-from app.persistence.db.session import SessionLocal
 from app.schemas.query import QueryResponse
-from app.agents.chatdb.text2sql_service import process_text2sql_query_async
+from app.agents.chatdb.text2sql_service import process_text2sql_query_for_connection_async
 
 
 class Text2SQLAgent:
@@ -20,7 +18,7 @@ class Text2SQLAgent:
         self.logger = logging.getLogger(__name__)
 
     async def answer(self, query: str, *, connection_id: Optional[int]) -> FinalAnswer:
-        if not connection_id:
+        if connection_id is None or connection_id <= 0:
             return FinalAnswer(
                 query_id=uuid4(),
                 answer="执行数据库查询需要提供 connection_id。",
@@ -35,7 +33,7 @@ class Text2SQLAgent:
             response: QueryResponse = await self._run_query_async(query, connection_id)
             return self._build_answer(response, connection_id)
         except Exception as exc:  # pragma: no cover
-            self.logger.error("Text2SQL 执行失败: %s", exc)
+            self.logger.error("Text2SQL 执行失败: %s", exc, exc_info=True)
             return FinalAnswer(
                 query_id=uuid4(),
                 answer="执行 SQL 失败，请确认数据库连接与问题格式。",
@@ -47,17 +45,10 @@ class Text2SQLAgent:
             )
 
     async def _run_query_async(self, query: str, connection_id: int) -> QueryResponse:
-        db = SessionLocal()
-        try:
-            connection = crud.db_connection.get(db=db, id=connection_id)
-            if not connection:
-                raise ValueError(f"找不到 ID 为 {connection_id} 的数据库连接")
-            return await process_text2sql_query_async(db, connection, query)
-        finally:
-            db.close()
+        return await process_text2sql_query_for_connection_async(connection_id, query)
 
     def _build_answer(self, response: QueryResponse, connection_id: int) -> FinalAnswer:
-        rows = response.results or []
+        rows = [] if response.results is None else response.results
         chart_meta = None
         table_preview = None
         metadata = {
@@ -86,7 +77,7 @@ class Text2SQLAgent:
                 cols = list(preview[0].keys())
                 for idx, row in enumerate(preview, start=1):
                     # 简单的 k=v 列表，前端会按文本渲染
-                    kv = ", ".join(f"{k}={row.get(k)!r}" for k in cols)
+                    kv = ", ".join(f"{k}={row[k]!r}" for k in cols)
                     answer_text += f"\n{idx}) {kv}"
                 if total > max_preview:
                     answer_text += f"\n... 其余 {total - max_preview} 条已省略。"
@@ -96,15 +87,11 @@ class Text2SQLAgent:
                     cat_col = cols[0]
                     val_col = cols[1]
                     table_preview = {"columns": cols, "rows": preview}
-                    try:
-                        values = [float(row.get(val_col, 0) or 0) for row in preview]
-                    except Exception:
-                        values = []
                     chart_meta = {
                         "type": "bar",
                         "xField": cat_col,
                         "yField": val_col,
-                        "data": [{cat_col: row.get(cat_col), val_col: row.get(val_col)} for row in preview],
+                        "data": [{cat_col: row[cat_col], val_col: row[val_col]} for row in preview],
                         "title": "政策类别统计",
                     }
                     metadata["chart"] = chart_meta

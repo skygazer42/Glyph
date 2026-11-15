@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def init_db(db: Session) -> None:
+def init_db() -> None:
     # Create tables
     Base.metadata.create_all(bind=engine)
     logger.info("Tables created")
@@ -19,7 +19,7 @@ def init_db(db: Session) -> None:
 def create_initial_data(db: Session) -> None:
     # Check if we already have connections
     connection = crud.db_connection.get_by_name(db, name="Sample Database")
-    if not connection:
+    if connection is None:
         connection_in = DBConnectionCreate(
             name="Sample Database",
             db_type="mysql",
@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     db = SessionLocal()
     try:
-        init_db(db)
+        init_db()
         create_initial_data(db)
     finally:
         db.close()

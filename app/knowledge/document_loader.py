@@ -5,18 +5,13 @@ Document loading utilities for the policy QA system.
 供 LightRAG 种子导入和离线脚本复用。
 """
 
-import os
 import uuid
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 from datetime import datetime
 import PyPDF2
 import re
-
-try:  # python-docx 可能未安装
-    from docx import Document  # type: ignore
-except Exception:  # pragma: no cover
-    Document = None
+from docx import Document
 
 from app.models.base import PolicyDocument, PolicyType
 
@@ -40,18 +35,18 @@ class DocumentLoader:
         if not directory.exists():
             raise FileNotFoundError(f"Directory not found: {directory_path}")
 
+        if limit is not None and limit <= 0:
+            return
+
         yielded = 0
         for file_path in directory.rglob("*"):
             if file_path.is_file() and file_path.suffix.lower() in self.supported_extensions:
-                try:
-                    doc = self.load_single_file(str(file_path))
-                    if doc:
-                        yield doc
-                        yielded += 1
-                        if limit is not None and yielded >= limit:
-                            break
-                except Exception as e:
-                    print(f"Error loading {file_path}: {e}")
+                doc = self.load_single_file(str(file_path))
+                if doc is not None:
+                    yield doc
+                    yielded += 1
+                    if limit is not None and yielded >= limit:
+                        break
 
     def load_from_directory(
         self,
@@ -64,56 +59,48 @@ class DocumentLoader:
 
     def load_single_file(self, file_path: str) -> Optional[PolicyDocument]:
         """Load a single document file."""
-        file_path = Path(file_path)
+        path = Path(file_path)
 
-        if not file_path.exists():
-            return None
+        if not path.exists():
+            raise FileNotFoundError(path)
 
         # Extract content based on file type
-        content = self._extract_content(file_path)
+        content = self._extract_content(path)
         if not content:
             return None
 
         # Extract metadata
-        metadata = self._extract_metadata(file_path, content)
+        metadata = self._extract_metadata(path, content)
 
         # Create policy document
         return PolicyDocument(
             id=uuid.uuid4(),
-            title=metadata.get("title", file_path.stem),
+            title=metadata["title"],
             content=content,
             summary=self._generate_summary(content),
-            source=metadata.get("source", self._infer_source(file_path)),
-            doc_type=metadata.get("doc_type", self._infer_policy_type(content)),
+            source=self._infer_source(path),
+            doc_type=self._infer_policy_type(content),
             publish_date=metadata.get("publish_date"),
             effective_date=metadata.get("effective_date"),
             expiry_date=metadata.get("expiry_date"),
-            relevant_departments=metadata.get("departments", []),
-            target_groups=metadata.get("target_groups", []),
-            regions=metadata.get("regions", [self._infer_region(file_path)]),
-            keywords=metadata.get("keywords", self._extract_keywords(content)),
+            relevant_departments=metadata["departments"],
+            target_groups=metadata["target_groups"],
+            regions=metadata["regions"],
+            keywords=self._extract_keywords(content),
             metadata=metadata,
         )
 
-    def _extract_content(self, file_path: Path) -> Optional[str]:
+    def _extract_content(self, file_path: Path) -> str:
         """Extract text content from file."""
         extension = file_path.suffix.lower()
 
-        try:
-            if extension == ".pdf":
-                return self._extract_from_pdf(file_path)
-            elif extension == ".docx":
-                if Document is None:
-                    print("python-docx 未安装，跳过 DOCX 文件解析")
-                    return None
-                return self._extract_from_docx(file_path)
-            elif extension in [".txt", ".md"]:
-                return self._extract_from_text(file_path)
-            else:
-                return None
-        except Exception as e:
-            print(f"Error extracting content from {file_path}: {e}")
-            return None
+        if extension == ".pdf":
+            return self._extract_from_pdf(file_path)
+        if extension == ".docx":
+            return self._extract_from_docx(file_path)
+        if extension in [".txt", ".md"]:
+            return self._extract_from_text(file_path)
+        raise ValueError(f"Unsupported document extension: {extension}")
 
     def _extract_from_pdf(self, file_path: Path) -> str:
         """Extract text from PDF file."""
@@ -132,7 +119,7 @@ class DocumentLoader:
 
     def _extract_from_docx(self, file_path: Path) -> str:
         """Extract text from DOCX file."""
-        doc = Document(file_path)
+        doc = Document(str(file_path))
         content: List[str] = []
 
         # Extract paragraphs
@@ -202,24 +189,24 @@ class DocumentLoader:
         """Extract image paths from markdown and convert to serve-able URLs."""
         images: List[str] = []
         pattern = re.compile(r"!\[[^\]]*\]\((images/[^\)]+)\)")
-        for match in pattern.findall(content or ""):
+        for match in pattern.findall(content):
             img_path = (file_path.parent / match).resolve()
             try:
                 # 将资源目录下的路径转成 /resources/... 形式，便于静态访问
                 resources_root = Path("resources").resolve()
-                url = "/" + img_path.relative_to(resources_root).as_posix()
+                url = "/resources/" + img_path.relative_to(resources_root).as_posix()
                 images.append(url)
-            except Exception:
+            except ValueError:
                 images.append(img_path.as_posix())
         # 去重
-        seen = set()
-        uniq: List[str] = []
-        for i in images:
-            if i in seen:
+        seen_image_urls = set()
+        unique_image_urls: List[str] = []
+        for image_url in images:
+            if image_url in seen_image_urls:
                 continue
-            seen.add(i)
-            uniq.append(i)
-        return uniq
+            seen_image_urls.add(image_url)
+            unique_image_urls.append(image_url)
+        return unique_image_urls
 
     def _extract_dates(self, content: str) -> Dict[str, Optional[datetime]]:
         """Extract dates from content."""
@@ -243,7 +230,7 @@ class DocumentLoader:
                     date_str = match.group(1)
                     date = self._parse_chinese_date(date_str)
                     dates[date_type] = date
-                except Exception:
+                except ValueError:
                     pass
 
         return dates
@@ -255,7 +242,7 @@ class DocumentLoader:
             (r"(\d{4})年(\d{1,2})月", "%Y-%m-01"),
         ]
 
-        for pattern, format_str in patterns:
+        for pattern, _format_str in patterns:
             match = re.search(pattern, date_str)
             if match:
                 if len(match.groups()) == 3:
@@ -265,7 +252,7 @@ class DocumentLoader:
                     year, month = match.groups()
                     return datetime(int(year), int(month), 1)
 
-        return datetime.now()
+        raise ValueError(f"Unsupported Chinese date: {date_str}")
 
     def _extract_departments(self, content: str) -> List[str]:
         """Extract government departments from content."""
@@ -412,14 +399,3 @@ class DocumentLoader:
             return PolicyType.REGULATION
         else:
             return PolicyType.GUIDELINE
-
-    def _infer_region(self, file_path: Path) -> str:
-        """Infer region from file path."""
-        path_str = str(file_path)
-
-        if "山东" in path_str:
-            return "山东省"
-        elif "济南" in path_str:
-            return "济南市"
-        else:
-            return "未知地区"

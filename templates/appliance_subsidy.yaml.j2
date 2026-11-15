@@ -3,14 +3,12 @@ name: {{ name }}
 version: {{ version }}
 
 policy_source:
-  doc_id: {{ policy_source.doc_id | default(null) }}
-  title: "{{ policy_source.title }}"
+  doc_id: {{ policy_source.doc_id | default(none) | tojson }}
+  title: {{ policy_source.title | tojson }}
   {% if policy_source.clause %}clause: "{{ policy_source.clause }}"{% endif %}
 
 # ===== 有效期 =====
-valid_period:
-  start: "{{ valid_period.start }}"
-  end: {{ valid_period.end | default(null) | tojson }}
+valid_period: {{ valid_period | tojson }}
 
 # ===== 输入参数 =====
 inputs:
@@ -28,10 +26,7 @@ inputs:
     description: "家电类别"
 
 # ===== 能效补贴率 =====
-efficiency_rates:
-  base_rate: {{ efficiency_rates.base_rate | default(0.15) }}        # 2级及以上基础补贴
-  level_1_bonus: {{ efficiency_rates.level_1_bonus | default(0.05) }} # 1级额外补贴
-  no_label_rate: {{ efficiency_rates.no_label_rate | default(0.10) }} # 无标识产品，默认更低
+efficiency_rates: {{ efficiency_rates | tojson }}
 
 # ===== 类别限额（数量或金额，需按政策决定生效点）=====
 category_limits:
@@ -49,14 +44,7 @@ calc:
   result: "dsl_helpers.appliance_subsidy(inputs, efficiency_rates, per_item_cap, category_limits, rule.get('special_rules', {}), user_state)"
 
 # ===== 特殊规则 =====
-{% if special_rules %}
-special_rules:
-  trade_in_required: {{ special_rules.trade_in_required | default(false) | tojson }}
-  {% if special_rules.old_device_criteria %}
-  old_device_criteria: "{{ special_rules.old_device_criteria }}"
-  {% endif %}
-  stacking_allowed: {{ special_rules.stacking_allowed | default(true) | tojson }}
-{% endif %}
+special_rules: {{ special_rules | tojson }}
 
 # ===== 输出配置 =====
 output:

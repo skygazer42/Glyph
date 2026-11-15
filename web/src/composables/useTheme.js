@@ -1,70 +1,67 @@
 /**
- * 主题管理 Composable
- * 支持亮色/暗色模式切换
+ * 共享全局主题；每个消费者只负责自己的系统主题监听。
  */
-import { ref, watch, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 const THEME_KEY = 'gov-policy-theme'
+const isDark = ref(false)
+let isInitialized = false
 
 export function useTheme() {
-  const isDark = ref(false)
+  let mediaQuery = null
 
-  // 从localStorage加载主题设置
-  const loadTheme = () => {
-    const saved = localStorage.getItem(THEME_KEY)
-    if (saved) {
-      isDark.value = saved === 'dark'
-    } else {
-      // 检查系统偏好
-      isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const readSavedTheme = () => {
+    try {
+      return localStorage.getItem(THEME_KEY)
+    } catch (error) {
+      console.warn('无法读取主题设置:', error)
+      return null
     }
-    applyTheme()
   }
 
-  // 应用主题
   const applyTheme = () => {
+    document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
     if (isDark.value) {
-      document.documentElement.setAttribute('data-theme', 'dark')
       document.documentElement.classList.add('dark')
     } else {
-      document.documentElement.setAttribute('data-theme', 'light')
       document.documentElement.classList.remove('dark')
     }
   }
 
-  // 切换主题
-  const toggleTheme = () => {
-    isDark.value = !isDark.value
-    localStorage.setItem(THEME_KEY, isDark.value ? 'dark' : 'light')
-    applyTheme()
-  }
-
-  // 设置主题
   const setTheme = (theme) => {
     isDark.value = theme === 'dark'
-    localStorage.setItem(THEME_KEY, theme)
     applyTheme()
+    try {
+      localStorage.setItem(THEME_KEY, isDark.value ? 'dark' : 'light')
+    } catch (error) {
+      console.warn('无法保存主题设置:', error)
+    }
   }
 
-  // 监听系统主题变化
-  const watchSystemTheme = () => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    mediaQuery.addEventListener('change', (e) => {
-      if (!localStorage.getItem(THEME_KEY)) {
-        isDark.value = e.matches
-        applyTheme()
-      }
-    })
+  const toggleTheme = () => setTheme(isDark.value ? 'light' : 'dark')
+
+  const handleSystemThemeChange = (event) => {
+    const saved = readSavedTheme()
+    if (saved !== 'dark' && saved !== 'light') {
+      isDark.value = event.matches
+      applyTheme()
+    }
   }
 
   onMounted(() => {
-    loadTheme()
-    watchSystemTheme()
+    mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    if (!isInitialized) {
+      const saved = readSavedTheme()
+      isDark.value = saved === 'dark' || (saved !== 'light' && mediaQuery.matches)
+      isInitialized = true
+      applyTheme()
+    }
+    mediaQuery.addEventListener('change', handleSystemThemeChange)
   })
 
-  return {
-    isDark,
-    toggleTheme,
-    setTheme
-  }
+  onUnmounted(() => {
+    mediaQuery?.removeEventListener('change', handleSystemThemeChange)
+  })
+
+  return { isDark, toggleTheme, setTheme }
 }

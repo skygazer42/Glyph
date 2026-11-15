@@ -3,24 +3,19 @@
 """
 
 import asyncio
-import logging
+from anyio import fail_after
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
-import json
-from collections import deque
+from datetime import datetime
 
 import os
 from autogen_core import MessageContext
-from autogen_agentchat.messages import TextMessage
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, Field
+from uuid import uuid4
 from ..base.base_agent import PolicyAgentBase
-from ...models.base import (
+from app.models.base import (
     AgentType,
-    UUID,
     UserQuery,
     FinalAnswer,
-    BaseModel,
-    Field
 )
 
 
@@ -31,10 +26,10 @@ class SessionContext(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     last_active: datetime = Field(default_factory=datetime.now)
     query_count: int = 0
-    queries: List[Dict[str, Any]] = BaseSettings(default_factory=list)
-    answers: List[Dict[str, Any]] = BaseSettings(default_factory=list)
-    context: Dict[str, Any] = BaseSettings(default_factory=dict)
-    preferences: Dict[str, Any] = BaseSettings(default_factory=dict)
+    queries: List[Dict[str, Any]] = Field(default_factory=list)
+    answers: List[Dict[str, Any]] = Field(default_factory=list)
+    context: Dict[str, Any] = Field(default_factory=dict)
+    preferences: Dict[str, Any] = Field(default_factory=dict)
     summary: Optional[str] = None
 
 
@@ -55,25 +50,41 @@ class SessionManagerAgent(PolicyAgentBase):
         self.max_turns = max_turns if max_turns is not None else int(os.getenv("CONVERSATION__MAX_TURNS", os.getenv("CONVERSATION_MAX_TURNS", "20")))
         self.history_window = history_window if history_window is not None else int(os.getenv("CONVERSATION__HISTORY_WINDOW", os.getenv("CONVERSATION_HISTORY_WINDOW", "5")))
 
+        if self.max_turns <= 0 or self.max_history <= 0 or self.history_window < 0:
+            raise ValueError("history sizes must be positive; history_window may be zero")
+
         # 会话存储
         self.sessions: Dict[str, SessionContext] = {}
         self.user_sessions: Dict[str, List[str]] = {}  # 用户ID到会话ID的映射
 
         # 定期清理过期会话
-        asyncio.create_task(self._cleanup_expired_sessions())
+        self._cleanup_task: Optional[asyncio.Task] = None
 
-    async def process_request(self, request: Dict[str, Any], context: MessageContext) -> Dict[str, Any]:
+    async def start(self):
+        await super().start()
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
+
+    async def stop(self):
+        if self._cleanup_task is not None:
+            self._cleanup_task.cancel()
+            with fail_after(5, shield=True):
+                await asyncio.gather(self._cleanup_task, return_exceptions=True)
+            self._cleanup_task = None
+        await super().stop()
+
+    async def process_request(self, request: Dict[str, Any], context: MessageContext) -> Any:
         """处理会话管理请求"""
-        action = request.get("action")
+        action = request["action"]
 
         if action == "create_or_update":
             return await self._create_or_update_session(request)
         elif action == "get":
-            return await self._get_session(request.get("session_id"))
+            return await self._get_session(request["session_id"])
         elif action == "list":
-            return await self._list_user_sessions(request.get("user_id"))
+            return await self._list_user_sessions(request["user_id"])
         elif action == "delete":
-            return await self._delete_session(request.get("session_id"))
+            return await self._delete_session(request["session_id"])
         elif action == "update_context":
             return await self._update_session_context(request)
         elif action == "add_query":
@@ -83,7 +94,7 @@ class SessionManagerAgent(PolicyAgentBase):
         elif action == "get_context":
             return await self._get_context_for_query(request)
         elif action == "summarize":
-            return await self._summarize_session(request.get("session_id"))
+            return await self._summarize_session(request["session_id"])
         else:
             raise ValueError(f"Unknown action: {action}")
 
@@ -94,10 +105,11 @@ class SessionManagerAgent(PolicyAgentBase):
 
         if session_id is None:
             # 创建新会话
-            session_id = f"session_{datetime.now().timestamp()}_{UUID()}"
+            session_id = f"session_{uuid4()}"
 
         # 获取或创建会话
-        if session_id not in self.sessions:
+        created = session_id not in self.sessions
+        if created:
             session = SessionContext(
                 session_id=session_id,
                 user_id=user_id
@@ -126,8 +138,8 @@ class SessionManagerAgent(PolicyAgentBase):
 
         return {
             "session_id": session_id,
-            "created": session_id not in self.sessions or session.query_count == 0,
-            "context": session.dict()
+            "created": created,
+            "context": session.model_dump()
         }
 
     async def _get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -135,7 +147,7 @@ class SessionManagerAgent(PolicyAgentBase):
         if session_id in self.sessions:
             session = self.sessions[session_id]
             session.last_active = datetime.now()
-            return session.dict()
+            return session.model_dump()
         return None
 
     async def _list_user_sessions(self, user_id: str) -> List[Dict[str, Any]]:
@@ -146,7 +158,7 @@ class SessionManagerAgent(PolicyAgentBase):
         sessions = []
         for session_id in self.user_sessions[user_id]:
             if session_id in self.sessions:
-                sessions.append(self.sessions[session_id].dict())
+                sessions.append(self.sessions[session_id].model_dump())
 
         return sorted(sessions, key=lambda x: x["last_active"], reverse=True)
 
@@ -170,8 +182,8 @@ class SessionManagerAgent(PolicyAgentBase):
 
     async def _update_session_context(self, request: Dict[str, Any]) -> bool:
         """更新会话上下文"""
-        session_id = request.get("session_id")
-        context_updates = request.get("context", {})
+        session_id = request["session_id"]
+        context_updates = request["context"]
 
         if session_id not in self.sessions:
             return False
@@ -184,8 +196,8 @@ class SessionManagerAgent(PolicyAgentBase):
 
     async def _add_query_to_session(self, request: Dict[str, Any]) -> bool:
         """向会话添加查询"""
-        session_id = request.get("session_id")
-        query = request.get("query")
+        session_id = request["session_id"]
+        query = request["query"]
 
         if not session_id or not query:
             return False
@@ -202,16 +214,9 @@ class SessionManagerAgent(PolicyAgentBase):
             "query_id": str(query.id) if isinstance(query, UserQuery) else None
         }
 
-        # 如超过最大轮数，丢弃最早的记录（保持最近 max_turns 轮）
-        if session.query_count >= self.max_turns:
-            # 移除最早一条查询和对应的最早一条答案（如果有）
-            if session.queries:
-                session.queries = session.queries[-(self.max_turns - 1):]
-            if session.answers and len(session.answers) > (self.max_turns - 1):
-                session.answers = session.answers[-(self.max_turns - 1):]
-
         # 添加到查询历史
         session.queries.append(query_record)
+        session.queries = session.queries[-self.max_turns:]
         session.query_count = min(session.query_count + 1, self.max_turns)
         session.last_active = datetime.now()
 
@@ -227,8 +232,8 @@ class SessionManagerAgent(PolicyAgentBase):
 
     async def _add_answer_to_session(self, request: Dict[str, Any]) -> bool:
         """向会话添加答案"""
-        session_id = request.get("session_id")
-        answer = request.get("answer")
+        session_id = request["session_id"]
+        answer = request["answer"]
 
         if not session_id or not answer:
             return False
@@ -243,7 +248,7 @@ class SessionManagerAgent(PolicyAgentBase):
             "timestamp": datetime.now().isoformat(),
             "answer": answer.answer if isinstance(answer, FinalAnswer) else answer,
             "confidence": answer.confidence if isinstance(answer, FinalAnswer) else None,
-            "sources_count": len(answer.sources) if isinstance(answer, FinalAnswer) and answer.sources else 0
+            "sources_count": len(answer.sources) if isinstance(answer, FinalAnswer) else 0
         }
 
         # 添加到答案历史
@@ -269,7 +274,7 @@ class SessionManagerAgent(PolicyAgentBase):
         session_id = request.get("session_id")
         current_query = request.get("query", "")
 
-        context = {
+        context: Dict[str, Any] = {
             "session_id": session_id,
             "is_new_session": True,
             "history": [],
@@ -283,9 +288,9 @@ class SessionManagerAgent(PolicyAgentBase):
             context["is_new_session"] = session.query_count == 0
 
             # 获取最近的对话历史
-            recent_limit = max(1, min(self.history_window, self.max_turns))
-            recent_queries = session.queries[-recent_limit:] if session.queries else []
-            recent_answers = session.answers[-recent_limit:] if session.answers else []
+            recent_limit = max(0, min(self.history_window, self.max_turns))
+            recent_queries = session.queries[-recent_limit:] if session.queries and recent_limit else []
+            recent_answers = session.answers[-recent_limit:] if session.answers and recent_limit else []
 
             # 构建对话历史
             history = []
@@ -376,7 +381,7 @@ class SessionManagerAgent(PolicyAgentBase):
                 topics.extend(entities)
 
             # 统计最常见的话题
-            topic_counts = {}
+            topic_counts: Dict[str, int] = {}
             for topic in topics:
                 topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
@@ -400,7 +405,7 @@ class SessionManagerAgent(PolicyAgentBase):
                 expired_sessions = []
 
                 for session_id, session in self.sessions.items():
-                    if (current_time - session.last_active).seconds > self.session_timeout:
+                    if (current_time - session.last_active).total_seconds() > self.session_timeout:
                         expired_sessions.append(session_id)
 
                 for session_id in expired_sessions:
@@ -410,8 +415,8 @@ class SessionManagerAgent(PolicyAgentBase):
                 # 每10分钟清理一次
                 await asyncio.sleep(600)
 
-            except Exception as e:
-                self.logger.error(f"Error cleaning up sessions: {e}")
+            except Exception:
+                self.logger.exception("Error cleaning up sessions")
                 await asyncio.sleep(60)
 
     def get_metrics(self) -> Dict[str, Any]:
@@ -419,7 +424,7 @@ class SessionManagerAgent(PolicyAgentBase):
         total_sessions = len(self.sessions)
         active_sessions = sum(
             1 for s in self.sessions.values()
-            if (datetime.now() - s.last_active).seconds < 300  # 5分钟内活跃
+            if (datetime.now() - s.last_active).total_seconds() < 300  # 5分钟内活跃
         )
 
         return {

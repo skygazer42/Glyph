@@ -45,7 +45,7 @@ class AgentMessage(BaseModel):
     type: MessageType = Field(..., description="消息类型")
     content: str = Field(..., description="消息内容")
     sender: str = Field(..., description="发送者")
-    receiver: Optional[str] = Field(None, description="接收者")
+    receiver: Optional[str] = Field(default=None, description="接收者")
     timestamp: datetime = Field(default_factory=datetime.now, description="时间戳")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
 
@@ -54,8 +54,8 @@ class TaskResult(BaseModel):
     """任务结果模型"""
     task_id: str = Field(..., description="任务ID")
     status: str = Field(..., description="任务状态")
-    result: Any = Field(None, description="任务结果")
-    error: Optional[str] = Field(None, description="错误信息")
+    result: Any = Field(default=None, description="任务结果")
+    error: Optional[str] = Field(default=None, description="错误信息")
     timestamp: datetime = Field(default_factory=datetime.now, description="完成时间")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
 

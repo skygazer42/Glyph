@@ -3,15 +3,17 @@ Text2SQL工具模块
 提供查询分析、表结构检索、SQL处理等工具函数
 """
 import json
+import logging
 import os
 import re
 import sqlparse
 from collections import OrderedDict
-from typing import Dict, Any, List, Optional, Tuple, Set
+from typing import Dict, Any, List, Tuple
+from sqlparse.exceptions import SQLParseError
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from autogen_core.models import UserMessage
-from app.core.config import settings
 from app.core.llms import model_client
 from app.persistence import crud
 from .domain_zh_gov import (
@@ -19,13 +21,44 @@ from .domain_zh_gov import (
     domain_value_mappings_for_schema,
 )
 
+logger = logging.getLogger(__name__)
+
+
+class QueryAnalysis(BaseModel):
+    """The stable JSON fields requested from the query-analysis model."""
+
+    model_config = ConfigDict(strict=True, extra="ignore")
+
+    entities: list[str]
+    relationships: list[str]
+    query_intent: str
+    likely_aggregations: list[str]
+    time_related: bool
+    comparison_related: bool
+
+
+class RankedTable(BaseModel):
+    """One table ID and its score in the model's schema-ranking response."""
+
+    model_config = ConfigDict(strict=True, extra="ignore")
+
+    table_id: int
+    relevance_score: float = Field(ge=0, le=10)
+    reasoning: str
+
+
+class TableRanking(RootModel[list[RankedTable]]):
+    model_config = ConfigDict(strict=True)
+
 
 class _LRUCache(OrderedDict):
     """简单的LRU缓存，避免查询分析缓存无限增长。"""
 
     def __init__(self, maxsize: int):
         super().__init__()
-        self.maxsize = max(1, maxsize)
+        if maxsize < 0:
+            raise ValueError("Query cache size must be nonnegative")
+        self.maxsize = maxsize
 
     def get(self, key, default=None):
         if key in self:
@@ -34,13 +67,15 @@ class _LRUCache(OrderedDict):
         return default
 
     def put(self, key, value) -> None:
+        if self.maxsize == 0:
+            return
         super().__setitem__(key, value)
         self.move_to_end(key)
         if len(self) > self.maxsize:
             self.popitem(last=False)
 
 
-QUERY_ANALYSIS_CACHE_SIZE = int(os.getenv("TEXT2SQL_QUERY_CACHE_SIZE", settings.performance.cache_ttl if settings.performance.cache_ttl else 256))
+QUERY_ANALYSIS_CACHE_SIZE = int(os.getenv("TEXT2SQL_QUERY_CACHE_SIZE", "256"))
 query_analysis_cache = _LRUCache(QUERY_ANALYSIS_CACHE_SIZE)
 
 
@@ -75,23 +110,22 @@ async def analyze_query_with_llm(query: str) -> Dict[str, Any]:
         # 调用LLM
         response = await model_client.create([UserMessage(content=prompt, source="user")])
         response_text = response.content
+        if not isinstance(response_text, str):
+            raise TypeError("Query analysis requires a text model response")
 
         # 提取并解析JSON响应
         json_match = re.search(r'\{[\s\S]*}', response_text)
         if json_match:
             json_str = json_match.group(0)
-            analysis = json.loads(json_str)
-
-            # 验证必需字段
-            if not all(k in analysis for k in ["entities", "relationships", "query_intent"]):
-                analysis = _create_fallback_analysis(query)
+            analysis = QueryAnalysis.model_validate_json(json_str).model_dump()
         else:
-            analysis = _create_fallback_analysis(query)
+            raise ValueError("Query analysis response did not contain JSON")
 
         query_analysis_cache.put(query, analysis)
         return analysis
-    except Exception as e:
+    except Exception as exc:
         # 如果发生任何错误，回退到关键词提取
+        logger.warning("Query analysis failed; using keyword analysis: %s", exc, exc_info=True)
         analysis = _create_fallback_analysis(query)
         query_analysis_cache.put(query, analysis)
         return analysis
@@ -114,7 +148,7 @@ def extract_keywords(query: str) -> List[str]:
     使用正则表达式从查询中提取关键词（回退方法）
     """
     keywords = re.findall(r'\b\w+\b', query.lower())
-    return [k for k in keywords if len(k) > 2 and k not in {
+    return [keyword for keyword in keywords if len(keyword) > 2 and keyword not in {
         'the', 'and', 'for', 'from', 'where', 'what', 'which', 'when', 'who',
         'how', 'many', 'much', 'with', 'that', 'this', 'these', 'those',
         '什么', '哪个', '哪些', '什么时候', '谁', '怎么', '多少', '和', '的', '是'
@@ -130,8 +164,8 @@ async def find_relevant_tables_semantic(query: str, query_analysis: Dict[str, An
     try:
         # 为LLM准备表信息
         tables_info = "\n".join([
-            f"表ID: {t['id']} - 名称: {t['name']} - 描述: {t['description'] or '无描述'}"
-            for t in all_tables
+            f"表ID: {table['id']} - 名称: {table['name']} - 描述: {table['description'] or '无描述'}"
+            for table in all_tables
         ])
 
         # 准备提示
@@ -161,50 +195,34 @@ async def find_relevant_tables_semantic(query: str, query_analysis: Dict[str, An
         # 调用LLM
         response = await model_client.create([UserMessage(content=prompt, source="user")])
         response_text = response.content
+        if not isinstance(response_text, str):
+            raise TypeError("Schema ranking requires a text model response")
 
         # 提取并解析JSON响应
         json_match = re.search(r'\[[\s\S]*\]', response_text)
         if json_match:
             json_str = json_match.group(0)
-            ranked_tables = json.loads(json_str)
+            ranking = TableRanking.model_validate_json(json_str)
+            available_ids = {table["id"] for table in all_tables}
+            if any(table.table_id not in available_ids for table in ranking.root):
+                raise ValueError("Schema ranking referenced a table outside the available schema")
+            valid_tables = [
+                (table.table_id, table.relevance_score)
+                for table in ranking.root if table.relevance_score > 3
+            ]
 
-            # 确保每个表都有所需字段且table_id是整数
-            valid_tables: List[Tuple[int, float]] = []
-            for t in ranked_tables:
-                if "table_id" in t and "relevance_score" in t:
-                    if t["relevance_score"] > 3:
-                        table_id = t["table_id"]
-                        if not isinstance(table_id, int):
-                            try:
-                                table_id = int(table_id)
-                            except (ValueError, TypeError):
-                                continue
-                        valid_tables.append((table_id, t["relevance_score"]))
-
-            # 领域提示加权：若中文关键词提示某些表，直接提升其分数
-            try:
-                domain_candidates = set(candidate_tables_from_query(query))
-                name_to_id = {t["name"]: int(t["id"]) for t in all_tables if isinstance(t.get("id"), (int,)) or str(t.get("id", "")).isdigit()}
-                boost_ids = {name_to_id.get(n) for n in domain_candidates if name_to_id.get(n) is not None}
-                if boost_ids:
-                    existing = {tid for tid, _ in valid_tables}
-                    # boost up existing; add new with base score 8
-                    boosted = []
-                    for tid, sc in valid_tables:
-                        if tid in boost_ids:
-                            sc = max(sc, 8.5)
-                        boosted.append((tid, sc))
-                    for bid in boost_ids:
-                        if bid not in existing:
-                            boosted.append((bid, 8.5))
-                    valid_tables = boosted
-            except Exception:
-                pass
+            domain_candidates = set(candidate_tables_from_query(query))
+            boost_ids = {int(table["id"]) for table in all_tables if table["name"] in domain_candidates}
+            existing = {table_id for table_id, _ in valid_tables}
+            valid_tables = [(table_id, max(score, 8.5) if table_id in boost_ids else score)
+                            for table_id, score in valid_tables]
+            valid_tables.extend((table_id, 8.5) for table_id in boost_ids if table_id not in existing)
 
             return valid_tables
         else:
-            return basic_table_matching(query, all_tables)
-    except Exception as e:
+            raise ValueError("Schema ranking response did not contain a JSON array")
+    except Exception as exc:
+        logger.warning("Semantic schema ranking failed; using keyword matching: %s", exc, exc_info=True)
         return basic_table_matching(query, all_tables)
 
 
@@ -220,7 +238,7 @@ def basic_table_matching(query: str, all_tables: List[Dict[str, Any]]) -> List[T
     for table in all_tables:
         score = 0
         table_name = table["name"].lower()
-        table_desc = (table["description"] or "").lower()
+        table_description = table["description"]
 
         # 强力加权：领域候选命中
         if table["name"] in domain_candidates:
@@ -229,72 +247,13 @@ def basic_table_matching(query: str, all_tables: List[Dict[str, Any]]) -> List[T
         for keyword in keywords:
             if keyword in table_name:
                 score += 5  # 名称匹配更高分
-            elif keyword in table_desc:
+            elif table_description and keyword in table_description.lower():
                 score += 3  # 描述匹配较低分
 
         if score > 0:
             relevant_tables.append((table["id"], min(score, 10)))  # 最高10分
 
-    return sorted(relevant_tables, key=lambda x: x[1], reverse=True)
-
-
-async def filter_expanded_tables_with_llm(query: str, query_analysis: Dict[str, Any],
-                                        expanded_tables: List[Tuple[int, str, str]],
-                                        relevance_scores: Dict[int, float]) -> Set[Tuple[int, str, str]]:
-    """
-    使用LLM根据实际相关性过滤扩展表
-    """
-    try:
-        # 准备扩展表信息
-        tables_info = "\n".join([
-            f"表ID: {t[0]}, 名称: {t[1]}, 描述: {t[2] or '无描述'}, 分数: {relevance_scores.get(t[0], 0)}"
-            for t in expanded_tables
-        ])
-
-        # 准备提示
-        prompt = f"""
-        你是一名数据库专家，帮助确定相关表是否真正与查询相关。
-
-        查询: "{query}"
-
-        查询分析: {json.dumps(query_analysis, ensure_ascii=False)}
-
-        以下表是通过关系连接找到的，但我们需要确定它们是否真正相关：
-        {tables_info}
-
-        请返回实际与回答查询相关的表ID的JSON数组。
-        只包含回答查询所需的表。格式：
-        [
-            {{
-                "table_id": table_id,
-                "include": true/false,
-                "reasoning": "为什么应该包含或排除此表的简要解释"
-            }},
-            ...
-        ]
-        """
-
-        # 调用LLM
-        response = await model_client.create([UserMessage(content=prompt, source="user")])
-        response_text = response.content
-
-        # 提取并解析JSON响应
-        json_match = re.search(r'\[[\s\S]*\]', response_text)
-        if json_match:
-            json_str = json_match.group(0)
-            filtered_tables = json.loads(json_str)
-
-            # 获取应包含的表的ID
-            include_ids = [t["table_id"] for t in filtered_tables if t.get("include", False)]
-
-            # 返回应包含的原始表元组
-            return set(t for t in expanded_tables if t[0] in include_ids)
-        else:
-            # 如果解析失败，包含所有扩展表
-            return set(expanded_tables)
-    except Exception as e:
-        # 如果发生任何错误，包含所有扩展表
-        return set(expanded_tables)
+    return sorted(relevant_tables, key=lambda table_score: table_score[1], reverse=True)
 
 
 def format_schema_for_prompt(schema_context: Dict[str, Any]) -> str:
@@ -306,7 +265,7 @@ def format_schema_for_prompt(schema_context: Dict[str, Any]) -> str:
     relationships = schema_context["relationships"]
 
     # 按表分组列
-    columns_by_table = {}
+    columns_by_table: Dict[str, List[Dict[str, Any]]] = {}
     for column in columns:
         table_name = column["table_name"]
         if table_name not in columns_by_table:
@@ -318,28 +277,28 @@ def format_schema_for_prompt(schema_context: Dict[str, Any]) -> str:
 
     for table in tables:
         table_name = table["name"]
-        table_desc = f" ({table['description']})" if table["description"] else ""
+        table_description = f" ({table['description']})" if table["description"] else ""
 
-        schema_str += f"-- 表: {table_name}{table_desc}\n"
+        schema_str += f"-- 表: {table_name}{table_description}\n"
         schema_str += "-- 列:\n"
 
         if table_name in columns_by_table:
             for column in columns_by_table[table_name]:
-                col_name = column["name"]
-                col_type = column["type"]
-                col_desc = f" ({column['description']})" if column["description"] else ""
-                pk_flag = " PK" if column["is_primary_key"] else ""
-                fk_flag = " FK" if column["is_foreign_key"] else ""
+                column_name = column["name"]
+                column_type = column["type"]
+                column_description = f" ({column['description']})" if column["description"] else ""
+                primary_key_flag = " PK" if column["is_primary_key"] else ""
+                foreign_key_flag = " FK" if column["is_foreign_key"] else ""
 
-                schema_str += f"--   {col_name} {col_type}{pk_flag}{fk_flag}{col_desc}\n"
+                schema_str += f"--   {column_name} {column_type}{primary_key_flag}{foreign_key_flag}{column_description}\n"
 
         schema_str += "\n"
 
     if relationships:
         schema_str += "-- 关系:\n"
-        for rel in relationships:
-            rel_type = f" ({rel['relationship_type']})" if rel["relationship_type"] else ""
-            schema_str += f"-- {rel['source_table']}.{rel['source_column']} -> {rel['target_table']}.{rel['target_column']}{rel_type}\n"
+        for relationship in relationships:
+            relationship_type = f" ({relationship['relationship_type']})" if relationship["relationship_type"] else ""
+            schema_str += f"-- {relationship['source_table']}.{relationship['source_column']} -> {relationship['target_table']}.{relationship['target_column']}{relationship_type}\n"
 
     return schema_str
 
@@ -355,22 +314,12 @@ def get_value_mappings(db: Session, schema_context: Dict[str, Any]) -> Dict[str,
         column_mappings = crud.value_mapping.get_by_column(db=db, column_id=column_id)
 
         if column_mappings:
-            table_col = f"{column['table_name']}.{column['name']}"
-            mappings[table_col] = {m.nl_term: m.db_value for m in column_mappings}
+            qualified_column = f"{column['table_name']}.{column['name']}"
+            mappings[qualified_column] = {mapping.nl_term: mapping.db_value for mapping in column_mappings}
 
-    # 合并领域通用映射（如 city/vehicle_type/benefit_type 等中文→规范值）
-    try:
-        domain_maps = domain_value_mappings_for_schema(schema_context)
-        for key, value in domain_maps.items():
-            if key in mappings:
-                # 显式配置优先，领域映射补充
-                merged = dict(value)
-                merged.update(mappings[key])
-                mappings[key] = merged
-            else:
-                mappings[key] = value
-    except Exception:
-        pass
+    # Explicit persisted mappings take precedence over domain synonyms.
+    for key, values in domain_value_mappings_for_schema(schema_context).items():
+        mappings[key] = {**values, **mappings.get(key, {})}
 
     return mappings
 
@@ -382,32 +331,28 @@ def process_sql_with_value_mappings(sql: str, value_mappings: Dict[str, Dict[str
     if not value_mappings:
         return sql
 
-    # 这是一个简化的方法 - 更健壮的实现会使用适当的SQL解析器
+    # Match literal schema identifiers/terms and build replacement text without
+    # regex backreferences (a numeric DB value must not become group 10).
     for column, mappings in value_mappings.items():
-        table, col = column.split('.')
-
-        # 查找类似"table.column = 'value'"或"column = 'value'"的模式
+        table_name, column_name = column.rsplit(".", 1)
+        identifier = rf"(?<![\w.])(?:{re.escape(table_name)}\.)?{re.escape(column_name)}"
         for nl_term, db_value in mappings.items():
-            # 尝试匹配带表名的模式
-            pattern1 = rf"({table}\.{col}\s*=\s*['\"])({nl_term})(['\"])"
-            sql = re.sub(pattern1, f"\\1{db_value}\\3", sql, flags=re.IGNORECASE)
+            pattern = rf"({identifier}\s*(=|LIKE)\s*)(['\"])(%?{re.escape(nl_term)}%?)\3"
 
-            # 尝试匹配不带表名的模式
-            pattern2 = rf"({col}\s*=\s*['\"])({nl_term})(['\"])"
-            sql = re.sub(pattern2, f"\\1{db_value}\\3", sql, flags=re.IGNORECASE)
+            def replace_value(match: re.Match[str], replacement: str = db_value) -> str:
+                quote = match.group(3)
+                escaped_value = replacement.replace(quote, quote * 2)
+                if match.group(2).upper() == "LIKE":
+                    escaped_value = f"%{escaped_value}%"
+                return f"{match.group(1)}{quote}{escaped_value}{quote}"
 
-            # 也处理LIKE模式
-            pattern3 = rf"({table}\.{col}\s+LIKE\s+['\"])%?({nl_term})%?(['\"])"
-            sql = re.sub(pattern3, f"\\1%{db_value}%\\3", sql, flags=re.IGNORECASE)
-
-            pattern4 = rf"({col}\s+LIKE\s+['\"])%?({nl_term})%?(['\"])"
-            sql = re.sub(pattern4, f"\\1%{db_value}%\\3", sql, flags=re.IGNORECASE)
+            sql = re.sub(pattern, replace_value, sql, flags=re.IGNORECASE)
 
     # 额外一步：修正 LLM 生成的 PostgreSQL 风格 JSON/类型转换语法为 MySQL 兼容形式
     # 1) 将 "alias.metadata::text" 或 "metadata::text" 替换为 CAST(... AS CHAR)
     def _replace_metadata_cast(match: re.Match) -> str:
-        col_ref = match.group(1)
-        return f"CAST({col_ref} AS CHAR)"
+        column_reference = match.group(1)
+        return f"CAST({column_reference} AS CHAR)"
 
     # 匹配类似 "pd.metadata::text" 或 "metadata::text"
     sql = re.sub(r"\b([\w]+\.[Mm][Ee][Tt][Aa][Dd][Aa][Tt][Aa])::text\b", _replace_metadata_cast, sql)
@@ -433,8 +378,8 @@ def validate_sql(sql: str) -> bool:
             return False
 
         # 检查是否是SELECT语句（为了安全）
-        stmt = parsed[0]
-        if stmt.get_type().upper() != 'SELECT':
+        statement = parsed[0]
+        if statement.get_type().upper() != 'SELECT':
             return False
 
         # 额外安全检查：禁止危险关键字/多语句/UNION
@@ -451,7 +396,7 @@ def validate_sql(sql: str) -> bool:
             return False
 
         return True
-    except Exception:
+    except SQLParseError:
         return False
 
 
@@ -491,111 +436,47 @@ def extract_sql_from_llm_response(response: str) -> str:
     return response
 
 
-async def retrieve_relevant_schema(db: Session, connection_id: int, query: str) -> Dict[str, Any]:
-    """
-    基于自然语言查询检索相关的表结构信息。
+def snapshot_schema(db: Session, connection_id: int) -> Dict[str, Any]:
+    """Read metadata into plain values while the caller owns the Session."""
+    tables = crud.schema_table.get_by_connection(db=db, connection_id=connection_id)
+    table_names = {table.id: table.table_name for table in tables}
+    columns = crud.schema_column.get_by_table_ids(db=db, table_ids=list(table_names)) if tables else []
+    column_names = {column.id: column.column_name for column in columns}
+    relationships = crud.schema_relationship.get_by_connection(db=db, connection_id=connection_id) if tables else []
+    return {
+        "tables": [{"id": table.id, "name": table.table_name, "description": table.description} for table in tables],
+        "columns": [{"id": column.id, "name": column.column_name, "type": column.data_type,
+                     "description": column.description, "is_primary_key": column.is_primary_key,
+                     "is_foreign_key": column.is_foreign_key, "table_id": column.table_id,
+                     "table_name": table_names[column.table_id]} for column in columns],
+        "relationships": [{"id": rel.id, "source_table": table_names[rel.source_table_id],
+                           "source_column": column_names[rel.source_column_id],
+                           "target_table": table_names[rel.target_table_id],
+                           "target_column": column_names[rel.target_column_id],
+                           "relationship_type": rel.relationship_type}
+                          for rel in relationships
+                          if rel.source_table_id in table_names and rel.target_table_id in table_names
+                          and rel.source_column_id in column_names and rel.target_column_id in column_names],
+    }
 
-    企业化实现说明：
-    - 不再依赖 Neo4j，全部基于 ORM 管理的 SchemaTable/SchemaColumn/SchemaRelationship 元数据；
-    - 使用 LLM + 关键词匹配对所有表做排序，选出 Top-K 相关表；
-    - 保留原有返回结构: {"tables": [...], "columns": [...], "relationships": [...]}
-    """
-    try:
-        # 1. 使用 LLM 分析查询并提取关键实体和意图
-        query_analysis = await analyze_query_with_llm(query)
 
-        # 2. 从元数据表中获取所有表信息
-        all_tables_from_db = crud.schema_table.get_by_connection(db=db, connection_id=connection_id)
-        if not all_tables_from_db:
-            return {"tables": [], "columns": [], "relationships": []}
-
-        all_tables_for_llm = [
-            {
-                "id": table.id,
-                "name": table.table_name,
-                "description": table.description or "",
-            }
-            for table in all_tables_from_db
-        ]
-
-        # 3. 使用语义匹配 + 领域提示找到相关表
-        ranked = await find_relevant_tables_semantic(query, query_analysis, all_tables_for_llm)
-        # ranked: List[Tuple[table_id, score]]
-        relevance_scores: Dict[int, float] = {tid: sc for tid, sc in ranked}
-
-        if ranked:
-            table_ids = [tid for tid, _ in ranked]
-        else:
-            # 回退：没有语义结果时，使用全部表（默认让 LLM 在Prompt里做过滤）
-            table_ids = [t["id"] for t in all_tables_for_llm]
-
-        # 限制最多表数，避免提示过长（可按需调整）
-        max_tables = int(os.getenv("TEXT2SQL_MAX_TABLES", "8"))
-        if len(table_ids) > max_tables:
-            table_ids = table_ids[:max_tables]
-
-        # 4. 构造 tables_list
-        tables_list = [
-            {
-                "id": t["id"],
-                "name": t["name"],
-                "description": t["description"],
-            }
-            for t in all_tables_for_llm
-            if t["id"] in table_ids
-        ]
-
-        # 5. 加载列信息
-        table_name_lookup = {t["id"]: t["name"] for t in tables_list}
-        columns_records = crud.schema_column.get_by_table_ids(db=db, table_ids=table_ids)
-        columns_list = []
-        for column in columns_records:
-            columns_list.append(
-                {
-                    "id": column.id,
-                    "name": column.column_name,
-                    "type": column.data_type,
-                    "description": column.description,
-                    "is_primary_key": column.is_primary_key,
-                    "is_foreign_key": column.is_foreign_key,
-                    "table_id": column.table_id,
-                    "table_name": table_name_lookup.get(column.table_id, ""),
-                }
-            )
-
-        column_lookup = {col["id"]: col for col in columns_list}
-
-        # 6. 加载表间关系（外键等）
-        all_tables_count = len(all_tables_from_db)
-        if len(tables_list) == all_tables_count:
-            rel_records = crud.schema_relationship.get_by_connection(db=db, connection_id=connection_id)
-        else:
-            rel_records = crud.schema_relationship.get_by_table_ids(db=db, table_ids=table_ids)
-
-        relationships_list: List[Dict[str, Any]] = []
-        for rel in rel_records:
-            if rel.source_table_id not in table_ids or rel.target_table_id not in table_ids:
-                if len(tables_list) != all_tables_count:
-                    # 当只选择部分表时，仅保留完全落在子集内的关系
-                    continue
-
-            source_table_name = table_name_lookup.get(rel.source_table_id)
-            target_table_name = table_name_lookup.get(rel.target_table_id)
-            source_column = column_lookup.get(rel.source_column_id)
-            target_column = column_lookup.get(rel.target_column_id)
-
-            if source_table_name and target_table_name and source_column and target_column:
-                relationships_list.append(
-                    {
-                        "id": rel.id,
-                        "source_table": source_table_name,
-                        "source_column": source_column["name"],
-                        "target_table": target_table_name,
-                        "target_column": target_column["name"],
-                        "relationship_type": rel.relationship_type,
-                    }
-                )
-
-        return {"tables": tables_list, "columns": columns_list, "relationships": relationships_list}
-    except Exception as e:
-        raise Exception(f"检索表结构上下文时出错: {str(e)}")
+async def select_relevant_schema(snapshot: Dict[str, Any], query: str) -> Dict[str, Any]:
+    """Rank an already detached metadata snapshot on the model client's loop."""
+    tables = snapshot["tables"]
+    if not tables:
+        return snapshot
+    analysis = await analyze_query_with_llm(query)
+    ranked = await find_relevant_tables_semantic(query, analysis, tables)
+    table_ids = [table_id for table_id, _ in ranked] if ranked else [table["id"] for table in tables]
+    max_tables = int(os.getenv("TEXT2SQL_MAX_TABLES", "8"))
+    if max_tables <= 0:
+        raise ValueError("TEXT2SQL_MAX_TABLES must be greater than zero")
+    selected_ids = set(table_ids[:max_tables])
+    selected_tables = [table for table in tables if table["id"] in selected_ids]
+    names = {table["name"] for table in selected_tables}
+    return {
+        "tables": selected_tables,
+        "columns": [column for column in snapshot["columns"] if column["table_id"] in selected_ids],
+        "relationships": [rel for rel in snapshot["relationships"]
+                          if rel["source_table"] in names and rel["target_table"] in names],
+    }

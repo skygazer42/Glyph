@@ -8,14 +8,13 @@ import App from './App.vue'
 import './styles/global.css'
 
 const app = createApp(App)
-const pinia = createPinia()
 
 // 注册所有图标
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
+for (const [iconName, component] of Object.entries(ElementPlusIconsVue)) {
+  app.component(iconName, component)
 }
 
-app.use(pinia)
+app.use(createPinia())
 app.use(router)
 app.use(ElementPlus)
 

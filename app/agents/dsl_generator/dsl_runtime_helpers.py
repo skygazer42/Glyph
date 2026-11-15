@@ -7,6 +7,7 @@ the YAML templates, allowing the DSL to stay declarative (route A).
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from math import isfinite
 from typing import Any, Dict, Optional, List
 
 
@@ -18,38 +19,28 @@ class DSLRuntimeHelpers:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _safe_float(value: Any) -> Optional[float]:
+    def _parse_optional_number(value: Any) -> Optional[float]:
         if value is None:
             return None
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
+        if isinstance(value, bool):
+            raise ValueError("Boolean is not a policy number")
+        number = float(value)
+        if not isfinite(number):
+            raise ValueError("Policy number must be finite")
+        return number
 
     @staticmethod
     def _round(value: Optional[float], digits: int = 2) -> Optional[float]:
-        if value is None:
-            return None
-        try:
-            return round(float(value) + 1e-12, digits)
-        except (TypeError, ValueError):
-            return None
+        return None if value is None else round(value + 1e-12, digits)
 
     @staticmethod
     def _parse_iso(value: Any) -> Optional[datetime]:
-        if not value:
+        if value is None:
             return None
         if isinstance(value, datetime):
             return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        try:
-            text = str(value).strip()
-            if not text:
-                return None
-            text = text.replace("Z", "+00:00")
-            dt = datetime.fromisoformat(text)
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-        except ValueError:
-            return None
+        dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
     @classmethod
     def _in_window(cls, ts: Optional[datetime], window: Optional[Dict[str, Any]]) -> bool:
@@ -98,7 +89,7 @@ class DSLRuntimeHelpers:
         efficiency_rates = efficiency_rates or {}
         special_rules = special_rules or {}
 
-        price = cls._safe_float(inputs.get("price"))
+        price = cls._parse_optional_number(inputs.get("price"))
         energy_level = inputs.get("energy_level")
 
         if price is None or price < 0:
@@ -109,25 +100,30 @@ class DSLRuntimeHelpers:
                 "rate": 0,
                 "raw_subsidy": 0,
                 "final_subsidy": 0,
-                "per_item_cap": cls._safe_float(per_item_cap),
+                "per_item_cap": cls._parse_optional_number(per_item_cap),
                 "energy_level": energy_level,
             }
 
-        base_rate = cls._safe_float(efficiency_rates.get("base_rate")) or 0.0
-        level_1_bonus = cls._safe_float(efficiency_rates.get("level_1_bonus")) or 0.0
-        no_label_rate = cls._safe_float(efficiency_rates.get("no_label_rate")) or base_rate
-
+        base_rate = cls._parse_optional_number(efficiency_rates["base_rate"])
+        if base_rate is None:
+            raise ValueError("Missing policy base_rate")
         if energy_level == 1:
-            rate = base_rate + level_1_bonus
+            bonus = cls._parse_optional_number(efficiency_rates["level_1_bonus"])
+            if bonus is None:
+                raise ValueError("Missing policy level_1_bonus")
+            rate = base_rate + bonus
         elif energy_level == 2:
             rate = base_rate
         else:
+            no_label_rate = cls._parse_optional_number(efficiency_rates["no_label_rate"])
+            if no_label_rate is None:
+                raise ValueError("Missing policy no_label_rate")
             rate = no_label_rate
 
         rate = max(0.0, min(rate, 1.0))
         raw_subsidy = price * rate
 
-        cap_value = cls._safe_float(per_item_cap)
+        cap_value = cls._parse_optional_number(per_item_cap)
         final_subsidy = raw_subsidy if cap_value is None else min(raw_subsidy, cap_value)
 
         return {
@@ -166,7 +162,7 @@ class DSLRuntimeHelpers:
         budget = budget or {}
         eligibility = eligibility or {}
 
-        invoice = cls._safe_float(inputs.get("invoice_no_tax"))
+        invoice = cls._parse_optional_number(inputs.get("invoice_no_tax"))
         base = {
             "invoice_no_tax": cls._round(invoice, 2) if invoice is not None else None,
             "vehicle_type": inputs.get("vehicle_type"),
@@ -181,8 +177,12 @@ class DSLRuntimeHelpers:
             base.update({"status": "INVALID_INPUT", "reason": "invoice_no_tax"})
             return base
 
-        purchase_time = cls._parse_iso(inputs.get("purchase_time"))
-        claim_time = cls._parse_iso(inputs.get("claim_time"))
+        try:
+            purchase_time = cls._parse_iso(inputs.get("purchase_time"))
+            claim_time = cls._parse_iso(inputs.get("claim_time"))
+        except (ValueError, TypeError, AttributeError):
+            base.update({"status": "INVALID_INPUT", "reason": "timestamp"})
+            return base
         if purchase_time is None or claim_time is None:
             base.update({"status": "INVALID_INPUT", "reason": "timestamp"})
             return base
@@ -206,33 +206,24 @@ class DSLRuntimeHelpers:
         dedupe_keys = limits.get("dedupe_keys")
         dedupe_fn = cls._get_callable(context, "is_duplicate")
         if dedupe_keys and dedupe_fn:
-            try:
-                if dedupe_fn(dedupe_keys, inputs):
-                    base.update({"status": "DUPLICATE"})
-                    return base
-            except Exception:
-                pass
+            if dedupe_fn(dedupe_keys, inputs):
+                base.update({"status": "DUPLICATE"})
+                return base
 
         per_person_max = limits.get("per_person_max_cars")
         claimed_fn = cls._get_callable(context, "claimed_count_by_buyer")
         buyer_id = inputs.get("buyer_id")
         if per_person_max is not None and buyer_id and claimed_fn:
-            try:
-                claimed = claimed_fn(buyer_id)
-                if claimed >= per_person_max:
-                    base.update({"status": "PERSON_LIMIT_EXCEEDED"})
-                    return base
-            except Exception:
-                pass
+            claimed = claimed_fn(buyer_id)
+            if claimed >= per_person_max:
+                base.update({"status": "PERSON_LIMIT_EXCEEDED"})
+                return base
 
         vehicle_type = inputs.get("vehicle_type")
         if not vehicle_type:
             classify_fn = cls._get_callable(context, "classify_powertrain")
             if classify_fn:
-                try:
-                    vehicle_type = classify_fn(matching.get("powertrain_defs", {}))
-                except Exception:
-                    vehicle_type = None
+                vehicle_type = classify_fn(matching.get("powertrain_defs", {}))
 
         if vehicle_type not in ("NEV", "ICE"):
             base.update({"status": "NOT_IN_SCOPE", "vehicle_type": vehicle_type})
@@ -243,15 +234,15 @@ class DSLRuntimeHelpers:
         tiers = [t for t in (matching.get("tiers") or []) if t.get("powertrain") == vehicle_type]
         tiers.sort(
             key=lambda t: (
-                cls._safe_float(t.get("min_ex_tax")) or 0,
-                cls._safe_float(t.get("max_ex_tax")) or float("inf"),
+                cls._parse_optional_number(t.get("min_ex_tax")) or 0,
+                float("inf") if t.get("max_ex_tax") is None else float(t["max_ex_tax"]),
             )
         )
 
         matched_tier = None
         for tier in tiers:
-            min_v = cls._safe_float(tier.get("min_ex_tax")) or 0
-            max_v = cls._safe_float(tier.get("max_ex_tax"))
+            min_v = cls._parse_optional_number(tier.get("min_ex_tax")) or 0
+            max_v = cls._parse_optional_number(tier.get("max_ex_tax"))
             interval = (tier.get("open_interval") or "[)")
             left_closed = interval[0] == "["
             right_closed = interval[1] == "]"
@@ -269,7 +260,9 @@ class DSLRuntimeHelpers:
             base.update({"status": "NOT_QUALIFIED"})
             return base
 
-        subsidy = cls._safe_float(matched_tier.get("subsidy")) or 0
+        subsidy = cls._parse_optional_number(matched_tier["subsidy"])
+        if subsidy is None:
+            raise ValueError("Missing policy tier subsidy")
         if subsidy < 0:
             subsidy = 0
         base["tier"] = matched_tier
@@ -277,13 +270,10 @@ class DSLRuntimeHelpers:
         remaining_fn = cls._get_callable(context, "budget_remaining")
         allocation = budget.get("allocation")
         if remaining_fn and allocation:
-            try:
-                remaining = remaining_fn(allocation)
-                if remaining is not None and subsidy > remaining:
-                    base.update({"status": "BUDGET_EXHAUSTED"})
-                    return base
-            except Exception:
-                pass
+            remaining = remaining_fn(allocation)
+            if remaining is not None and subsidy > remaining:
+                base.update({"status": "BUDGET_EXHAUSTED"})
+                return base
 
         base.update({
             "status": "QUALIFIED",
@@ -313,7 +303,7 @@ class DSLRuntimeHelpers:
         usage_limits = usage_limits or {}
         coupon_types = coupon_types or []
 
-        amount = cls._safe_float(inputs.get("consumption_amount"))
+        amount = cls._parse_optional_number(inputs.get("consumption_amount"))
         coupon_type = inputs.get("coupon_type")
         base = {
             "amount": amount,
@@ -332,7 +322,11 @@ class DSLRuntimeHelpers:
             base.update({"status": "INVALID_COUPON_TYPE"})
             return base
 
-        claim_time = cls._parse_iso(inputs.get("claim_time"))
+        try:
+            claim_time = cls._parse_iso(inputs.get("claim_time"))
+        except (ValueError, TypeError, AttributeError):
+            base.update({"status": "INVALID_TIME"})
+            return base
         if claim_time is None:
             base.update({"status": "INVALID_TIME"})
             return base
@@ -343,37 +337,33 @@ class DSLRuntimeHelpers:
             base.update({"status": "OUT_OF_POLICY_WINDOW"})
             return base
 
-        valid_days = usage_limits.get("valid_days", 30)
-        expire_at = claim_time + timedelta(days=int(valid_days))
-        if vp_end and expire_at > vp_end:
-            expire_at = vp_end
-        base["expire_at"] = expire_at.isoformat()
+        valid_days = cls._parse_optional_number(usage_limits.get("valid_days"))
+        expire_at = vp_end
+        if valid_days is not None:
+            expire_at = claim_time + timedelta(days=valid_days)
+            if vp_end is not None and expire_at > vp_end:
+                expire_at = vp_end
+        base["expire_at"] = expire_at.isoformat() if expire_at is not None else None
 
         total_quota = distribution.get("total_quota")
         if total_quota is not None:
             avail_fn = cls._get_callable(context, "available_quota_at")
             used_fn = cls._get_callable(context, "used_quota_total")
             if avail_fn and used_fn:
-                try:
-                    available_total = max(0, avail_fn(claim_time) - used_fn())
-                    if available_total <= 0:
-                        base.update({"status": "QUOTA_EXHAUSTED"})
-                        return base
-                except Exception:
-                    pass
+                available_total = max(0, avail_fn(claim_time) - used_fn())
+                if available_total <= 0:
+                    base.update({"status": "QUOTA_EXHAUSTED"})
+                    return base
 
         quota_per_person = distribution.get("quota_per_person")
         if quota_per_person is not None:
             used_by_user = cls._get_callable(context, "used_quota_by_user")
             user_id = inputs.get("user_id")
             if used_by_user and user_id:
-                try:
-                    already = used_by_user(user_id)
-                    if already >= quota_per_person:
-                        base.update({"status": "USER_QUOTA_EXCEEDED"})
-                        return base
-                except Exception:
-                    pass
+                already = used_by_user(user_id)
+                if already >= quota_per_person:
+                    base.update({"status": "USER_QUOTA_EXCEEDED"})
+                    return base
 
         merchant_allowed_fn = cls._get_callable(context, "is_merchant_allowed")
         product_allowed_fn = cls._get_callable(context, "is_product_allowed")
@@ -381,30 +371,21 @@ class DSLRuntimeHelpers:
         product_scope = usage_limits.get("product_scope")
 
         if merchant_allowed_fn:
-            try:
-                if not merchant_allowed_fn(inputs.get("merchant_id"), merchant_scope):
-                    base.update({"status": "OUT_OF_SCOPE"})
-                    return base
-            except Exception:
-                pass
+            if not merchant_allowed_fn(inputs.get("merchant_id"), merchant_scope):
+                base.update({"status": "OUT_OF_SCOPE"})
+                return base
         if product_allowed_fn:
-            try:
-                if not product_allowed_fn(inputs.get("product_id"), product_scope):
-                    base.update({"status": "OUT_OF_SCOPE"})
-                    return base
-            except Exception:
-                pass
+            if not product_allowed_fn(inputs.get("product_id"), product_scope):
+                base.update({"status": "OUT_OF_SCOPE"})
+                return base
 
         time_restrictions = usage_limits.get("time_restrictions")
         if time_restrictions:
             time_allowed_fn = cls._get_callable(context, "is_time_allowed")
             if time_allowed_fn:
-                try:
-                    if not time_allowed_fn(claim_time, time_restrictions):
-                        base.update({"status": "TIME_RESTRICTED"})
-                        return base
-                except Exception:
-                    pass
+                if not time_allowed_fn(claim_time, time_restrictions):
+                    base.update({"status": "TIME_RESTRICTED"})
+                    return base
 
         stacking = usage_limits.get("stacking", {})
         allow_other_coupons = cls._bool(stacking.get("with_other_coupons"), True)
@@ -419,21 +400,27 @@ class DSLRuntimeHelpers:
 
         matched_tier = None
         best_discount = 0.0
-        best_threshold = -1
+        best_threshold = -1.0
 
         for tier in tiers:
             if tier.get("type") != coupon_type:
                 continue
-            threshold = cls._safe_float(tier.get("threshold")) or 0.0
+            threshold = cls._parse_optional_number(tier["threshold"])
+            if threshold is None:
+                raise ValueError("Missing policy coupon threshold")
             if amount < threshold:
                 continue
 
             if coupon_type == "AMOUNT":
-                discount = cls._safe_float(tier.get("discount")) or 0.0
+                discount = cls._parse_optional_number(tier["discount"])
+                if discount is None:
+                    raise ValueError("Missing policy coupon discount")
             else:
-                pct = cls._safe_float(tier.get("discount")) or 0.0
+                pct = cls._parse_optional_number(tier["discount"])
+                if pct is None:
+                    raise ValueError("Missing policy coupon discount")
                 discount = amount * pct
-                cap = cls._safe_float(tier.get("cap"))
+                cap = cls._parse_optional_number(tier.get("cap"))
                 if cap is not None and discount > cap:
                     discount = cap
 
@@ -442,7 +429,9 @@ class DSLRuntimeHelpers:
             ):
                 best_discount = discount
                 best_threshold = threshold
-                matched_tier = tier
+                matched_tier = dict(tier)
+                matched_tier.setdefault("name", None)
+                matched_tier["cap"] = cls._parse_optional_number(tier.get("cap"))
 
         if not matched_tier or best_discount <= 0:
             base.update({"status": "NOT_QUALIFIED"})

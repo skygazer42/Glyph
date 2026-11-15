@@ -4,7 +4,7 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: () => import('@/views/HomePage.vue')
+    redirect: '/agent'
   },
   {
     path: '/agent',
@@ -37,9 +37,7 @@ const routes = [
   }
 ]
 
-const router = createRouter({
+export default createRouter({
   history: createWebHistory(),
   routes
 })
-
-export default router

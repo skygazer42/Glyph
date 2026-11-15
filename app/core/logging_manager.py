@@ -26,26 +26,16 @@ from autogen_core.logging import (
 class UTF8JsonFormatter(logging.Formatter):
     """自定义格式化器:将日志消息中的JSON转换为UTF-8可读格式"""
     def format(self, record):
-        # 先应用标准格式
         formatted = super().format(record)
-        # 尝试解析并重新序列化为UTF-8
+        parts = formatted.split(" - ", 3)
+        if len(parts) != 4:
+            return formatted
         try:
-            # 查找JSON部分(通常在最后一个" - "之后)
-            if " - " in formatted:
-                parts = formatted.split(" - ", 3)
-                if len(parts) >= 4:
-                    json_part = parts[3]
-                    try:
-                        # 解析JSON并用ensure_ascii=False重新序列化
-                        data = json.loads(json_part)
-                        readable_json = json.dumps(data, ensure_ascii=False, indent=None)
-                        parts[3] = readable_json
-                        formatted = " - ".join(parts)
-                    except (json.JSONDecodeError, ValueError):
-                        pass
-        except Exception:
-            pass
-        return formatted
+            payload = json.loads(parts[3])
+        except json.JSONDecodeError:
+            return formatted
+        parts[3] = json.dumps(payload, ensure_ascii=False)
+        return " - ".join(parts)
 
 
 class LoggingManager:
@@ -53,6 +43,7 @@ class LoggingManager:
 
     def __init__(self, name: str = EVENT_LOGGER_NAME) -> None:
         self._logger = logging.getLogger(name)
+        self._owned_handlers: set[logging.Handler] = set()
         # 防止日志传播到root logger,避免重复输出
         self._logger.propagate = False
 
@@ -63,23 +54,7 @@ class LoggingManager:
     @staticmethod
     def _serialize_event(event: Any) -> str:
         """Convert AutoGen logging events to UTF-8 JSON for readable console输出."""
-        payload = getattr(event, "kwargs", None)
-        if payload is None:
-            return str(event)
-        try:
-            return json.dumps(payload, ensure_ascii=False)
-        except Exception:
-            return str(event)
-
-    def _add_handler(self, handler: logging.Handler) -> None:
-        """Attach handler if a similar one doesn't already exist."""
-        for existing in self._logger.handlers:
-            if type(existing) is type(handler):
-                if getattr(existing, "baseFilename", None) == getattr(handler, "baseFilename", None):
-                    return
-                if not getattr(existing, "baseFilename", None):
-                    return
-        self._logger.addHandler(handler)
+        return json.dumps(event.kwargs, ensure_ascii=False)
 
     def configure(
         self,
@@ -96,13 +71,16 @@ class LoggingManager:
         """Configure logger handlers and optional rotating file output."""
         self._logger.setLevel(level)
 
-        # 清除所有现有handlers,避免重复
-        self._logger.handlers.clear()
+        # Detach replaced handlers and release owned file streams.
+        for previous in self._logger.handlers[:]:
+            self._logger.removeHandler(previous)
+            if previous is not handler and previous in self._owned_handlers:
+                previous.close()
+                self._owned_handlers.remove(previous)
 
         # 使用UTF-8JsonFormatter来正确显示中文
-        formatter = formatter or UTF8JsonFormatter(
-            "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-        )
+        if formatter is None:
+            formatter = UTF8JsonFormatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
         if handler is not None:
             handler.setFormatter(formatter)
@@ -111,6 +89,7 @@ class LoggingManager:
             stream_handler = logging.StreamHandler()
             stream_handler.setFormatter(formatter)
             self._logger.addHandler(stream_handler)
+            self._owned_handlers.add(stream_handler)
 
         if log_dir:
             Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -123,6 +102,7 @@ class LoggingManager:
             )
             file_handler.setFormatter(formatter)
             self._logger.addHandler(file_handler)
+            self._owned_handlers.add(file_handler)
 
     # ---- LLM events -----------------------------------------------------
 
@@ -232,7 +212,10 @@ class LoggingManager:
             exception=exception,
             **kwargs,
         )
-        self._logger.error(self._serialize_event(event))
+        self._logger.error(
+            self._serialize_event(event),
+            exc_info=(type(exception), exception, exception.__traceback__),
+        )
 
     def log_agent_construction_error(
         self,
@@ -243,7 +226,10 @@ class LoggingManager:
         event = AgentConstructionExceptionEvent(
             agent_id=agent_id, exception=exception, **kwargs
         )
-        self._logger.error(self._serialize_event(event))
+        self._logger.error(
+            self._serialize_event(event),
+            exc_info=(type(exception), exception, exception.__traceback__),
+        )
 
     # ---- Generic logging ------------------------------------------------
 

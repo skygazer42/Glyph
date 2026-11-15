@@ -10,7 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from app.core.config import settings
+from app.config.app_config import settings
 from app.core.security import get_password_hash, verify_password
 
 
@@ -45,7 +45,7 @@ _users_db: Dict[str, APIUserInDB] = _seed_users()
 
 def authenticate_user(username: str, password: str) -> Optional[APIUserInDB]:
     user = _users_db.get(username)
-    if not user:
+    if user is None:
         return None
     if not verify_password(password, user.hashed_password):
         return None
@@ -54,9 +54,9 @@ def authenticate_user(username: str, password: str) -> Optional[APIUserInDB]:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.security.jwt_access_token_exp_minutes)
-    )
+    if expires_delta is None:
+        expires_delta = timedelta(minutes=settings.security.jwt_access_token_exp_minutes)
+    expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
     return jwt.encode(
         to_encode,
@@ -80,8 +80,8 @@ def _decode_token(token: str) -> APIUserInDB:
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except JWTError as exc:
+        raise credentials_exception from exc
     user = _users_db.get(username)
     if user is None:
         raise credentials_exception

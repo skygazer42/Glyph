@@ -1,19 +1,31 @@
 <template>
-  <div class="text2sql-result" v-if="hasRows || hasError">
+  <div
+    class="text2sql-result"
+    v-if="hasRows || hasError"
+  >
     <div class="text2sql-header">
-      <el-tag size="small" type="success">Text2SQL</el-tag>
+      <el-tag
+        size="small"
+        type="success"
+      >Text2SQL</el-tag>
       <span class="text2sql-summary">
         <span v-if="hasError">SQL 执行失败</span>
         <span v-else>返回 {{ rowCount }} 条记录</span>
       </span>
     </div>
 
-    <div v-if="sql" class="text2sql-sql">
+    <div
+      v-if="sql"
+      class="text2sql-sql"
+    >
       <span class="text2sql-label">SQL：</span>
       <code class="text2sql-code">{{ sql }}</code>
     </div>
 
-    <div v-if="hasError" class="text2sql-error">
+    <div
+      v-if="hasError"
+      class="text2sql-error"
+    >
       <el-alert
         type="error"
         :closable="false"
@@ -37,12 +49,18 @@
             :label="col"
           />
         </el-table>
-        <div v-if="rowCount > maxPreview" class="text2sql-hint">
+        <div
+          v-if="rowCount > maxPreview"
+          class="text2sql-hint"
+        >
           仅预览前 {{ maxPreview }} 条，其余 {{ rowCount - maxPreview }} 条已省略。
         </div>
       </div>
 
-      <div v-if="chartConfig" class="text2sql-chart">
+      <div
+        v-if="chartConfig"
+        class="text2sql-chart"
+      >
         <div class="text2sql-chart-header">
           <span class="text2sql-label">可视化：</span>
           <span class="text2sql-chart-desc">
@@ -61,7 +79,7 @@
             <div class="bar-track">
               <div
                 class="bar-fill"
-                :style="{ width: row[chartConfig.valueKey] / chartConfig.maxValue * 100 + '%' }"
+                :style="{ width: `${row[chartConfig.valueKey] / chartConfig.maxValue * 100}%` }"
               />
               <span class="bar-value">
                 {{ row[chartConfig.valueKey] }}
@@ -93,21 +111,29 @@ const rowCount = computed(() => (hasRows.value ? rows.value.length : 0))
 
 const maxPreview = 20
 const previewRows = computed(() => {
-  if (!hasRows.value) return []
+  if (!hasRows.value) {
+    return []
+  }
   return rows.value.slice(0, maxPreview)
 })
 
 const columns = computed(() => {
-  if (!hasRows.value) return []
+  if (!hasRows.value) {
+    return []
+  }
   const first = rows.value[0] || {}
   return Object.keys(first)
 })
 
 const chartConfig = computed(() => {
-  if (!hasRows.value) return null
-  if (!columns.value.length) return null
+  if (!hasRows.value) {
+    return null
+  }
+  if (columns.value.length === 0) {
+    return null
+  }
 
-  const cols = columns.value
+  const columnNames = columns.value
   const sampleRows = rows.value
 
   const isNumberColumn = (key) =>
@@ -116,24 +142,24 @@ const chartConfig = computed(() => {
   const isStringColumn = (key) =>
     sampleRows.every((row) => typeof row[key] === 'string')
 
-  const numericCols = cols.filter(isNumberColumn)
-  const stringCols = cols.filter(isStringColumn)
+  const numericColumns = columnNames.filter(isNumberColumn)
+  const stringColumns = columnNames.filter(isStringColumn)
 
-  if (!numericCols.length || !stringCols.length) {
+  if (numericColumns.length === 0 || stringColumns.length === 0) {
     return null
   }
 
-  const categoryKey = stringCols[0]
-  const valueKey = numericCols[0]
+  const categoryKey = stringColumns[0]
+  const valueKey = numericColumns[0]
 
   const chartRows = sampleRows.slice(0, maxPreview)
   const maxValue =
     chartRows.reduce((max, row) => {
-      const v = row[valueKey]
-      return typeof v === 'number' && v > max ? v : max
-    }, 0) || 0
+      const numericValue = row[valueKey]
+      return typeof numericValue === 'number' && numericValue > max ? numericValue : max
+    }, 0)
 
-  if (!maxValue) {
+  if (maxValue === 0) {
     return null
   }
 

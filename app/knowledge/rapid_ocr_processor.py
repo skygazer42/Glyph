@@ -13,6 +13,7 @@ RapidOCR 引擎 - 图片 OCR 文字识别
 - 不能保留文档结构
 """
 
+import logging
 import os
 import tempfile
 import time
@@ -23,12 +24,7 @@ import fitz  # PyMuPDF
 import numpy as np
 from PIL import Image
 
-try:
-    from rapidocr_onnxruntime import RapidOCR
-    RAPIDOCR_AVAILABLE = True
-except ImportError:
-    RAPIDOCR_AVAILABLE = False
-    RapidOCR = None
+from rapidocr_onnxruntime import RapidOCR
 
 
 class OCRException(Exception):
@@ -56,12 +52,7 @@ class RapidOCRProcessor:
             det_box_thresh: 检测框阈值 (0-1)
             model_dir: 模型目录路径，默认从环境变量读取
         """
-        if not RAPIDOCR_AVAILABLE:
-            raise ImportError(
-                "RapidOCR 未安装。请运行: pip install rapidocr-onnxruntime"
-            )
-
-        self.ocr = None
+        self.ocr: Any = None
         self.det_box_thresh = det_box_thresh
 
         # 模型目录配置
@@ -145,6 +136,7 @@ class RapidOCRProcessor:
                 }
 
             except Exception as e:
+                logging.getLogger(__name__).exception("OCR health model check failed")
                 return {
                     "status": "error",
                     "message": f"模型加载失败: {str(e)}",
@@ -152,6 +144,7 @@ class RapidOCRProcessor:
                 }
 
         except Exception as e:
+            logging.getLogger(__name__).exception("OCR health check failed")
             return {
                 "status": "error",
                 "message": f"健康检查失败: {str(e)}",
@@ -163,7 +156,7 @@ class RapidOCRProcessor:
         if self.ocr is not None:
             return
 
-        print(f"[RapidOCR] 加载模型...")
+        print("[RapidOCR] 加载模型...")
 
         # 先检查健康状态
         health = self.check_health()
@@ -187,7 +180,7 @@ class RapidOCRProcessor:
                 f"RapidOCR 模型加载失败: {str(e)}",
                 self.get_service_name(),
                 "load_failed"
-            )
+            ) from e
 
     def process_image(
         self,
@@ -208,6 +201,8 @@ class RapidOCRProcessor:
             str: 提取的文本内容
         """
         self._load_model()
+        if self.ocr is None:
+            raise RuntimeError("OCR model was not initialized")
 
         try:
             # 处理不同类型的输入
@@ -244,35 +239,33 @@ class RapidOCRProcessor:
                     try:
                         os.remove(image_path)
                     except Exception as e:
-                        print(f"[警告] 临时文件清理失败: {image_path} - {e}")
+                        logging.getLogger(__name__).warning("Cannot remove temporary image %s: %s", image_path, e, exc_info=True)
 
         except Exception as e:
             error_msg = f"图像 OCR 处理失败: {str(e)}"
-            print(f"[错误] {error_msg}")
-            raise OCRException(error_msg, self.get_service_name(), "processing_failed")
+            logging.getLogger(__name__).exception("%s", error_msg)
+            raise OCRException(error_msg, self.get_service_name(), "processing_failed") from e
 
     def _create_temp_image_file(self, image) -> str:
         """将图像数据保存为临时文件"""
+        temp_path = None
         try:
-            # 使用系统临时目录
-            with tempfile.NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as tmp_file:
-                temp_path = tmp_file.name
-
+            if not isinstance(image, (Image.Image, np.ndarray)):
+                raise ValueError("不支持的图像类型，必须是 PIL.Image 或 numpy.ndarray")
+            with tempfile.NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as stream:
+                temp_path = stream.name
                 if isinstance(image, Image.Image):
-                    image.save(temp_path)
-                elif isinstance(image, np.ndarray):
-                    Image.fromarray(image).save(temp_path)
+                    image.save(stream, format="PNG")
                 else:
-                    raise ValueError("不支持的图像类型，必须是 PIL.Image 或 numpy.ndarray")
-
-                return temp_path
-
-        except Exception as e:
+                    with Image.fromarray(image) as converted:
+                        converted.save(stream, format="PNG")
+            return temp_path
+        except Exception as exc:
+            if temp_path is not None:
+                Path(temp_path).unlink(missing_ok=True)
             raise OCRException(
-                f"临时图像文件创建失败: {str(e)}",
-                self.get_service_name(),
-                "temp_file_error"
-            )
+                f"临时图像文件创建失败: {exc}", self.get_service_name(), "temp_file_error",
+            ) from exc
 
     def process_pdf(
         self,
@@ -308,37 +301,36 @@ class RapidOCRProcessor:
 
         try:
             all_text = []
-            pdf_doc = fitz.open(pdf_path)
-            total_pages = pdf_doc.page_count
+            with fitz.open(pdf_path) as pdf_doc:
+                total_pages = pdf_doc.page_count
 
-            print(f"[RapidOCR] 开始处理 PDF: {os.path.basename(pdf_path)} ({total_pages} 页)")
+                print(f"[RapidOCR] 开始处理 PDF: {os.path.basename(pdf_path)} ({total_pages} 页)")
 
-            # 如果需要保存图片，创建目录
-            if save_images and images_dir:
-                os.makedirs(images_dir, exist_ok=True)
-
-            # 流式处理每一页，避免一次性加载所有图片到内存
-            for page_num in range(total_pages):
-                page = pdf_doc[page_num]
-
-                # 转换为图像
-                mat = fitz.Matrix(zoom_x, zoom_y)
-                pix = page.get_pixmap(matrix=mat, alpha=False)
-                img_pil = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-
-                # 保存图片（如果需要）
+                # 如果需要保存图片，创建目录
                 if save_images and images_dir:
-                    img_path = os.path.join(images_dir, f"page_{page_num + 1}.png")
-                    img_pil.save(img_path)
+                    os.makedirs(images_dir, exist_ok=True)
 
-                # 立即处理，不保存到列表
-                text = self.process_image(img_pil)
-                all_text.append(text)
+                # 流式处理每一页，避免一次性加载所有图片到内存
+                for page_num in range(total_pages):
+                    page = pdf_doc[page_num]
 
-                if (page_num + 1) % 10 == 0:
-                    print(f"[RapidOCR] 已处理 {page_num + 1}/{total_pages} 页")
+                    # 转换为图像
+                    mat = fitz.Matrix(zoom_x, zoom_y)
+                    pix = page.get_pixmap(matrix=mat, alpha=False)
+                    with Image.frombytes("RGB", (pix.width, pix.height), pix.samples) as img_pil:
 
-            pdf_doc.close()
+                        # 保存图片（如果需要）
+                        if save_images and images_dir:
+                            img_path = os.path.join(images_dir, f"page_{page_num + 1}.png")
+                            img_pil.save(img_path)
+
+                        # 立即处理，不保存到列表
+                        text = self.process_image(img_pil)
+                        all_text.append(text)
+
+                    if (page_num + 1) % 10 == 0:
+                        print(f"[RapidOCR] 已处理 {page_num + 1}/{total_pages} 页")
+
 
             result_text = "\n\n".join(all_text)
             print(
@@ -352,8 +344,8 @@ class RapidOCRProcessor:
             raise
         except Exception as e:
             error_msg = f"PDF OCR 处理失败: {str(e)}"
-            print(f"[错误] {error_msg}")
-            raise OCRException(error_msg, self.get_service_name(), "pdf_processing_failed")
+            logging.getLogger(__name__).exception("%s", error_msg)
+            raise OCRException(error_msg, self.get_service_name(), "pdf_processing_failed") from e
 
     def process_file(
         self,

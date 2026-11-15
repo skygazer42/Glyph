@@ -1,738 +1,296 @@
+"""Database adapters with one explicit owner for connections and cursors."""
+
+from __future__ import annotations
+
 import json
 import os
-from abc import ABC
-from typing import Union
+from collections.abc import Callable
+from contextlib import closing
+from functools import wraps
+from threading import RLock
+from typing import Any, Concatenate, ParamSpec, TypeVar
+from urllib.parse import urlparse
 
 import pandas as pd
+import pymysql.cursors
 import requests
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
-class DBAccess(ABC):
-    def __init__(self, dialect="MySQL"):
+def _serialized(method: Callable[Concatenate[DBAccess, P], R]) -> Callable[Concatenate[DBAccess, P], R]:
+    """Keep connection replacement, queries and shutdown in one serial scope."""
+    @wraps(method)
+    def call(self: DBAccess, *args: P.args, **kwargs: P.kwargs) -> R:
+        with self._connection_lock:
+            return method(self, *args, **kwargs)
+    return call
+
+
+class DBAccess:
+    def __init__(self, dialect: str = "MySQL"):
+        self._connection_lock = RLock()
         self.run_sql_is_set = False
         self.dialect = dialect
-        self.run_sql = None
+        self._run_sql: Callable[[str], pd.DataFrame] | None = None
+        self._close_connection: Callable[[], None] | None = None
+
+    @_serialized
+    def close(self) -> None:
+        """Release the owned connection once; borrowed adapters are closed by their owner."""
+        close_connection = self._close_connection
+        self._close_connection = None
+        self._run_sql = None
+        self.run_sql_is_set = False
+        if close_connection is not None:
+            close_connection()
+
+    @staticmethod
+    def _query_frame(connection: Any, sql: str) -> pd.DataFrame:
+        with closing(connection.cursor()) as cursor:
+            cursor.execute(sql)
+            return pd.DataFrame(cursor.fetchall(), columns=[column[0] for column in cursor.description])
+
+    @_serialized
     def connect_to_postgres(
-        self,
-        host: str = None,
-        dbname: str = None,
-        user: str = None,
-        password: str = None,
-        port: int = None,
-        **kwargs
-    ):
+        self, host: str | None = None, dbname: str | None = None,
+        user: str | None = None, password: str | None = None,
+        port: int | None = None, **kwargs: Any,
+    ) -> None:
+        import psycopg2
 
-        """
-        Connect to postgres using the psycopg2 connector. 
-        **Example:**
-        ```python
-        danwen.connect_to_postgres(
-            host="myhost",
-            dbname="mydatabase",
-            user="myuser",
-            password="mypassword",
-            port=5432
+        host = os.getenv("HOST") if host is None else host
+        dbname = os.getenv("DATABASE") if dbname is None else dbname
+        user = os.getenv("PG_USER") if user is None else user
+        password = os.getenv("PASSWORD") if password is None else password
+        configured_port = os.getenv("PORT") if port is None else port
+        if not host or not dbname or not user or password is None or configured_port is None:
+            raise ValueError("Please set your postgres host, database, user, password and port")
+        self.close()
+        connection = psycopg2.connect(
+            host=host, dbname=dbname, user=user, password=password,
+            port=int(configured_port), **kwargs,
         )
-        ```
-        Args:
-            host (str): The postgres host.
-            dbname (str): The postgres database name.
-            user (str): The postgres user.
-            password (str): The postgres password.
-            port (int): The postgres Port.
-        """
 
-        try:
-            import psycopg2
-            import psycopg2.extras
-        except ImportError:
-            raise Exception(
-                "You need to install required dependencies to execute this method,"
-                " run command: \npip install vanna[postgres]"
-            )
-
-        if not host:
-            host = os.getenv("HOST")
-
-        if not host:
-            raise Exception("Please set your postgres host")
-
-        if not dbname:
-            dbname = os.getenv("DATABASE")
-
-        if not dbname:
-            raise Exception("Please set your postgres database")
-
-        if not user:
-            user = os.getenv("PG_USER")
-
-        if not user:
-            raise Exception("Please set your postgres user")
-
-        if not password:
-            password = os.getenv("PASSWORD")
-
-        if not password:
-            raise Exception("Please set your postgres password")
-
-        if not port:
-            port = os.getenv("PORT")
-
-        if not port:
-            raise Exception("Please set your postgres port")
-
-        conn = None
-
-        try:
-            conn = psycopg2.connect(
-                host=host,
-                dbname=dbname,
-                user=user,
-                password=password,
-                port=port,
-                **kwargs
-            )
-        except psycopg2.Error as e:
-            raise Exception(e)
-
-        def connect_to_db():
-            return psycopg2.connect(host=host, dbname=dbname,
-                        user=user, password=password, port=port, **kwargs)
-
-
-        def run_sql_postgres(sql: str) -> Union[pd.DataFrame, None]:
-            conn = None
+        def run_sql(sql: str) -> pd.DataFrame:
             try:
-                conn = connect_to_db()  # Initial connection attempt
-                cs = conn.cursor()
-                cs.execute(sql)
-                results = cs.fetchall()
+                return self._query_frame(connection, sql)
+            except Exception:
+                connection.rollback()
+                raise
 
-                # Create a pandas dataframe from the results
-                df = pd.DataFrame(results, columns=[desc[0] for desc in cs.description])
-                return df
-
-            except psycopg2.InterfaceError as e:
-                # Attempt to reconnect and retry the operation
-                if conn:
-                    conn.close()  # Ensure any existing connection is closed
-                conn = connect_to_db()
-                cs = conn.cursor()
-                cs.execute(sql)
-                results = cs.fetchall()
-
-                # Create a pandas dataframe from the results
-                df = pd.DataFrame(results, columns=[desc[0] for desc in cs.description])
-                return df
-
-            except psycopg2.Error as e:
-                if conn:
-                    conn.rollback()
-                    raise Exception(e)
-
-            except Exception as e:
-                        conn.rollback()
-                        raise e
-
+        self._close_connection = connection.close
+        self._run_sql = run_sql
         self.dialect = "PostgreSQL"
         self.run_sql_is_set = True
-        self.run_sql = run_sql_postgres
 
-
+    @_serialized
     def connect_to_mysql(
-        self,
-        host: str = None,
-        dbname: str = None,
-        user: str = None,
-        password: str = None,
-        port: int = None,
-        **kwargs
-    ):
-
-        try:
-            import pymysql.cursors
-        except ImportError:
-            raise Exception(
-                "You need to install required dependencies to execute this method,"
-                " run command: \npip install PyMySQL"
-            )
-
-        if not host:
-            host = os.getenv("HOST")
-
-        if not host:
-            raise Exception("Please set your MySQL host")
-
-        if not dbname:
-            dbname = os.getenv("DATABASE")
-
-        if not dbname:
-            raise Exception("Please set your MySQL database")
-
-        if not user:
-            user = os.getenv("USER")
-
-        if not user:
-            raise Exception("Please set your MySQL user")
-
-        if not password:
-            password = os.getenv("PASSWORD")
-
-        if not password:
-            raise Exception("Please set your MySQL password")
-
-        if not port:
-            port = os.getenv("PORT")
-
-        if not port:
-            raise Exception("Please set your MySQL port")
-
-        conn = None
-
-        try:
-            conn = pymysql.connect(
-                host=host,
-                user=user,
-                password=password,
-                database=dbname,
-                port=port,
-                cursorclass=pymysql.cursors.DictCursor,
-                **kwargs
-            )
-        except pymysql.Error as e:
-            raise Exception(e)
-
-        def run_sql_mysql(sql: str) -> Union[pd.DataFrame, None]:
-            if conn:
-                try:
-                    conn.ping(reconnect=True)
-                    cs = conn.cursor()
-                    cs.execute(sql)
-                    results = cs.fetchall()
-
-                    # Create a pandas dataframe from the results
-                    df = pd.DataFrame(
-                        results, columns=[desc[0] for desc in cs.description]
-                    )
-                    return df
-
-                except pymysql.Error as e:
-                    conn.rollback()
-                    raise Exception(e)
-
-                except Exception as e:
-                    conn.rollback()
-                    raise e
-
-        self.run_sql_is_set = True
-        self.run_sql = run_sql_mysql
-
-    def connect_to_oracle(
-        self,
-        user: str = None,
-        password: str = None,
-        dsn: str = None,
-        **kwargs
-    ):
-
-        """
-        Connect to an Oracle db using oracledb package. 
-        **Example:**
-        ```python
-        danwen.connect_to_oracle(
-        user="username",
-        password="password",
-        dsn="host:port/sid",
+        self, host: str | None = None, dbname: str | None = None,
+        user: str | None = None, password: str | None = None,
+        port: int | None = None, **kwargs: Any,
+    ) -> None:
+        host = os.getenv("HOST") if host is None else host
+        dbname = os.getenv("DATABASE") if dbname is None else dbname
+        user = os.getenv("USER") if user is None else user
+        password = os.getenv("PASSWORD") if password is None else password
+        configured_port = os.getenv("PORT") if port is None else port
+        if not host or not dbname or not user or password is None or configured_port is None:
+            raise ValueError("Please set your MySQL host, database, user, password and port")
+        self.close()
+        connection = pymysql.connect(
+            host=host, database=dbname, user=user, password=password,
+            port=int(configured_port), cursorclass=pymysql.cursors.DictCursor, **kwargs,
         )
-        ```
-        Args:
-            USER (str): Oracle db user name.
-            PASSWORD (str): Oracle db user password.
-            DSN (str): Oracle db host ip - host:port/sid.
-        """
 
-        try:
-            import oracledb
-        except ImportError:
-
-            raise Exception(
-                "You need to install required dependencies to execute this method,"
-                " run command: \npip install oracledb"
-            )
-
-        if not dsn:
-            dsn = os.getenv("DSN")
-
-        if not dsn:
-            raise Exception("Please set your Oracle dsn which should include host:port/sid")
-
-        if not user:
-            user = os.getenv("USER")
-
-        if not user:
-            raise Exception("Please set your Oracle db user")
-
-        if not password:
-            password = os.getenv("PASSWORD")
-
-        if not password:
-            raise Exception("Please set your Oracle db password")
-
-        conn = None
-
-        try:
-            conn = oracledb.connect(
-                user=user,
-                password=password,
-                dsn=dsn,
-                **kwargs
-            )
-        except oracledb.Error as e:
-            raise Exception(e)
-
-        def run_sql_oracle(sql: str) -> Union[pd.DataFrame, None]:
-            if conn:
-                try:
-                    sql = sql.rstrip()
-                    if sql.endswith(';'): #fix for a known problem with Oracle db where an extra ; will cause an error.
-                        sql = sql[:-1]
-
-                    cs = conn.cursor()
-                    cs.execute(sql)
-                    results = cs.fetchall()
-
-                    # Create a pandas dataframe from the results
-                    df = pd.DataFrame(
-                        results, columns=[desc[0] for desc in cs.description]
-                    )
-                    return df
-
-                except oracledb.Error as e:
-                    conn.rollback()
-                    raise Exception(e)
-
-                except Exception as e:
-                    conn.rollback()
-                    raise e
-
-        self.run_sql_is_set = True
-        self.run_sql = run_sql_oracle
-
-    def connect_to_bigquery(
-        self,
-        cred_file_path: str = None,
-        project_id: str = None,
-        **kwargs
-    ):
-        """
-        Connect to gcs using the bigquery connector. 
-        **Example:**
-        ```python
-        danwen.connect_to_bigquery(
-            project_id="myprojectid",
-            cred_file_path="path/to/credentials.json",
-        )
-        ```
-        Args:
-            project_id (str): The gcs project id.
-            cred_file_path (str): The gcs credential file path
-        """
-
-        try:
-            from google.api_core.exceptions import GoogleAPIError
-            from google.cloud import bigquery
-            from google.oauth2 import service_account
-        except ImportError:
-            raise Exception(
-                "You need to install required dependencies to execute this method, run command:"
-                " \npip install vanna[bigquery]"
-            )
-
-        if not project_id:
-            project_id = os.getenv("PROJECT_ID")
-
-        if not project_id:
-            raise Exception("Please set your Google Cloud Project ID.")
-
-        import sys
-
-        # if "google.colab" in sys.modules:
-        #     try:
-        #         from google.colab import auth
-        #
-        #         auth.authenticate_user()
-        #     except Exception as e:
-        #         raise Exception(e)
-        # else:
-        #     print("Not using Google Colab.")
-
-        conn = None
-
-        if not cred_file_path:
+        def run_sql(sql: str) -> pd.DataFrame:
             try:
-                conn = bigquery.Client(project=project_id)
-            except:
-                print("Could not found any google cloud implicit credentials")
-        else:
-            if not os.path.exists(cred_file_path):
-                raise Exception(
-                    f'No such configuration file: {cred_file_path}'
-                )
-            # Validate file path and pemissions
-            # validate_config_path(cred_file_path)
+                connection.ping(reconnect=True)
+                return self._query_frame(connection, sql)
+            except Exception:
+                connection.rollback()
+                raise
 
-        if not conn:
-            with open(cred_file_path, "r") as f:
+        self._close_connection = connection.close
+        self._run_sql = run_sql
+        self.dialect = "MySQL"
+        self.run_sql_is_set = True
+
+    @_serialized
+    def connect_to_oracle(
+        self, user: str | None = None, password: str | None = None,
+        dsn: str | None = None, **kwargs: Any,
+    ) -> None:
+        import oracledb
+
+        user = os.getenv("USER") if user is None else user
+        password = os.getenv("PASSWORD") if password is None else password
+        dsn = os.getenv("DSN") if dsn is None else dsn
+        if not dsn or not user or password is None:
+            raise ValueError("Please set your Oracle dsn, user and password")
+        self.close()
+        connection = oracledb.connect(user=user, password=password, dsn=dsn, **kwargs)
+
+        def run_sql(sql: str) -> pd.DataFrame:
+            try:
+                # Oracle rejects a trailing semicolon in driver query text.
+                return self._query_frame(connection, sql.rstrip().removesuffix(";"))
+            except Exception:
+                connection.rollback()
+                raise
+
+        self._close_connection = connection.close
+        self._run_sql = run_sql
+        self.dialect = "Oracle"
+        self.run_sql_is_set = True
+
+    @_serialized
+    def connect_to_bigquery(
+        self, cred_file_path: str | None = None, project_id: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        from google.cloud import bigquery
+        from google.oauth2 import service_account
+
+        project_id = os.getenv("PROJECT_ID") if project_id is None else project_id
+        if not project_id:
+            raise ValueError("Please set your Google Cloud Project ID")
+        self.close()
+        if cred_file_path is None:
+            connection = bigquery.Client(project=project_id, **kwargs)
+        else:
+            with open(cred_file_path, encoding="utf-8") as credential_file:
                 credentials = service_account.Credentials.from_service_account_info(
-                    json.loads(f.read()),
+                    json.load(credential_file),
                     scopes=["https://www.googleapis.com/auth/cloud-platform"],
                 )
+            connection = bigquery.Client(project=project_id, credentials=credentials, **kwargs)
 
-            try:
-                conn = bigquery.Client(
-                    project=project_id,
-                    credentials=credentials,
-                    **kwargs
-                )
-            except:
-                raise Exception(
-                    "Could not connect to bigquery please correct credentials"
-                )
+        def run_sql(sql: str) -> pd.DataFrame:
+            return connection.query(sql).result().to_dataframe()
 
-        def run_sql_bigquery(sql: str) -> Union[pd.DataFrame, None]:
-            if conn:
-                job = conn.query(sql)
-                df = job.result().to_dataframe()
-                return df
-            return None
-
+        self._close_connection = connection.close
+        self._run_sql = run_sql
         self.dialect = "BigQuery SQL"
         self.run_sql_is_set = True
-        self.run_sql = run_sql_bigquery
 
-    def connect_to_duckdb(self, url: str, init_sql: str = None, **kwargs):
-        """
-        Connect to a DuckDB database. 
+    @_serialized
+    def connect_to_duckdb(self, url: str, init_sql: str | None = None, **kwargs: Any) -> None:
+        import duckdb
 
-        Args:
-            url (str): The URL of the database to connect to. Use :memory: to create an in-memory database. Use md: or motherduck: to use the MotherDuck database.
-            init_sql (str, optional): SQL to run when connecting to the database. Defaults to None.
-
-        Returns:
-            None
-        """
-        try:
-            import duckdb
-        except ImportError:
-            raise Exception(
-                "You need to install required dependencies to execute this method,"
-                " run command: \npip install vanna[duckdb]"
-            )
-        # URL of the database to download
-        if url == ":memory:" or url == "":
+        if url in (":memory:", ""):
             path = ":memory:"
+        elif os.path.exists(url) or url.startswith(("md:", "motherduck:")):
+            path = url
         else:
-            # Path to save the downloaded database
-            print(os.path.exists(url))
-            if os.path.exists(url):
-                path = url
-            elif url.startswith("md") or url.startswith("motherduck"):
-                path = url
-            else:
-                path = os.path.basename(urlparse(url).path)
-                # Download the database if it doesn't exist
-                if not os.path.exists(path):
-                    response = requests.get(url)
-                    response.raise_for_status()  # Check that the request was successful
-                    with open(path, "wb") as f:
-                        f.write(response.content)
+            path = os.path.basename(urlparse(url).path)
+            if not path:
+                raise ValueError("Database URL must include a file name")
+            if not os.path.exists(path):
+                with requests.get(url, timeout=(10, 60)) as response:
+                    response.raise_for_status()
+                    with open(path, "wb") as database_file:
+                        database_file.write(response.content)
+        self.close()
+        connection = duckdb.connect(path, **kwargs)
+        try:
+            if init_sql is not None:
+                connection.query(init_sql)
+        except BaseException:
+            connection.close()
+            raise
 
-        # Connect to the database
-        conn = duckdb.connect(path, **kwargs)
-        if init_sql:
-            conn.query(init_sql)
+        def run_sql(sql: str) -> pd.DataFrame:
+            # The instance lock covers query execution and full result consumption,
+            # preserving init_sql's temporary tables and connection settings.
+            return connection.query(sql).to_df()
 
-        def run_sql_duckdb(sql: str):
-            return conn.query(sql).to_df()
-
+        self._close_connection = connection.close
+        self._run_sql = run_sql
         self.dialect = "DuckDB SQL"
-        self.run_sql = run_sql_duckdb
         self.run_sql_is_set = True
 
-    def connect_to_mssql(self, odbc_conn_str: str, **kwargs):
-        """
-        Connect to a Microsoft SQL Server database. 
-
-        Args:
-            odbc_conn_str (str): The ODBC connection string.
-
-        Returns:
-            None
-        """
-        try:
-            import pyodbc
-        except ImportError:
-            raise Exception(
-                "You need to install required dependencies to execute this method,"
-                " run command: pip install pyodbc"
-            )
-
-        try:
-            import sqlalchemy as sa
-            from sqlalchemy.engine import URL
-        except ImportError:
-            raise Exception(
-                "You need to install required dependencies to execute this method,"
-                " run command: pip install sqlalchemy"
-            )
-
-        connection_url = URL.create(
-            "mssql+pyodbc", query={"odbc_connect": odbc_conn_str}
-        )
-
-        from sqlalchemy import create_engine
-
+    @_serialized
+    def connect_to_mssql(self, odbc_conn_str: str, **kwargs: Any) -> None:
+        connection_url = URL.create("mssql+pyodbc", query={"odbc_connect": odbc_conn_str})
+        self.close()
         engine = create_engine(connection_url, **kwargs)
 
-        def run_sql_mssql(sql: str):
-            # Execute the SQL statement and return the result as a pandas DataFrame
-            with engine.begin() as conn:
-                df = pd.read_sql_query(sa.text(sql), conn)
-                conn.close()
-                return df
+        def run_sql(sql: str) -> pd.DataFrame:
+            with engine.begin() as connection:
+                return pd.read_sql_query(text(sql), connection)
 
+        self._close_connection = engine.dispose
+        self._run_sql = run_sql
         self.dialect = "T-SQL / Microsoft SQL Server"
-        self.run_sql = run_sql_mssql
         self.run_sql_is_set = True
+
+    @_serialized
     def connect_to_presto(
-        self,
-        host: str,
-        catalog: str = 'hive',
-        schema: str = 'default',
-        user: str = None,
-        password: str = None,
-        port: int = None,
-        combined_pem_path: str = None,
-        protocol: str = 'https',
-        requests_kwargs: dict = None,
-        **kwargs
-    ):
-      """
-        Connect to a Presto database using the specified parameters.
-
-        Args:
-            host (str): The host address of the Presto database.
-            catalog (str): The catalog to use in the Presto environment.
-            schema (str): The schema to use in the Presto environment.
-            user (str): The username for authentication.
-            password (str): The password for authentication.
-            port (int): The port number for the Presto connection.
-            combined_pem_path (str): The path to the combined pem file for SSL connection.
-            protocol (str): The protocol to use for the connection (default is 'https').
-            requests_kwargs (dict): Additional keyword arguments for requests.
-
-        Raises:
-            Exception: If required dependencies are not installed.
-            Exception: If essential configuration settings are missing.
-
-        Returns:
-            None
-      """
-      try:
+        self, host: str, catalog: str = "hive", schema: str = "default",
+        user: str | None = None, password: str | None = None,
+        port: int | None = None, combined_pem_path: str | None = None,
+        protocol: str = "https", requests_kwargs: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
         from pyhive import presto
-      except ImportError:
-        raise Exception(
-          "You need to install required dependencies to execute this method,"
-          " run command: \npip install pyhive"
-        )
 
-      if not host:
-        host = os.getenv("PRESTO_HOST")
-
-      if not host:
-        raise Exception("Please set your presto host")
-
-      if not catalog:
-        catalog = os.getenv("PRESTO_CATALOG")
-
-      if not catalog:
-        raise Exception("Please set your presto catalog")
-
-      if not user:
-        user = os.getenv("PRESTO_USER")
-
-      if not user:
-        raise Exception("Please set your presto user")
-
-      if not password:
-        password = os.getenv("PRESTO_PASSWORD")
-
-      if not port:
-        port = os.getenv("PRESTO_PORT")
-
-      if not port:
-        raise Exception("Please set your presto port")
-
-      conn = None
-
-      try:
+        host = os.getenv("PRESTO_HOST") if host is None else host
+        catalog = os.getenv("PRESTO_CATALOG") if catalog is None else catalog
+        user = os.getenv("PRESTO_USER") if user is None else user
+        password = os.getenv("PRESTO_PASSWORD") if password is None else password
+        configured_port = os.getenv("PRESTO_PORT") if port is None else port
+        if not host or not catalog or not user or configured_port is None:
+            raise ValueError("Please set your presto host, catalog, user and port")
         if requests_kwargs is None and combined_pem_path is not None:
-          # use the combined pem file to verify the SSL connection
-          requests_kwargs = {
-            'verify': combined_pem_path,  # 使用转换后得到的 PEM 文件进行 SSL 验证
-          }
-        conn = presto.Connection(host=host,
-                                 username=user,
-                                 password=password,
-                                 catalog=catalog,
-                                 schema=schema,
-                                 port=port,
-                                 protocol=protocol,
-                                 requests_kwargs=requests_kwargs,
-                                 **kwargs)
-      except presto.Error as e:
-        raise Exception(e)
+            requests_kwargs = {"verify": combined_pem_path}
+        self.close()
+        connection = presto.Connection(
+            host=host, username=user, password=password, catalog=catalog, schema=schema,
+            port=int(configured_port), protocol=protocol, requests_kwargs=requests_kwargs, **kwargs,
+        )
 
-      def run_sql_presto(sql: str) -> Union[pd.DataFrame, None]:
-        if conn:
-          try:
-            sql = sql.rstrip()
-            # fix for a known problem with presto db where an extra ; will cause an error.
-            if sql.endswith(';'):
-                sql = sql[:-1]
-            cs = conn.cursor()
-            cs.execute(sql)
-            results = cs.fetchall()
+        def run_sql(sql: str) -> pd.DataFrame:
+            return self._query_frame(connection, sql.rstrip().removesuffix(";"))
 
-            # Create a pandas dataframe from the results
-            df = pd.DataFrame(
-              results, columns=[desc[0] for desc in cs.description]
-            )
-            return df
+        self._close_connection = connection.close
+        self._run_sql = run_sql
+        self.dialect = "Presto"
+        self.run_sql_is_set = True
 
-          except presto.Error as e:
-            print(e)
-            raise Exception(e)
-
-          except Exception as e:
-            print(e)
-            raise e
-
-      self.run_sql_is_set = True
-      self.run_sql = run_sql_presto
-
+    @_serialized
     def connect_to_hive(
-        self,
-        host: str = None,
-        dbname: str = 'default',
-        user: str = None,
-        password: str = None,
-        port: int = None,
-        auth: str = 'CUSTOM',
-        **kwargs
-    ):
-      """
-        Connect to a Hive database. 
-        Connect to a Hive database. 
-
-        Args:
-            host (str): The host of the Hive database.
-            dbname (str): The name of the database to connect to.
-            user (str): The username to use for authentication.
-            password (str): The password to use for authentication.
-            port (int): The port to use for the connection.
-            auth (str): The authentication method to use.
-
-        Returns:
-            None
-      """
-
-      try:
+        self, host: str | None = None, dbname: str = "default", user: str | None = None,
+        password: str | None = None, port: int | None = None, auth: str = "CUSTOM", **kwargs: Any,
+    ) -> None:
         from pyhive import hive
-      except ImportError:
-        raise Exception(
-          "You need to install required dependencies to execute this method,"
-          " run command: \npip install pyhive"
+
+        host = os.getenv("HIVE_HOST") if host is None else host
+        dbname = os.getenv("HIVE_DATABASE") if dbname is None else dbname
+        user = os.getenv("HIVE_USER") if user is None else user
+        password = os.getenv("HIVE_PASSWORD") if password is None else password
+        configured_port = os.getenv("HIVE_PORT") if port is None else port
+        if not host or not dbname or not user or configured_port is None:
+            raise ValueError("Please set your hive host, database, user and port")
+        self.close()
+        connection = hive.Connection(
+            host=host, username=user, password=password, database=dbname,
+            port=int(configured_port), auth=auth, **kwargs,
         )
 
-      if not host:
-        host = os.getenv("HIVE_HOST")
+        def run_sql(sql: str) -> pd.DataFrame:
+            return self._query_frame(connection, sql)
 
-      if not host:
-        raise Exception("Please set your hive host")
+        self._close_connection = connection.close
+        self._run_sql = run_sql
+        self.dialect = "Hive"
+        self.run_sql_is_set = True
 
-      if not dbname:
-        dbname = os.getenv("HIVE_DATABASE")
-
-      if not dbname:
-        raise Exception("Please set your hive database")
-
-      if not user:
-        user = os.getenv("HIVE_USER")
-
-      if not user:
-        raise Exception("Please set your hive user")
-
-      if not password:
-        password = os.getenv("HIVE_PASSWORD")
-
-      if not port:
-        port = os.getenv("HIVE_PORT")
-
-      if not port:
-        raise Exception("Please set your hive port")
-
-      conn = None
-
-      try:
-        conn = hive.Connection(host=host,
-                               username=user,
-                               password=password,
-                               database=dbname,
-                               port=port,
-                               auth=auth)
-      except hive.Error as e:
-        raise Exception(e)
-
-      def run_sql_hive(sql: str) -> Union[pd.DataFrame, None]:
-        if conn:
-          try:
-            cs = conn.cursor()
-            cs.execute(sql)
-            results = cs.fetchall()
-
-            # Create a pandas dataframe from the results
-            df = pd.DataFrame(
-              results, columns=[desc[0] for desc in cs.description]
-            )
-            return df
-
-          except hive.Error as e:
-            print(e)
-            raise Exception(e)
-
-          except Exception as e:
-            print(e)
-            raise e
-
-      self.run_sql_is_set = True
-      self.run_sql = run_sql_hive
-
-    def run_sql(self, sql: str, **kwargs) -> pd.DataFrame:
-        """
-        Example:
-        ```python
-        danwen.run_sql("SELECT * FROM my_table")
-        ```
-
-        Run a SQL query on the connected database.
-
-        Args:
-            sql (str): The SQL query to run.
-
-        Returns:
-            pd.DataFrame: The results of the SQL query.
-        """
-        raise Exception(
-            "You need to connect to a database first by running danwen.connect_to_snowflake(), danwen.connect_to_postgres(), similar function, or manually set danwen.run_sql"
-        )
+    @_serialized
+    def run_sql(self, sql: str) -> pd.DataFrame:
+        if self._run_sql is None:
+            raise RuntimeError("You need to connect to a database before running SQL")
+        return self._run_sql(sql)

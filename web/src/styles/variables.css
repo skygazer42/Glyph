@@ -1,6 +1,25 @@
 /* 全局CSS变量 - 设计系统（政务风格） */
 
 :root {
+  /* Approved Glyph workbench: screen typography, separate from formal documents. */
+  --wb-blue: #24558a;
+  --wb-blue-hover: #1b456f;
+  --wb-blue-soft: #edf3fa;
+  --wb-ink: #29323e;
+  --wb-muted: #6b7280;
+  --wb-error: #b42332;
+  --wb-line: #e3e7ed;
+  --wb-border: #cbd9eb;
+  --wb-canvas: #f7f8fa;
+  --wb-evidence: #f8f9fb;
+  --wb-tint: #f6f8fb;
+  --wb-surface: #ffffff;
+  --wb-font: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --wb-number: 'Segoe UI', sans-serif;
+  --wb-radius: 8px;
+  --wb-motion: 180ms ease;
+  --wb-reading-width: 780px;
+  --wb-header-height: 64px;
   /* 主色调 - 政务红蓝渐变 */
   --primary-gradient: linear-gradient(135deg, #c8232c 0%, #0052d9 100%);
   --primary-color: #0052d9;
@@ -27,9 +46,15 @@
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-md:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
 
   /* 圆角 */
   --radius-sm: 6px;
@@ -52,8 +77,12 @@
   --transition-slow: 350ms ease-in-out;
 
   /* 字体 */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-mono:
+    'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono',
+    Consolas, 'Courier New', monospace;
 
   /* 字体大小 */
   --text-xs: 0.75rem;
@@ -68,6 +97,18 @@
 
 /* 暗色主题（政务风格） */
 [data-theme="dark"] {
+  --wb-blue: #9bbde5;
+  --wb-blue-hover: #c3daf7;
+  --wb-blue-soft: #233449;
+  --wb-ink: #e1e7ef;
+  --wb-muted: #a4b0c0;
+  --wb-error: #ffb4bc;
+  --wb-line: #344153;
+  --wb-border: #415a78;
+  --wb-canvas: #1a2330;
+  --wb-evidence: #1b2533;
+  --wb-tint: #202c3b;
+  --wb-surface: #17212e;
   /* 背景色 */
   --bg-color: #1a1d23;
   --bg-secondary: #24272e;

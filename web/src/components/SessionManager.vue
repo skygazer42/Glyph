@@ -21,6 +21,7 @@
       <el-input
         v-model="searchQuery"
         placeholder="搜索对话..."
+        aria-label="搜索对话"
         :prefix-icon="Search"
         clearable
         size="small"
@@ -35,33 +36,62 @@
           :key="session.id"
           class="session-item"
           :class="{ active: session.id === currentSessionId }"
-          @click="selectSession(session)"
         >
-          <div class="session-content">
-            <div class="session-title">
+          <button
+            type="button"
+            class="session-content"
+            @click="selectSession(session)"
+            :aria-pressed="session.id === currentSessionId"
+          >
+            <span class="session-title">
               <el-icon><ChatLineRound /></el-icon>
               <span>{{ session.title }}</span>
-            </div>
-            <div class="session-meta">
+            </span>
+            <span class="session-meta">
               <span class="session-time">{{ formatTime(session.lastActive) }}</span>
               <span class="session-count">{{ session.messageCount || 0 }} 条消息</span>
-            </div>
-            <div v-if="session.lastMessage" class="session-preview">
+            </span>
+            <span
+              v-if="session.lastMessage"
+              class="session-preview"
+            >
               {{ truncate(session.lastMessage, 40) }}
-            </div>
-          </div>
-          <div class="session-actions" @click.stop>
-            <el-dropdown trigger="click" @command="(cmd) => handleAction(cmd, session)">
-              <el-button :icon="MoreFilled" size="small" text circle />
+            </span>
+          </button>
+          <div
+            class="session-actions"
+            @click.stop
+          >
+            <el-dropdown
+              trigger="click"
+              @command="(cmd) => handleAction(cmd, session)"
+            >
+              <el-button
+                :icon="MoreFilled"
+                size="small"
+                text
+                circle
+                :aria-label="`管理对话：${session.title}`"
+              />
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item :icon="Edit" command="rename">
+                  <el-dropdown-item
+                    :icon="Edit"
+                    command="rename"
+                  >
                     重命名
                   </el-dropdown-item>
-                  <el-dropdown-item :icon="CopyDocument" command="duplicate">
+                  <el-dropdown-item
+                    :icon="CopyDocument"
+                    command="duplicate"
+                  >
                     复制
                   </el-dropdown-item>
-                  <el-dropdown-item :icon="Delete" command="delete" divided>
+                  <el-dropdown-item
+                    :icon="Delete"
+                    command="delete"
+                    divided
+                  >
                     删除
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -76,7 +106,11 @@
           description="暂无对话记录"
           :image-size="80"
         >
-          <el-button type="primary" :icon="Plus" @click="createNewSession">
+          <el-button
+            type="primary"
+            :icon="Plus"
+            @click="createNewSession"
+          >
             创建新对话
           </el-button>
         </el-empty>
@@ -104,20 +138,24 @@
       <el-input
         v-model="newSessionTitle"
         placeholder="请输入对话标题"
+        aria-label="对话标题"
         maxlength="50"
         show-word-limit
         @keyup.enter="confirmRename"
       />
       <template #footer>
         <el-button @click="renameDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmRename">确定</el-button>
+        <el-button
+          type="primary"
+          @click="confirmRename"
+        >确定</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotRound,
@@ -132,7 +170,7 @@ import {
 import { useSessionList } from '@/composables/useLocalStorage'
 
 // Props & Emits
-const props = defineProps({
+defineProps({
   currentSessionId: {
     type: String,
     default: null
@@ -150,7 +188,7 @@ const selectedSession = ref(null)
 
 // Computed
 const filteredSessions = computed(() => {
-  if (!searchQuery.value) {
+  if (searchQuery.value === '') {
     return sortedSessions.value
   }
 
@@ -179,9 +217,13 @@ const createNewSession = () => {
     lastMessage: ''
   }
 
-  upsertSession(newSession)
-  emit('session-create', sessionId)
-  ElMessage.success('已创建新对话')
+  try {
+    upsertSession(newSession)
+    emit('session-create', sessionId)
+    ElMessage.success('已创建新对话')
+  } catch {
+    ElMessage.error('创建失败，请检查浏览器存储空间或权限')
+  }
 }
 
 const selectSession = (session) => {
@@ -189,10 +231,9 @@ const selectSession = (session) => {
 }
 
 const handleAction = async (command, session) => {
-  selectedSession.value = session
-
   switch (command) {
     case 'rename':
+      selectedSession.value = session
       newSessionTitle.value = session.title
       renameDialogVisible.value = true
       break
@@ -208,18 +249,27 @@ const handleAction = async (command, session) => {
 }
 
 const confirmRename = () => {
-  if (!newSessionTitle.value.trim()) {
+  if (newSessionTitle.value.trim() === '') {
     ElMessage.warning('请输入对话标题')
     return
   }
 
-  upsertSession({
-    ...selectedSession.value,
-    title: newSessionTitle.value.trim()
-  })
+  const session = sessions.value.find(session => session.id === selectedSession.value?.id)
+  if (!session) {
+    ElMessage.warning('该对话已不存在')
+    return
+  }
 
-  ElMessage.success('重命名成功')
-  renameDialogVisible.value = false
+  try {
+    upsertSession({
+      ...session,
+      title: newSessionTitle.value.trim()
+    })
+    ElMessage.success('重命名成功')
+    renameDialogVisible.value = false
+  } catch {
+    ElMessage.error('重命名失败，已保留输入')
+  }
 }
 
 const duplicateSession = (session) => {
@@ -232,15 +282,22 @@ const duplicateSession = (session) => {
     lastActive: new Date().toISOString()
   }
 
-  upsertSession(duplicated)
-
-  // 复制消息历史
-  const originalMessages = localStorage.getItem(`chat_history_${session.id}`)
-  if (originalMessages) {
-    localStorage.setItem(`chat_history_${newSessionId}`, originalMessages)
+  try {
+    // 先复制历史，失败时不创建缺失历史的会话条目。
+    const originalMessages = localStorage.getItem(`chat_history_${session.id}`)
+    if (originalMessages) {
+      localStorage.setItem(`chat_history_${newSessionId}`, originalMessages)
+    }
+    upsertSession(duplicated)
+    ElMessage.success('已复制对话')
+  } catch {
+    try {
+      localStorage.removeItem(`chat_history_${newSessionId}`)
+    } catch {
+      // 已报告复制失败；受限存储也可能阻止清理未关联的副本。
+    }
+    ElMessage.error('复制失败，请检查浏览器存储空间或权限')
   }
-
-  ElMessage.success('已复制对话')
 }
 
 const deleteSession = async (session) => {
@@ -255,11 +312,17 @@ const deleteSession = async (session) => {
       }
     )
 
-    removeSession(session.id)
+    const { failedHistoryIds } = removeSession(session.id)
     emit('session-delete', session.id)
-    ElMessage.success('已删除对话')
-  } catch {
-    // 用户取消
+    if (failedHistoryIds.length > 0) {
+      ElMessage.warning('会话已删除，但部分本地消息缓存未清理')
+    } else {
+      ElMessage.success('已删除对话')
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('操作失败，请检查浏览器存储空间或权限')
+    }
   }
 }
 
@@ -275,16 +338,24 @@ const clearAllSessions = async () => {
       }
     )
 
-    clearAll()
+    const { failedHistoryIds } = clearAll()
     emit('session-delete', null)
-    ElMessage.success('已清空所有对话')
-  } catch {
-    // 用户取消
+    if (failedHistoryIds.length > 0) {
+      ElMessage.warning('会话已删除，但部分本地消息缓存未清理')
+    } else {
+      ElMessage.success('已清空所有对话')
+    }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('操作失败，请检查浏览器存储空间或权限')
+    }
   }
 }
 
 const formatTime = (isoString) => {
-  if (!isoString) return ''
+  if (!isoString) {
+    return ''
+  }
 
   const date = new Date(isoString)
   const now = new Date()
@@ -318,8 +389,10 @@ const formatTime = (isoString) => {
 }
 
 const truncate = (text, length) => {
-  if (!text) return ''
-  return text.length > length ? text.substring(0, length) + '...' : text
+  if (!text) {
+    return ''
+  }
+  return text.length > length ? `${text.substring(0, length)}...` : text
 }
 
 // 暴露方法给父组件
@@ -327,7 +400,11 @@ defineExpose({
   updateSession: (sessionId, updates) => {
     const session = sessions.value.find(s => s.id === sessionId)
     if (session) {
-      upsertSession({ ...session, ...updates })
+      try {
+        upsertSession({ ...session, ...updates })
+      } catch {
+        ElMessage.error('对话更新失败，请检查浏览器存储空间或权限')
+      }
     }
   }
 })
@@ -402,6 +479,13 @@ defineExpose({
 }
 
 .session-content {
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   flex: 1;
   min-width: 0;
 }
@@ -443,6 +527,7 @@ defineExpose({
 }
 
 .session-preview {
+  display: block;
   font-size: 12px;
   color: var(--text-secondary);
   overflow: hidden;
@@ -457,7 +542,8 @@ defineExpose({
   transition: opacity var(--transition-fast);
 }
 
-.session-item:hover .session-actions {
+.session-item:hover .session-actions,
+.session-item:focus-within .session-actions {
   opacity: 1;
 }
 

@@ -6,7 +6,12 @@ Two-Stage Retrieval: Document-level Recall + Chunk-level Retrieval
 
 from typing import List, Dict, Any, Tuple
 from pathlib import Path
+import logging
 import re
+import io
+import sys
+
+from app.knowledge.hierarchical_index import ChunkConfig, HierarchicalMarkdownProcessor
 
 
 class HybridRetriever:
@@ -37,8 +42,7 @@ class HybridRetriever:
 
     def _build_document_index(self):
         """构建文档索引（用于快速查找）"""
-        self.doc_id_to_doc = {doc.get('doc_id', doc.get('file', i)): doc
-                              for i, doc in enumerate(self.documents)}
+        self.doc_id_to_doc = {doc['doc_id']: doc for doc in self.documents}
 
     def retrieve(
         self,
@@ -59,25 +63,33 @@ class HybridRetriever:
         Returns:
             List of chunks with metadata
         """
-        print(f"\n[HybridRetriever] 开始两阶段检索")
+        if top_k_docs < 0 or top_k_chunks < 0:
+            raise ValueError("Retrieval limits must not be negative")
+        if top_k_docs == 0 or top_k_chunks == 0:
+            return []
+        if chunk_strategy not in {'bm25', 'vector', 'hybrid'}:
+            raise ValueError(f"Unsupported chunk_strategy: {chunk_strategy}")
+        if chunk_strategy != 'bm25':
+            raise NotImplementedError(f"Chunk strategy is not implemented: {chunk_strategy}")
+        print("\n[HybridRetriever] 开始两阶段检索")
         print(f"  查询: {query}")
         print(f"  文档召回: Top {top_k_docs}, 块检索: Top {top_k_chunks}")
 
         # ===== 阶段1: 文档级召回 =====
-        print(f"\n  [阶段1] 文档级BM25召回...")
+        print("\n  [阶段1] 文档级BM25召回...")
         recalled_docs = self._recall_documents_bm25(query, top_k=top_k_docs)
 
         if not recalled_docs:
-            print(f"    ⚠ 未召回任何文档")
+            print("    ⚠ 未召回任何文档")
             return []
 
         print(f"    ✓ 召回 {len(recalled_docs)} 个文档:")
         for i, (doc_id, score) in enumerate(recalled_docs[:5], 1):
-            doc = self.doc_id_to_doc.get(doc_id, {})
-            print(f"      {i}. [{score:.2f}] {doc.get('title', doc_id)[:40]}")
+            doc = self.doc_id_to_doc[doc_id]
+            print(f"      {i}. [{score:.2f}] {doc['title'][:40]}")
 
         # ===== 阶段2: 块级检索 =====
-        print(f"\n  [阶段2] 在召回文档内进行块级检索...")
+        print("\n  [阶段2] 在召回文档内进行块级检索...")
 
         # 收集所有召回文档的chunks
         candidate_chunks = []
@@ -88,21 +100,13 @@ class HybridRetriever:
                     **chunk,
                     'doc_id': doc_id,
                     'doc_score': doc_score,
-                    'doc_title': self.doc_id_to_doc.get(doc_id, {}).get('title', doc_id)
+                    'doc_title': self.doc_id_to_doc[doc_id]['title']
                 })
 
         print(f"    候选chunks总数: {len(candidate_chunks)}")
 
         # 在候选chunks中进行检索
-        if chunk_strategy == 'bm25':
-            final_chunks = self._retrieve_chunks_bm25(query, candidate_chunks, top_k=top_k_chunks)
-        elif chunk_strategy == 'vector':
-            # TODO: 实现向量检索
-            print(f"    ⚠ 向量检索未实现，使用BM25")
-            final_chunks = self._retrieve_chunks_bm25(query, candidate_chunks, top_k=top_k_chunks)
-        else:
-            # hybrid: 未来可以结合BM25和向量
-            final_chunks = self._retrieve_chunks_bm25(query, candidate_chunks, top_k=top_k_chunks)
+        final_chunks = self._retrieve_chunks_bm25(query, candidate_chunks, top_k=top_k_chunks)
 
         print(f"    ✓ 最终返回 {len(final_chunks)} 个chunks")
         for i, chunk in enumerate(final_chunks[:5], 1):
@@ -124,11 +128,11 @@ class HybridRetriever:
         # 计算每个文档的BM25分数
         doc_scores = []
         for doc in self.documents:
-            doc_id = doc.get('doc_id', doc.get('file', ''))
+            doc_id = doc['doc_id']
             score = self._calculate_bm25_score(
                 keywords,
                 doc['text'],
-                doc.get('title', '')
+                doc['title']
             )
 
             if score > 0:
@@ -213,8 +217,7 @@ class HybridRetriever:
         keywords: List[str],
         text: str,
         title: str = '',
-        k1: float = 1.5,
-        b: float = 0.75
+        k1: float = 1.5
     ) -> float:
         """
         计算BM25分数（简化版）
@@ -224,7 +227,6 @@ class HybridRetriever:
             text: 文档/chunk文本
             title: 标题（可选，会加权）
             k1: BM25参数
-            b: BM25参数
 
         Returns:
             BM25分数
@@ -273,18 +275,13 @@ def create_hybrid_retriever_from_files(
     Returns:
         HybridRetriever实例
     """
-    from app.knowledge.hierarchical_index import (
-        HierarchicalMarkdownProcessor,
-        ChunkConfig
-    )
-
-    print(f"\n[创建HybridRetriever]")
+    print("\n[创建HybridRetriever]")
     print(f"  数据目录: {data_dir}")
     print(f"  切块策略: {chunking_strategy} (size={chunk_size}, overlap={chunk_overlap})")
 
     # 1. 读取所有文档
     md_files = list(data_dir.rglob("*.md"))
-    documents = []
+    documents: List[Dict[str, Any]] = []
 
     print(f"\n  读取文档: 找到 {len(md_files)} 个文件")
 
@@ -301,12 +298,12 @@ def create_hybrid_retriever_from_files(
                         'size': len(content)
                     })
         except Exception as e:
-            print(f"    警告: 无法读取 {md_file.name}: {e}")
+            logging.getLogger(__name__).warning("Cannot read %s: %s", md_file, e, exc_info=True)
 
     print(f"  ✓ 成功读取 {len(documents)} 个文档")
 
     # 2. 切块
-    print(f"\n  切块处理...")
+    print("\n  切块处理...")
     config = ChunkConfig(
         chunking_strategy=chunking_strategy,
         chunk_size=chunk_size,
@@ -315,7 +312,7 @@ def create_hybrid_retriever_from_files(
 
     processor = HierarchicalMarkdownProcessor(config=config)
 
-    chunked_documents = {}
+    chunked_documents: Dict[str, List[Dict[str, Any]]] = {}
     total_chunks = 0
 
     for doc in documents:
@@ -325,16 +322,16 @@ def create_hybrid_retriever_from_files(
         hierarchy = processor.extract_hierarchy(doc['text'], doc_id=doc_id)
 
         # 提取所有chunks
-        chunks = []
+        chunks: List[Dict[str, Any]] = []
         chunk_id = 0
 
-        for section in hierarchy.get('sections', []):
-            section_title = section.get('title', '')
-            section_content = section.get('content', '')
+        for section in hierarchy['sections']:
+            section_title = section['title']
+            section_content = section['content']
 
             # 对section内容进行切块
             if section_content.strip():
-                section_path = section.get('path', section_title)
+                section_path = section['path']
                 section_chunks = processor._split_into_chunks(
                     section_content,
                     section_id=f"{doc_id}_section_{len(chunks)}",
@@ -352,8 +349,8 @@ def create_hybrid_retriever_from_files(
 
             # 处理subsections
             for subsection in section.get('subsections', []):
-                subsection_title = subsection.get('title', '')
-                subsection_content = subsection.get('content', '')
+                subsection_title = subsection['title']
+                subsection_content = subsection['content']
 
                 if subsection_content.strip():
                     subsection_path = subsection.get('path', f"{section_title} > {subsection_title}")
@@ -376,24 +373,23 @@ def create_hybrid_retriever_from_files(
         total_chunks += len(chunks)
 
     print(f"  ✓ 切块完成: 总共 {total_chunks} 个chunks")
-    print(f"    平均每文档: {total_chunks / len(documents):.1f} chunks")
+    average_chunks = total_chunks / len(documents) if documents else 0.0
+    print(f"    平均每文档: {average_chunks:.1f} chunks")
 
     # 3. 创建Retriever
     retriever = HybridRetriever(documents, chunked_documents)
 
-    print(f"\n✓ HybridRetriever创建完成")
+    print("\n✓ HybridRetriever创建完成")
     return retriever
 
 
 if __name__ == "__main__":
     """测试两阶段检索"""
 
-    import sys
-    import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
     # 创建检索器
-    data_dir = Path("F:/pythonproject/gov/data/process")
+    data_dir = Path(__file__).resolve().parents[2] / "resources/data/process"
     retriever = create_hybrid_retriever_from_files(
         data_dir,
         chunking_strategy='sentence',
@@ -426,7 +422,7 @@ if __name__ == "__main__":
         )
 
         # 显示结果
-        print(f"\n[最终结果] Top 5 chunks:")
+        print("\n[最终结果] Top 5 chunks:")
         for j, chunk in enumerate(results[:5], 1):
             print(f"\n  [{j}] 文档: {chunk['doc_title']}")
             print(f"      Section: {chunk.get('section', 'N/A')}")

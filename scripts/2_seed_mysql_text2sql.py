@@ -9,23 +9,30 @@ import os
 import random
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TypedDict, Union, Sequence, Mapping
 import re
 
 import pymysql
 from pymysql.constants import CLIENT
-
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency
-    load_dotenv = None
+from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = BASE_DIR / "resources/database/schema/policy_qa_schema.sql"
 
 
-def load_mysql_config() -> Dict[str, str]:
+class MySQLConfig(TypedDict):
+    host: str
+    port: int
+    user: str
+    password: str
+    database: str
+
+
+SeedValue = Union[str, int, bool, float]
+
+
+def load_mysql_config() -> MySQLConfig:
     """Read MySQL connection settings from environment (defaults match docker-compose)."""
     return {
         "host": os.getenv("DATABASE__MYSQL_HOST", "localhost"),
@@ -36,7 +43,7 @@ def load_mysql_config() -> Dict[str, str]:
     }
 
 
-def connect_mysql(cfg: Dict[str, str]) -> pymysql.connections.Connection:
+def connect_mysql(cfg: MySQLConfig) -> pymysql.connections.Connection:
     """Create a PyMySQL connection with multi-statement support."""
     return pymysql.connect(
         host=cfg["host"],
@@ -54,7 +61,6 @@ def connect_mysql(cfg: Dict[str, str]) -> pymysql.connections.Connection:
 def apply_schema(conn: pymysql.connections.Connection) -> None:
     """Execute the full schema SQL to ensure tables exist."""
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
-    import re
     schema_sql = re.sub(
         r"-- ==================== 索引优化[\s\S]*?-- ==================== 视图定义 ====================",
         "-- ==================== 视图定义 ====================",
@@ -70,7 +76,6 @@ def apply_schema(conn: pymysql.connections.Connection) -> None:
     schema_sql = (
         schema_sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "INT AUTO_INCREMENT PRIMARY KEY")
         .replace("AUTOINCREMENT", "AUTO_INCREMENT")
-        .replace("JSON", "JSON")
         .replace("date('now')", "CURRENT_DATE")
     )
     statements = []
@@ -95,9 +100,11 @@ def apply_schema(conn: pymysql.connections.Connection) -> None:
 def truncate_tables(conn: pymysql.connections.Connection, tables: List[str]) -> None:
     with conn.cursor() as cursor:
         cursor.execute("SET FOREIGN_KEY_CHECKS=0;")
-        for tbl in tables:
-            cursor.execute(f"TRUNCATE TABLE {tbl};")
-        cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
+        try:
+            for tbl in tables:
+                cursor.execute(f"TRUNCATE TABLE {tbl};")
+        finally:
+            cursor.execute("SET FOREIGN_KEY_CHECKS=1;")
 
 
 def random_date_between(year: int = 2024) -> Tuple[str, str, str]:
@@ -179,13 +186,13 @@ def generate_entities(docs: List[Dict[str, str]]) -> List[Dict[str, str]]:
     return entities
 
 
-def generate_qa_pairs(docs: List[Dict[str, str]], per_doc: int = 2) -> List[Dict[str, str]]:
+def generate_qa_pairs(docs: List[Dict[str, str]], per_doc: int = 2) -> List[Dict[str, SeedValue]]:
     qa_templates = [
         ("补贴额度是多少？", "个人最高可享受{amount}元补贴，按发票金额分档核定。"),
         ("办理流程是怎样的？", "需要完成网上申报、街道审核、部门复核并公示后发放补贴。"),
         ("申请条件有哪些限制？", "须在济南购置符合标准的新产品，并提供回收或报废证明。"),
     ]
-    qa_pairs: List[Dict[str, str]] = []
+    qa_pairs: List[Dict[str, SeedValue]] = []
     for doc in docs:
         for _ in range(per_doc):
             question_template, answer_template = random.choice(qa_templates)
@@ -207,8 +214,8 @@ def generate_qa_pairs(docs: List[Dict[str, str]], per_doc: int = 2) -> List[Dict
     return qa_pairs
 
 
-def generate_tags(docs: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    tags: List[Dict[str, str]] = []
+def generate_tags(docs: List[Dict[str, str]]) -> List[Dict[str, SeedValue]]:
+    tags: List[Dict[str, SeedValue]] = []
     tag_pool = ["新能源", "节能", "消费券", "数字经济", "小微企业", "以旧换新"]
     for doc in docs:
         selected = random.sample(tag_pool, k=2)
@@ -233,7 +240,11 @@ def generate_schema_hints() -> List[Tuple[str, str, str, str]]:
     ]
 
 
-def bulk_insert(conn: pymysql.connections.Connection, sql: str, rows: List[Tuple]) -> None:
+def bulk_insert(
+    conn: pymysql.connections.Connection,
+    sql: str,
+    rows: Sequence[Union[Mapping[str, SeedValue], tuple]],
+) -> None:
     if not rows:
         return
     with conn.cursor() as cursor:
@@ -318,8 +329,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if load_dotenv:
-        load_dotenv(BASE_DIR / ".env")
+    load_dotenv(BASE_DIR / ".env")
     cfg = load_mysql_config()
     conn = connect_mysql(cfg)
     try:

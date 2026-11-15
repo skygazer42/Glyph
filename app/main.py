@@ -9,6 +9,7 @@
 """
 
 import logging
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import List, Optional, Any, Dict
 
 import redis.asyncio as aioredis
@@ -20,15 +21,18 @@ from fastapi_limiter.depends import RateLimiter
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.agents.service import AgentService
+from app.agents.service.agent_service import AgentService
 from app.core.auth import (
     APIUser,
     authenticate_user,
     create_access_token,
     get_current_user_or_dummy,
 )
-from app.core.config import settings
+from app.config.app_config import settings
+from app.core.llms import model_client
+from app.utils.lifecycle import close_with_timeout
 
+logger = logging.getLogger(__name__)
 
 # ============================================
 # 日志过滤器: 过滤 health check 请求日志
@@ -51,10 +55,10 @@ logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
 class QueryRequest(BaseModel):
     query: str = Field(..., description="用户问题")
-    session_id: Optional[str] = Field(None)
-    user_id: Optional[str] = Field(None)
+    session_id: Optional[str] = Field(default=None)
+    user_id: Optional[str] = Field(default=None)
     connection_id: Optional[int] = Field(
-        None, description="Text2SQL 场景下使用的数据库连接ID"
+        default=None, description="Text2SQL 场景下使用的数据库连接ID"
     )
 
 
@@ -62,12 +66,22 @@ class QueryResponse(BaseModel):
     answer: str
     confidence: float
     verification_passed: bool
-    sources: List[Dict[str, Any]] = []
-    metadata: Dict[str, Any] = {}
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class LoadDocsRequest(BaseModel):
     paths: List[str] = Field(..., description="待加载的文件/目录列表")
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class LoadDocsResponse(BaseModel):
+    loaded_docs: int
+    kb_indexed: int
+    rag_indexed: int
 
 
 class TokenResponse(BaseModel):
@@ -77,7 +91,32 @@ class TokenResponse(BaseModel):
 
 def create_app() -> FastAPI:
     """Factory to build the FastAPI application."""
-    application = FastAPI(title="Policy QA Backend", version="1.0.0")
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        application.state.agent_service = None
+        application.state.redis = None
+        try:
+            async with AsyncExitStack() as stack:
+                stack.push_async_callback(close_with_timeout, model_client.close)
+                service = AgentService()
+                stack.push_async_callback(close_with_timeout, service.aclose)
+                await service.initialize()
+                application.state.agent_service = service
+                if not settings.security.rate_limit_disable:
+                    redis = await aioredis.from_url(
+                        settings.security.rate_limit_redis_url,
+                        encoding="utf-8",
+                        decode_responses=True,
+                    )
+                    stack.push_async_callback(close_with_timeout, redis.aclose)
+                    await FastAPILimiter.init(redis)
+                    application.state.redis = redis
+                yield
+        finally:
+            application.state.agent_service = None
+            application.state.redis = None
+
+    application = FastAPI(title="Policy QA Backend", version="1.0.0", lifespan=lifespan)
 
     application.add_middleware(
         CORSMiddleware,
@@ -89,39 +128,7 @@ def create_app() -> FastAPI:
     # 静态资源：暴露 resources 目录用于图片等引用
     application.mount("/resources", StaticFiles(directory="resources"), name="resources")
 
-    @application.on_event("startup")
-    async def on_startup():
-        agent_service = AgentService()
-        await agent_service.initialize()
-        application.state.agent_service = agent_service
-        if not settings.security.rate_limit_disable:
-            try:
-                redis = await aioredis.from_url(
-                    settings.security.rate_limit_redis_url,
-                    encoding="utf-8",
-                    decode_responses=True,
-                )
-                await FastAPILimiter.init(redis)
-                application.state.redis = redis
-            except Exception as exc:
-                application.state.redis = None
-                application.logger.warning("Rate limiter init failed, continuing without limits: %s", exc)
-        else:
-            application.state.redis = None
-
-    @application.on_event("shutdown")
-    async def on_shutdown():
-        # 当前 AgentService 无需特殊释放资源
-        application.state.agent_service = None  # type: ignore[attr-defined]
-        redis = getattr(application.state, "redis", None)
-        if redis:
-            await redis.close()
-        try:
-            await FastAPILimiter.close()
-        except Exception:
-            pass
-
-    @application.get("/health")
+    @application.get("/health", response_model=HealthResponse)
     async def health():
         return {"status": "ok"}
 
@@ -140,7 +147,7 @@ def create_app() -> FastAPI:
     @application.post("/auth/login", response_model=TokenResponse)
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         user = authenticate_user(form_data.username, form_data.password)
-        if not user:
+        if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -158,50 +165,48 @@ def create_app() -> FastAPI:
         dependencies=query_dependencies,
     )
     async def query(
-        req: QueryRequest,
+        request: QueryRequest,
         current_user: APIUser = Depends(get_current_user_or_dummy),
     ):
         try:
             service: AgentService = application.state.agent_service
             final = await service.process_query(
-                req.query,
-                session_id=req.session_id,
-                user_id=req.user_id,
-                connection_id=req.connection_id,
+                request.query,
+                session_id=request.session_id,
+                user_id=request.user_id,
+                connection_id=request.connection_id,
             )
-            sources = []
-            for s in final.sources or []:
-                try:
-                    sources.append(s.dict())
-                except Exception:
-                    sources.append({"title": getattr(s, "title", ""), "source": getattr(s, "source", "")})
+            sources = [source.model_dump() for source in final.sources]
             return QueryResponse(
                 answer=final.answer,
                 confidence=final.confidence,
                 verification_passed=final.verification_passed,
                 sources=sources,
-                metadata=final.metadata or {},
+                metadata=final.metadata,
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.exception("Query request failed")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     docs_dependencies = []
     if docs_rate_limiter:
         docs_dependencies.append(Depends(docs_rate_limiter))
     @application.post(
         "/load-docs",
+        response_model=LoadDocsResponse,
         dependencies=docs_dependencies,
     )
     async def load_docs(
-        req: LoadDocsRequest,
+        request: LoadDocsRequest,
         current_user: APIUser = Depends(get_current_user_or_dummy),
     ):
         try:
             service: AgentService = application.state.agent_service
-            stats = await service.ingest_paths(req.paths)
+            stats = await service.ingest_paths(request.paths)
             return stats
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.exception("Document ingestion request failed")
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     return application
 

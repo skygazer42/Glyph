@@ -2,16 +2,18 @@
 查询分析智能体
 负责分析用户查询和表结构的关系
 """
-from typing import Dict, Any, Optional, Callable, Awaitable
+from contextlib import AsyncExitStack
+from typing import Dict, Any
 
-from autogen_core import message_handler, MessageContext, TopicId, type_subscription, CancellationToken
+from autogen_core import message_handler, MessageContext, TopicId, type_subscription
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_agentchat.conditions import TextMentionTermination
-from autogen_agentchat.messages import ModelClientStreamingChunkEvent, TextMessage, UserInputRequestedEvent
+from autogen_agentchat.messages import ModelClientStreamingChunkEvent, TextMessage
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
 
 from app.schemas.text2sql import SchemaContextMessage, AnalysisMessage
+from app.utils.lifecycle import close_with_timeout
 from .base import BaseAgent
 from .types import AgentTypes, AGENT_NAMES, TopicTypes
 
@@ -39,7 +41,8 @@ class QueryAnalyzerAgent(BaseAgent):
         self._system_message = self._build_system_message()
         self._task_template = self._build_task_template()
 
-    def _build_system_message(self) -> str:
+    @staticmethod
+    def _build_system_message() -> str:
         """构建系统消息 - 定义角色和能力"""
         return """你是一名专业的数据库查询分析专家，具备以下核心能力：
 
@@ -66,7 +69,8 @@ class QueryAnalyzerAgent(BaseAgent):
 - 保持专业性和准确性
 - 确保分析结果可操作性强"""
 
-    def _build_task_template(self) -> str:
+    @staticmethod
+    def _build_task_template() -> str:
         """构建任务模板 - 具体的分析任务"""
         return """请基于以下信息生成SQL命令分析报告：
 **数据库环境：**
@@ -165,7 +169,7 @@ WHERE [筛选条件]
             connection_id = message.connection_id
             schema_context = message.schema_context
             query = message.query
-            mappings_str = message.mappings_str or ""
+            mappings_str = message.mappings_str
 
             # 创建agent并执行任务
             agent = AssistantAgent(
@@ -176,7 +180,7 @@ WHERE [筛选条件]
                 model_client_stream=True,
             )
             memory = ListMemory()
-            analysis_content = ""
+            analysis_content: str | None = None
 
             # 如果需要用户对分析报告进行反馈
             if self.input_func:
@@ -189,23 +193,12 @@ WHERE [筛选条件]
                 # 支持用户对分析报告进行多次修改
                 team = RoundRobinGroupChat([agent, user_proxy], termination_condition=termination_en | termination_zh, )
                 stream = team.run_stream(task=self._prepare_task(query, schema_context, mappings_str))
-                async for msg in stream:
-                    # 模拟流式输出
-                    if isinstance(msg, ModelClientStreamingChunkEvent):
-                        await self.send_response(msg.content)
-                        continue
-                    # 记录每次对话历史记录
-                    if isinstance(msg, TextMessage):
-                        # 保存历史记忆
-                        await memory.add(MemoryContent(content=msg.model_dump_json(), mime_type=MemoryMimeType.JSON.value))
-                        continue
-                    # 等待用户输入对分析报告的修改建议
-                    if isinstance(msg, UserInputRequestedEvent) and msg.source == "user_proxy":
-                        # await self.send_response("请输入修改建议或者直接点击同意")
-                        continue
             else:
                 # 如果用户没有参与修改，则直接生成分析报告
                 stream = agent.run_stream(task=self._prepare_task(query, schema_context, mappings_str))
+
+            async with AsyncExitStack() as stack:
+                stack.push_async_callback(close_with_timeout, stream.aclose)
                 async for event in stream:
                     if isinstance(event, ModelClientStreamingChunkEvent):
                         # 确保内容以Markdown格式正确渲染
@@ -213,6 +206,11 @@ WHERE [筛选条件]
                         continue
                     if isinstance(event, TextMessage):
                         await memory.add(MemoryContent(content=event.model_dump_json(), mime_type=MemoryMimeType.JSON.value))
+                        if event.source == "query_analyzer":
+                            analysis_content = event.content
+
+            if analysis_content is None or not analysis_content.strip():
+                raise ValueError("Query analysis stream ended without an analysis result")
 
             await self.send_response("\n\n分析已完成", is_final=True)
 

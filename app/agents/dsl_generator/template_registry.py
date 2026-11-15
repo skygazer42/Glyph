@@ -1,4 +1,4 @@
-﻿"""
+"""
 Template registry utilities for the DSL generator.
 
 This module knows how to:
@@ -11,14 +11,8 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
-import re
-
-
-def _today_iso() -> str:
-    """Return today's date in ISO format."""
-    return datetime.now().strftime("%Y-%m-%d")
+from math import isfinite
 
 
 def _is_missing(value: Any) -> bool:
@@ -32,31 +26,17 @@ def _is_missing(value: Any) -> bool:
     return False
 
 
-def _safe_float(value: Any) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        text = str(value).strip().replace("%", "")
-        num = float(text)
-        if "%" in str(value) or num > 1 and num <= 100:
-            # interpret percentage strings as decimals
-            return round(num / 100, 4)
-        return num
-    except (TypeError, ValueError):
-        return None
-
-
 @dataclass
 class TemplateProfile:
     """Metadata for a single Jinja template."""
 
     name: str
     template_name: str
+    prepare: Callable[[Dict[str, Any]], Dict[str, Any]]
     keywords: List[str] = field(default_factory=list)
     field_signals: List[str] = field(default_factory=list)
     defaults_factory: Callable[[], Dict[str, Any]] = dict
     min_score: int = 2
-    prepare: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
 
     def score(self, data: Dict[str, Any], haystack: str) -> int:
         """Compute a heuristic score for how well the data matches this template."""
@@ -78,8 +58,7 @@ class TemplateProfile:
 class TemplateRegistry:
     """Central place to reason about available templates."""
 
-    def __init__(self, template_dir):
-        self.template_dir = template_dir
+    def __init__(self):
         self.profiles: List[TemplateProfile] = self._build_profiles()
 
     # ------------------------------------------------------------------ #
@@ -117,13 +96,20 @@ class TemplateRegistry:
             return data
 
         merged = copy.deepcopy(data)
-        defaults = profile.defaults_factory() if profile.defaults_factory else {}
+        if profile.name == "appliance":
+            rates = merged.get("efficiency_rates", {})
+            if not isinstance(rates, dict) or rates.get("base_rate") is None:
+                raise ValueError("Missing policy efficiency_rates.base_rate")
+            cap = merged.get("per_item_cap")
+            if cap is None:
+                cap = merged.get("limits", {}).get("per_item_cap")
+            if cap is None:
+                raise ValueError("Missing policy per_item_cap")
+            merged["per_item_cap"] = cap
+        defaults = profile.defaults_factory()
         self._deep_fill(merged, defaults)
 
-        if profile.prepare:
-            merged = profile.prepare(merged)
-
-        return merged
+        return profile.prepare(merged)
 
     # ------------------------------------------------------------------ #
     # Template metadata
@@ -167,106 +153,32 @@ class TemplateRegistry:
     @staticmethod
     def _appliance_defaults() -> Dict[str, Any]:
         return {
-            "name": "家电以旧换新补贴",
             "version": "1.0",
-            "policy_source": {
-                "doc_id": None,
-                "title": "家电补贴政策",
-                "clause": None,
-            },
-            "valid_period": {
-                "start": _today_iso(),
-                "end": None,
-            },
-            "efficiency_rates": {
-                "base_rate": 0.15,
-                "level_1_bonus": 0.05,
-                "no_label_rate": 0.1,
-            },
-            "category_limits": {
-                "per_category": {},
-                "total_items": None,
-            },
-            "per_item_cap": 2000,
-            "special_rules": {
-                "trade_in_required": False,
-                "stacking_allowed": True,
-            },
+            "policy_source": {"doc_id": None, "title": None, "clause": None},
+            "valid_period": {"start": None, "end": None},
+            "efficiency_rates": {},
+            "category_limits": {"per_category": {}, "total_items": None},
+            "special_rules": {},
         }
 
     @staticmethod
     def _auto_defaults() -> Dict[str, Any]:
         return {
-            "name": "汽车消费补贴",
             "version": "1.0",
-            "policy_source": {
-                "doc_id": None,
-                "title": "汽车消费补贴政策",
-            },
-            "windows": {
-                "time_basis": "purchase_time",
-                "purchase_window": {"start": _today_iso(), "end": None},
-                "claim_window": {"start": _today_iso(), "end": None},
-                "modify_window": {"start": _today_iso(), "end": None},
-            },
-            "budget": {
-                "total": 0,
-                "currency": "CNY",
-                "allocation": "global",
-            },
-            "price_basis": "ex_tax",
-            "eligibility": {
-                "buyer_type": "person",
-                "vehicle_scope": "all",
-                "combinable_with_upper_policies": True,
-            },
-            "matching": {
-                "powertrain_defs": {
-                    "NEV": ["新能源", "纯电", "插混"],
-                    "ICE": ["燃油", "混动"],
-                },
-                "tiers": [],
-            },
-            "limits": {
-                "per_person_max_cars": 1,
-                "dedupe_keys": ["buyer_id", "vin", "invoice_no"],
-            },
+            "policy_source": {"doc_id": None, "title": None},
+            "windows": {}, "budget": {}, "eligibility": {},
+            "price_basis": None,
+            "matching": {"powertrain_defs": {}, "tiers": []},
+            "limits": {},
         }
 
     @staticmethod
     def _coupon_defaults() -> Dict[str, Any]:
         return {
-            "name": "消费券补贴活动",
             "version": "1.0",
-            "policy_source": {
-                "doc_id": None,
-                "title": "消费券政策",
-            },
-            "valid_period": {
-                "start": _today_iso(),
-                "end": None,
-            },
-            "coupon_types": ["AMOUNT"],
-            "tiers": [],
-            "distribution": {
-                "method": "auto_claim",
-                "total_quota": None,
-                "quota_per_person": None,
-                "release_schedule": [],
-            },
-            "usage_limits": {
-                "valid_days": 30,
-                "merchant_scope": "参与活动商户",
-                "product_scope": "全部商品",
-                "stacking": {
-                    "with_merchant_discount": True,
-                    "with_other_coupons": True,
-                },
-            },
-            "platform": {
-                "claim_platform": None,
-                "payment_methods": [],
-            },
+            "policy_source": {"doc_id": None, "title": None},
+            "valid_period": {"start": None, "end": None},
+            "tiers": [], "distribution": {}, "usage_limits": {}, "platform": {},
         }
 
     # ------------------------------------------------------------------ #
@@ -276,157 +188,111 @@ class TemplateRegistry:
     @staticmethod
     def _prepare_appliance_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         category_limits = data.setdefault("category_limits", {})
-        per_category = category_limits.get("per_category")
+        per_category = category_limits.setdefault("per_category", {})
         if not isinstance(per_category, dict):
-            category_limits["per_category"] = {}
-        category_limits["total_items"] = TemplateRegistry._normalize_number(
-            category_limits.get("total_items")
-        )
-
-        cap = data.get("per_item_cap") or data.get("limits", {}).get("per_item_cap")
+            raise ValueError("category_limits.per_category must be an object")
+        category_limits["total_items"] = TemplateRegistry._normalize_number(category_limits.get("total_items"))
+        cap = data.get("per_item_cap")
+        if cap is None:
+            cap = data.get("limits", {}).get("per_item_cap")
         numeric_cap = TemplateRegistry._normalize_number(cap)
-        if numeric_cap is not None:
-            data["per_item_cap"] = numeric_cap
-        else:
-            data["per_item_cap"] = 2000
-
-        efficiency_rates = data.get("efficiency_rates", {})
-        for key in ["base_rate", "level_1_bonus", "no_label_rate"]:
-            if key in efficiency_rates:
-                rate = TemplateRegistry._normalize_number(efficiency_rates[key])
-                if rate is not None:
-                    efficiency_rates[key] = rate
-
+        if numeric_cap is None:
+            raise ValueError("Missing policy per_item_cap")
+        data["per_item_cap"] = numeric_cap
+        rates = data["efficiency_rates"]
+        for key in ("base_rate", "level_1_bonus", "no_label_rate"):
+            if key in rates:
+                rates[key] = TemplateRegistry._normalize_number(rates[key])
+        if rates.get("base_rate") is None:
+            raise ValueError("Missing policy efficiency_rates.base_rate")
         return data
 
     @staticmethod
     def _prepare_auto_payload(data: Dict[str, Any]) -> Dict[str, Any]:
-        valid_period = data.get("valid_period") or {}
+        valid_period = data.get("valid_period", {})
         windows = data.setdefault("windows", {})
-        windows.setdefault("time_basis", windows.get("time_basis", "purchase_time"))
-
-        for win_key in ["purchase_window", "claim_window", "modify_window"]:
-            window = windows.setdefault(win_key, {})
-            window.setdefault("start", valid_period.get("start") or _today_iso())
-            window.setdefault("end", valid_period.get("end"))
-
+        for key in ("purchase_window", "claim_window", "modify_window"):
+            window = windows.setdefault(key, {})
+            # An explicitly supplied general validity window also bounds these operations.
+            for bound in ("start", "end"):
+                if bound not in window and bound in valid_period:
+                    window[bound] = valid_period[bound]
         matching = data.setdefault("matching", {})
-        powertrain_defs = matching.setdefault(
-            "powertrain_defs",
-            {
-                "NEV": ["新能源", "纯电", "插混"],
-                "ICE": ["燃油", "混动"],
-            },
-        )
-        matching["powertrain_defs"] = powertrain_defs
-
-        tiers = matching.setdefault("tiers", [])
-        if not tiers:
-            raw_tiers = data.get("tiers") or []
-            converted: List[Dict[str, Any]] = []
-            for tier in raw_tiers:
-                entry = {}
-                tier_range = tier.get("range") or tier.get("price_range")
-                if isinstance(tier_range, list):
-                    if len(tier_range) >= 1:
-                        entry["min_ex_tax"] = tier_range[0]
-                    if len(tier_range) >= 2:
-                        entry["max_ex_tax"] = tier_range[1]
-                entry["powertrain"] = tier.get("powertrain") or tier.get("vehicle_type") or "NEV"
-                entry["open_interval"] = tier.get("open_interval") or "[)"
-                entry["subsidy"] = tier.get("subsidy") or tier.get("package") or tier.get("benefit")
-                converted.append(entry)
-            if converted:
-                matching["tiers"] = converted
-
-        limits = data.setdefault("limits", {})
-        limits.setdefault("per_person_max_cars", limits.get("per_person_max_cars", 1))
-        dedupe_keys = limits.get("dedupe_keys")
-        if not isinstance(dedupe_keys, list) or not dedupe_keys:
-            limits["dedupe_keys"] = ["buyer_id", "vin", "invoice_no"]
-
-        budget = data.setdefault("budget", {})
-        budget.setdefault("currency", "CNY")
-        budget.setdefault("allocation", budget.get("allocation", "global"))
-        budget.setdefault("total", budget.get("total", 0))
-
-        eligibility = data.setdefault("eligibility", {})
-        eligibility.setdefault("buyer_type", "person")
-        eligibility.setdefault("vehicle_scope", eligibility.get("vehicle_scope", "all"))
-        eligibility.setdefault("combinable_with_upper_policies", True)
-
+        if "tiers" not in matching or (not matching["tiers"] and "tiers" in data):
+            matching["tiers"] = data.get("tiers", [])
+        converted = []
+        for tier in matching["tiers"]:
+            entry = dict(tier)
+            if "powertrain" not in entry:
+                entry["powertrain"] = entry["vehicle_type"]
+            if entry["powertrain"] not in {"NEV", "ICE"}:
+                raise ValueError("Auto tier requires NEV or ICE powertrain")
+            tier_range = entry.get("range", entry.get("price_range"))
+            if tier_range is not None:
+                if not isinstance(tier_range, list) or len(tier_range) != 2:
+                    raise ValueError("Auto tier range must contain two bounds")
+                entry.setdefault("min_ex_tax", tier_range[0])
+                entry.setdefault("max_ex_tax", tier_range[1])
+            if "min_ex_tax" not in entry or "max_ex_tax" not in entry:
+                raise ValueError("Auto tier requires explicit price bounds")
+            entry.setdefault("open_interval", "[)")
+            if entry["open_interval"] not in {"[]", "[)", "(]", "()"}:
+                raise ValueError("Invalid auto tier interval")
+            if "subsidy" not in entry:
+                entry["subsidy"] = entry["package"] if "package" in entry else entry["benefit"]
+            for key in ("min_ex_tax", "max_ex_tax", "subsidy"):
+                entry[key] = TemplateRegistry._normalize_number(entry[key])
+            if entry["subsidy"] is None:
+                raise ValueError("Auto tier requires subsidy")
+            converted.append(entry)
+        matching["tiers"] = converted
+        matching.setdefault("powertrain_defs", {})
+        data.setdefault("limits", {})
+        data.setdefault("budget", {})
+        data.setdefault("eligibility", {})
         return data
 
     @staticmethod
     def _prepare_coupon_payload(data: Dict[str, Any]) -> Dict[str, Any]:
-        coupon_types = data.get("coupon_types")
-        if not isinstance(coupon_types, list) or not coupon_types:
-            data["coupon_types"] = ["AMOUNT"]
-
-        tiers = data.get("tiers") or []
-        normalized: List[Dict[str, Any]] = []
-        for tier in tiers:
+        normalized = []
+        for tier in data.get("tiers", []):
             entry = dict(tier)
-            entry.setdefault("type", entry.get("tier_type", "AMOUNT"))
+            if "type" not in entry:
+                entry["type"] = entry["tier_type"]
+            if entry["type"] not in {"AMOUNT", "PERCENT"}:
+                raise ValueError("Unsupported coupon tier type")
             if "threshold" not in entry:
-                rng = entry.get("range")
-                if isinstance(rng, list) and rng:
-                    entry["threshold"] = rng[0]
+                entry["threshold"] = entry["range"][0]
             if "discount" not in entry:
-                entry["discount"] = entry.get("amount") or entry.get("value")
-            entry["threshold"] = TemplateRegistry._normalize_number(entry.get("threshold")) or 0
-            entry["discount"] = TemplateRegistry._normalize_number(entry.get("discount")) or 0
+                entry["discount"] = entry["amount"] if "amount" in entry else entry["value"]
+            for key in ("threshold", "discount"):
+                entry[key] = TemplateRegistry._normalize_number(entry[key])
+                if entry[key] is None:
+                    raise ValueError(f"Coupon tier requires {key}")
             entry["cap"] = TemplateRegistry._normalize_number(entry.get("cap"))
-            if entry.get("name"):
-                entry["name"] = TemplateRegistry._normalize_placeholder(entry["name"])
+            entry["name"] = TemplateRegistry._normalize_placeholder(entry.get("name"))
             normalized.append(entry)
         data["tiers"] = normalized
-
+        if "coupon_types" not in data:
+            data["coupon_types"] = list(dict.fromkeys(tier["type"] for tier in normalized))
+        if not isinstance(data["coupon_types"], list):
+            raise ValueError("coupon_types must be a list")
         distribution = data.setdefault("distribution", {})
-        distribution.setdefault("method", distribution.get("method", "auto_claim"))
-        distribution["total_quota"] = TemplateRegistry._normalize_number(
-            distribution.get("total_quota")
-        )
-        distribution["quota_per_person"] = TemplateRegistry._normalize_number(
-            distribution.get("quota_per_person")
-        )
-
-        release_schedule = distribution.get("release_schedule")
-        if release_schedule and isinstance(release_schedule, list):
-            cleaned = []
-            for idx, batch in enumerate(release_schedule, start=1):
-                if not isinstance(batch, dict):
-                    continue
-                cleaned.append(
-                    {
-                        "batch": batch.get("batch", idx),
-                        "time": batch.get("time"),
-                        "amount": TemplateRegistry._normalize_number(batch.get("amount")),
-                    }
-                )
-            distribution["release_schedule"] = cleaned
-
+        for key in ("total_quota", "quota_per_person"):
+            if key in distribution:
+                distribution[key] = TemplateRegistry._normalize_number(distribution[key])
+        schedule = distribution.get("release_schedule", [])
+        if not isinstance(schedule, list):
+            raise ValueError("release_schedule must be a list")
+        for batch in schedule:
+            batch["amount"] = TemplateRegistry._normalize_number(batch["amount"])
         usage_limits = data.setdefault("usage_limits", {})
-        usage_limits["valid_days"] = TemplateRegistry._normalize_number(
-            usage_limits.get("valid_days", 30)
-        ) or 30
-        usage_limits.setdefault("merchant_scope", usage_limits.get("merchant_scope", "参与活动商户"))
-        usage_limits.setdefault("product_scope", usage_limits.get("product_scope", "全部商品"))
-
-        stacking = usage_limits.setdefault("stacking", {})
-        stacking.setdefault("with_merchant_discount", True)
-        stacking.setdefault("with_other_coupons", True)
-
+        if "valid_days" in usage_limits:
+            usage_limits["valid_days"] = TemplateRegistry._normalize_number(usage_limits["valid_days"])
         platform = data.setdefault("platform", {})
-        platform["claim_platform"] = TemplateRegistry._normalize_placeholder(
-            platform.get("claim_platform")
-        ) or ""
-        payment_methods = platform.get("payment_methods")
-        if not isinstance(payment_methods, list):
-            platform["payment_methods"] = []
-
+        if "payment_methods" in platform and not isinstance(platform["payment_methods"], list):
+            raise ValueError("payment_methods must be a list")
         return data
-
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -446,17 +312,12 @@ class TemplateRegistry:
     @staticmethod
     def _deep_fill(target: Dict[str, Any], defaults: Dict[str, Any]) -> Dict[str, Any]:
         for key, value in defaults.items():
-            if isinstance(value, dict):
-                existing = target.get(key)
-                if not isinstance(existing, dict):
-                    existing = {}
-                target[key] = TemplateRegistry._deep_fill(existing, value)
-            elif isinstance(value, list):
-                if key not in target or _is_missing(target[key]):
-                    target[key] = copy.deepcopy(value)
-            else:
-                if key not in target or _is_missing(target[key]):
-                    target[key] = value
+            if key not in target:
+                target[key] = copy.deepcopy(value)
+            elif isinstance(value, dict):
+                if not isinstance(target[key], dict):
+                    raise ValueError(f"Policy section {key} must be an object")
+                TemplateRegistry._deep_fill(target[key], value)
         return target
 
     @staticmethod
@@ -497,7 +358,11 @@ class TemplateRegistry:
         value = TemplateRegistry._normalize_placeholder(value)
         if value is None:
             return None
+        if isinstance(value, bool):
+            raise ValueError("Boolean is not a numeric policy value")
         if isinstance(value, (int, float)):
+            if not isfinite(value):
+                raise ValueError("Policy number must be finite")
             return value
         if isinstance(value, str):
             text = value.strip()
@@ -505,19 +370,14 @@ class TemplateRegistry:
             if text.endswith("万"):
                 multiplier = 10000
                 text = text[:-1]
-            text = re.sub(r"[^\d\.]", "", text)
-            if not text:
-                return None
+            text = text.replace(',', '').replace('元', '').strip()
             try:
                 number = float(text) * multiplier
+                if not isfinite(number):
+                    raise ValueError("Policy number must be finite")
                 if number.is_integer():
                     return int(number)
                 return number
-            except ValueError:
-                return None
-        return None
-
-
-
-
-
+            except ValueError as exc:
+                raise ValueError(f"Invalid numeric policy value: {value!r}") from exc
+        raise ValueError(f"Invalid numeric policy value: {value!r}")

@@ -7,7 +7,10 @@
       aria-live="polite"
     >
       <div class="announcement-content">
-        <el-icon class="announcement-icon" :size="20">
+        <el-icon
+          class="announcement-icon"
+          :size="20"
+        >
           <BellFilled />
         </el-icon>
         <div class="announcement-text">
@@ -44,8 +47,11 @@ const fetchAnnouncement = () => {
   }
 
   // 检查用户是否已关闭过此公告
-  const dismissedId = localStorage.getItem('dismissed-announcement')
-  if (dismissedId !== announcement.value.id) {
+  try {
+    const dismissedId = localStorage.getItem('dismissed-announcement')
+    visible.value = dismissedId !== announcement.value.id
+  } catch {
+    // 公告仍可阅读；受限存储只影响跨访问记忆。
     visible.value = true
   }
 }
@@ -53,7 +59,11 @@ const fetchAnnouncement = () => {
 const closeAnnouncement = () => {
   visible.value = false
   if (announcement.value?.dismissible) {
-    localStorage.setItem('dismissed-announcement', announcement.value.id)
+    try {
+      localStorage.setItem('dismissed-announcement', announcement.value.id)
+    } catch {
+      // 关闭在当前页面已生效，存储不可用时不阻断操作。
+    }
   }
 }
 

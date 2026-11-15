@@ -3,12 +3,14 @@ Agent Orchestrator - Agent编排器
 """
 
 import asyncio
+from anyio import fail_after
 from typing import Dict, List, Any, Optional, Callable, Set
 from enum import Enum
 import logging
 from datetime import datetime
+from uuid import uuid4
 
-from ..models.base import AgentType, MessageType, QueryIntent
+from ..models.base import MessageType
 from .agent_base import AgentBase
 from .message_bus import Message, MessageBus
 from .agent_registry import AgentRegistry
@@ -64,9 +66,10 @@ class Workflow:
 
     def add_dependency(self, step_name: str, depends_on: str) -> "Workflow":
         """添加步骤依赖"""
-        if step_name in self.steps and depends_on in self.steps:
-            self.steps[step_name].dependencies.add(depends_on)
-            self.steps[depends_on].outputs.add(step_name)
+        if step_name not in self.steps or depends_on not in self.steps:
+            raise ValueError("Both dependency steps must exist in the workflow")
+        self.steps[step_name].dependencies.add(depends_on)
+        self.steps[depends_on].outputs.add(step_name)
         return self
 
     def set_strategy(self, strategy: ExecutionStrategy) -> "Workflow":
@@ -155,15 +158,21 @@ class AgentOrchestrator:
         """
         workflow = Workflow(name, description)
         workflow.set_strategy(ExecutionStrategy.CONDITIONAL)
+        if default_branch is not None:
+            if default_branch not in branches:
+                raise ValueError(f"Unknown default branch: {default_branch}")
+            workflow.default_config["branch"] = default_branch
 
         # 为每个分支创建步骤
         for branch_name, agent_sequence in branches.items():
+            def selected(ctx: Dict[str, Any], branch: str = branch_name) -> bool:
+                return ctx.get("branch") == branch
             for i, agent_id in enumerate(agent_sequence):
                 step_name = f"{branch_name}_step_{i}"
                 step = WorkflowStep(
                     agent_id=agent_id,
                     name=step_name,
-                    condition=lambda ctx, b=branch_name: ctx.get("branch") == b
+                    condition=selected
                 )
                 workflow.add_step(step)
 
@@ -199,7 +208,8 @@ class AgentOrchestrator:
             return None
 
         workflow = self.workflows[workflow_name]
-        execution_id = f"{workflow_name}_{datetime.now().timestamp()}"
+        context = {**workflow.default_config, **(context if context is not None else {})}
+        execution_id = f"{workflow_name}_{uuid4()}"
 
         logger.info(f"Starting workflow execution: {execution_id}")
 
@@ -209,32 +219,37 @@ class AgentOrchestrator:
             "start_time": datetime.now(),
             "status": "running",
             "current_step": None,
-            "context": context or {}
+            "context": context
         }
 
         try:
             # 根据策略执行
-            if workflow.execution_strategy == ExecutionStrategy.SEQUENTIAL:
+            if workflow.execution_strategy in {
+                ExecutionStrategy.SEQUENTIAL,
+                ExecutionStrategy.PIPELINE,
+                ExecutionStrategy.CONDITIONAL,
+            }:
                 result = await self._execute_sequential(workflow, initial_message, context)
             elif workflow.execution_strategy == ExecutionStrategy.PARALLEL:
                 result = await self._execute_parallel(workflow, initial_message, context)
-            elif workflow.execution_strategy == ExecutionStrategy.PIPELINE:
-                result = await self._execute_pipeline(workflow, initial_message, context)
-            elif workflow.execution_strategy == ExecutionStrategy.CONDITIONAL:
-                result = await self._execute_conditional(workflow, initial_message, context)
             else:
                 raise ValueError(f"Unknown execution strategy: {workflow.execution_strategy}")
 
             # 更新统计
-            self._update_stats(True, datetime.now() - self.running_workflows[execution_id]["start_time"])
+            if result is None:
+                raise RuntimeError("Workflow completed without a result")
+            self._update_stats(True, (datetime.now() - self.running_workflows[execution_id]["start_time"]).total_seconds())
             self.running_workflows[execution_id]["status"] = "completed"
             self.running_workflows[execution_id]["end_time"] = datetime.now()
 
             return result
 
+        except asyncio.CancelledError:
+            self.running_workflows[execution_id]["status"] = "cancelled"
+            raise
         except Exception as e:
-            logger.error(f"Workflow execution failed: {e}")
-            self._update_stats(False, datetime.now() - self.running_workflows[execution_id]["start_time"])
+            logger.exception("Workflow execution failed")
+            self._update_stats(False, (datetime.now() - self.running_workflows[execution_id]["start_time"]).total_seconds())
             self.running_workflows[execution_id]["status"] = "failed"
             self.running_workflows[execution_id]["error"] = str(e)
             return None
@@ -242,14 +257,17 @@ class AgentOrchestrator:
         finally:
             # 清理执行记录（保留最近100个）
             if len(self.running_workflows) > 100:
-                oldest = min(self.running_workflows.keys())
-                del self.running_workflows[oldest]
+                for key, record in list(self.running_workflows.items()):
+                    if len(self.running_workflows) <= 100:
+                        break
+                    if record["status"] != "running":
+                        del self.running_workflows[key]
 
     async def _execute_sequential(
         self,
         workflow: Workflow,
         initial_message: Message,
-        context: Optional[Dict[str, Any]]
+        context: Dict[str, Any]
     ) -> Optional[Message]:
         """顺序执行工作流"""
         current_message = initial_message
@@ -259,27 +277,26 @@ class AgentOrchestrator:
             step = workflow.steps[step_name]
 
             # 检查条件
-            if step.condition and not step.condition(context or {}):
+            if step.condition is not None and not step.condition(context):
                 logger.info(f"Skipping step {step_name} due to condition")
                 continue
 
             # 获取Agent实例
             agent = await self.registry.get_instance(step.agent_id)
-            if not agent:
-                logger.error(f"Agent {step.agent_id} not found for step {step_name}")
-                continue
+            if agent is None:
+                raise ValueError(f"Agent {step.agent_id} not found for step {step_name}")
 
             # 执行步骤
-            current_message = await self._execute_step_with_retry(
+            result = await self._execute_step_with_retry(
                 agent, current_message, step
             )
-            if not current_message:
+            if result is None:
                 logger.error(f"Step {step_name} failed")
-                break
+                return None
+            current_message = result
 
             # 更新上下文
-            if context is not None:
-                context.update(current_message.content.get("context", {}))
+            context.update(current_message.content.get("context", {}))
 
         return current_message
 
@@ -287,95 +304,39 @@ class AgentOrchestrator:
         self,
         workflow: Workflow,
         initial_message: Message,
-        context: Optional[Dict[str, Any]]
+        context: Dict[str, Any]
     ) -> Optional[Message]:
         """并行执行工作流"""
-        # 获取没有依赖的步骤（可以并行执行）
-        parallel_steps = [
-            step for step in workflow.steps.values()
-            if not step.dependencies
-        ]
-
-        if not parallel_steps:
-            return initial_message
-
-        # 并行执行
-        tasks = []
-        for step in parallel_steps:
-            agent = await self.registry.get_instance(step.agent_id)
-            if agent:
-                task = asyncio.create_task(
-                    self._execute_step_with_retry(agent, initial_message, step)
-                )
-                tasks.append(task)
-
-        if tasks:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # 处理结果
-            successful_results = []
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.error(f"Parallel step failed: {result}")
-                else:
-                    successful_results.append(result)
-
-            # 合并结果
-            if successful_results:
-                merged_content = {}
-                for result in successful_results:
-                    if result and isinstance(result, Message):
-                        merged_content.update(result.content)
-
-                return Message(
-                    type=MessageType.DATA,
-                    content=merged_content,
-                    sender="orchestrator",
-                    recipient="user"
-                )
-
-        return None
-
-    async def _execute_pipeline(
-        self,
-        workflow: Workflow,
-        initial_message: Message,
-        context: Optional[Dict[str, Any]]
-    ) -> Optional[Message]:
-        """管道执行工作流"""
-        return await self._execute_sequential(workflow, initial_message, context)
-
-    async def _execute_conditional(
-        self,
-        workflow: Workflow,
-        initial_message: Message,
-        context: Optional[Dict[str, Any]]
-    ) -> Optional[Message]:
-        """条件执行工作流"""
-        # 确定要执行的分支
-        branch = None
-        if context:
-            branch = context.get("branch")
-
-        # 执行选定的分支
-        branch_steps = [
-            step for step in workflow.steps.values()
-            if not step.condition or step.condition(context or {})
-        ]
-
-        if not branch_steps:
-            logger.warning("No steps selected for conditional execution")
-            return initial_message
-
-        # 按依赖顺序执行选中的步骤
+        pending = self._get_execution_order(workflow)
+        completed: set[str] = set()
         current_message = initial_message
-        for step in sorted(branch_steps, key=lambda s: len(s.dependencies)):
-            agent = await self.registry.get_instance(step.agent_id)
-            if agent:
-                current_message = await self._execute_step_with_retry(
-                    agent, current_message, step
-                )
-
+        while pending:
+            ready = [name for name in pending if workflow.steps[name].dependencies <= completed]
+            tasks = []
+            try:
+                for name in ready:
+                    step = workflow.steps[name]
+                    if step.condition is not None and not step.condition(context):
+                        continue
+                    agent = await self.registry.get_instance(step.agent_id)
+                    if agent is None:
+                        raise ValueError(f"Agent {step.agent_id} not found for step {name}")
+                    tasks.append(asyncio.create_task(self._execute_step_with_retry(agent, current_message, step)))
+                results = await asyncio.gather(*tasks)
+            except BaseException:
+                for task in tasks:
+                    task.cancel()
+                with fail_after(5, shield=True):
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                raise
+            merged_content = dict(current_message.content)
+            for result in results:
+                if result is not None:
+                    merged_content.update(result.content)
+                    context.update(result.content.get("context", {}))
+            current_message = Message(MessageType.DATA, merged_content, "orchestrator", recipient="user")
+            completed.update(ready)
+            pending = [name for name in pending if name not in completed]
         return current_message
 
     async def _execute_step_with_retry(
@@ -394,7 +355,8 @@ class AgentOrchestrator:
                     agent.handle_message(message),
                     timeout=step.timeout
                 )
-
+                if result is None or result.type == MessageType.ERROR_MESSAGE:
+                    raise RuntimeError(f"Required step {step.name} did not produce a successful result")
                 return result
 
             except asyncio.TimeoutError:
@@ -403,8 +365,8 @@ class AgentOrchestrator:
                     raise
                 await asyncio.sleep(1)
 
-            except Exception as e:
-                logger.error(f"Step {step.name} failed: {e}")
+            except Exception:
+                logger.exception("Step %s failed", step.name)
                 if attempt == step.retry_count:
                     raise
                 await asyncio.sleep(1)
@@ -414,18 +376,24 @@ class AgentOrchestrator:
     def _get_execution_order(self, workflow: Workflow) -> List[str]:
         """获取步骤执行顺序（拓扑排序）"""
         # 简单实现：按依赖关系排序
-        visited = set()
-        order = []
+        visited: set[str] = set()
+        visiting: set[str] = set()
+        order: list[str] = []
 
         def visit(step_name: str):
             if step_name in visited:
                 return
-            visited.add(step_name)
+            if step_name in visiting:
+                raise ValueError(f"Cycle in workflow dependencies at {step_name}")
+            if step_name not in workflow.steps:
+                raise ValueError(f"Unknown dependency step: {step_name}")
+            visiting.add(step_name)
 
             # 先访问依赖
-            for dep in workflow.steps[step_name].dependencies:
+            for dep in sorted(workflow.steps[step_name].dependencies):
                 visit(dep)
-
+            visiting.remove(step_name)
+            visited.add(step_name)
             order.append(step_name)
 
         for step_name in workflow.steps:

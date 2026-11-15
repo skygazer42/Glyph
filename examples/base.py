@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import anyio
 from abc import ABCMeta
 from typing import AsyncGenerator, Optional, Tuple
 
@@ -85,7 +86,7 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
 
             return response.choices[0].message.content
         except Exception as e:
-            logger.error(f"Error generating LLM summary: {str(e)}")
+            logger.error(f"Error generating LLM summary: {str(e)}", exc_info=True)
             # Fall back to basic summary if LLM generation fails
             return (
                 "⚠️ **Maximum iterations exceeded**\n\n"
@@ -180,8 +181,8 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
                         await self.handle_function_or_tool_call(
                             tool_call.function.name,
                             tool_call.function.arguments,
-                            tool_id=tool_call.id,
                             *args,
+                            tool_id=tool_call.id,
                             **kwargs,
                         )
                 else:
@@ -226,7 +227,7 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
                             except json.JSONDecodeError:
                                 logger.error(
                                     f"Failed to parse tool arguments: {tool_call.function.arguments}"
-                                )
+                                , exc_info=True)
                                 input_args = {
                                     "_raw": tool_call.function.arguments
                                 }
@@ -280,7 +281,7 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
                             except json.JSONDecodeError:
                                 logger.error(
                                     f"Failed to parse tool arguments: {tool_call.function.arguments}"
-                                )
+                                , exc_info=True)
                                 input_args = {
                                     "_raw": tool_call.function.arguments
                                 }
@@ -315,7 +316,7 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
                         except json.JSONDecodeError:
                             logger.error(
                                 f"Failed to parse tool arguments: {tool_call.function.arguments}"
-                            )
+                            , exc_info=True)
                             input_args = {"_raw": tool_call.function.arguments}
 
                         tool_uses.append(
@@ -342,8 +343,8 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
                         await self.handle_function_or_tool_call(
                             tool_call.function.name,
                             tool_call.function.arguments,
-                            tool_id=tool_call.id,
                             *args,
+                            tool_id=tool_call.id,
                             **kwargs,
                         )
 
@@ -396,6 +397,7 @@ class R2RStreamingAgent(R2RAgent):
             pending_tool_calls = {}
             partial_text_buffer = ""
             iterations_count = 0
+            consolidated_citations: list[dict] = []
 
             try:
                 # Keep streaming until we complete
@@ -417,225 +419,228 @@ class R2RStreamingAgent(R2RAgent):
                     llm_stream = self.llm_provider.aget_completion_stream(
                         msg_list, gen_cfg
                     )
-                    async for chunk in llm_stream:
-                        delta = chunk.choices[0].delta
-                        finish_reason = chunk.choices[0].finish_reason
+                    try:
+                        async for chunk in llm_stream:
+                            delta = chunk.choices[0].delta
+                            finish_reason = chunk.choices[0].finish_reason
 
-                        if hasattr(delta, "thinking") and delta.thinking:
-                            # Accumulate thinking for later use in messages
-                            accumulated_thinking += delta.thinking
+                            if hasattr(delta, "thinking") and delta.thinking:
+                                # Accumulate thinking for later use in messages
+                                accumulated_thinking += delta.thinking
 
-                            # Emit SSE "thinking" event
-                            async for (
-                                line
-                            ) in SSEFormatter.yield_thinking_event(
-                                delta.thinking
-                            ):
-                                yield line
-
-                        # Add this new handler for thinking signatures
-                        if hasattr(delta, "thinking_signature"):
-                            thinking_signatures[accumulated_thinking] = (
-                                delta.thinking_signature
-                            )
-                            accumulated_thinking = ""
-
-                        # 3) If new text, accumulate it
-                        if delta.content:
-                            partial_text_buffer += delta.content
-
-                            # (a) Now emit the newly streamed text as a "message" event
-                            async for line in SSEFormatter.yield_message_event(
-                                delta.content
-                            ):
-                                yield line
-
-                            # (b) Find new citation spans in the accumulated text
-                            new_citation_spans = find_new_citation_spans(
-                                partial_text_buffer, citation_tracker
-                            )
-
-                            # Process each new citation span
-                            for cid, spans in new_citation_spans.items():
-                                for span in spans:
-                                    # Check if this is the first time we've seen this citation ID
-                                    is_new_citation = (
-                                        citation_tracker.is_new_citation(cid)
-                                    )
-
-                                    # Get payload if it's a new citation
-                                    payload = None
-                                    if is_new_citation:
-                                        source_obj = self.search_results_collector.find_by_short_id(
-                                            cid
-                                        )
-                                        if source_obj:
-                                            # Store payload for reuse
-                                            payload = dump_obj(source_obj)
-                                            citation_payloads[cid] = payload
-
-                                    # Create citation event payload
-                                    citation_data = {
-                                        "id": cid,
-                                        "object": "citation",
-                                        "is_new": is_new_citation,
-                                        "span": {
-                                            "start": span[0],
-                                            "end": span[1],
-                                        },
-                                    }
-
-                                    # Only include full payload for new citations
-                                    if is_new_citation and payload:
-                                        citation_data["payload"] = payload
-
-                                    # Add to streaming citations for final answer
-                                    self.streaming_citations.append(
-                                        citation_data
-                                    )
-
-                                    # Emit the citation event
-                                    async for (
-                                        line
-                                    ) in SSEFormatter.yield_citation_event(
-                                        citation_data
-                                    ):
-                                        yield line
-
-                        if delta.tool_calls:
-                            for tc in delta.tool_calls:
-                                idx = tc.index
-                                if idx not in pending_tool_calls:
-                                    pending_tool_calls[idx] = {
-                                        "id": tc.id,
-                                        "name": tc.function.name or "",
-                                        "arguments": tc.function.arguments
-                                        or "",
-                                    }
-                                else:
-                                    # Accumulate partial name/arguments
-                                    if tc.function.name:
-                                        pending_tool_calls[idx]["name"] = (
-                                            tc.function.name
-                                        )
-                                    if tc.function.arguments:
-                                        pending_tool_calls[idx][
-                                            "arguments"
-                                        ] += tc.function.arguments
-
-                        # 5) If the stream signals we should handle "tool_calls"
-                        if finish_reason == "tool_calls":
-                            # Handle thinking if present
-                            await self._handle_thinking(
-                                thinking_signatures, accumulated_thinking
-                            )
-
-                            calls_list = []
-                            for idx in sorted(pending_tool_calls.keys()):
-                                cinfo = pending_tool_calls[idx]
-                                calls_list.append(
-                                    {
-                                        "tool_call_id": cinfo["id"]
-                                        or f"call_{idx}",
-                                        "name": cinfo["name"],
-                                        "arguments": cinfo["arguments"],
-                                    }
-                                )
-
-                            # (a) Emit SSE "tool_call" events
-                            for c in calls_list:
-                                tc_data = self._create_tool_call_data(c)
+                                # Emit SSE "thinking" event
                                 async for (
                                     line
-                                ) in SSEFormatter.yield_tool_call_event(
-                                    tc_data
+                                ) in SSEFormatter.yield_thinking_event(
+                                    delta.thinking
                                 ):
                                     yield line
 
-                            # (b) Add an assistant message capturing these calls
-                            await self._add_tool_calls_message(
-                                calls_list, partial_text_buffer
-                            )
+                            # Add this new handler for thinking signatures
+                            if hasattr(delta, "thinking_signature"):
+                                thinking_signatures[accumulated_thinking] = (
+                                    delta.thinking_signature
+                                )
+                                accumulated_thinking = ""
 
-                            # (c) Execute each tool call in parallel
-                            await asyncio.gather(
-                                *[
-                                    self.handle_function_or_tool_call(
-                                        c["name"],
-                                        c["arguments"],
-                                        tool_id=c["tool_call_id"],
-                                    )
-                                    for c in calls_list
-                                ]
-                            )
+                            # 3) If new text, accumulate it
+                            if delta.content:
+                                partial_text_buffer += delta.content
 
-                            # Reset buffer & calls
-                            pending_tool_calls.clear()
-                            partial_text_buffer = ""
+                                # (a) Now emit the newly streamed text as a "message" event
+                                async for line in SSEFormatter.yield_message_event(
+                                    delta.content
+                                ):
+                                    yield line
 
-                        elif finish_reason == "stop":
-                            # Handle thinking if present
-                            await self._handle_thinking(
-                                thinking_signatures, accumulated_thinking
-                            )
-
-                            # 6) The LLM is done. If we have any leftover partial text,
-                            #    finalize it in the conversation
-                            if partial_text_buffer:
-                                # Create the final message with metadata including citations
-                                final_message = Message(
-                                    role="assistant",
-                                    content=partial_text_buffer,
-                                    metadata={
-                                        "citations": self.streaming_citations
-                                    },
+                                # (b) Find new citation spans in the accumulated text
+                                new_citation_spans = find_new_citation_spans(
+                                    partial_text_buffer, citation_tracker
                                 )
 
-                                # Add it to the conversation
-                                await self.conversation.add_message(
-                                    final_message
-                                )
+                                # Process each new citation span
+                                for cid, spans in new_citation_spans.items():
+                                    for span in spans:
+                                        # Check if this is the first time we've seen this citation ID
+                                        is_new_citation = (
+                                            citation_tracker.is_new_citation(cid)
+                                        )
 
-                            # (a) Prepare final answer with optimized citations
-                            consolidated_citations = []
-                            # Group citations by ID with all their spans
-                            for (
-                                cid,
-                                spans,
-                            ) in citation_tracker.get_all_spans().items():
-                                if cid in citation_payloads:
-                                    consolidated_citations.append(
-                                        {
+                                        # Get payload if it's a new citation
+                                        payload = None
+                                        if is_new_citation:
+                                            source_obj = self.search_results_collector.find_by_short_id(
+                                                cid
+                                            )
+                                            if source_obj:
+                                                # Store payload for reuse
+                                                payload = dump_obj(source_obj)
+                                                citation_payloads[cid] = payload
+
+                                        # Create citation event payload
+                                        citation_data = {
                                             "id": cid,
                                             "object": "citation",
-                                            "spans": [
-                                                {"start": s[0], "end": s[1]}
-                                                for s in spans
-                                            ],
-                                            "payload": citation_payloads[cid],
+                                            "is_new": is_new_citation,
+                                            "span": {
+                                                "start": span[0],
+                                                "end": span[1],
+                                            },
+                                        }
+
+                                        # Only include full payload for new citations
+                                        if is_new_citation and payload:
+                                            citation_data["payload"] = payload
+
+                                        # Add to streaming citations for final answer
+                                        self.streaming_citations.append(
+                                            citation_data
+                                        )
+
+                                        # Emit the citation event
+                                        async for (
+                                            line
+                                        ) in SSEFormatter.yield_citation_event(
+                                            citation_data
+                                        ):
+                                            yield line
+
+                            if delta.tool_calls:
+                                for tc in delta.tool_calls:
+                                    idx = tc.index
+                                    if idx not in pending_tool_calls:
+                                        pending_tool_calls[idx] = {
+                                            "id": tc.id,
+                                            "name": tc.function.name or "",
+                                            "arguments": tc.function.arguments
+                                            or "",
+                                        }
+                                    else:
+                                        # Accumulate partial name/arguments
+                                        if tc.function.name:
+                                            pending_tool_calls[idx]["name"] = (
+                                                tc.function.name
+                                            )
+                                        if tc.function.arguments:
+                                            pending_tool_calls[idx][
+                                                "arguments"
+                                            ] += tc.function.arguments
+
+                            # 5) If the stream signals we should handle "tool_calls"
+                            if finish_reason == "tool_calls":
+                                # Handle thinking if present
+                                await self._handle_thinking(
+                                    thinking_signatures, accumulated_thinking
+                                )
+
+                                calls_list = []
+                                for idx in sorted(pending_tool_calls.keys()):
+                                    cinfo = pending_tool_calls[idx]
+                                    calls_list.append(
+                                        {
+                                            "tool_call_id": cinfo["id"]
+                                            or f"call_{idx}",
+                                            "name": cinfo["name"],
+                                            "arguments": cinfo["arguments"],
                                         }
                                     )
 
-                            # Create final answer payload
-                            final_evt_payload = {
-                                "id": "msg_final",
-                                "object": "agent.final_answer",
-                                "generated_answer": partial_text_buffer,
-                                "citations": consolidated_citations,
-                            }
+                                # (a) Emit SSE "tool_call" events
+                                for c in calls_list:
+                                    tc_data = self._create_tool_call_data(c)
+                                    async for (
+                                        line
+                                    ) in SSEFormatter.yield_tool_call_event(
+                                        tc_data
+                                    ):
+                                        yield line
 
-                            # Emit final answer event
-                            async for (
-                                line
-                            ) in SSEFormatter.yield_final_answer_event(
-                                final_evt_payload
-                            ):
-                                yield line
+                                # (b) Add an assistant message capturing these calls
+                                await self._add_tool_calls_message(
+                                    calls_list, partial_text_buffer
+                                )
 
-                            # (b) Signal the end of the SSE stream
-                            yield SSEFormatter.yield_done_event()
-                            self._completed = True
-                            break
+                                # (c) Execute each tool call in parallel
+                                async def execute_tool(call):
+                                    await self.handle_function_or_tool_call(
+                                        call["name"], call["arguments"],
+                                        tool_id=call["tool_call_id"],
+                                    )
+
+                                async with anyio.create_task_group() as tasks:
+                                    for call in calls_list:
+                                        tasks.start_soon(execute_tool, call)
+
+                                # Reset buffer & calls
+                                pending_tool_calls.clear()
+                                partial_text_buffer = ""
+
+                            elif finish_reason == "stop":
+                                # Handle thinking if present
+                                await self._handle_thinking(
+                                    thinking_signatures, accumulated_thinking
+                                )
+
+                                # 6) The LLM is done. If we have any leftover partial text,
+                                #    finalize it in the conversation
+                                if partial_text_buffer:
+                                    # Create the final message with metadata including citations
+                                    final_message = Message(
+                                        role="assistant",
+                                        content=partial_text_buffer,
+                                        metadata={
+                                            "citations": self.streaming_citations
+                                        },
+                                    )
+
+                                    # Add it to the conversation
+                                    await self.conversation.add_message(
+                                        final_message
+                                    )
+
+                                # (a) Prepare final answer with optimized citations
+                                consolidated_citations = []
+                                # Group citations by ID with all their spans
+                                for (
+                                    cid,
+                                    spans,
+                                ) in citation_tracker.get_all_spans().items():
+                                    if cid in citation_payloads:
+                                        consolidated_citations.append(
+                                            {
+                                                "id": cid,
+                                                "object": "citation",
+                                                "spans": [
+                                                    {"start": s[0], "end": s[1]}
+                                                    for s in spans
+                                                ],
+                                                "payload": citation_payloads[cid],
+                                            }
+                                        )
+
+                                # Create final answer payload
+                                final_evt_payload = {
+                                    "id": "msg_final",
+                                    "object": "agent.final_answer",
+                                    "generated_answer": partial_text_buffer,
+                                    "citations": consolidated_citations,
+                                }
+
+                                # Emit final answer event
+                                async for (
+                                    line
+                                ) in SSEFormatter.yield_final_answer_event(
+                                    final_evt_payload
+                                ):
+                                    yield line
+
+                                # (b) Signal the end of the SSE stream
+                                yield SSEFormatter.yield_done_event()
+                                self._completed = True
+                                break
+                    finally:
+                        with anyio.fail_after(5, shield=True):
+                            await llm_stream.aclose()
 
                 # If we exit the while loop due to hitting max iterations
                 if not self._completed:
@@ -677,7 +682,7 @@ class R2RStreamingAgent(R2RAgent):
                     self._completed = True
 
             except Exception as e:
-                logger.error(f"Error in streaming agent: {str(e)}")
+                logger.error(f"Error in streaming agent: {str(e)}", exc_info=True)
                 # Emit error event for client
                 async for line in SSEFormatter.yield_error_event(
                     f"Agent error: {str(e)}"
@@ -687,28 +692,20 @@ class R2RStreamingAgent(R2RAgent):
                 yield SSEFormatter.yield_done_event()
 
         # Finally, we return the async generator
-        async for line in sse_generator():
-            yield line
+        events = sse_generator()
+        try:
+            async for line in events:
+                yield line
+        finally:
+            with anyio.fail_after(5, shield=True):
+                await events.aclose()
 
     async def _handle_thinking(
         self, thinking_signatures, accumulated_thinking
     ):
         """Process any accumulated thinking content"""
         if accumulated_thinking:
-            structured_content = [
-                {
-                    "type": "thinking",
-                    "thinking": accumulated_thinking,
-                    # Anthropic will validate this in their API
-                    "signature": "placeholder_signature",
-                }
-            ]
-
-            assistant_msg = Message(
-                role="assistant",
-                structured_content=structured_content,
-            )
-            await self.conversation.add_message(assistant_msg)
+            raise ValueError("Anthropic thinking is missing its provider signature")
 
         elif thinking_signatures:
             for (
@@ -734,7 +731,7 @@ class R2RStreamingAgent(R2RAgent):
         """Add a message with tool calls to the conversation"""
         assistant_msg = Message(
             role="assistant",
-            content=partial_text_buffer or "",
+            content=partial_text_buffer,
             tool_calls=[
                 {
                     "id": c["tool_call_id"],
@@ -764,7 +761,7 @@ class R2RStreamingAgent(R2RAgent):
         if hasattr(payload, "as_dict"):
             payload = payload.as_dict()
         if hasattr(payload, "dict"):
-            payload = payload.dict
+            payload = payload.dict()
         if hasattr(payload, "to_dict"):
             payload = payload.to_dict()
 
@@ -842,6 +839,7 @@ class R2RXMLStreamingAgent(R2RStreamingAgent):
 
         async def sse_generator() -> AsyncGenerator[str, None]:
             iterations_count = 0
+            consolidated_citations: list[dict] = []
 
             try:
                 # Keep streaming until we complete
@@ -869,187 +867,191 @@ class R2RXMLStreamingAgent(R2RStreamingAgent):
                     accumulated_thinking = ""
                     thinking_signatures = {}
 
-                    async for chunk in llm_stream:
-                        delta = chunk.choices[0].delta
-                        finish_reason = chunk.choices[0].finish_reason
+                    try:
+                        async for chunk in llm_stream:
+                            delta = chunk.choices[0].delta
+                            finish_reason = chunk.choices[0].finish_reason
 
-                        # Handle thinking if present
-                        if hasattr(delta, "thinking") and delta.thinking:
-                            # Accumulate thinking for later use in messages
-                            accumulated_thinking += delta.thinking
+                            # Handle thinking if present
+                            if hasattr(delta, "thinking") and delta.thinking:
+                                # Accumulate thinking for later use in messages
+                                accumulated_thinking += delta.thinking
 
-                            # Emit SSE "thinking" event
-                            async for (
-                                line
-                            ) in SSEFormatter.yield_thinking_event(
-                                delta.thinking
-                            ):
-                                yield line
+                                # Emit SSE "thinking" event
+                                async for (
+                                    line
+                                ) in SSEFormatter.yield_thinking_event(
+                                    delta.thinking
+                                ):
+                                    yield line
 
-                        # Add this new handler for thinking signatures
-                        if hasattr(delta, "thinking_signature"):
-                            thinking_signatures[accumulated_thinking] = (
-                                delta.thinking_signature
-                            )
-                            accumulated_thinking = ""
+                            # Add this new handler for thinking signatures
+                            if hasattr(delta, "thinking_signature"):
+                                thinking_signatures[accumulated_thinking] = (
+                                    delta.thinking_signature
+                                )
+                                accumulated_thinking = ""
 
-                        # 3) If new text, accumulate it
-                        if delta.content:
-                            iteration_buffer += delta.content
+                            # 3) If new text, accumulate it
+                            if delta.content:
+                                iteration_buffer += delta.content
 
-                            # Check if we have accumulated enough text for a `<Thought>` block
-                            if len(iteration_buffer) < len("<Thought>"):
-                                continue
+                                # Check if we have accumulated enough text for a `<Thought>` block
+                                if len(iteration_buffer) < len("<Thought>"):
+                                    continue
 
-                            # Check if we have yielded the first event
-                            if not yielded_first_event:
-                                # Emit the first chunk
-                                if self.THOUGHT_OPEN.findall(iteration_buffer):
-                                    is_thinking = True
-                                    async for (
-                                        line
-                                    ) in SSEFormatter.yield_thinking_event(
+                                # Check if we have yielded the first event
+                                if not yielded_first_event:
+                                    # Emit the first chunk
+                                    if self.THOUGHT_OPEN.findall(iteration_buffer):
+                                        is_thinking = True
+                                        async for (
+                                            line
+                                        ) in SSEFormatter.yield_thinking_event(
+                                            iteration_buffer
+                                        ):
+                                            yield line
+                                    else:
+                                        async for (
+                                            line
+                                        ) in SSEFormatter.yield_message_event(
+                                            iteration_buffer
+                                        ):
+                                            yield line
+
+                                    # Mark as yielded
+                                    yielded_first_event = True
+                                    continue
+
+                                # Check if we are in a thinking block
+                                if is_thinking:
+                                    # Still thinking, so keep yielding thinking events
+                                    if not self.THOUGHT_CLOSE.findall(
                                         iteration_buffer
                                     ):
-                                        yield line
+                                        # Emit SSE "thinking" event
+                                        async for (
+                                            line
+                                        ) in SSEFormatter.yield_thinking_event(
+                                            delta.content
+                                        ):
+                                            yield line
+
+                                        continue
+                                    # Done thinking, so emit the last thinking event
+                                    else:
+                                        is_thinking = False
+                                        thought_text = delta.content.split(
+                                            "</Thought>"
+                                        )[0].split("</think>")[0]
+                                        async for (
+                                            line
+                                        ) in SSEFormatter.yield_thinking_event(
+                                            thought_text
+                                        ):
+                                            yield line
+                                        post_thought_text = delta.content.split(
+                                            "</Thought>"
+                                        )[-1].split("</think>")[-1]
+                                        delta.content = post_thought_text
+
+                                # (b) Find new citation spans in the accumulated text
+                                new_citation_spans = find_new_citation_spans(
+                                    iteration_buffer, citation_tracker
+                                )
+
+                                # Process each new citation span
+                                for cid, spans in new_citation_spans.items():
+                                    for span in spans:
+                                        # Check if this is the first time we've seen this citation ID
+                                        is_new_citation = (
+                                            citation_tracker.is_new_citation(cid)
+                                        )
+
+                                        # Get payload if it's a new citation
+                                        payload = None
+                                        if is_new_citation:
+                                            source_obj = self.search_results_collector.find_by_short_id(
+                                                cid
+                                            )
+                                            if source_obj:
+                                                # Store payload for reuse
+                                                payload = dump_obj(source_obj)
+                                                citation_payloads[cid] = payload
+
+                                        # Create citation event payload
+                                        citation_data = {
+                                            "id": cid,
+                                            "object": "citation",
+                                            "is_new": is_new_citation,
+                                            "span": {
+                                                "start": span[0],
+                                                "end": span[1],
+                                            },
+                                        }
+
+                                        # Only include full payload for new citations
+                                        if is_new_citation and payload:
+                                            citation_data["payload"] = payload
+
+                                        # Add to streaming citations for final answer
+                                        self.streaming_citations.append(
+                                            citation_data
+                                        )
+
+                                        # Emit the citation event
+                                        async for (
+                                            line
+                                        ) in SSEFormatter.yield_citation_event(
+                                            citation_data
+                                        ):
+                                            yield line
+
+                                # Now prepare to emit the newly streamed text as a "message" event
+                                if (
+                                    iteration_buffer.count("<")
+                                    and not in_action_block
+                                ):
+                                    in_action_block = True
+
+                                if (
+                                    in_action_block
+                                    and len(
+                                        self.ACTION_PATTERN.findall(
+                                            iteration_buffer
+                                        )
+                                    )
+                                    < 2
+                                ):
+                                    continue
+
+                                elif in_action_block:
+                                    in_action_block = False
+                                    # Emit the post action block text, if it is there
+                                    post_action_text = iteration_buffer.split(
+                                        "</Action>"
+                                    )[-1]
+                                    if post_action_text:
+                                        async for (
+                                            line
+                                        ) in SSEFormatter.yield_message_event(
+                                            post_action_text
+                                        ):
+                                            yield line
+
                                 else:
                                     async for (
                                         line
                                     ) in SSEFormatter.yield_message_event(
-                                        iteration_buffer
-                                    ):
-                                        yield line
-
-                                # Mark as yielded
-                                yielded_first_event = True
-                                continue
-
-                            # Check if we are in a thinking block
-                            if is_thinking:
-                                # Still thinking, so keep yielding thinking events
-                                if not self.THOUGHT_CLOSE.findall(
-                                    iteration_buffer
-                                ):
-                                    # Emit SSE "thinking" event
-                                    async for (
-                                        line
-                                    ) in SSEFormatter.yield_thinking_event(
                                         delta.content
                                     ):
                                         yield line
 
-                                    continue
-                                # Done thinking, so emit the last thinking event
-                                else:
-                                    is_thinking = False
-                                    thought_text = delta.content.split(
-                                        "</Thought>"
-                                    )[0].split("</think>")[0]
-                                    async for (
-                                        line
-                                    ) in SSEFormatter.yield_thinking_event(
-                                        thought_text
-                                    ):
-                                        yield line
-                                    post_thought_text = delta.content.split(
-                                        "</Thought>"
-                                    )[-1].split("</think>")[-1]
-                                    delta.content = post_thought_text
-
-                            # (b) Find new citation spans in the accumulated text
-                            new_citation_spans = find_new_citation_spans(
-                                iteration_buffer, citation_tracker
-                            )
-
-                            # Process each new citation span
-                            for cid, spans in new_citation_spans.items():
-                                for span in spans:
-                                    # Check if this is the first time we've seen this citation ID
-                                    is_new_citation = (
-                                        citation_tracker.is_new_citation(cid)
-                                    )
-
-                                    # Get payload if it's a new citation
-                                    payload = None
-                                    if is_new_citation:
-                                        source_obj = self.search_results_collector.find_by_short_id(
-                                            cid
-                                        )
-                                        if source_obj:
-                                            # Store payload for reuse
-                                            payload = dump_obj(source_obj)
-                                            citation_payloads[cid] = payload
-
-                                    # Create citation event payload
-                                    citation_data = {
-                                        "id": cid,
-                                        "object": "citation",
-                                        "is_new": is_new_citation,
-                                        "span": {
-                                            "start": span[0],
-                                            "end": span[1],
-                                        },
-                                    }
-
-                                    # Only include full payload for new citations
-                                    if is_new_citation and payload:
-                                        citation_data["payload"] = payload
-
-                                    # Add to streaming citations for final answer
-                                    self.streaming_citations.append(
-                                        citation_data
-                                    )
-
-                                    # Emit the citation event
-                                    async for (
-                                        line
-                                    ) in SSEFormatter.yield_citation_event(
-                                        citation_data
-                                    ):
-                                        yield line
-
-                            # Now prepare to emit the newly streamed text as a "message" event
-                            if (
-                                iteration_buffer.count("<")
-                                and not in_action_block
-                            ):
-                                in_action_block = True
-
-                            if (
-                                in_action_block
-                                and len(
-                                    self.ACTION_PATTERN.findall(
-                                        iteration_buffer
-                                    )
-                                )
-                                < 2
-                            ):
-                                continue
-
-                            elif in_action_block:
-                                in_action_block = False
-                                # Emit the post action block text, if it is there
-                                post_action_text = iteration_buffer.split(
-                                    "</Action>"
-                                )[-1]
-                                if post_action_text:
-                                    async for (
-                                        line
-                                    ) in SSEFormatter.yield_message_event(
-                                        post_action_text
-                                    ):
-                                        yield line
-
-                            else:
-                                async for (
-                                    line
-                                ) in SSEFormatter.yield_message_event(
-                                    delta.content
-                                ):
-                                    yield line
-
-                        elif finish_reason == "stop":
-                            break
+                            elif finish_reason == "stop":
+                                break
+                    finally:
+                        with anyio.fail_after(5, shield=True):
+                            await llm_stream.aclose()
 
                     # Process any accumulated thinking
                     await self._handle_thinking(
@@ -1254,7 +1256,7 @@ class R2RXMLStreamingAgent(R2RStreamingAgent):
                     self._completed = True
 
             except Exception as e:
-                logger.error(f"Error in streaming agent: {str(e)}")
+                logger.error(f"Error in streaming agent: {str(e)}", exc_info=True)
                 # Emit error event for client
                 async for line in SSEFormatter.yield_error_event(
                     f"Agent error: {str(e)}"
@@ -1264,8 +1266,13 @@ class R2RXMLStreamingAgent(R2RStreamingAgent):
                 yield SSEFormatter.yield_done_event()
 
         # Finally, we return the async generator
-        async for line in sse_generator():
-            yield line
+        events = sse_generator()
+        try:
+            async for line in events:
+                yield line
+        finally:
+            with anyio.fail_after(5, shield=True):
+                await events.aclose()
 
     def _parse_single_tool_call(
         self, toolcall_text: str
@@ -1412,7 +1419,7 @@ class R2RXMLToolsAgent(R2RAgent):
                                 )
 
                             except Exception as e:
-                                logger.error(f"Error in tool call: {str(e)}")
+                                logger.error(f"Error in tool call: {str(e)}", exc_info=True)
                                 # Add error to XML
                                 xml_toolcalls += (
                                     f"<ToolCall>"

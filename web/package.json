@@ -2,8 +2,13 @@
   "name": "gov-dsl-kb-web",
   "version": "1.0.0",
   "description": "政策DSL生成和知识库管理系统",
+  "type": "module",
+  "engines": {
+    "node": "^18.0.0 || >=20.0.0"
+  },
   "scripts": {
     "dev": "vite",
+    "check": "node scripts/check.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

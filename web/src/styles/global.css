@@ -1,7 +1,9 @@
 /* 全局样式 */
 @import './variables.css';
 
-* {
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -17,6 +19,11 @@ body {
 
 #app {
   height: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 /* 滚动条样式 */
@@ -261,7 +268,9 @@ body {
 }
 
 .hover-lift {
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  transition:
+    transform var(--transition-base),
+    box-shadow var(--transition-base);
 }
 
 .hover-lift:hover {
@@ -293,7 +302,8 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

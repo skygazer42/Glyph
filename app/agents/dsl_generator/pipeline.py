@@ -4,11 +4,11 @@ Core pipeline logic for converting policy documents into executable DSL rules.
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.config.app_config import settings
 from app.agents.dsl_generator.document_parser import DocumentParser
 from app.agents.dsl_generator.dsl_extractor import DSLExtractor
 from app.agents.dsl_generator.dsl_generator import DSLGenerator
@@ -42,14 +42,7 @@ class DSLPipeline:
         self.engine = PolicyEngine(rule_dir=str(self.output_dir))
 
         if use_project_config:
-            try:
-                from app.config import settings  # type: ignore
-
-                logger.info("使用项目 LLM 配置:")
-                logger.info("  模型: %s", settings.model.llm_model_name)
-                logger.info("  API: %s", settings.model.llm_base_url)
-            except ImportError:
-                logger.warning("无法导入项目配置，将使用内置规则提取")
+            logger.info("使用项目 LLM 配置: 模型=%s API=%s", settings.model.llm_model_name, settings.model.llm_base_url)
 
     def process_document(self, file_path: str, save: bool = True) -> Dict[str, Any]:
         """Process an individual document."""
@@ -84,8 +77,7 @@ class DSLPipeline:
             logger.info("步骤 3: 验证提取的数据")
             validation_errors = self.extractor.validate_dsl(dsl_data)
             if validation_errors:
-                logger.warning("  验证警告: %s", validation_errors)
-                result["errors"].extend(validation_errors)
+                raise ValueError("DSL validation failed: " + "; ".join(validation_errors))
             else:
                 logger.info("  数据验证通过")
 
@@ -93,7 +85,7 @@ class DSLPipeline:
             yaml_content = self.generator.generate(
                 dsl_data,
                 auto_detect=True,
-                context=processed.get("metadata", {}),
+                context=processed["metadata"],
             )
             logger.info("  生成 YAML 长度: %s 字符", len(yaml_content))
 
@@ -187,7 +179,7 @@ class DSLPipeline:
         """Execute generated test cases for a rule."""
         logger.info("运行完整测试: %s", rule_id)
 
-        report = {
+        report: Dict[str, Any] = {
             "rule_id": rule_id,
             "test_cases": [],
             "summary": {"total": 0, "passed": 0, "failed": 0},
@@ -235,7 +227,8 @@ class DSLPipeline:
         if input_type == "string":
             return "test"
         if input_type == "float":
-            return tier.get("threshold", 0) or 100.0
+            threshold = tier.get("threshold")
+            return 100.0 if threshold is None else threshold
         if input_type == "int":
             return 1
         return DSLPipeline._default_input_value({"name": name, "type": input_type})

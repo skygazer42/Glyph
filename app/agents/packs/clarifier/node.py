@@ -20,14 +20,8 @@ class ClarifierAgent(PolicyAgentBase):
         )
 
     async def process_request(self, request: Dict[str, Any], context: MessageContext) -> Dict[str, Any]:
-        query = request.get("query", "")
-        # 简单启发式澄清（可替换为 LLM 提示）
-        candidates = [
-            "您更关心申请条件、办理流程还是截止时间？",
-            "请问需要我计算补贴金额，还是帮您比较不同政策？",
-            "您想了解哪些地区/部门的政策？",
-        ]
+        query = request["query"]
         return {
-            "question": candidates[0],
+            "question": "您更关心申请条件、办理流程还是截止时间？",
             "original_query": query,
         }

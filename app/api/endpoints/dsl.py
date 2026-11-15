@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/generate", response_model=GenerateDSLResponse)
-async def generate_dsl(
+def generate_dsl(
     request: GenerateDSLRequest,
     dsl_generator: DSLGenerator = Depends(get_dsl_generator),
     dsl_extractor: DSLExtractor = Depends(get_dsl_extractor),
@@ -54,7 +54,7 @@ async def generate_dsl(
         # 提取结构化数据
         dsl_data = dsl_extractor.extract(
             request.text,
-            processed.get('metadata', {})
+            processed['metadata']
         )
 
         logger.debug(f"提取的 DSL 数据: {dsl_data}")
@@ -63,7 +63,7 @@ async def generate_dsl(
         yaml_content = dsl_generator.generate(
             dsl_data,
             auto_detect=True,
-            context=processed.get('metadata', {})
+            context=processed['metadata']
         )
 
         logger.info("DSL 生成成功")
@@ -75,14 +75,12 @@ async def generate_dsl(
         )
 
     except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        logger.error(f"DSL 生成失败: {error_detail}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("DSL 生成失败")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/save", response_model=SaveDSLResponse)
-async def save_dsl(
+def save_dsl(
     request: SaveDSLRequest,
     dsl_generator: DSLGenerator = Depends(get_dsl_generator),
     policy_engine: PolicyEngine = Depends(get_policy_engine)
@@ -112,12 +110,12 @@ async def save_dsl(
         )
 
     except Exception as e:
-        logger.error(f"DSL 保存失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"DSL 保存失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/list", response_model=ListDSLResponse)
-async def list_dsl(
+def list_dsl(
     policy_engine: PolicyEngine = Depends(get_policy_engine)
 ):
     """
@@ -139,12 +137,12 @@ async def list_dsl(
         )
 
     except Exception as e:
-        logger.error(f"获取规则列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"获取规则列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{rule_id}", response_model=GetDSLResponse)
-async def get_dsl(
+def get_dsl(
     rule_id: str,
     policy_engine: PolicyEngine = Depends(get_policy_engine)
 ):
@@ -172,12 +170,12 @@ async def get_dsl(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取规则详情失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"获取规则详情失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/test", response_model=TestDSLResponse)
-async def test_dsl(
+def test_dsl(
     request: TestDSLRequest,
     policy_engine: PolicyEngine = Depends(get_policy_engine)
 ):
@@ -201,5 +199,5 @@ async def test_dsl(
         )
 
     except Exception as e:
-        logger.error(f"规则测试失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"规则测试失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e

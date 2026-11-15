@@ -5,13 +5,13 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.knowledge.milvus import MilvusStore
-from app.config import settings
+from app.knowledge.milvus import MilvusStore  # noqa: E402 - executable script bootstraps the repository path
 
 def init_milvus_collection():
     """Initialize Milvus collection."""
     print("正在初始化 Milvus 集合...")
 
+    store = None
     try:
         # 创建 MilvusStore 实例，会自动创建集合
         store = MilvusStore()
@@ -19,7 +19,7 @@ def init_milvus_collection():
 
         # 显示统计信息
         stats = store.get_stats()
-        print(f"[STATS] Statistics:")
+        print("[STATS] Statistics:")
         print(f"  - 集合名称: {stats['collection_name']}")
         print(f"  - 文档数量: {stats['total_documents']}")
         print(f"  - 嵌入维度: {stats['dim']}")
@@ -29,6 +29,9 @@ def init_milvus_collection():
     except Exception as e:
         print(f"[ERROR] Initialization failed: {e}")
         return False
+    finally:
+        if store is not None:
+            store.close()
 
     return True
 

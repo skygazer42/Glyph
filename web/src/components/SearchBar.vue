@@ -1,7 +1,9 @@
 <template>
   <div class="search-bar">
     <el-input
+      ref="searchInput"
       v-model="searchValue"
+      :aria-label="placeholder"
       :size="size"
       :placeholder="placeholder"
       :clearable="clearable"
@@ -15,12 +17,15 @@
         <el-icon><Search /></el-icon>
       </template>
 
-      <template #append v-if="showButton">
+      <template
+        #append
+        v-if="showButton"
+      >
         <el-button
           :type="buttonType"
           :loading="loading"
           @click="handleSearch"
-          :disabled="disabled || (!allowEmpty && !searchValue)"
+          :disabled="disabled || (!allowEmpty && searchValue === '')"
         >
           {{ buttonText }}
         </el-button>
@@ -29,7 +34,10 @@
 
     <!-- Advanced filters -->
     <el-collapse-transition>
-      <div v-if="showFilters && filters.length > 0" class="search-filters">
+      <div
+        v-if="showFilters && filters.length > 0"
+        class="search-filters"
+      >
         <div class="filters-row">
           <div
             v-for="filter in filters"
@@ -44,6 +52,8 @@
               v-model="filterValues[filter.key]"
               :placeholder="filter.placeholder || `选择${filter.label}`"
               :size="size"
+              :aria-label="filter.label"
+              :disabled="disabled"
               clearable
               @change="handleFilterChange"
             >
@@ -61,6 +71,8 @@
               v-model="filterValues[filter.key]"
               type="daterange"
               :size="size"
+              :aria-label="filter.label"
+              :disabled="disabled"
               range-separator="至"
               start-placeholder="开始日期"
               end-placeholder="结束日期"
@@ -70,11 +82,16 @@
             />
 
             <!-- Number range filter -->
-            <div v-else-if="filter.type === 'range'" class="range-filter">
+            <div
+              v-else-if="filter.type === 'range'"
+              class="range-filter"
+            >
               <el-input-number
                 v-model="filterValues[`${filter.key}_min`]"
                 :placeholder="filter.minPlaceholder || '最小值'"
                 :size="size"
+                :aria-label="`${filter.label}最小值`"
+                :disabled="disabled"
                 :min="filter.min"
                 :max="filter.max"
                 @change="handleFilterChange"
@@ -84,6 +101,8 @@
                 v-model="filterValues[`${filter.key}_max`]"
                 :placeholder="filter.maxPlaceholder || '最大值'"
                 :size="size"
+                :aria-label="`${filter.label}最大值`"
+                :disabled="disabled"
                 :min="filter.min"
                 :max="filter.max"
                 @change="handleFilterChange"
@@ -94,6 +113,8 @@
             <el-switch
               v-else-if="filter.type === 'switch'"
               v-model="filterValues[filter.key]"
+              :aria-label="filter.label"
+              :disabled="disabled"
               :active-text="filter.activeText"
               :inactive-text="filter.inactiveText"
               @change="handleFilterChange"
@@ -102,8 +123,17 @@
         </div>
 
         <div class="filters-actions">
-          <el-button size="small" @click="resetFilters">重置筛选</el-button>
-          <el-button size="small" type="primary" @click="handleSearch">
+          <el-button
+            size="small"
+            :disabled="disabled"
+            @click="resetFilters"
+          >重置筛选</el-button>
+          <el-button
+            size="small"
+            type="primary"
+            :disabled="disabled || loading"
+            @click="handleSearch"
+          >
             应用筛选
           </el-button>
         </div>
@@ -113,40 +143,58 @@
     <!-- Quick search suggestions -->
     <transition name="el-fade-in">
       <div
-        v-if="showSuggestions && suggestions.length > 0 && searchValue"
+        v-if="showSuggestions && suggestionItems.length > 0 && searchValue !== ''"
         class="search-suggestions"
       >
-        <div
-          v-for="(item, index) in suggestions"
-          :key="index"
+        <button
+          type="button"
+          v-for="item in suggestionItems"
+          :key="item"
           class="suggestion-item"
+          :disabled="disabled || loading"
           @click="selectSuggestion(item)"
         >
           <el-icon><Search /></el-icon>
-          <span v-html="highlightMatch(item)"></span>
-        </div>
+          <span>
+            <template
+              v-for="(part, partIndex) in highlightMatch(item)"
+              :key="partIndex"
+            >
+              <strong v-if="part.match">{{ part.text }}</strong>
+              <template v-else>{{ part.text }}</template>
+            </template>
+          </span>
+        </button>
       </div>
     </transition>
 
     <!-- Search history -->
     <transition name="el-fade-in">
       <div
-        v-if="showHistory && searchHistory.length > 0 && !searchValue"
+        v-if="showHistory && searchHistory.length > 0 && searchValue === ''"
         class="search-history"
       >
         <div class="history-header">
           <span>搜索历史</span>
-          <el-button text size="small" @click="clearHistory">清空</el-button>
+          <el-button
+            text
+            size="small"
+            @click="clearHistory"
+          >清空</el-button>
         </div>
         <div class="history-list">
           <el-tag
             v-for="(item, index) in searchHistory"
-            :key="index"
+            :key="item"
             closable
             @close="removeHistoryItem(index)"
-            @click="selectHistory(item)"
           >
-            {{ item }}
+            <button
+              type="button"
+              class="history-query"
+              :disabled="disabled || loading"
+              @click.stop="selectHistory(item)"
+            >{{ item }}</button>
           </el-tag>
         </div>
       </div>
@@ -155,7 +203,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -238,6 +286,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'search', 'input', 'clear', 'filter-change'])
 
+const suggestionItems = computed(() => [...new Set(props.suggestions)])
+const searchInput = ref(null)
 const searchValue = ref(props.modelValue)
 const filterValues = ref({})
 const searchHistory = ref(loadHistory())
@@ -245,6 +295,7 @@ let debounceTimer = null
 
 // Watch for external model value changes
 watch(() => props.modelValue, (newVal) => {
+  clearTimeout(debounceTimer)
   searchValue.value = newVal
 })
 
@@ -261,7 +312,10 @@ const handleInput = () => {
 }
 
 const handleSearch = () => {
-  if (!props.allowEmpty && !searchValue.value) return
+  if (props.disabled || props.loading || (!props.allowEmpty && searchValue.value === '')) {
+    return
+  }
+  clearTimeout(debounceTimer)
 
   const searchParams = {
     query: searchValue.value,
@@ -271,12 +325,13 @@ const handleSearch = () => {
   emit('search', searchParams)
 
   // Add to history if enabled
-  if (props.showHistory && searchValue.value) {
+  if (props.showHistory && searchValue.value !== '') {
     addToHistory(searchValue.value)
   }
 }
 
 const handleClear = () => {
+  clearTimeout(debounceTimer)
   searchValue.value = ''
   emit('clear')
 }
@@ -301,9 +356,20 @@ const selectSuggestion = (suggestion) => {
 }
 
 const highlightMatch = (text) => {
-  if (!searchValue.value) return text
-  const regex = new RegExp(`(${searchValue.value})`, 'gi')
-  return text.replace(regex, '<strong>$1</strong>')
+  const parts = []
+  const query = searchValue.value.toLowerCase()
+  let offset = 0
+  let index = query !== '' ? text.toLowerCase().indexOf(query) : -1
+
+  while (index !== -1) {
+    parts.push({ text: text.slice(offset, index), match: false })
+    parts.push({ text: text.slice(index, index + query.length), match: true })
+    offset = index + query.length
+    index = text.toLowerCase().indexOf(query, offset)
+  }
+
+  parts.push({ text: text.slice(offset), match: false })
+  return parts
 }
 
 // History management
@@ -317,9 +383,7 @@ const addToHistory = (query) => {
 
   history.unshift(query)
 
-  if (history.length > props.maxHistory) {
-    history.pop()
-  }
+  history.splice(Math.max(0, props.maxHistory))
 
   searchHistory.value = history
   saveHistory(history)
@@ -343,7 +407,10 @@ const clearHistory = () => {
 function loadHistory() {
   try {
     const history = localStorage.getItem('search-history')
-    return history ? JSON.parse(history) : []
+    const parsedHistory = history ? JSON.parse(history) : []
+    return Array.isArray(parsedHistory)
+      ? [...new Set(parsedHistory.filter(item => typeof item === 'string'))].slice(0, Math.max(0, props.maxHistory))
+      : []
   } catch {
     return []
   }
@@ -353,9 +420,11 @@ function saveHistory(history) {
   try {
     localStorage.setItem('search-history', JSON.stringify(history))
   } catch {
-    // Handle storage error
+    // 浏览器持久化不可用时，保留当前页面内的搜索历史。
   }
 }
+
+onUnmounted(() => clearTimeout(debounceTimer))
 
 // Expose methods
 defineExpose({
@@ -363,7 +432,7 @@ defineExpose({
   clear: handleClear,
   resetFilters,
   focus: () => {
-    // Focus the input element
+    searchInput.value?.focus()
   }
 })
 </script>
@@ -438,6 +507,12 @@ defineExpose({
 }
 
 .suggestion-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -446,7 +521,8 @@ defineExpose({
   transition: background-color 0.3s;
 }
 
-.suggestion-item:hover {
+.suggestion-item:hover,
+.suggestion-item:focus-visible {
   background-color: var(--el-fill-color-light);
 }
 
@@ -476,6 +552,15 @@ defineExpose({
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.history-query {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .history-list .el-tag {

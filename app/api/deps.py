@@ -3,16 +3,22 @@ API 依赖注入
 提供可复用的依赖项
 """
 
+import asyncio
+from contextlib import AsyncExitStack
+from threading import Lock
 from typing import Optional
-from fastapi import HTTPException
 
 from app.agents.dsl_generator.dsl_extractor import DSLExtractor
 from app.agents.dsl_generator.dsl_generator import DSLGenerator
 from app.agents.dsl_generator.document_parser import DocumentParser
 from app.agents.dsl_generator.rule_engine import PolicyEngine
-from app.agents.service import AgentService
-from app.knowledge import KnowledgeService, EnhancedDocumentProcessor
-from app.models.llms import model_client
+from app.agents.service.agent_service import AgentService
+from app.agents.framework.common.session_manager import SessionManager
+from app.agents.service.chat_history_store import ChatHistoryStore
+from app.knowledge.service import KnowledgeService
+from app.knowledge.doc_enhanced import EnhancedDocumentProcessor
+from app.core.llms import model_client
+from app.utils.lifecycle import close_with_timeout
 
 
 # ==================== 模块实例（全局单例） ====================
@@ -29,6 +35,8 @@ _enhanced_doc_processor: Optional[EnhancedDocumentProcessor] = None
 
 # Agent Service
 _agent_service: Optional[AgentService] = None
+_agent_service_lock = asyncio.Lock()
+_sync_dependencies_lock = Lock()
 
 
 # ==================== DSL 相关依赖 ====================
@@ -36,32 +44,36 @@ _agent_service: Optional[AgentService] = None
 def get_dsl_generator() -> DSLGenerator:
     """获取 DSL 生成器实例"""
     global _dsl_generator
-    if _dsl_generator is None:
-        _dsl_generator = DSLGenerator(output_dir="rules", template_dir="templates")
+    with _sync_dependencies_lock:
+        if _dsl_generator is None:
+            _dsl_generator = DSLGenerator(output_dir="rules", template_dir="templates")
     return _dsl_generator
 
 
 def get_dsl_extractor() -> DSLExtractor:
     """获取 DSL 提取器实例"""
     global _dsl_extractor
-    if _dsl_extractor is None:
-        _dsl_extractor = DSLExtractor(use_project_config=True)
+    with _sync_dependencies_lock:
+        if _dsl_extractor is None:
+            _dsl_extractor = DSLExtractor(use_project_config=True)
     return _dsl_extractor
 
 
 def get_document_parser() -> DocumentParser:
     """获取文档解析器实例"""
     global _doc_parser
-    if _doc_parser is None:
-        _doc_parser = DocumentParser()
+    with _sync_dependencies_lock:
+        if _doc_parser is None:
+            _doc_parser = DocumentParser()
     return _doc_parser
 
 
 def get_policy_engine() -> PolicyEngine:
     """获取规则引擎实例"""
     global _policy_engine
-    if _policy_engine is None:
-        _policy_engine = PolicyEngine(rule_dir="rules")
+    with _sync_dependencies_lock:
+        if _policy_engine is None:
+            _policy_engine = PolicyEngine(rule_dir="rules")
     return _policy_engine
 
 
@@ -70,16 +82,18 @@ def get_policy_engine() -> PolicyEngine:
 def get_knowledge_service() -> KnowledgeService:
     """获取 KnowledgeService 实例"""
     global _knowledge_service
-    if _knowledge_service is None:
-        _knowledge_service = KnowledgeService()
+    with _sync_dependencies_lock:
+        if _knowledge_service is None:
+            _knowledge_service = KnowledgeService()
     return _knowledge_service
 
 
 def get_enhanced_doc_processor() -> EnhancedDocumentProcessor:
     """获取增强文档处理器实例"""
     global _enhanced_doc_processor
-    if _enhanced_doc_processor is None:
-        _enhanced_doc_processor = EnhancedDocumentProcessor()
+    with _sync_dependencies_lock:
+        if _enhanced_doc_processor is None:
+            _enhanced_doc_processor = EnhancedDocumentProcessor()
     return _enhanced_doc_processor
 
 
@@ -94,15 +108,32 @@ async def get_agent_service() -> AgentService:
     """获取统一 AgentService 实例"""
     global _agent_service
     if _agent_service is None:
-        _agent_service = AgentService()
-        await _agent_service.initialize()
+        async with _agent_service_lock:
+            if _agent_service is None:
+                service = AgentService()
+                try:
+                    await service.initialize()
+                except BaseException:
+                    await close_with_timeout(service.aclose)
+                    raise
+                _agent_service = service
     return _agent_service
 
 
-# ==================== 会话管理依赖 ====================
+async def close_dependencies() -> None:
+    """Close only initialized, application-owned clients, including after a failure."""
+    global _agent_service, _knowledge_service
+    service, _agent_service = _agent_service, None
+    knowledge, _knowledge_service = _knowledge_service, None
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(close_with_timeout, model_client.close)
+        if knowledge is not None:
+            stack.push_async_callback(close_with_timeout, knowledge.close)
+        if service is not None:
+            stack.push_async_callback(close_with_timeout, service.aclose)
 
-from app.agents.framework.common.session_manager import SessionManager
-from app.agents.service.chat_history_store import ChatHistoryStore
+
+# ==================== 会话管理依赖 ====================
 
 _session_manager: Optional[SessionManager] = None
 
@@ -110,7 +141,8 @@ _session_manager: Optional[SessionManager] = None
 def get_session_manager() -> SessionManager:
     """获取会话管理器实例"""
     global _session_manager
-    if _session_manager is None:
-        history_store = ChatHistoryStore()
-        _session_manager = SessionManager(history_store=history_store)
+    with _sync_dependencies_lock:
+        if _session_manager is None:
+            history_store = ChatHistoryStore()
+            _session_manager = SessionManager(history_store=history_store)
     return _session_manager

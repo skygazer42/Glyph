@@ -25,6 +25,7 @@ from app.models.db_connection import DBConnection
 from app.models.schema_table import SchemaTable
 from app.models.schema_column import SchemaColumn
 from app.models.schema_relationship import SchemaRelationship
+from app.models.value_mapping import ValueMapping
 
 
 @dataclass
@@ -51,11 +52,11 @@ def _open_mysql_connection(connection: DBConnection) -> pymysql.connections.Conn
 
 
 def _load_mysql_tables(
-    conn: pymysql.connections.Connection,
+    mysql_connection: pymysql.connections.Connection,
     database_name: str,
 ) -> List[Dict[str, str]]:
     """Return basic table info from information_schema.tables."""
-    with conn.cursor() as cursor:
+    with mysql_connection.cursor() as cursor:
         cursor.execute(
             """
             SELECT TABLE_NAME AS table_name, TABLE_TYPE AS table_type
@@ -69,7 +70,7 @@ def _load_mysql_tables(
 
 
 def _load_mysql_columns(
-    conn: pymysql.connections.Connection,
+    mysql_connection: pymysql.connections.Connection,
     database_name: str,
 ) -> Dict[str, List[ColumnInfo]]:
     """
@@ -78,7 +79,7 @@ def _load_mysql_columns(
     Includes primary/unique/foreign-key flags so we can populate SchemaColumn.
     """
     # Column basics
-    with conn.cursor() as cursor:
+    with mysql_connection.cursor() as cursor:
         cursor.execute(
             """
             SELECT
@@ -94,7 +95,7 @@ def _load_mysql_columns(
         rows = list(cursor.fetchall())
 
     # Foreign key detection
-    with conn.cursor() as cursor:
+    with mysql_connection.cursor() as cursor:
         cursor.execute(
             """
             SELECT
@@ -106,38 +107,38 @@ def _load_mysql_columns(
             """,
             (database_name,),
         )
-        fk_rows = {(r["TABLE_NAME"], r["COLUMN_NAME"]) for r in cursor.fetchall()}
+        foreign_key_columns = {(row["TABLE_NAME"], row["COLUMN_NAME"]) for row in cursor.fetchall()}
 
     table_columns: Dict[str, List[ColumnInfo]] = {}
     for row in rows:
-        tbl = row["TABLE_NAME"]
-        col = row["COLUMN_NAME"]
-        col_key = (row.get("COLUMN_KEY") or "").upper()
-        is_pk = col_key == "PRI"
-        is_unique = col_key in ("PRI", "UNI")
-        is_fk = (tbl, col) in fk_rows
+        table_name = row["TABLE_NAME"]
+        column_name = row["COLUMN_NAME"]
+        column_key = row["COLUMN_KEY"].upper()
+        is_pk = column_key == "PRI"
+        is_unique = column_key in ("PRI", "UNI")
+        is_fk = (table_name, column_name) in foreign_key_columns
 
-        info = ColumnInfo(
-            name=col,
-            data_type=row.get("DATA_TYPE") or "",
-            is_pk=bool(is_pk),
-            is_unique=bool(is_unique),
-            is_fk=bool(is_fk),
+        column_info = ColumnInfo(
+            name=column_name,
+            data_type=row["DATA_TYPE"],
+            is_pk=is_pk,
+            is_unique=is_unique,
+            is_fk=is_fk,
         )
-        table_columns.setdefault(tbl, []).append(info)
+        table_columns.setdefault(table_name, []).append(column_info)
 
     return table_columns
 
 
 def _load_mysql_relationships(
-    conn: pymysql.connections.Connection,
+    mysql_connection: pymysql.connections.Connection,
     database_name: str,
 ) -> List[Tuple[str, str, str, str]]:
     """
     Load foreign-key relationships as tuples:
     (source_table, source_column, target_table, target_column)
     """
-    with conn.cursor() as cursor:
+    with mysql_connection.cursor() as cursor:
         cursor.execute(
             """
             SELECT
@@ -153,17 +154,17 @@ def _load_mysql_relationships(
         )
         rows = list(cursor.fetchall())
 
-    rels: List[Tuple[str, str, str, str]] = []
-    for r in rows:
-        rels.append(
+    relationships: List[Tuple[str, str, str, str]] = []
+    for row in rows:
+        relationships.append(
             (
-                r["source_table"],
-                r["source_column"],
-                r["target_table"],
-                r["target_column"],
+                row["source_table"],
+                row["source_column"],
+                row["target_table"],
+                row["target_column"],
             )
         )
-    return rels
+    return relationships
 
 
 def refresh_mysql_schema_metadata(db: Session, connection: DBConnection) -> None:
@@ -175,92 +176,103 @@ def refresh_mysql_schema_metadata(db: Session, connection: DBConnection) -> None
     that connection and re-creates it from information_schema.
     """
     # 1. Open raw MySQL connection to the target database
-    conn = _open_mysql_connection(connection)
+    mysql_connection = _open_mysql_connection(connection)
     try:
-        tables = _load_mysql_tables(conn, connection.database_name)
-        table_columns = _load_mysql_columns(conn, connection.database_name)
-        relationships = _load_mysql_relationships(conn, connection.database_name)
+        tables = _load_mysql_tables(mysql_connection, connection.database_name)
+        table_columns = _load_mysql_columns(mysql_connection, connection.database_name)
+        relationships = _load_mysql_relationships(mysql_connection, connection.database_name)
     finally:
-        conn.close()
+        mysql_connection.close()
 
-    # 2. Clear previous metadata for this connection
-    db.query(SchemaRelationship).filter(
-        SchemaRelationship.connection_id == connection.id
-    ).delete(synchronize_session=False)
-
-    # Delete columns via cascade by first deleting tables, or delete columns explicitly
-    # then tables to be explicit.
-    db.query(SchemaColumn).filter(
-        SchemaColumn.table_id.in_(
-            db.query(SchemaTable.id).filter(SchemaTable.connection_id == connection.id)
+    try:
+        # Bulk deletes do not trigger ORM cascades; remove dependent mappings first.
+        column_ids = db.query(SchemaColumn.id).join(SchemaTable).filter(
+            SchemaTable.connection_id == connection.id
         )
-    ).delete(synchronize_session=False)
-
-    db.query(SchemaTable).filter(
-        SchemaTable.connection_id == connection.id
-    ).delete(synchronize_session=False)
-
-    db.flush()
-
-    # 3. Insert new tables
-    table_name_to_id: Dict[str, int] = {}
-    for t in tables:
-        name = t["table_name"]
-        tbl = SchemaTable(
-            connection_id=connection.id,
-            table_name=name,
-            description=None,
-            ui_metadata=None,
+        db.query(ValueMapping).filter(ValueMapping.column_id.in_(column_ids)).delete(
+            synchronize_session=False
         )
-        db.add(tbl)
-        db.flush()  # obtain id
-        table_name_to_id[name] = tbl.id
+        # 2. Clear previous metadata for this connection
+        db.query(SchemaRelationship).filter(
+            SchemaRelationship.connection_id == connection.id
+        ).delete(synchronize_session=False)
 
-        # 4. Insert columns for this table
-        for col in table_columns.get(name, []):
-            column = SchemaColumn(
-                table_id=tbl.id,
-                column_name=col.name,
-                data_type=col.data_type,
-                description=None,
-                is_primary_key=col.is_pk,
-                is_foreign_key=col.is_fk,
-                is_unique=col.is_unique,
+        # Delete columns via cascade by first deleting tables, or delete columns explicitly
+        # then tables to be explicit.
+        db.query(SchemaColumn).filter(
+            SchemaColumn.table_id.in_(
+                db.query(SchemaTable.id).filter(SchemaTable.connection_id == connection.id)
             )
-            db.add(column)
+        ).delete(synchronize_session=False)
 
-    db.flush()
+        db.query(SchemaTable).filter(
+            SchemaTable.connection_id == connection.id
+        ).delete(synchronize_session=False)
 
-    # Build a lookup from (table_name, column_name) -> SchemaColumn.id
-    column_lookup: Dict[Tuple[str, str], int] = {}
-    all_columns = (
-        db.query(SchemaTable.table_name, SchemaColumn.id, SchemaColumn.column_name)
-        .join(SchemaColumn, SchemaColumn.table_id == SchemaTable.id)
-        .filter(SchemaTable.connection_id == connection.id)
-        .all()
-    )
-    for tbl_name, col_id, col_name in all_columns:
-        column_lookup[(tbl_name, col_name)] = col_id
+        db.flush()
 
-    # 5. Insert relationships
-    for src_table, src_col, tgt_table, tgt_col in relationships:
-        src_table_id = table_name_to_id.get(src_table)
-        tgt_table_id = table_name_to_id.get(tgt_table)
-        src_col_id = column_lookup.get((src_table, src_col))
-        tgt_col_id = column_lookup.get((tgt_table, tgt_col))
-        if not all((src_table_id, tgt_table_id, src_col_id, tgt_col_id)):
-            continue
+        # 3. Insert new tables
+        table_name_to_id: Dict[str, int] = {}
+        for table_info in tables:
+            name = table_info["table_name"]
+            schema_table = SchemaTable(
+                connection_id=connection.id,
+                table_name=name,
+                description=None,
+                ui_metadata=None,
+            )
+            db.add(schema_table)
+            db.flush()  # obtain id
+            table_name_to_id[name] = schema_table.id
 
-        rel = SchemaRelationship(
-            connection_id=connection.id,
-            source_table_id=src_table_id,
-            source_column_id=src_col_id,
-            target_table_id=tgt_table_id,
-            target_column_id=tgt_col_id,
-            relationship_type="foreign_key",
-            description=None,
+            # 4. Insert columns for this table
+            for column_info in table_columns.get(name, []):
+                column = SchemaColumn(
+                    table_id=schema_table.id,
+                    column_name=column_info.name,
+                    data_type=column_info.data_type,
+                    description=None,
+                    is_primary_key=column_info.is_pk,
+                    is_foreign_key=column_info.is_fk,
+                    is_unique=column_info.is_unique,
+                )
+                db.add(column)
+
+        db.flush()
+
+        # Build a lookup from (table_name, column_name) -> SchemaColumn.id
+        column_lookup: Dict[Tuple[str, str], int] = {}
+        all_columns = (
+            db.query(SchemaTable.table_name, SchemaColumn.id, SchemaColumn.column_name)
+            .join(SchemaColumn, SchemaColumn.table_id == SchemaTable.id)
+            .filter(SchemaTable.connection_id == connection.id)
+            .all()
         )
-        db.add(rel)
+        for table_name, column_id, column_name in all_columns:
+            column_lookup[(table_name, column_name)] = column_id
 
-    db.commit()
+        # 5. Insert relationships
+        for source_table, source_column, target_table, target_column in relationships:
+            source_table_id = table_name_to_id.get(source_table)
+            target_table_id = table_name_to_id.get(target_table)
+            source_column_id = column_lookup.get((source_table, source_column))
+            target_column_id = column_lookup.get((target_table, target_column))
+            if any(value is None for value in (source_table_id, target_table_id, source_column_id, target_column_id)):
+                continue
 
+            relationship = SchemaRelationship(
+                connection_id=connection.id,
+                source_table_id=source_table_id,
+                source_column_id=source_column_id,
+                target_table_id=target_table_id,
+                target_column_id=target_column_id,
+                relationship_type="foreign_key",
+                description=None,
+            )
+            db.add(relationship)
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise

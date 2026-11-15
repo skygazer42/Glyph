@@ -3,27 +3,18 @@
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 import re
-from datetime import datetime
 
 from autogen_core import MessageContext
+from pydantic import BaseModel, Field
 
 from app.agents.framework.base.base_agent import PolicyAgentBase
-from .prompt import intent_system_instruction, intent_user_prompt
 from .utils import LLMIntentClassifier
 from app.models.base import (
     AgentType,
-    UUID,
     UserQuery,
-    QueryAnalysis,
-    QueryIntent,
-    PolicyType,
-    BaseModel,
-    Field
 )
-import jieba
 
 
 
@@ -49,10 +40,10 @@ class IntentRouterAgent(PolicyAgentBase):
             **kwargs
         )
         self.model_client = model_client
-        self._llm_classifier = LLMIntentClassifier()
+        self._llm_classifier = LLMIntentClassifier(model_client)
 
         # 意图分类器
-        self.intent_classifiers = {
+        self.intent_classifiers: Dict[str, Dict[str, Any]] = {
             "greeting": {
                 "keywords": ["你好", "hello", "hi", "您好", "在吗", "在不在"],
                 "patterns": [r"^(你好|您好|hello|hi)[\s,.!?]*$", r"^(在吗|在不在)[\s,.!?]*$"],
@@ -119,7 +110,7 @@ class IntentRouterAgent(PolicyAgentBase):
         }
 
         # 处理链配置
-        self.chain_configs = {
+        self.chain_configs: Dict[str, Dict[str, Any]] = {
             "kb_chain": {
                 "name": "知识库检索链",
                 "agents": ["KnowledgeRetrieverAgent", "PolicyAnalyzerAgent", "AnswerGeneratorAgent"],
@@ -173,7 +164,7 @@ class IntentRouterAgent(PolicyAgentBase):
             processing_chain = await self._determine_processing_chain(classification, entities)
 
             # 5. 优化路由决策
-            final_decision = await self._optimize_routing_decision(
+            processing_chain = await self._optimize_routing_decision(
                 classification, entities, processing_chain
             )
 
@@ -184,7 +175,7 @@ class IntentRouterAgent(PolicyAgentBase):
                 confidence=classification["confidence"],
                 entities=entities,
                 processing_chain=processing_chain["chain"],
-                requires_parallel=processing_chain.get("parallel", False),
+                requires_parallel=processing_chain["parallel"],
                 fallback_intent=classification.get("fallback")
             )
 
@@ -203,13 +194,7 @@ class IntentRouterAgent(PolicyAgentBase):
             self.logger.error(f"Error routing query: {e}", exc_info=True)
             self.metrics["errors"] += 1
 
-            # 返回默认路由
-            return IntentClassification(
-                intent_type="policy_inquiry",
-                confidence=0.5,
-                processing_chain=["kb_chain"],
-                fallback_intent="default_handler"
-            )
+            raise
 
     def _preprocess_text(self, text: str) -> str:
         """文本预处理"""
@@ -219,40 +204,24 @@ class IntentRouterAgent(PolicyAgentBase):
 
     async def _classify_intent_llm_first(self, text: str) -> Dict[str, Any]:
         """优先使用 LLM 进行意图分类，失败则回退规则。"""
-        llm = await self._llm_classify(text)
-        if llm:
-            # 期望 llm = {intent, sub_intent, confidence, chains, requires_parallel}
-            intent = llm.get("intent") or "policy_inquiry"
-            sub_intent = llm.get("sub_intent") if llm.get("sub_intent") not in [None, "null", "None", ""] else None
-            try:
-                confidence = float(llm.get("confidence", 0.6))
-            except Exception:
-                confidence = 0.6
-            # 记下 LLM 的建议链（用于优化决策）
-            llm_chains = llm.get("chains") or []
-            requires_parallel = bool(llm.get("requires_parallel", False))
-
-            return {
-                "intent_type": intent,
-                "sub_intent": sub_intent,
-                "confidence": confidence,
-                "llm_chains": llm_chains,
-                "llm_parallel": requires_parallel
-            }
-
-        # 回退：规则分类
-        return await self._classify_intent(text)
-
-    async def _llm_classify(self, text: str) -> Optional[Dict[str, Any]]:
-        """调用 Autogen AgentChat 进行意图分类，严格 JSON 返回。失败返回 None。"""
         try:
-            return await self._llm_classifier.classify(text)
-        except Exception:
-            return None
+            llm = await self._llm_classifier.classify(text)
+            classification = {
+                "intent_type": llm.intent,
+                "sub_intent": llm.sub_intent,
+                "confidence": llm.confidence,
+                "llm_chains": llm.chains,
+                "llm_parallel": llm.requires_parallel,
+            }
+        except Exception as exc:
+            self.logger.warning("Intent model failed; using rule classification: %s", exc, exc_info=True)
+            return await self._classify_intent(text)
+
+        return classification
 
     async def _classify_intent(self, text: str) -> Dict[str, Any]:
         """分类意图"""
-        best_match = {"intent_type": "policy_inquiry", "confidence": 0.0}
+        best_match: Dict[str, Any] = {"intent_type": "policy_inquiry", "confidence": 0.0}
 
         # 遍历所有意图分类器
         for intent_type, config in self.intent_classifiers.items():
@@ -260,7 +229,7 @@ class IntentRouterAgent(PolicyAgentBase):
 
             # 关键词匹配
             keyword_matches = 0
-            for keyword in config.get("keywords", []):
+            for keyword in config["keywords"]:
                 if keyword in text.lower():
                     keyword_matches += 1
                     confidence += 0.2
@@ -272,7 +241,13 @@ class IntentRouterAgent(PolicyAgentBase):
                     pattern_matches += 1
                     confidence += 0.3
 
-            # 调整置信度
+            sub_intent = None
+            if "sub_intents" in config and intent_type == "policy_inquiry":
+                sub_intent = self._classify_sub_intent(text, config["sub_intents"])
+                if sub_intent:
+                    confidence += 0.1
+
+            # 子意图加分属于当前候选，并和关键词、模式得分一起限制范围。
             confidence = min(confidence, 1.0)
 
             # 更新最佳匹配
@@ -280,16 +255,10 @@ class IntentRouterAgent(PolicyAgentBase):
                 best_match = {
                     "intent_type": intent_type,
                     "confidence": confidence,
+                    "sub_intent": sub_intent,
                     "keyword_matches": keyword_matches,
                     "pattern_matches": pattern_matches
                 }
-
-            # 检查子意图
-            if "sub_intents" in config and intent_type == "policy_inquiry":
-                sub_intent = self._classify_sub_intent(text, config["sub_intents"])
-                if sub_intent:
-                    best_match["sub_intent"] = sub_intent
-                    best_match["confidence"] += 0.1
 
         return best_match
 
@@ -412,8 +381,8 @@ class IntentRouterAgent(PolicyAgentBase):
         intent_type = classification["intent_type"]
 
         # 如果 LLM 有建议链，直接采用（必要时并行）
-        llm_chains = classification.get("llm_chains") or []
-        llm_parallel = bool(classification.get("llm_parallel", False))
+        llm_chains = classification.get("llm_chains", [])
+        llm_parallel = classification.get("llm_parallel", False)
         if llm_chains:
             return {"chain": llm_chains, "parallel": llm_parallel}
 
@@ -448,14 +417,11 @@ class IntentRouterAgent(PolicyAgentBase):
         """智能选择政策查询处理链"""
         chain_scores = {}
 
-        # 基于实体数量打分
-        entity_count = sum(len(v) for v in entities.values())
-
         # 基于查询复杂度打分
         complexity_indicators = {
-            "policy_types": len(entities.get("policy_types", [])),
-            "departments": len(entities.get("departments", [])),
-            "locations": len(entities.get("locations", []))
+            "policy_types": len(entities["policy_types"]),
+            "departments": len(entities["departments"]),
+            "locations": len(entities["locations"])
         }
         complexity_score = sum(complexity_indicators.values())
 
@@ -483,11 +449,11 @@ class IntentRouterAgent(PolicyAgentBase):
             chain_scores["calculation_chain"] = 0.8
 
         # 选择得分最高的链
-        best_chain = max(chain_scores, key=chain_scores.get)
+        best_chain = max(chain_scores, key=lambda name: chain_scores[name])
 
         return {
             "chain": [best_chain],
-            "parallel": self.chain_configs.get(best_chain, {}).get("requires_parallel", False),
+            "parallel": self.chain_configs[best_chain].get("requires_parallel", False),
             "scores": chain_scores
         }
 
@@ -499,7 +465,7 @@ class IntentRouterAgent(PolicyAgentBase):
     ) -> Dict[str, Any]:
         """优化路由决策"""
         # 如果置信度太低，考虑并行处理
-        if classification["confidence"] < 0.7 and not processing_chain.get("parallel"):
+        if classification["confidence"] < 0.7 and not processing_chain["parallel"]:
             # 可以同时运行多个链
             alternative_chains = ["kb_chain", "graph_chain"]
             if processing_chain["chain"][0] not in alternative_chains:
@@ -517,5 +483,5 @@ class IntentRouterAgent(PolicyAgentBase):
             "name": self.name,
             "intent_types": len(self.intent_classifiers),
             "chain_configs": len(self.chain_configs),
-            "memory_size": len(self.memory.memory_contents) if self.memory else 0
+            "memory_size": len(self.memory.content)
         }

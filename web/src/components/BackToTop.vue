@@ -1,19 +1,16 @@
 <template>
   <transition name="fade-up">
-    <div
+    <button
+      type="button"
       v-if="visible"
       class="back-to-top"
       @click="scrollToTop"
-      role="button"
-      tabindex="0"
       aria-label="返回顶部"
-      @keypress.enter="scrollToTop"
-      @keypress.space="scrollToTop"
     >
       <el-icon :size="20">
         <Top />
       </el-icon>
-    </div>
+    </button>
   </transition>
 </template>
 
@@ -22,30 +19,37 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { Top } from '@element-plus/icons-vue'
 
 const visible = ref(false)
+let scrollTarget = null
 
 const handleScroll = () => {
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+  const scrollTop = scrollTarget === window
+    ? window.pageYOffset || document.documentElement.scrollTop
+    : scrollTarget.scrollTop
   visible.value = scrollTop > 300
 }
 
 const scrollToTop = () => {
-  window.scrollTo({
+  scrollTarget?.scrollTo({
     top: 0,
     behavior: 'smooth'
   })
 }
 
 onMounted(() => {
-  window.addEventListener('scroll', handleScroll)
+  scrollTarget = document.querySelector('.app-main') || window
+  handleScroll()
+  scrollTarget.addEventListener('scroll', handleScroll)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll)
+  scrollTarget?.removeEventListener('scroll', handleScroll)
 })
 </script>
 
 <style scoped>
 .back-to-top {
+  border: 0;
+  padding: 0;
   position: fixed;
   right: var(--spacing-xl);
   bottom: var(--spacing-xl);

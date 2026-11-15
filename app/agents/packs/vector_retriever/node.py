@@ -7,9 +7,14 @@ Supported embedding backends:
 """
 
 import os
+import pickle
+from datetime import datetime
+import asyncio
+from pathlib import Path
 import numpy as np
 from typing import List, Dict, Any, Optional
 import time
+from openai import AsyncOpenAI
 
 from autogen_core import MessageContext
 import faiss
@@ -24,6 +29,7 @@ from app.models.base import (
    RetrievalMethod
 )
 from app.agents.framework.base.base_agent import StatefulAgent
+from app.knowledge.rerank import Reranker
 
 
 class VectorRetrieverAgent(StatefulAgent):
@@ -48,14 +54,20 @@ class VectorRetrieverAgent(StatefulAgent):
 
         # Embedding backend & model
         self.embedding_backend = (embedding_backend or os.getenv("EMBEDDING_BACKEND") or "openai").lower()
-        self.model_name = model_name or os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        if model_name is None:
+            model_name = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
+        if not model_name:
+            raise ValueError("Embedding model name must not be empty")
+        self.model_name: str = model_name
         self.index_path = index_path
         self.metadata_path = metadata_path
-        self.embedding_dim = embedding_dim or self._infer_embedding_dim(self.embedding_backend, self.model_name)
+        self.embedding_dim = self._infer_embedding_dim(self.embedding_backend, self.model_name) if embedding_dim is None else embedding_dim
+        if self.embedding_dim <= 0:
+            raise ValueError("embedding_dim must be positive")
 
         # Initialize components
         self.embedding_model = None  # backends无需预加载
-        self.vector_index = None
+        self.vector_index: Any = None
         self.document_metadata: List[Dict] = []
         self._load_or_create_index()
 
@@ -69,21 +81,24 @@ class VectorRetrieverAgent(StatefulAgent):
 
     def _load_or_create_index(self):
         """Load existing index or create new one."""
-        import os
-        import pickle
+        Path(self.index_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.metadata_path).parent.mkdir(parents=True, exist_ok=True)
 
-        os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
-
-        if os.path.exists(self.index_path) and os.path.exists(self.metadata_path):
+        index_exists = os.path.exists(self.index_path)
+        metadata_exists = os.path.exists(self.metadata_path)
+        if index_exists != metadata_exists:
+            raise ValueError("Persisted vector index and metadata must exist together as a pair")
+        if index_exists:
             # Load existing index
             self.vector_index = faiss.read_index(self.index_path)
             with open(self.metadata_path, 'rb') as f:
                 self.document_metadata = pickle.load(f)
+            if len(self.document_metadata) != self.vector_index.ntotal:
+                raise ValueError("Vector index and metadata counts differ")
+            self.embedding_dim = self.vector_index.d
             self.logger.info(f"Loaded index with {len(self.document_metadata)} documents")
         else:
             # Create new index
-            if not self.embedding_dim:
-                self.embedding_dim = self._infer_embedding_dim(self.embedding_backend, self.model_name)
             self.vector_index = faiss.IndexFlatIP(self.embedding_dim)
             self.document_metadata = []
             self.logger.info("Created new vector index")
@@ -91,6 +106,8 @@ class VectorRetrieverAgent(StatefulAgent):
     async def add_documents(self, documents: List[PolicyDocument]):
         """Add documents to the vector store."""
         self.logger.info(f"Adding {len(documents)} documents to vector store")
+        if not documents:
+            return
 
         # Prepare texts for embedding
         texts = []
@@ -101,6 +118,8 @@ class VectorRetrieverAgent(StatefulAgent):
 
         # Generate embeddings via backend
         all_embeddings = await self._embed_texts(texts)
+        if len(all_embeddings) != len(documents):
+            raise ValueError("Embedding and document count differ")
 
         # Add to index
         self.vector_index.add(all_embeddings.astype(np.float32))
@@ -128,8 +147,10 @@ class VectorRetrieverAgent(StatefulAgent):
 
     async def _save_index(self):
         """Save index and metadata to disk."""
-        import pickle
+        await asyncio.to_thread(self._save_index_sync)
 
+    def _save_index_sync(self):
+        """Persist this trusted local index and its matching metadata together."""
         faiss.write_index(self.vector_index, self.index_path)
         with open(self.metadata_path, 'wb') as f:
             pickle.dump(self.document_metadata, f)
@@ -137,7 +158,7 @@ class VectorRetrieverAgent(StatefulAgent):
     async def _handle_user_query(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Handle user query messages."""
         query_data = message.content
-        query = query_data.get("text", "")
+        query = query_data["text"]
 
         # Generate embedding for the query
         query_embedding = await self._get_query_embedding(query)
@@ -158,7 +179,7 @@ class VectorRetrieverAgent(StatefulAgent):
             sender=self.agent_type,
             recipient=message.sender,
             content={
-                "query_id": str(query_data.get("id", "")),
+                "query_id": str(query_data["id"]),
                 "documents": search_results["documents"],
                 "scores": search_results["scores"],
                 "method": RetrievalMethod.SEMANTIC_SEARCH,
@@ -171,6 +192,8 @@ class VectorRetrieverAgent(StatefulAgent):
         """Handle retrieval request messages."""
         request_data = message.content
         query_embedding = request_data.get("query_embedding")
+        if query_embedding is None:
+            raise ValueError("query_embedding is required for vector search")
         filters = request_data.get("filters", {})
         top_k = request_data.get("top_k", 10)
         threshold = request_data.get("threshold", 0.7)
@@ -193,7 +216,7 @@ class VectorRetrieverAgent(StatefulAgent):
             sender=self.agent_type,
             recipient=message.sender,
             content={
-                "query_id": request_data.get("query_id", ""),
+                "query_id": request_data["query_id"],
                 "documents": search_results["documents"],
                 "scores": search_results["scores"],
                 "method": RetrievalMethod.SEMANTIC_SEARCH,
@@ -228,18 +251,25 @@ class VectorRetrieverAgent(StatefulAgent):
     ) -> Dict[str, Any]:
         """Search for similar documents."""
         start_time = time.time()
+        if query_embedding is None:
+            raise ValueError("query_embedding is required for vector search")
+        if top_k <= 0:
+            raise ValueError("top_k must be positive")
+        if self.vector_index.ntotal == 0:
+            return {"documents": [], "scores": [], "search_time": time.time() - start_time}
 
         # Convert to numpy array
         query_np = np.array([query_embedding], dtype=np.float32)
 
         # Search in FAISS index
-        scores, indices = self.vector_index.search(query_np, min(top_k, self.vector_index.ntotal))
+        scores, indices = await asyncio.to_thread(self.vector_index.search, query_np, min(top_k, self.vector_index.ntotal))
 
         # Prepare results
         documents = []
         valid_scores = []
 
-        for score, idx in zip(scores[0], indices[0]):
+        for result_index, idx in enumerate(indices[0]):
+            score = scores[0][result_index]
             if idx >= 0 and idx < len(self.document_metadata) and score >= threshold:
                 doc_metadata = self.document_metadata[idx]
 
@@ -252,9 +282,9 @@ class VectorRetrieverAgent(StatefulAgent):
                         content=doc_metadata["content"],
                         source=doc_metadata["source"],
                         doc_type=doc_metadata["doc_type"],
-                        keywords=doc_metadata.get("keywords", []),
-                        regions=doc_metadata.get("regions", []),
-                        target_groups=doc_metadata.get("target_groups", [])
+                        keywords=doc_metadata["keywords"],
+                        regions=doc_metadata["regions"],
+                        target_groups=doc_metadata["target_groups"]
                     )
 
                     documents.append(doc)
@@ -263,7 +293,7 @@ class VectorRetrieverAgent(StatefulAgent):
         search_time = time.time() - start_time
 
         return {
-            "documents": [doc.dict() for doc in documents],
+            "documents": [doc.model_dump() for doc in documents],
             "scores": valid_scores,
             "search_time": search_time
         }
@@ -274,41 +304,47 @@ class VectorRetrieverAgent(StatefulAgent):
                 return search_results
             if os.getenv("RERANKER_BACKEND", "").lower() != "dashscope":
                 return search_results
-            from app.knowledge.reranker.dashscope import reorder_by_rerank
-            docs = search_results.get("documents", [])
-            if not docs:
+            documents = search_results["documents"]
+            if not documents:
                 return search_results
-            # extract full content or fallback to title
-            texts = []
-            for d in docs:
-                # d is dict from PolicyDocument.dict()
-                texts.append(d.get("content") or d.get("title") or "")
-            ranking = reorder_by_rerank(query_text, texts, top_n=min(len(texts), int(os.getenv("RERANKER_TOP_N", "5"))))
+            texts = [document["content"] for document in documents]
+            def rerank_texts():
+                reranker = Reranker()
+                try:
+                    return [(index, score) for index, score, _ in reranker.rerank(
+                        query_text, texts,
+                        top_n=min(len(texts), int(os.getenv("RERANKER_TOP_N", "5"))),
+                    )]
+                finally:
+                    reranker.close()
+
+            ranking = await asyncio.to_thread(rerank_texts)
             # strategy: replace | fuse
             strategy = os.getenv("RERANKER_STRATEGY", "replace").lower()
             idx_map = [idx for idx, score in ranking]
             rerank_scores = {idx: score for idx, score in ranking}
             if strategy == "fuse":
-                faiss_scores = search_results.get("scores", [0.0] * len(docs))
+                faiss_scores = search_results["scores"]
                 alpha = float(os.getenv("RERANK_WEIGHT", "0.7"))
                 beta = float(os.getenv("FAISS_WEIGHT", "0.3"))
                 fused = []
-                for i in range(len(docs)):
-                    rr = rerank_scores.get(i, 0.0)
-                    fs = faiss_scores[i] if i < len(faiss_scores) else 0.0
-                    fused.append((i, alpha * rr + beta * fs))
+                for index in range(len(documents)):
+                    # Only the selected top_n documents receive a rerank score.
+                    rerank_score = rerank_scores.get(index, 0.0)
+                    vector_score = faiss_scores[index]
+                    fused.append((index, alpha * rerank_score + beta * vector_score))
                 fused.sort(key=lambda x: x[1], reverse=True)
                 idx_map = [i for i, _ in fused]
                 new_scores = [s for _, s in fused]
             else:
                 new_scores = [score for _, score in ranking]
             # reorder
-            new_docs = [docs[i] for i in idx_map]
+            new_docs = [documents[index] for index in idx_map]
             search_results["documents"] = new_docs
             search_results["scores"] = new_scores
             return search_results
         except Exception as e:
-            self.logger.warning(f"Reranker failed: {e}")
+            self.logger.warning(f"Reranker failed: {e}", exc_info=True)
             return search_results
 
     async def _passes_filters(self, doc_metadata: Dict, filters: Optional[Dict[str, Any]]) -> bool:
@@ -318,23 +354,22 @@ class VectorRetrieverAgent(StatefulAgent):
 
         # Check doc_type filter
         if "doc_type" in filters:
-            if doc_metadata.get("doc_type") != filters["doc_type"]:
+            if doc_metadata["doc_type"] != filters["doc_type"]:
                 return False
 
         # Check source filter
         if "source" in filters:
-            if filters["source"] not in doc_metadata.get("source", ""):
+            if filters["source"] not in doc_metadata["source"]:
                 return False
 
         # Check region filter
         if "region" in filters:
-            if filters["region"] not in doc_metadata.get("regions", []):
+            if filters["region"] not in doc_metadata["regions"]:
                 return False
 
         # Check date range filter
         if "date_from" in filters or "date_to" in filters:
             if doc_metadata.get("effective_date"):
-                from datetime import datetime
                 eff_date = datetime.fromisoformat(doc_metadata["effective_date"])
 
                 if "date_from" in filters:
@@ -356,6 +391,8 @@ class VectorRetrieverAgent(StatefulAgent):
 
     async def process_request(self, request: RetrievalRequest, context: MessageContext) -> RetrievalResult:
         """Process a retrieval request."""
+        if request.query_embedding is None:
+            raise ValueError("query_embedding is required for vector search")
         search_results = await self._search_similar(
             request.query_embedding,
             request.top_k,
@@ -376,7 +413,7 @@ class VectorRetrieverAgent(StatefulAgent):
         """Get retrieval statistics."""
         return {
             "total_documents": len(self.document_metadata),
-            "index_size": self.vector_index.ntotal if self.vector_index else 0,
+            "index_size": self.vector_index.ntotal,
             "cache_size": len(self.embedding_cache),
             "model_name": self.model_name,
             "embedding_dimension": self.embedding_dim,
@@ -390,40 +427,34 @@ class VectorRetrieverAgent(StatefulAgent):
             return await self._embed_openai(texts)
         if backend == "ollama":
             return await self._embed_ollama(texts)
-        # Fallback zeros
-        self.logger.warning(f"Unknown embedding backend '{backend}', using zeros")
-        return self._l2_normalize(np.zeros((len(texts), self.embedding_dim), dtype=np.float32))
+        raise ValueError(f"Unsupported embedding backend: {backend}")
 
     async def _embed_openai(self, texts: List[str]) -> np.ndarray:
-        try:
-            from openai import OpenAI
-        except Exception as e:
-            raise RuntimeError("openai 包未安装，无法使用 openai 嵌入后端") from e
         api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-        model = self.model_name or "text-embedding-3-small"
+        model = self.model_name
         if not api_key:
             raise RuntimeError("未配置 LLM_API_KEY/OPENAI_API_KEY，无法使用 openai 嵌入后端")
-        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-        res = client.embeddings.create(model=model, input=texts)
+        async with AsyncOpenAI(api_key=api_key, base_url=base_url) as client:
+            res = await client.embeddings.create(model=model, input=texts)
         vecs = np.array([d.embedding for d in res.data], dtype=np.float32)
-        # ensure index dim
-        if self.vector_index is None or self.vector_index.d != vecs.shape[1]:
-            self.embedding_dim = vecs.shape[1]
-            self.vector_index = faiss.IndexFlatIP(self.embedding_dim)
-        return self._l2_normalize(vecs)
+        return self._prepare_embeddings(vecs)
 
     async def _embed_ollama(self, texts: List[str]) -> np.ndarray:
-        try:
-            from lightrag.llm.ollama import ollama_embed
-        except Exception as e:
-            raise RuntimeError("需要安装 lightrag 以使用 ollama 嵌入后端") from e
+        # Ollama is an independently selected backend whose SDK is not a runtime requirement.
+        from lightrag.llm.ollama import ollama_embed
         host = os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434")
-        model = self.model_name or os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-        vecs = ollama_embed(texts, embed_model=model, host=host)
-        if isinstance(vecs, list):
-            vecs = np.array(vecs, dtype=np.float32)
+        model = self.model_name
+        vecs = await ollama_embed(texts, embed_model=model, host=host)
+        return self._prepare_embeddings(np.asarray(vecs, dtype=np.float32))
+
+    def _prepare_embeddings(self, vecs: np.ndarray) -> np.ndarray:
+        """Accept a discovered dimension only while the index is empty."""
+        if vecs.ndim != 2:
+            raise ValueError("Embedding response must be a two-dimensional array")
         if self.vector_index is None or self.vector_index.d != vecs.shape[1]:
+            if self.vector_index is not None and self.vector_index.ntotal:
+                raise ValueError("Embedding dimension differs from the populated vector index")
             self.embedding_dim = vecs.shape[1]
             self.vector_index = faiss.IndexFlatIP(self.embedding_dim)
         return self._l2_normalize(vecs)

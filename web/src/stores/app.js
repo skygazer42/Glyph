@@ -1,6 +1,7 @@
 // Pinia Store - 集中状态管理
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onScopeDispose } from 'vue'
+import { ElMessage } from 'element-plus'
 
 export const useAppStore = defineStore('app', () => {
   // 状态
@@ -16,6 +17,8 @@ export const useAppStore = defineStore('app', () => {
   const dslState = ref({
     inputText: '',
     generatedYAML: '',
+    generatedRuleId: '',
+    generatedInputs: [],
     dslList: [],
     generating: false,
     showExamples: false
@@ -31,8 +34,12 @@ export const useAppStore = defineStore('app', () => {
   })
 
   // 计算属性
-  const hasGeneratedDSL = computed(() => !!dslState.value.generatedYAML)
+  const hasGeneratedDSL = computed(() => dslState.value.generatedYAML.length > 0)
   const documentCount = computed(() => kbState.value.documents.length)
+  let notificationTimer = null
+  onScopeDispose(() => {
+    clearTimeout(notificationTimer)
+  })
 
   // 方法
   function setLoading(value) {
@@ -40,19 +47,24 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function showNotification(type, message, duration = 3000) {
+    clearTimeout(notificationTimer)
+    ElMessage({ type, message, duration })
     notification.value = {
       show: true,
       type,
       message
     }
-    setTimeout(() => {
+    notificationTimer = setTimeout(() => {
       notification.value.show = false
+      notificationTimer = null
     }, duration)
   }
 
   function resetDSLState() {
     dslState.value.inputText = ''
     dslState.value.generatedYAML = ''
+    dslState.value.generatedRuleId = ''
+    dslState.value.generatedInputs = []
     dslState.value.generating = false
   }
 

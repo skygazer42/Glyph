@@ -2,17 +2,14 @@
 聊天Agent - 处理日常对话和问候
 """
 
-import asyncio
-import logging
 import random
 from typing import Dict, Any
-from datetime import datetime
 
 from autogen_core import MessageContext
-from autogen_agentchat.messages import TextMessage
 
 from app.agents.framework.base.base_agent import PolicyAgentBase
-from app.models.base import UUID, BaseModel, Field
+from pydantic import BaseModel, Field
+from app.models.base import AgentType
 
 
 class ChatResponse(BaseModel):
@@ -20,7 +17,7 @@ class ChatResponse(BaseModel):
     response_text: str
     response_type: str  # greeting, farewell, introduction, casual
     emotion: str = "neutral"  # friendly, professional, helpful
-    follow_up_suggestions: list = Field(default_factory=list)
+    follow_up_suggestions: list[str] = Field(default_factory=list)
 
 
 class ChatAgent(PolicyAgentBase):
@@ -28,7 +25,7 @@ class ChatAgent(PolicyAgentBase):
 
     def __init__(self, **kwargs):
         super().__init__(
-            agent_type="chat_agent",
+            agent_type=AgentType.CHAT_AGENT,
             name="ChatAgent",
             description="处理日常问候、闲聊和系统介绍",
             **kwargs
@@ -71,15 +68,14 @@ class ChatAgent(PolicyAgentBase):
 
     async def process_request(self, request: Dict[str, Any], context: MessageContext) -> ChatResponse:
         """处理聊天请求"""
-        query_text = request.get("text", "")
+        query_text = request["text"]
         response_type = request.get("response_type", "casual")
-        intent = request.get("intent", "casual_chat")
 
         self.logger.info(f"Chat request: {query_text[:30]}... (type: {response_type})")
 
         try:
             # 生成响应
-            response_text = self._generate_response(query_text, response_type, intent)
+            response_text = self._generate_response(query_text, response_type)
 
             # 获取情绪
             emotion = self.emotion_mapping.get(response_type, "neutral")
@@ -95,14 +91,14 @@ class ChatAgent(PolicyAgentBase):
             )
 
         except Exception as e:
-            self.logger.error(f"Error in chat response: {e}")
+            self.logger.error(f"Error in chat response: {e}", exc_info=True)
             return ChatResponse(
                 response_text="抱歉，我遇到了一些问题。请尝试重新提问或联系管理员。",
                 response_type="error",
                 emotion="neutral"
             )
 
-    def _generate_response(self, query_text: str, response_type: str, intent: str) -> str:
+    def _generate_response(self, query_text: str, response_type: str) -> str:
         """生成响应文本"""
         # 如果有特定的响应模板
         if response_type in self.response_templates:

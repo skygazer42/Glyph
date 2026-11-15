@@ -2,11 +2,11 @@
 Agent Base Class - 所有Agent的基类
 """
 
+import asyncio
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Type
+from typing import Dict, Any, List, Optional
 from enum import Enum
 from datetime import datetime
-import asyncio
 import logging
 
 from ..models.base import AgentType, MessageType
@@ -45,6 +45,7 @@ class AgentBase(ABC):
         self.config: Dict[str, Any] = {}
         self.message_bus: Optional[Any] = None
         self._start_time: Optional[datetime] = None
+        self._message_lock = asyncio.Lock()
         self._metrics: Dict[str, Any] = {
             "processed_count": 0,
             "error_count": 0,
@@ -66,8 +67,8 @@ class AgentBase(ABC):
             self.status = AgentStatus.IDLE
             logger.info(f"Agent {self.name} initialized successfully")
             return True
-        except Exception as e:
-            logger.error(f"Failed to initialize agent {self.name}: {e}")
+        except Exception:
+            logger.exception("Failed to initialize agent %s", self.name)
             self.status = AgentStatus.ERROR
             return False
 
@@ -94,53 +95,54 @@ class AgentBase(ABC):
         Returns:
             Optional[Message]: 处理后的消息
         """
-        if self.status == AgentStatus.DISABLED:
-            logger.warning(f"Agent {self.name} is disabled, skipping message")
-            return None
+        async with self._message_lock:
+            if self.status == AgentStatus.DISABLED:
+                logger.warning(f"Agent {self.name} is disabled, skipping message")
+                return None
 
-        if self.status == AgentStatus.ERROR:
-            logger.warning(f"Agent {self.name} is in error state, skipping message")
-            return None
+            if self.status == AgentStatus.ERROR:
+                logger.warning(f"Agent {self.name} is in error state, skipping message")
+                return None
 
-        self.status = AgentStatus.BUSY
-        self._start_time = datetime.now()
+            self.status = AgentStatus.BUSY
+            self._start_time = datetime.now()
 
-        try:
-            # 记录处理开始
-            logger.debug(f"Agent {self.name} processing message {message.id}")
+            try:
+                # 记录处理开始
+                logger.debug(f"Agent {self.name} processing message {message.id}")
 
-            # 调用子类实现的process方法
-            result = await self.process(message)
+                # 调用子类实现的process方法
+                result = await self.process(message)
 
-            # 更新指标
-            self._update_metrics(True)
+                # 更新指标
+                self._update_metrics(True)
 
-            # 发送结果到消息总线
-            if result and self.message_bus:
-                await self.message_bus.publish(result)
+                # 发送结果到消息总线
+                if result and self.message_bus:
+                    await self.message_bus.publish(result)
 
-            return result
+                return result
 
-        except Exception as e:
-            logger.error(f"Error in agent {self.name} processing message: {e}")
-            self._update_metrics(False)
+            except Exception as e:
+                logger.exception("Error in agent %s processing message", self.name)
+                self._update_metrics(False)
 
-            # 创建错误消息
-            error_message = Message(
-                type=MessageType.ERROR,
-                content={"error": str(e), "agent": self.name},
-                sender=self.agent_id,
-                recipient=message.sender,
-                metadata={"original_message_id": message.id}
-            )
+                # 创建错误消息
+                error_message = Message(
+                    type=MessageType.ERROR_MESSAGE,
+                    content={"error": str(e), "agent": self.name},
+                    sender=self.agent_id,
+                    recipient=message.sender,
+                    metadata={"original_message_id": message.id}
+                )
 
-            if self.message_bus:
-                await self.message_bus.publish(error_message)
+                if self.message_bus:
+                    await self.message_bus.publish(error_message)
 
-            return error_message
+                return error_message
 
-        finally:
-            self.status = AgentStatus.IDLE
+            finally:
+                self.status = AgentStatus.IDLE
 
     async def send_message(
         self,
@@ -157,8 +159,7 @@ class AgentBase(ABC):
             message_type: 消息类型
         """
         if not self.message_bus:
-            logger.warning(f"Agent {self.name} has no message bus configured")
-            return
+            raise RuntimeError(f"Agent {self.name} has no message bus configured")
 
         message = Message(
             type=message_type,
@@ -178,7 +179,7 @@ class AgentBase(ABC):
         """
         if self.message_bus:
             for msg_type in message_types:
-                self.message_bus.subscribe(msg_type, self.handle_message)
+                self.message_bus.subscribe(msg_type, self.handle_message, agent_id=self.agent_id)
 
     def get_capabilities(self) -> List[str]:
         """获取Agent能力列表"""

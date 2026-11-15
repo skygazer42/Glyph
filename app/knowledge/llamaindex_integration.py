@@ -3,34 +3,33 @@ LlamaIndex 集成模块 - 将分级索引集成到现有系统
 """
 
 
-import os
-from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
+import tempfile
+from uuid import UUID, NAMESPACE_URL, uuid5
+from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 import asyncio
-
-# 延迟导入，避免循环依赖
-if TYPE_CHECKING:
-    from app.agents.framework.base.types import PolicyDocument
+import anyio
 
 from app.knowledge.hierarchical_index import (
     HierarchicalIndexBuilder,
     HierarchicalRetriever,
     ChunkConfig
 )
-from app.config import settings
+from app.config.app_config import settings
+from app.models.base import PolicyDocument, PolicyType
 
 
 class LlamaIndexIntegration:
     """LlamaIndex 分级索引集成"""
 
     def __init__(self, storage_dir: Optional[str] = None):
-        resolved_dir = storage_dir or settings.llamaindex.storage_dir
+        resolved_dir = settings.llamaindex.storage_dir if storage_dir is None else storage_dir
         self.storage_dir = Path(resolved_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         # 检查是否已有索引
         self.has_index = self._check_existing_index()
-        self.retriever = None
+        self.retriever: Optional[HierarchicalRetriever] = None
 
         if self.has_index:
             self._load_retriever()
@@ -40,142 +39,96 @@ class LlamaIndexIntegration:
         indices = ['doc_index', 'section_index', 'chunk_index']
         return all((self.storage_dir / idx).exists() for idx in indices)
 
-    def _load_retriever(self):
-        """加载检索器"""
-        try:
-            self.retriever = HierarchicalRetriever(str(self.storage_dir))
-            print(f"已加载 LlamaIndex 检索器: {self.storage_dir}")
-        except Exception as e:
-            print(f"加载检索器失败: {e}")
-            self.retriever = None
+    def _load_retriever(self) -> None:
+        self.retriever = HierarchicalRetriever(str(self.storage_dir))
+        print(f"已加载 LlamaIndex 检索器: {self.storage_dir}")
 
-    async def build_index_from_documents(self, documents: List["PolicyDocument"],
-                                        chunk_size: int = 800,
-                                        chunk_overlap: int = 100) -> bool:
-        """从 PolicyDocument 构建索引"""
-
-        # 将文档写入临时 Markdown 文件
-        temp_dir = self.storage_dir / "temp_md"
-        temp_dir.mkdir(exist_ok=True)
-
-        md_files = []
-        for doc in documents:
-            # 生成 Markdown 内容
-            md_content = f"# {doc.title}\n\n"
-            if doc.source:
-                md_content += f"**来源:** {doc.source}\n\n"
-            if doc.doc_type:
-                md_content += f"**类型:** {doc.doc_type}\n\n"
-            md_content += doc.content
-
-            # 写入文件
-            file_path = temp_dir / f"{doc.id}.md"
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(md_content)
-            md_files.append(str(file_path))
-
-        # 构建索引
-        config = ChunkConfig(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap
+    async def build_index_from_documents(
+        self, documents: List["PolicyDocument"], chunk_size: int = 800,
+        chunk_overlap: int = 100,
+    ) -> bool:
+        return await anyio.to_thread.run_sync(
+            self._build_index_sync, documents, chunk_size, chunk_overlap,
         )
 
-        builder = HierarchicalIndexBuilder(str(self.storage_dir))
-        builder.processor.config = config
-
-        try:
-            stats = builder.build_from_markdown_files(md_files)
+    def _build_index_sync(self, documents, chunk_size: int, chunk_overlap: int) -> bool:
+        with tempfile.TemporaryDirectory(prefix="index-md-", dir=self.storage_dir) as temp_dir:
+            md_files = []
+            document_ids = {}
+            for index, doc in enumerate(documents):
+                content = f"# {doc.title}\n\n"
+                if doc.source:
+                    content += f"**来源:** {doc.source}\n\n"
+                if doc.doc_type:
+                    content += f"**类型:** {doc.doc_type}\n\n"
+                path = Path(temp_dir) / f"{index}.md"
+                path.write_text(content + doc.content, encoding="utf-8")
+                md_files.append(str(path))
+                document_ids[str(path)] = str(doc.id)
+            builder = HierarchicalIndexBuilder(str(self.storage_dir))
+            builder.processor.config = ChunkConfig(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            stats = builder.build_from_markdown_files(md_files, document_ids=document_ids)
             print(f"索引构建成功: {stats}")
+        previous = self.retriever
+        self._load_retriever()
+        self.has_index = True
+        if previous is not None:
+            previous.close()
+        return True
 
-            # 清理临时文件
-            for f in md_files:
-                os.remove(f)
-            temp_dir.rmdir()
+    async def search(
+        self, query: str, top_k: int = 10, threshold: float = 0.7,
+        retrieval_mode: str = "hybrid",
+    ) -> Tuple[List["PolicyDocument"], List[float]]:
+        if self.retriever is None:
+            raise RuntimeError("Hierarchical retriever is not initialized")
+        if top_k <= 0:
+            raise ValueError("top_k must be positive")
+        nodes = await asyncio.to_thread(
+            self.retriever.retrieve, query, top_k=top_k,
+            use_rerank=True, retrieval_mode=retrieval_mode,
+        )
+        documents = []
+        scores = []
+        for node in nodes:
+            score = float(node.metadata["retrieval_score"])
+            if score < threshold:
+                continue
+            external_id = str(node.metadata.get("doc_id", node.id_))
+            try:
+                document_id = UUID(external_id)
+            except ValueError:
+                document_id = uuid5(NAMESPACE_URL, external_id)
+            documents.append(PolicyDocument(
+                id=document_id, title=node.metadata.get("title", ""),
+                content=node.get_content(), source=node.metadata.get("source", ""),
+                doc_type=PolicyType.GUIDELINE,
+                metadata={**node.metadata, "index_document_id": external_id},
+            ))
+            scores.append(score)
+        return documents, scores
 
-            # 重新加载检索器
-            self._load_retriever()
-            self.has_index = True
-            return True
-
-        except Exception as e:
-            print(f"索引构建失败: {e}")
-            return False
-
-    async def search(self,
-                    query: str,
-                    top_k: int = 10,
-                    threshold: float = 0.7,
-                    retrieval_mode: str = "hybrid") -> Tuple[List["PolicyDocument"], List[float]]:
-        """搜索文档"""
-
-        if not self.retriever:
-            print("错误: 检索器未初始化")
-            return [], []
-
-        try:
-            # 执行检索
-            nodes = self.retriever.retrieve(
-                query,
-                top_k=top_k,
-                use_rerank=True,
-                retrieval_mode=retrieval_mode
-            )
-
-            # 转换为 PolicyDocument
-            from app.agents.framework.base.types import PolicyDocument
-            documents = []
-            scores = []
-
-            for idx, node in enumerate(nodes):
-                # 从元数据重建 PolicyDocument
-                doc = PolicyDocument(
-                    id=node.metadata.get('doc_id', node.id_),
-                    title=node.metadata.get('title', ''),
-                    content=node.text,
-                    source=node.metadata.get('source', ''),
-                    doc_type=node.metadata.get('type', ''),
-                    keywords=[],
-                    regions=[],
-                    target_groups=[],
-                    metadata={
-                        'path': node.metadata.get('path', ''),
-                        'level': node.metadata.get('level', 0),
-                        'chunk_idx': node.metadata.get('chunk_idx', 0)
-                    }
-                )
-                documents.append(doc)
-
-                score = getattr(node, "score", None)
-                if score is None:
-                    # Fallback：按照排名提供轻量分数，但避免超过1
-                    score = max(0.0, 1.0 - 0.05 * idx)
-                scores.append(float(score))
-
-            return documents, scores
-
-        except Exception as e:
-            print(f"搜索失败: {e}")
-            return [], []
+    async def close(self) -> None:
+        retriever, self.retriever = self.retriever, None
+        self.has_index = False
+        if retriever is not None:
+            with anyio.fail_after(5, shield=True):
+                await anyio.to_thread.run_sync(retriever.close, abandon_on_cancel=True)
 
     async def get_summary(self, query: str) -> str:
         """获取查询的摘要回答"""
 
-        if not self.retriever:
-            return "检索器未初始化"
+        if self.retriever is None:
+            raise RuntimeError("Hierarchical retriever is not initialized")
+        retriever = self.retriever
 
-        try:
-            # 获取查询引擎
-            engine = self.retriever.get_query_engine(
-                retrieval_mode="hybrid",
-                response_mode="tree_summarize"
+        def query_summary() -> str:
+            engine = retriever.get_query_engine(
+                retrieval_mode="hybrid", response_mode="tree_summarize",
             )
+            return str(engine.query(query))
 
-            # 执行查询
-            response = engine.query(query)
-            return str(response)
-
-        except Exception as e:
-            return f"查询失败: {e}"
+        return await asyncio.to_thread(query_summary)
 
     def get_stats(self) -> Dict:
         """获取索引统计信息"""
@@ -208,7 +161,7 @@ class EnhancedVectorRetrieverAgent:
 
         # 初始化 LlamaIndex
         if self.use_llamaindex:
-            self.llamaindex = LlamaIndexIntegration(llamaindex_storage)
+            self.llamaindex: Optional[LlamaIndexIntegration] = LlamaIndexIntegration(llamaindex_storage)
         else:
             self.llamaindex = None
 
@@ -219,69 +172,37 @@ class EnhancedVectorRetrieverAgent:
                     threshold: float = 0.7) -> Tuple[List["PolicyDocument"], List[float]]:
         """使用 LlamaIndex 进行搜索"""
 
-        documents = []
-        scores = []
-
-        # 1. 使用 LlamaIndex
-        if self.llamaindex and self.llamaindex.has_index:
-            try:
-                docs, scs = await self.llamaindex.search(
-                    query,
-                    top_k=top_k,
-                    threshold=threshold,
-                    retrieval_mode="hybrid"
-                )
-                if docs:
-                    documents.extend(docs)
-                    scores.extend(scs)
-            except Exception as e:
-                print(f"LlamaIndex 搜索失败: {e}")
-
-        return documents, scores
+        if self.llamaindex is None or not self.llamaindex.has_index:
+            return [], []
+        return await self.llamaindex.search(
+            query, top_k=top_k, threshold=threshold, retrieval_mode="hybrid",
+        )
 
     async def add_documents(self, documents: List["PolicyDocument"]) -> bool:
-        """添加文档到索引"""
+        if self.llamaindex is None:
+            return False
+        return await self.llamaindex.build_index_from_documents(documents)
 
-        success = True
-
-        # 1. 添加到 LlamaIndex
-        if self.llamaindex:
-            try:
-                await self.llamaindex.build_index_from_documents(documents)
-            except Exception as e:
-                print(f"LlamaIndex 添加文档失败: {e}")
-                success = False
-
-        # 2. 添加到 FAISS
-        if self.faiss_store:
-            try:
-                self.faiss_store.add_documents(documents)
-            except Exception as e:
-                print(f"FAISS 添加文档失败: {e}")
-                success = False
-
-        return success
+    async def close(self) -> None:
+        if self.llamaindex is not None:
+            await self.llamaindex.close()
 
 
 # 使用示例
 async def demo():
     """演示集成使用"""
 
-    # 创建增强检索器
-    retriever = EnhancedVectorRetrieverAgent(
-        use_llamaindex=True,
-        fallback_to_faiss=True
-    )
-
-    # 测试查询
-    query = "家电以旧换新补贴标准"
-    documents, scores = await retriever.search(query, top_k=5)
-
-    print(f"查询: {query}")
-    print(f"找到 {len(documents)} 个相关文档:")
-    for i, (doc, score) in enumerate(zip(documents, scores), 1):
-        print(f"  {i}. {doc.title} (分数: {score:.2f})")
-        print(f"     {doc.content[:100]}...")
+    retriever = await anyio.to_thread.run_sync(EnhancedVectorRetrieverAgent)
+    try:
+        query = "家电以旧换新补贴标准"
+        documents, scores = await retriever.search(query, top_k=5)
+        print(f"查询: {query}")
+        print(f"找到 {len(documents)} 个相关文档:")
+        for i, doc in enumerate(documents, 1):
+            print(f"  {i}. {doc.title} (分数: {scores[i - 1]:.2f})")
+            print(f"     {doc.content[:100]}...")
+    finally:
+        await retriever.close()
 
 
 if __name__ == "__main__":

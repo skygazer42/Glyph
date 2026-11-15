@@ -6,8 +6,7 @@ from typing import Dict, Any, Tuple
 
 from autogen_core import message_handler, MessageContext, TopicId, type_subscription
 
-from app.persistence.db.session import SessionLocal
-from app.agents.chatdb.text2sql_utils import retrieve_relevant_schema, get_value_mappings
+from app.agents.chatdb.text2sql_service import retrieve_schema_for_connection
 from app.schemas.text2sql import QueryMessage, SchemaContextMessage
 from .base import BaseAgent
 from .types import AgentTypes, AGENT_NAMES, TopicTypes
@@ -36,27 +35,13 @@ class SchemaRetrieverAgent(BaseAgent):
         Returns:
             Tuple[Dict[str, Any], str]: 表结构信息字典和值映射字符串
         """
-        schema_context = {}
-        mappings_str = ""
-        try:
-            # 创建数据库会话
-            db = SessionLocal()
-            try:
-                # 调用 retrieve_relevant_schema 方法获取相关表结构
-                schema_context = await retrieve_relevant_schema(db=db, connection_id=connection_id, query=query)
-                value_mappings = get_value_mappings(db, schema_context)
-                if value_mappings:
-                    mappings_str = "-- Value Mappings:\n"
-                    for column, mappings in value_mappings.items():
-                        mappings_str += f"-- For {column}:\n"
-                        for nl_term, db_value in mappings.items():
-                            mappings_str += f"--   '{nl_term}' in natural language refers to '{db_value}' in the database\n"
-                    mappings_str += "\n"
-            finally:
-                db.close()
-        except Exception as e:
-            await self.handle_exception("retrieve_schema", e)
-
+        schema_context, value_mappings, _ = await retrieve_schema_for_connection(connection_id, query)
+        mapping_lines = []
+        for column, mappings in value_mappings.items():
+            mapping_lines.append(f"-- For {column}:")
+            for nl_term, db_value in mappings.items():
+                mapping_lines.append(f"--   '{nl_term}' in natural language refers to '{db_value}' in the database")
+        mappings_str = "-- Value Mappings:\n" + "\n".join(mapping_lines) + "\n" if mapping_lines else ""
         return schema_context, mappings_str
 
     @message_handler
@@ -69,13 +54,13 @@ class SchemaRetrieverAgent(BaseAgent):
         """
         try:
             connection_id = None
-            schema_context = {}
+            schema_context: Dict[str, Any] = {}
 
             # 发送开始处理的消息
             await self.send_response("正在解析相关表结构...\n\n")
 
             mappings_str = ""
-            if message.connection_id:
+            if message.connection_id is not None:
                 connection_id = message.connection_id
                 print(f"[{self.agent_name}] 收到连接ID: {connection_id}")
 
@@ -83,7 +68,7 @@ class SchemaRetrieverAgent(BaseAgent):
                 schema_context, mappings_str = await self.retrieve_schema(connection_id, message.query)
 
                 # 输出找到的相关表信息
-                if schema_context and schema_context.get('tables'):
+                if schema_context['tables']:
                     tables_info = "\n".join([f"- {table['name']}" for table in schema_context['tables']])
                     await self.send_response(f"已找到以下相关表:\n{tables_info} \n\n")
                 else:

@@ -52,8 +52,8 @@ def _build_pipeline(
 
 
 def _echo_result(payload: Dict[str, Any]) -> None:
-    status = payload.get("status")
-    typer.echo(f"[{status}] {payload.get('file')}")
+    status = payload["status"]
+    typer.echo(f"[{status}] {payload['file']}")
     if payload.get("dsl_file"):
         typer.echo(f"  DSL: {payload['dsl_file']}")
     if payload.get("errors"):
@@ -62,9 +62,10 @@ def _echo_result(payload: Dict[str, Any]) -> None:
 
 def _load_inputs(payload: str) -> Dict[str, Any]:
     candidate = Path(payload)
-    if candidate.exists():
-        return json.loads(candidate.read_text(encoding="utf-8"))
-    return json.loads(payload)
+    data = json.loads(candidate.read_text(encoding="utf-8")) if candidate.exists() else json.loads(payload)
+    if not isinstance(data, dict):
+        raise ValueError("JSON inputs must be an object")
+    return data
 
 
 def _load_optional_json(payload: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -75,8 +76,8 @@ def _load_optional_json(payload: Optional[str]) -> Optional[Dict[str, Any]]:
 
 @app.command("document")
 def process_document(
-    path: Path = typer.Argument(..., exists=True, help="待转换的文档路径"),
-    output_dir: Path = typer.Option(Path("rules"), "--output-dir", "-o", help="DSL 输出目录"),
+    path: Path = typer.Argument(..., exists=True, help="待转换的文档路径"),  # noqa: B008 - Typer CLI parameter declaration
+    output_dir: Path = typer.Option(Path("rules"), "--output-dir", "-o", help="DSL 输出目录"),  # noqa: B008 - Typer CLI parameter declaration
     use_project_config: bool = typer.Option(False, "--use-project-config", help="启用 config.settings 中的 LLM 配置"),
     save: bool = typer.Option(True, "--save/--dry-run", help="是否落盘 DSL 文件"),
     use_llama_parser: bool = typer.Option(False, "--use-llama-parser/--no-use-llama-parser", help="使用 llama_index 读取文档"),
@@ -96,8 +97,8 @@ def process_document(
 
 @app.command("directory")
 def process_directory(
-    source_dir: Path = typer.Argument(..., exists=True, file_okay=False, help="需要批量转换的目录"),
-    output_dir: Path = typer.Option(Path("rules"), "--output-dir", "-o", help="DSL 输出目录"),
+    source_dir: Path = typer.Argument(..., exists=True, file_okay=False, help="需要批量转换的目录"),  # noqa: B008 - Typer CLI parameter declaration
+    output_dir: Path = typer.Option(Path("rules"), "--output-dir", "-o", help="DSL 输出目录"),  # noqa: B008 - Typer CLI parameter declaration
     use_project_config: bool = typer.Option(False, "--use-project-config", help="启用 config.settings 中的 LLM 配置"),
     use_llama_parser: bool = typer.Option(False, "--use-llama-parser/--no-use-llama-parser", help="使用 llama_index 读取文档"),
     llama_reader_config: Optional[str] = typer.Option(None, "--llama-reader-config", help="传递给 llama_index SimpleDirectoryReader 的 JSON 配置或文件路径"),
@@ -119,7 +120,7 @@ def process_directory(
 def test_rule(
     rule_id: str = typer.Argument(..., help="要执行的规则 ID"),
     inputs: str = typer.Argument(..., help="JSON 字符串，或指向 JSON 文件的路径"),
-    rule_dir: Path = typer.Option(Path("rules"), "--rule-dir", help="已生成 DSL 的目录"),
+    rule_dir: Path = typer.Option(Path("rules"), "--rule-dir", help="已生成 DSL 的目录"),  # noqa: B008 - Typer CLI parameter declaration
 ) -> None:
     """执行已有 DSL 规则并查看输出."""
     payload = _load_inputs(inputs)
@@ -129,7 +130,6 @@ def test_rule(
 
 
 # Backwards compatibility
-DSLPipeline = DSLPipeline
 
 __all__ = ["DSLPipeline", "app"]
 

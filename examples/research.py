@@ -1,14 +1,16 @@
+import asyncio
 import logging
 import os
-import subprocess
 import sys
 import tempfile
+import anyio
 from copy import copy
 from typing import Any, Callable, Optional
 
 from core.base import AppConfig
 from core.base.abstractions import GenerationConfig, Message, SearchSettings
 from core.base.providers import DatabaseProvider
+from core.base.agent import Conversation
 from core.providers import (
     AnthropicCompletionProvider,
     LiteLLMCompletionProvider,
@@ -18,10 +20,10 @@ from core.providers import (
 from core.utils import extract_citations
 from shared.abstractions.tool import Tool
 
-from ..base.agent.agent import RAGAgentConfig  # type: ignore
+from ..base.agent.agent import RAGAgentConfig
 
 # Import the RAG agents we'll leverage
-from .rag import (  # type: ignore
+from .rag import (
     R2RRAGAgent,
     R2RStreamingRAGAgent,
     R2RXMLToolsRAGAgent,
@@ -42,6 +44,13 @@ class ResearchAgentMixin(RAGAgentMixin):
     - A reasoning tool for complex problem solving
     - A critique tool for analyzing conversation history
     """
+
+    # Required state supplied by each concrete R2R base in the cooperative MRO.
+    database_provider: DatabaseProvider
+    llm_provider: (AnthropicCompletionProvider | LiteLLMCompletionProvider |
+                   OpenAICompletionProvider | R2RCompletionProvider)
+    conversation: Conversation
+    get_generation_config: Callable[..., GenerationConfig]
 
     def __init__(
         self,
@@ -210,7 +219,7 @@ class ResearchAgentMixin(RAGAgentMixin):
         query: str,
         *args,
         **kwargs,
-    ) -> dict[str, Any]:
+    ) -> str | None:
         """Execute a search using an internal RAG agent."""
         # Create a copy of the current configuration for the RAG agent
         config_copy = copy(self.config)
@@ -283,7 +292,7 @@ class ResearchAgentMixin(RAGAgentMixin):
         query: str,
         *args,
         **kwargs,
-    ) -> dict[str, Any]:
+    ) -> str | None:
         """Execute a reasoning query using a specialized reasoning LLM."""
         msg_list = await self.conversation.get_messages()
 
@@ -311,7 +320,7 @@ class ResearchAgentMixin(RAGAgentMixin):
         focus_areas: Optional[list] = None,
         *args,
         **kwargs,
-    ) -> dict[str, Any]:
+    ) -> str | None:
         """Critique the conversation history."""
         msg_list = await self.conversation.get_messages()
         if not focus_areas:
@@ -356,7 +365,7 @@ class ResearchAgentMixin(RAGAgentMixin):
         return await self._reason(final_prompt, *args, **kwargs)
 
     async def _execute_python_with_process_timeout(
-        self, code: str, timeout: int = 10, *args, **kwargs
+        self, code: str, timeout: int = 10, *args, **kwargs  # noqa: ASYNC109 - public tool parameter; wait_for enforces the subprocess budget
     ) -> dict[str, Any]:
         """
         Executes Python code in a separate subprocess with a timeout.
@@ -369,58 +378,49 @@ class ResearchAgentMixin(RAGAgentMixin):
         Returns:
           dict[str, Any]: Dictionary containing stdout, stderr, return code, etc.
         """
-        # Write user code to a temporary file
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as tmp_file:
-            tmp_file.write(code)
-            script_path = tmp_file.name
+            mode="w", encoding="utf-8", suffix=".py", delete=False
+        ) as temporary_file:
+            temporary_file.write(code)
+            script_path = temporary_file.name
 
+        process = None
         try:
-            # Run the script in a fresh subprocess
-            result = subprocess.run(
-                [sys.executable, script_path],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, "-X", "utf8", script_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
+            timed_out = False
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                timed_out = True
+                process.kill()
+                stdout, stderr = await process.communicate()
 
-            return {
-                "result": None,  # We'll parse from stdout if needed
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "error": (
-                    None
-                    if result.returncode == 0
-                    else {
-                        "type": "SubprocessError",
-                        "message": f"Process exited with code {result.returncode}",
-                        "traceback": "",
-                    }
-                ),
-                "locals": {},  # No direct local var capture in a separate process
-                "success": (result.returncode == 0),
-                "timed_out": False,
-                "timeout": timeout,
-            }
-        except subprocess.TimeoutExpired as e:
+            error = None
+            if timed_out:
+                error = {"type": "TimeoutError", "message": f"Execution exceeded {timeout} second limit.", "traceback": ""}
+            elif process.returncode != 0:
+                error = {"type": "SubprocessError", "message": f"Process exited with code {process.returncode}", "traceback": ""}
             return {
                 "result": None,
-                "stdout": e.output or "",
-                "stderr": e.stderr or "",
-                "error": {
-                    "type": "TimeoutError",
-                    "message": f"Execution exceeded {timeout} second limit.",
-                    "traceback": "",
-                },
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
+                "error": error,
                 "locals": {},
-                "success": False,
-                "timed_out": True,
+                "success": error is None,
+                "timed_out": timed_out,
                 "timeout": timeout,
             }
         finally:
-            # Clean up the temp file
-            if os.path.exists(script_path):
+            try:
+                if process is not None and process.returncode is None:
+                    process.kill()
+                    with anyio.fail_after(5, shield=True):
+                        await process.communicate()
+            finally:
                 os.remove(script_path)
 
     def _format_python_results(self, results: dict[str, Any]) -> str:
@@ -428,14 +428,14 @@ class ResearchAgentMixin(RAGAgentMixin):
         output = []
 
         # Timeout notification
-        if results.get("timed_out", False):
+        if results["timed_out"]:
             output.append(
-                f"⚠️ **Execution Timeout**: Code exceeded the {results.get('timeout', 10)} second limit."
+                f"⚠️ **Execution Timeout**: Code exceeded the {results['timeout']} second limit."
             )
             output.append("")
 
         # Stdout
-        if results.get("stdout"):
+        if results["stdout"]:
             output.append("## Output:")
             output.append("```")
             output.append(results["stdout"].rstrip())
@@ -443,7 +443,7 @@ class ResearchAgentMixin(RAGAgentMixin):
             output.append("")
 
         # If there's a 'result' variable to display
-        if results.get("result") is not None:
+        if results["result"] is not None:
             output.append("## Result:")
             output.append("```")
             output.append(str(results["result"]))
@@ -451,15 +451,15 @@ class ResearchAgentMixin(RAGAgentMixin):
             output.append("")
 
         # Error info
-        if not results.get("success", True):
+        if not results["success"]:
             output.append("## Error:")
             output.append("```")
-            stderr_out = results.get("stderr", "").rstrip()
+            stderr_out = results["stderr"].rstrip()
             if stderr_out:
                 output.append(stderr_out)
 
-            err_obj = results.get("error")
-            if err_obj and err_obj.get("message"):
+            err_obj = results["error"]
+            if err_obj is not None:
                 output.append(err_obj["message"])
             output.append("```")
 
@@ -470,7 +470,7 @@ class ResearchAgentMixin(RAGAgentMixin):
             else "Code executed with no output or result."
         )
 
-    def _format_search_results(self, results) -> str:
+    def _format_search_results(self, results: str | None) -> str | None:
         """Simple pass-through formatting for RAG search results."""
         return results
 
@@ -501,24 +501,9 @@ class R2RResearchAgent(ResearchAgentMixin, R2RRAGAgent):
         file_search_method: Callable,
         max_tool_context_length: int = 20_000,
     ):
-        # Set a higher max iterations for research tasks
-        config.max_iterations = config.max_iterations or 15
+        if config.max_iterations is None:
+            config.max_iterations = 15
 
-        # Initialize the RAG agent first
-        R2RRAGAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            search_settings=search_settings,
-            rag_generation_config=rag_generation_config,
-            knowledge_search_method=knowledge_search_method,
-            content_method=content_method,
-            file_search_method=file_search_method,
-            max_tool_context_length=max_tool_context_length,
-        )
-
-        # Then initialize the ResearchAgentMixin
         ResearchAgentMixin.__init__(
             self,
             app_config=app_config,
@@ -562,23 +547,9 @@ class R2RStreamingResearchAgent(ResearchAgentMixin, R2RStreamingRAGAgent):
     ):
         # Force streaming on
         config.stream = True
-        config.max_iterations = config.max_iterations or 15
+        if config.max_iterations is None:
+            config.max_iterations = 15
 
-        # Initialize the streaming RAG agent first
-        R2RStreamingRAGAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            search_settings=search_settings,
-            rag_generation_config=rag_generation_config,
-            knowledge_search_method=knowledge_search_method,
-            content_method=content_method,
-            file_search_method=file_search_method,
-            max_tool_context_length=max_tool_context_length,
-        )
-
-        # Then initialize the ResearchAgentMixin
         ResearchAgentMixin.__init__(
             self,
             app_config=app_config,
@@ -620,27 +591,16 @@ class R2RXMLToolsResearchAgent(ResearchAgentMixin, R2RXMLToolsRAGAgent):
         file_search_method: Callable,
         max_tool_context_length: int = 20_000,
     ):
-        # Set higher max iterations
-        config.max_iterations = config.max_iterations or 15
+        if config.max_iterations is None:
+            config.max_iterations = 15
 
-        # Initialize the XML Tools RAG agent first
-        R2RXMLToolsRAGAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            search_settings=search_settings,
-            rag_generation_config=rag_generation_config,
-            knowledge_search_method=knowledge_search_method,
-            content_method=content_method,
-            file_search_method=file_search_method,
-            max_tool_context_length=max_tool_context_length,
-        )
-
-        # Then initialize the ResearchAgentMixin
         ResearchAgentMixin.__init__(
             self,
             app_config=app_config,
+            database_provider=database_provider,
+            llm_provider=llm_provider,
+            config=config,
+            rag_generation_config=rag_generation_config,
             search_settings=search_settings,
             knowledge_search_method=knowledge_search_method,
             content_method=content_method,
@@ -679,26 +639,16 @@ class R2RXMLToolsStreamingResearchAgent(
     ):
         # Force streaming on
         config.stream = True
-        config.max_iterations = config.max_iterations or 15
+        if config.max_iterations is None:
+            config.max_iterations = 15
 
-        # Initialize the XML Tools Streaming RAG agent first
-        R2RXMLToolsStreamingRAGAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            search_settings=search_settings,
-            rag_generation_config=rag_generation_config,
-            knowledge_search_method=knowledge_search_method,
-            content_method=content_method,
-            file_search_method=file_search_method,
-            max_tool_context_length=max_tool_context_length,
-        )
-
-        # Then initialize the ResearchAgentMixin
         ResearchAgentMixin.__init__(
             self,
             app_config=app_config,
+            database_provider=database_provider,
+            llm_provider=llm_provider,
+            config=config,
+            rag_generation_config=rag_generation_config,
             search_settings=search_settings,
             knowledge_search_method=knowledge_search_method,
             content_method=content_method,

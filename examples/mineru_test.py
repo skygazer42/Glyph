@@ -8,9 +8,10 @@ import sys
 from pathlib import Path
 
 # 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.knowledge.mineru_adapter import MinerUAdapter
+from app.knowledge.mineru_adapter import MinerUAdapter  # noqa: E402 - executable script bootstraps the repository path
 
 
 async def test_health_check():
@@ -38,8 +39,8 @@ async def test_single_document():
     print("=" * 60)
 
     # 查找测试文件
-    data_dir = Path("/data/temp33/gov/data/process")
-    pdf_files = list(data_dir.glob("**/*.pdf"))
+    data_dir = PROJECT_ROOT / "resources/data/process"
+    pdf_files = await asyncio.to_thread(lambda: list(data_dir.glob("**/*.pdf")))
 
     if not pdf_files:
         print("❌ 未找到测试 PDF 文件")
@@ -62,7 +63,7 @@ async def test_single_document():
         )
 
         if result["success"]:
-            print(f"\n✓ 提取成功!")
+            print("\n✓ 提取成功!")
             print(f"  - 内容长度: {len(result['content'])} 字符")
             print(f"  - 处理时间: {result['processing_time']:.2f}s")
             print(f"  - 模式: {adapter.mode}")
@@ -73,7 +74,7 @@ async def test_single_document():
 
             # 获取统计信息
             stats = adapter.get_extraction_stats(result)
-            print(f"\n统计信息:")
+            print("\n统计信息:")
             for key, value in stats.items():
                 print(f"  - {key}: {value}")
 
@@ -90,8 +91,8 @@ async def test_batch_processing():
     print("=" * 60)
 
     # 查找测试文件
-    data_dir = Path("/data/temp33/gov/data/process")
-    pdf_files = list(data_dir.glob("**/*.pdf"))[:3]  # 只测试前 3 个
+    data_dir = PROJECT_ROOT / "resources/data/process"
+    pdf_files = (await asyncio.to_thread(lambda: list(data_dir.glob("**/*.pdf"))))[:3]  # 只测试前 3 个
 
     if len(pdf_files) < 2:
         print("⚠️  测试文件不足 2 个，跳过批量测试")
@@ -109,9 +110,9 @@ async def test_batch_processing():
         )
 
         success_count = sum(1 for r in results if r["success"])
-        total_chars = sum(len(r.get("content", "")) for r in results if r["success"])
+        total_chars = sum(len(r["content"]) for r in results if r["success"])
 
-        print(f"\n批量处理结果:")
+        print("\n批量处理结果:")
         print(f"  - 成功: {success_count}/{len(results)}")
         print(f"  - 总字符数: {total_chars:,}")
 
@@ -137,7 +138,7 @@ async def test_adapter_info():
 
     info = adapter.get_info()
 
-    print(f"\n适配器配置:")
+    print("\n适配器配置:")
     print(f"  - 模式: {info['mode']}")
     print(f"  - 基础 URL: {info['base_url']}")
     print(f"  - 已启用: {info['enabled']}")
@@ -145,7 +146,7 @@ async def test_adapter_info():
     print(f"  - 超时: {info['timeout']}s")
     print(f"  - 支持的扩展名: {', '.join(info['supported_extensions'])}")
 
-    print(f"\n处理选项:")
+    print("\n处理选项:")
     for key, value in info['options'].items():
         print(f"  - {key}: {value}")
 

@@ -3,15 +3,16 @@ Policy analysis agent implementation.
 """
 
 import asyncio
-import json
+
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
+from uuid import UUID
 import re
 
 from autogen_core import MessageContext, CancellationToken
-from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
+from pydantic import ConfigDict, RootModel, ValidationError
 
 from app.models.base import (
     AgentType,
@@ -19,13 +20,17 @@ from app.models.base import (
     AgentMessage,
     PolicyDocument,
     PolicyAnalysis,
-    QueryAnalysis,
-    PolicyType,
-    QueryIntent
+    PolicyType
 )
-from app.agents.framework.base.base_agent import StatefulAgent, ReactiveAgent
+from app.agents.framework.base.base_agent import ReactiveAgent
 from app.agents.framework.common.model_client import create_buffered_context
 from .prompt import nlp_extraction_system_prompt, nlp_extraction_user_prompt
+
+
+class ExtractedPolicyFacts(RootModel[list[str]]):
+    """Only textual facts may augment the pattern-based policy evidence."""
+
+    model_config = ConfigDict(strict=True)
 
 
 class PolicyAnalyzerAgent(ReactiveAgent):
@@ -46,6 +51,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         self.model_client = model_client
         self._assistant: Optional[AssistantAgent] = None
+        self._assistant_lock = asyncio.Lock()
 
         # Analysis patterns and rules
         self.eligibility_patterns = [
@@ -71,18 +77,11 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         # Register event handlers
         self.register_event_handler("policy_received", self._on_policy_received)
-        self.register_event_handler("analysis_requested", self._on_analysis_requested)
-
-        # Add triggers
-        self.add_trigger(
-            condition={"event": "new_policy", "type": "urgent"},
-            action=self._urgent_policy_analysis
-        )
 
     async def _handle_retrieval_result(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Handle retrieval result messages."""
         documents_data = message.content.get("documents", [])
-        query_id = message.content.get("query_id", "")
+        query_id = UUID(str(message.content["query_id"]))
 
         if not documents_data:
             return AgentMessage(
@@ -98,7 +97,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
         for doc_data in documents_data:
             doc = PolicyDocument(**doc_data)
             analysis = await self._analyze_document(doc, query_id)
-            analyses.append(analysis.dict())
+            analyses.append(analysis.model_dump())
 
         # Synthesize analysis
         synthesis = await self._synthesize_analyses(analyses, query_id)
@@ -116,7 +115,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
             correlation_id=message.correlation_id
         )
 
-    async def _analyze_document(self, document: PolicyDocument, query_id: str) -> PolicyAnalysis:
+    async def _analyze_document(self, document: PolicyDocument, query_id: UUID) -> PolicyAnalysis:
         """Perform deep analysis of a policy document."""
         self.logger.info(f"Analyzing document: {document.title}")
 
@@ -182,7 +181,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
                 )
                 criteria.extend(nlp_criteria)
             except Exception as e:
-                self.logger.warning(f"LLM eligibility extraction failed: {e}")
+                self.logger.warning(f"LLM eligibility extraction failed: {e}", exc_info=True)
 
         # Remove duplicates and clean
         criteria = list(set(criteria))
@@ -247,8 +246,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
         process_keywords = ["申请", "提交", "审核", "审批", "公示", "发放", "领取"]
         for keyword in process_keywords:
             pattern = f"{keyword}[:：]([^。;；\n]+)"
-            matches = re.findall(pattern, content)
-            steps.extend(matches)
+            process_matches = re.findall(pattern, content)
+            steps.extend(process_matches)
 
         return steps[:10]
 
@@ -342,11 +341,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return limitations[:10]
 
-    async def _calculate_relevance_score(self, document: PolicyDocument, query_id: str) -> float:
+    async def _calculate_relevance_score(self, document: PolicyDocument, query_id: UUID) -> float:
         """Calculate relevance score based on document content and query."""
-        # Get query context from memory
-        memory_context = await self.get_memory_context(limit=5)
-
         # Simple scoring based on keyword matching
         score = 0.5  # Base score
 
@@ -366,17 +362,10 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return min(1.0, max(0.0, score))
 
-    async def _find_related_policies(self, document: PolicyDocument) -> List[str]:
+    async def _find_related_policies(self, document: PolicyDocument) -> List[UUID]:
         """Find related policies based on keywords and departments."""
-        related = []
-
-        # Simple keyword-based matching
-        for keyword in document.keywords:
-            # In a real implementation, this would query the vector store
-            # For now, return empty list
-            pass
-
-        return related
+        # This extractor has no policy store; related links require the retriever.
+        return []
 
     async def _calculate_analysis_confidence(
         self,
@@ -414,39 +403,38 @@ class PolicyAnalyzerAgent(ReactiveAgent):
                 model_context=create_buffered_context(10),
             )
         user = nlp_extraction_user_prompt(content, prompt)
-        resp = await self._assistant.on_messages([TextMessage(content=user, source="user")], CancellationToken())
+        async with self._assistant_lock:
+            resp = await self._assistant.on_messages([TextMessage(content=user, source="user")], CancellationToken())
         text = resp.chat_message.to_text().strip()
         try:
-            data = json.loads(text)
-            if isinstance(data, list):
-                return [str(x) for x in data][:20]
-        except Exception as e:
-            self.logger.debug(f"LLM JSON parse failed: {e}")
-        return []
+            return ExtractedPolicyFacts.model_validate_json(text).root[:20]
+        except ValidationError:
+            self.logger.warning("Invalid LLM policy facts; retaining pattern-based evidence", exc_info=True)
+            return []
 
-    async def _synthesize_analyses(self, analyses: List[Dict], query_id: str) -> Dict[str, Any]:
+    async def _synthesize_analyses(self, analyses: List[Dict], query_id: UUID) -> Dict[str, Any]:
         """Synthesize multiple document analyses."""
         if not analyses:
             return {}
 
         # Find most relevant document
-        most_relevant = max(analyses, key=lambda x: x.get("relevance_score", 0))
+        most_relevant = max(analyses, key=lambda x: x["relevance_score"])
 
         # Collect all benefits
-        all_benefits = [a.get("benefit_details") for a in analyses if a.get("benefit_details")]
+        all_benefits = [a["benefit_details"] for a in analyses if a["benefit_details"]]
         unique_benefits = list(set(all_benefits))
 
         # Collect all eligibility criteria
         all_eligibility = []
         for a in analyses:
-            all_eligibility.extend(a.get("eligibility_criteria", []))
+            all_eligibility.extend(a["eligibility_criteria"])
         unique_eligibility = list(set(all_eligibility))
 
         return {
-            "most_relevant_document": most_relevant.get("document_id"),
+            "most_relevant_document": most_relevant["document_id"],
             "total_benefits": len(unique_benefits),
             "total_eligibility_criteria": len(unique_eligibility),
-            "coverage_score": len([a for a in analyses if a.get("relevance_score", 0) > 0.7]) / len(analyses)
+            "coverage_score": len([a for a in analyses if a["relevance_score"] > 0.7]) / len(analyses)
         }
 
     # Event handlers
@@ -454,18 +442,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
         """Handle new policy received event."""
         doc = event.get("document")
         if doc:
-            await self._analyze_document(doc, event.get("query_id", ""))
-
-    async def _on_analysis_requested(self, event: Dict[str, Any]):
-        """Handle analysis requested event."""
-        # Trigger analysis
-        pass
-
-    async def _urgent_policy_analysis(self, event: Dict[str, Any]):
-        """Handle urgent policy analysis trigger."""
-        self.logger.info("Performing urgent policy analysis")
-        # Implementation for urgent analysis
-        pass
+            await self._analyze_document(doc, UUID(str(event["query_id"])))
 
     async def _handle_user_query(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Handle user query messages."""

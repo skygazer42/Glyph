@@ -3,12 +3,11 @@ Advanced answer generation agent with multi-source synthesis.
 """
 
 import asyncio
-import json
+import re
+
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
 
 from autogen_core import MessageContext, CancellationToken
-from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 
@@ -16,12 +15,8 @@ from app.models.base import (
     AgentType,
     MessageType,
     AgentMessage,
-    PolicyDocument,
-    PolicyAnalysis,
-    QueryAnalysis,
     GeneratedAnswer,
-    QueryIntent,
-    PolicyType
+    QueryIntent
 )
 from app.agents.framework.base.base_agent import StatefulAgent
 from app.agents.framework.common.model_client import create_buffered_context
@@ -35,7 +30,6 @@ class AnswerGeneratorAgent(StatefulAgent):
         self,
         model_client: Any = None,
         max_sources: int = 5,
-        confidence_threshold: float = 0.7,
         **kwargs
     ):
         """Initialize the answer generator agent."""
@@ -48,8 +42,8 @@ class AnswerGeneratorAgent(StatefulAgent):
 
         self.model_client = model_client
         self._assistant: Optional[AssistantAgent] = None
+        self._assistant_lock = asyncio.Lock()
         self.max_sources = max_sources
-        self.confidence_threshold = confidence_threshold
 
         # Answer templates for different query intents
         self.templates = {
@@ -71,13 +65,13 @@ class AnswerGeneratorAgent(StatefulAgent):
 
     async def _handle_analysis_result(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Handle analysis result messages and generate answers."""
-        analyses = message.content.get("analyses", [])
-        synthesis = message.content.get("synthesis", {})
-        query_id = message.content.get("query_id", "")
+        analyses = message.content["analyses"]
+        synthesis = message.content["synthesis"]
+        query_id = message.content["query_id"]
 
         # Get query context
         query_context = await self._get_query_context(query_id)
-        query_intent = query_context.get("intent", QueryIntent.GENERAL_INQUIRY)
+        query_intent = query_context["intent"]
 
         # Select best sources
         selected_sources = await self._select_best_sources(analyses)
@@ -102,7 +96,7 @@ class AnswerGeneratorAgent(StatefulAgent):
             recipient=message.sender,
             content={
                 "query_id": query_id,
-                "answer": answer.dict(),
+                "answer": answer.model_dump(),
                 "quality_score": quality_score,
                 "adjusted_confidence": adjusted_confidence
             },
@@ -110,29 +104,22 @@ class AnswerGeneratorAgent(StatefulAgent):
         )
 
     async def _get_query_context(self, query_id: str) -> Dict[str, Any]:
-        """Get query context from memory."""
-        # Search memory for query analysis
-        for i in range(len(self.memory) - 1, -1, -1):
-            memory_content = self.memory[i]
-            if f"query_id: {query_id}" in memory_content.content:
-                # Extract context
-                return {"intent": QueryIntent.GENERAL_INQUIRY}  # Simplified
-
-        return {"intent": QueryIntent.GENERAL_INQUIRY}
+        """Carry the request ID while using the default intent for this handler."""
+        return {"query_id": query_id, "intent": QueryIntent.GENERAL_INQUIRY}
 
     async def _select_best_sources(self, analyses: List[Dict[str, Any]]) -> List[Tuple[Dict, float]]:
         """Select the best sources for answer generation."""
         # Sort by relevance score
         sorted_analyses = sorted(
             analyses,
-            key=lambda x: x.get("relevance_score", 0),
+            key=lambda x: x["relevance_score"],
             reverse=True
         )
 
         # Select top sources
         selected = []
         for analysis in sorted_analyses[:self.max_sources]:
-            selected.append((analysis, analysis.get("relevance_score", 0)))
+            selected.append((analysis, analysis["relevance_score"]))
 
         return selected
 
@@ -144,7 +131,7 @@ class AnswerGeneratorAgent(StatefulAgent):
         intent: QueryIntent
     ) -> GeneratedAnswer:
         """Generate a comprehensive answer based on multiple sources."""
-        query_id = query_context.get("query_id", "")
+        query_id = query_context["query_id"]
 
         # Use template based on intent
         template_func = self.templates.get(intent, self._general_template)
@@ -180,15 +167,15 @@ class AnswerGeneratorAgent(StatefulAgent):
             sources=[source[0]["document_id"] for source in sources],
             confidence=confidence,
             evidence=evidence,
-            assumptions=extracted_info.get("assumptions", []),
-            limitations=extracted_info.get("limitations", []),
+            assumptions=extracted_info["assumptions"],
+            limitations=extracted_info["limitations"],
             followup_questions=followup_questions,
             generation_time=0.0  # Would be measured
         )
 
     async def _extract_information_from_sources(self, sources: List[Tuple[Dict, float]]) -> Dict[str, Any]:
         """Extract and consolidate information from multiple sources."""
-        consolidated = {
+        consolidated: Dict[str, Any] = {
             "eligibility_criteria": [],
             "benefits": [],
             "application_steps": [],
@@ -201,7 +188,7 @@ class AnswerGeneratorAgent(StatefulAgent):
 
         for analysis, score in sources:
             # Add eligibility criteria
-            criteria = analysis.get("eligibility_criteria", [])
+            criteria = analysis["eligibility_criteria"]
             consolidated["eligibility_criteria"].extend(criteria)
 
             # Add benefits
@@ -213,19 +200,19 @@ class AnswerGeneratorAgent(StatefulAgent):
                 })
 
             # Add application steps
-            steps = analysis.get("application_steps", [])
+            steps = analysis["application_steps"]
             consolidated["application_steps"].extend(steps)
 
             # Add deadlines
-            deadlines = analysis.get("deadlines", [])
+            deadlines = analysis["deadlines"]
             consolidated["deadlines"].extend(deadlines)
 
             # Add contact info
-            contacts = analysis.get("contact_info", [])
+            contacts = analysis["contact_info"]
             consolidated["contact_info"].extend(contacts)
 
             # Add limitations
-            limitations = analysis.get("limitations", [])
+            limitations = analysis["limitations"]
             consolidated["limitations"].extend(limitations)
 
         # Remove duplicates
@@ -246,7 +233,6 @@ class AnswerGeneratorAgent(StatefulAgent):
             amounts = []
             for benefit in info["benefits"]:
                 # Extract numeric values
-                import re
                 numbers = re.findall(r'([0-9,]+(?:\.\d+)?元)', benefit["content"])
                 amounts.extend(numbers)
 
@@ -256,7 +242,6 @@ class AnswerGeneratorAgent(StatefulAgent):
         # Check for conflicting deadlines
         if len(info["deadlines"]) > 1:
             dates = []
-            import re
             for deadline in info["deadlines"]:
                 date_matches = re.findall(r'(\d{4}年\d{1,2}月\d{1,2}日)', deadline)
                 dates.extend(date_matches)
@@ -420,7 +405,7 @@ class AnswerGeneratorAgent(StatefulAgent):
         # Add eligibility comparison
         if info["eligibility_criteria"]:
             answer_parts.append("### 申请条件差异：\n")
-            criteria_by_source = {}
+            criteria_by_source: Dict[str, List[str]] = {}
             for criterion in info["eligibility_criteria"]:
                 # In real implementation, would track source
                 criteria_by_source.setdefault("来源1", []).append(criterion)
@@ -470,7 +455,7 @@ class AnswerGeneratorAgent(StatefulAgent):
         """Generate list of evidence sources."""
         evidence = []
         for analysis, score in sources:
-            evidence.append(f"政策文档: {analysis.get('document_title', '未知')} (置信度: {score:.2%})")
+            evidence.append(f"政策文档: {analysis['document_id']} (置信度: {score:.2%})")
         return evidence
 
     async def _generate_followup_questions(
@@ -539,7 +524,7 @@ class AnswerGeneratorAgent(StatefulAgent):
         scores["practicality"] = 1.0 if "建议" in answer.answer or "步骤" in answer.answer else 0.6
 
         # Check evidence support
-        scores["evidence"] = min(1.0, len(answer.evidence) / 3)
+        scores["accuracy"] = min(1.0, len(answer.evidence) / 3)
 
         # Calculate weighted average
         quality_score = sum(
@@ -557,27 +542,14 @@ class AnswerGeneratorAgent(StatefulAgent):
         """Handle query analysis messages."""
         return None
 
-    async def process_request(self, request: Any, context: MessageContext) -> Any:
-        """Process an answer generation request (accepts dict or object)."""
-        # Normalize request to dict-like
-        if hasattr(request, "query_context"):
-            query_context = request.query_context
-            sources = request.sources
-            synthesis = request.synthesis
-            intent = getattr(request, "intent", None)
-        else:
-            query_context = request.get("query_context") or request.get("analysis") or {}
-            sources = request.get("sources") or []
-            synthesis = request.get("synthesis") or {}
-            intent = request.get("intent") or request.get("analysis", {}).get("intent")
-
-        # If LLM client exists, try LLM generation
-        if self.model_client:
-            try:
-                return await self._generate_with_llm(query_context, sources, synthesis, intent)
-            except Exception as e:
-                self.logger.warning(f"LLM generation failed, fallback to template: {e}")
-
+    async def process_request(self, request: Dict[str, Any], context: MessageContext) -> GeneratedAnswer:
+        """Generate an answer from the request's query context, ranked sources, and synthesis."""
+        query_context = request["query_context"]
+        sources = request["sources"]
+        synthesis = request["synthesis"]
+        intent = query_context["intent"]
+        if self.model_client is not None:
+            return await self._generate_with_llm(query_context, sources, synthesis, intent)
         return await self._generate_comprehensive_answer(
             query_context,
             sources,
@@ -598,20 +570,23 @@ class AnswerGeneratorAgent(StatefulAgent):
         # Simplify structured info for the prompt
         info = await self._extract_information_from_sources(sources)
         user_prompt = generation_user_prompt(query_context, info, synthesis)
-        resp = await self._assistant.on_messages([TextMessage(content=user_prompt, source="user")], CancellationToken())
-        answer_text = resp.chat_message.to_text()
+        async with self._assistant_lock:
+            resp = await self._assistant.on_messages([TextMessage(content=user_prompt, source="user")], CancellationToken())
+        answer_text = resp.chat_message.to_text().strip()
+        if not answer_text:
+            raise ValueError("Answer model returned empty text")
 
         # Calculate confidence via heuristic
         confidence = await self._calculate_answer_confidence(sources, info)
-        query_id = query_context.get("query_id")
+        query_id = query_context["query_id"]
         return GeneratedAnswer(
             query_id=query_id,
             answer=answer_text,
-            sources=[source[0]["document_id"] for source in sources] if sources else [],
+            sources=[source[0]["document_id"] for source in sources],
             confidence=confidence,
             evidence=await self._generate_evidence_list(sources),
-            assumptions=info.get("assumptions", []),
-            limitations=info.get("limitations", []),
+            assumptions=info["assumptions"],
+            limitations=info["limitations"],
             followup_questions=await self._generate_followup_questions(query_context, info),
             generation_time=0.0,
         )

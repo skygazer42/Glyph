@@ -2,6 +2,7 @@
 SQL解释智能体
 负责解释SQL语句的含义
 """
+from contextlib import AsyncExitStack
 from typing import Dict, Any
 
 from autogen_core import message_handler, MessageContext, TopicId, type_subscription
@@ -10,6 +11,7 @@ from autogen_agentchat.base import TaskResult
 from autogen_agentchat.messages import ModelClientStreamingChunkEvent
 
 from app.schemas.text2sql import SqlMessage, SqlExplanationMessage
+from app.utils.lifecycle import close_with_timeout
 from .base import BaseAgent
 from .types import AgentTypes, AGENT_NAMES, TopicTypes
 
@@ -33,7 +35,8 @@ class SqlExplainerAgent(BaseAgent):
         )
         self._prompt_template = self._build_prompt_template()
 
-    def _build_prompt_template(self) -> str:
+    @staticmethod
+    def _build_prompt_template() -> str:
         """构建提示模板"""
         return """
         你是一名专业的SQL解释专家，你的任务是以准确、易懂的方式向非技术人员解释给定的SQL语句的含义和作用。
@@ -70,7 +73,7 @@ class SqlExplainerAgent(BaseAgent):
         7.  **直接解释提供的SQL：** 你的解释应该直接针对用户问题 `{query}` 和 `{sql}` 部分提供的具体SQL代码。
         """
 
-    def _prepare_prompt(self, query: str, sql: str, schema_context: Dict[str, Any] = None) -> str:
+    def _prepare_prompt(self, query: str, sql: str, schema_context: Dict[str, Any] | None = None) -> str:
         """准备提示模板
 
         Args:
@@ -104,14 +107,19 @@ class SqlExplainerAgent(BaseAgent):
             )
 
             stream = agent.run_stream(task=f"解释以下SQL语句：\n{message.sql}")
-            explanation_content = ""
+            explanation_content: str | None = None
 
-            async for event in stream:
-                if isinstance(event, ModelClientStreamingChunkEvent):
-                    # 发送流式内容供实时显示
-                    await self.send_response(event.content)
-                elif isinstance(event, TaskResult):
-                    explanation_content = event.messages[-1].content.strip()
+            async with AsyncExitStack() as stack:
+                stack.push_async_callback(close_with_timeout, stream.aclose)
+                async for event in stream:
+                    if isinstance(event, ModelClientStreamingChunkEvent):
+                        # 发送流式内容供实时显示
+                        await self.send_response(event.content)
+                    elif isinstance(event, TaskResult):
+                        explanation_content = self.final_text(event).strip()
+
+            if explanation_content is None or not explanation_content:
+                raise ValueError("SQL explanation stream ended without an explanation result")
 
             # 发送最终标记，不发送额外内容避免重复
             await self.send_response(
@@ -124,7 +132,7 @@ class SqlExplainerAgent(BaseAgent):
                 query=message.query,
                 sql=message.sql,
                 explanation=explanation_content,
-                connection_id=getattr(message, 'connection_id', None)
+                connection_id=message.connection_id
             )
 
             await self.publish_message(

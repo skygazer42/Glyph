@@ -8,7 +8,15 @@ Environment is configured via .env; no extra state is persisted here beyond Ligh
 import asyncio
 import os
 import inspect
+import anyio
 from typing import Any, Dict, List, Optional, Callable, Awaitable
+from dotenv import load_dotenv
+from lightrag import LightRAG, QueryParam
+from lightrag.kg.shared_storage import initialize_pipeline_status
+from lightrag.llm.openai import openai_complete_if_cache
+from lightrag.utils import EmbeddingFunc
+from openai import OpenAI
+import requests
 
 from autogen_core import MessageContext
 
@@ -16,15 +24,30 @@ from app.models.base import (
     AgentType,
     MessageType,
     AgentMessage,
-    RetrievalRequest,
     RetrievalResult,
     PolicyDocument,
     RetrievalMethod,
     PolicyType,
 )
 from app.agents.framework.base.base_agent import StatefulAgent
-from app.config import settings
+from app.config.app_config import settings
 from app.knowledge.rerank import Reranker
+
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class DashscopeEmbedding(BaseModel):
+    model_config = ConfigDict(strict=True, allow_inf_nan=False)
+    embedding: list[float] = Field(min_length=1)
+
+
+class DashscopeEmbeddingOutput(BaseModel):
+    embeddings: list[DashscopeEmbedding] = Field(min_length=1)
+
+
+class DashscopeEmbeddingResponse(BaseModel):
+    output: DashscopeEmbeddingOutput
 
 
 class GraphRetrieverAgent(StatefulAgent):
@@ -40,21 +63,22 @@ class GraphRetrieverAgent(StatefulAgent):
             agent_type=AgentType.POLICY_RETRIEVER,
             name="GraphRetriever",
             description="基于LightRAG的图检索Agent",
+            **kwargs,
         )
 
-        self.working_dir = working_dir or os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag")
+        self.working_dir = os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag") if working_dir is None else working_dir
         self.default_mode = os.getenv("LIGHTRAG_QUERY_MODE", default_mode)
-        self.embedding_backend = (settings.embedding.backend or "dashscope").lower()
+        self.embedding_backend = settings.embedding.backend.lower()
         if self.embedding_backend not in {"dashscope", "openai"}:
             raise ValueError(
                 "LightRAG 需使用 dashscope 或 openai 嵌入，请将 EMBEDDING_BACKEND 设置为这两者之一。"
             )
         self.embedding_model = self._resolve_embedding_model()
         self.embedding_dim = self._infer_embedding_dim()
-        self._rerank_func: Optional[Callable[..., Awaitable[List[Dict[str, Any]]]]] = None
+        self._reranker: Optional[Reranker] = None
 
         # Lazy init members
-        self._rag = None
+        self._rag: Any = None
         self._initialized = False
 
     async def initialize(self):
@@ -63,15 +87,13 @@ class GraphRetrieverAgent(StatefulAgent):
             return
 
         try:
-            os.makedirs(self.working_dir, exist_ok=True)
+            await asyncio.to_thread(os.makedirs, self.working_dir, exist_ok=True)
 
-            from dotenv import load_dotenv
-            load_dotenv(dotenv_path=os.getenv("DOTENV_PATH", ".env"), override=False)
+            await asyncio.to_thread(load_dotenv, dotenv_path=os.getenv("DOTENV_PATH", ".env"), override=False)
 
             # Build LLM + Embedding funcs
             async def llm_model_func(prompt, system_prompt=None, history_messages=None, **kwargs) -> str:
                 history_messages = history_messages or []
-                from lightrag.llm.openai import openai_complete_if_cache
                 return await openai_complete_if_cache(
                     os.getenv("LLM_MODEL_NAME", os.getenv("LLM_MODEL", "deepseek-chat")),
                     prompt,
@@ -82,37 +104,46 @@ class GraphRetrieverAgent(StatefulAgent):
                     **kwargs,
                 )
 
-            from lightrag.utils import EmbeddingFunc
-
             embedding_func = EmbeddingFunc(
                 embedding_dim=self.embedding_dim,
                 max_token_size=int(os.getenv("MAX_EMBED_TOKENS", "8192")),
                 func=self._embedding_callable(),
             )
 
-            from lightrag import LightRAG
             self._rag = LightRAG(
                 working_dir=self.working_dir,
                 llm_model_func=llm_model_func,
                 embedding_func=embedding_func,
-                rerank_model_func=self._get_rerank_callable(),
+                rerank_model_func=self._create_rerank_callback(),
             )
 
             await self._rag.initialize_storages()
 
-            try:
-                from lightrag.kg.shared_storage import initialize_pipeline_status
-                await initialize_pipeline_status()
-            except Exception:
-                # optional; continue if unavailable
-                pass
+            await initialize_pipeline_status()
 
             self._initialized = True
             self.logger.info("LightRAG initialized for GraphRetriever")
 
-        except Exception as e:
-            self.logger.error(f"Failed to initialize LightRAG: {e}")
+        except BaseException:
+            try:
+                await self.close()
+            except Exception:
+                self.logger.error("Failed to release partially initialized LightRAG", exc_info=True)
             raise
+
+    async def close(self):
+        """Release storages initialized by this retriever."""
+        rag, self._rag = self._rag, None
+        try:
+            if rag is not None:
+                with anyio.fail_after(5, shield=True):
+                    await rag.finalize_storages()
+        finally:
+            self._initialized = False
+            if self._reranker is not None:
+                reranker, self._reranker = self._reranker, None
+                with anyio.fail_after(5, shield=True):
+                    await anyio.to_thread.run_sync(reranker.close, abandon_on_cancel=True)
 
     def _resolve_embedding_model(self) -> str:
         if self.embedding_backend == "openai":
@@ -121,14 +152,16 @@ class GraphRetrieverAgent(StatefulAgent):
 
     def _infer_embedding_dim(self) -> int:
         if self.embedding_backend == "openai":
-            model = self.embedding_model or ""
-            if "3-large" in model:
+            if "3-large" in self.embedding_model:
                 return 3072
-            if "3-small" in model or "ada-002" in model:
+            if "3-small" in self.embedding_model or "ada-002" in self.embedding_model:
                 return 1536
-            return settings.embedding.dimension or 1536
+            dimension = settings.embedding.dimension
+            if dimension <= 0:
+                raise ValueError("OpenAI embedding dimension must be positive")
+            return dimension
         # dashscope
-        if settings.embedding.dashscope_dimension:
+        if settings.embedding.dashscope_dimension is not None:
             return settings.embedding.dashscope_dimension
         if settings.embedding.dimension in [64, 128, 256, 512, 768, 1024]:
             return settings.embedding.dimension
@@ -143,31 +176,28 @@ class GraphRetrieverAgent(StatefulAgent):
         return await asyncio.to_thread(self._embed_openai_sync, texts)
 
     def _embed_openai_sync(self, texts: List[str]) -> List[List[float]]:
-        from openai import OpenAI
-
         api_key = settings.embedding.openai_api_key or os.getenv("LLM_API_KEY")
         base_url = settings.embedding.openai_base_url or os.getenv("OPENAI_BASE_URL")
         if not api_key:
             raise ValueError("Missing API key for OpenAI embeddings (set EMBEDDING_OPENAI_API_KEY or LLM_API_KEY)")
-        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-        attempts = int(os.getenv("LIGHTRAG_EMBED_RETRY", "1"))
-        last_error: Optional[BaseException] = None
-        for _ in range(max(1, attempts)):
-            try:
-                response = client.embeddings.create(model=self.embedding_model, input=texts)
-                return [item.embedding for item in response.data]
-            except Exception as exc:  # pragma: no cover - network call
-                last_error = exc
-                self.logger.warning("OpenAI embedding 调用失败（重试中）: %s", exc)
-        self.logger.error("OpenAI embedding 调用失败，已重试 %s 次", attempts)
-        raise last_error  # type: ignore[misc]
+        with OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key) as client:
+            attempts = int(os.getenv("LIGHTRAG_EMBED_RETRY", "1"))
+            last_error: Optional[BaseException] = None
+            for _ in range(max(1, attempts)):
+                try:
+                    response = client.embeddings.create(model=self.embedding_model, input=texts)
+                    return [item.embedding for item in response.data]
+                except Exception as exc:  # pragma: no cover - network call
+                    last_error = exc
+                    self.logger.warning("OpenAI embedding 调用失败（重试中）: %s", exc, exc_info=True)
+            self.logger.error("OpenAI embedding 调用失败，已重试 %s 次", attempts)
+            assert last_error is not None
+            raise last_error
 
     async def _embed_dashscope(self, texts: List[str]) -> List[List[float]]:
         return await asyncio.to_thread(self._embed_dashscope_sync, texts)
 
     def _embed_dashscope_sync(self, texts: List[str]) -> List[List[float]]:
-        import requests
-
         api_key = settings.embedding.dashscope_api_key
         if not api_key:
             raise ValueError("Missing DashScope API key (set EMBEDDING_DASHSCOPE_API_KEY)")
@@ -184,7 +214,7 @@ class GraphRetrieverAgent(StatefulAgent):
                 "input": {"texts": [text]},
             }
             parameters: Dict[str, Any] = {}
-            if settings.embedding.dashscope_dimension:
+            if settings.embedding.dashscope_dimension is not None:
                 parameters["dimension"] = settings.embedding.dashscope_dimension
             if settings.embedding.dashscope_output_type:
                 parameters["output_type"] = settings.embedding.dashscope_output_type
@@ -193,16 +223,17 @@ class GraphRetrieverAgent(StatefulAgent):
             last_error: Optional[requests.RequestException] = None
             for _ in range(max(1, attempts)):
                 try:
-                    resp = requests.post(url, headers=headers, json=payload, timeout=settings.embedding.timeout)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    vectors.append(data["output"]["embeddings"][0]["embedding"])
+                    with requests.post(url, headers=headers, json=payload, timeout=settings.embedding.timeout) as resp:
+                        resp.raise_for_status()
+                        data = DashscopeEmbeddingResponse.model_validate(resp.json())
+                    vectors.append(data.output.embeddings[0].embedding)
                     break
                 except requests.RequestException as exc:
                     last_error = exc
-                    self.logger.warning("DashScope embedding 调用失败（重试中）: %s", exc)
+                    self.logger.warning("DashScope embedding 调用失败（重试中）: %s", exc, exc_info=True)
             else:
                 self.logger.error("DashScope embedding 调用失败，已重试 %s 次", attempts)
+                assert last_error is not None
                 raise last_error
         return vectors
 
@@ -219,54 +250,44 @@ class GraphRetrieverAgent(StatefulAgent):
             await self.initialize()
         indexed = 0
         for doc in documents:
-            try:
-                text = f"{doc.title}\n{doc.content}"
-                await self._rag.ainsert(text)
-                indexed += 1
-            except Exception as e:
-                self.logger.warning(f"Failed to index document {doc.title}: {e}")
+            text = f"{doc.title}\n{doc.content}"
+            await self._rag.ainsert(text)
+            indexed += 1
         return indexed
 
-    async def process_request(self, request: Any, context: MessageContext) -> RetrievalResult:
+    async def process_request(self, request: Dict[str, Any], context: MessageContext) -> RetrievalResult:
         """Process retrieval using LightRAG and return documents as snippets.
 
-        Accepts either:
-        - dict with {"query_text": str, "mode": "naive|local|global|hybrid", "top_k": int}
-        - RetrievalRequest + dict-like context containing query_text (fallback)
+        Requires a query_text; mode and top_k use this retriever's configured defaults.
         """
         if not self._initialized:
             await self.initialize()
 
-        query_text = None
-        mode = self.default_mode
-        top_k = 5
-
-        if isinstance(request, dict):
-            query_text = request.get("query_text") or request.get("text")
-            mode = request.get("mode", mode)
-            top_k = int(request.get("top_k", top_k))
-        elif hasattr(request, "query_id"):
-            # Fallback: try to read from context
-            if hasattr(context, "__dict__"):
-                query_text = getattr(context, "query_text", None)
-        
-        if not query_text:
+        query_text = request["query_text"]
+        mode = request.get("mode", self.default_mode)
+        top_k = int(request.get("top_k", 5))
+        if not isinstance(query_text, str) or not query_text.strip():
             raise ValueError("GraphRetrieverAgent requires 'query_text' to perform retrieval")
 
         # Execute query on LightRAG
-        from lightrag import QueryParam
         resp = await self._rag.aquery(
             query_text,
-            param=QueryParam(mode=mode, stream=False),
+            param=QueryParam(mode=mode, stream=False, top_k=top_k),
         )
 
         # Stream or string handling
         if inspect.isasyncgen(resp):
             chunks = []
-            async for chunk in resp:
-                if chunk:
-                    chunks.append(str(chunk))
+            try:
+                async for chunk in resp:
+                    if chunk:
+                        chunks.append(str(chunk))
+            finally:
+                with anyio.fail_after(5, shield=True):
+                    await resp.aclose()
             text = "".join(chunks)
+        elif resp is None:
+            text = ""
         else:
             text = str(resp)
 
@@ -279,9 +300,9 @@ class GraphRetrieverAgent(StatefulAgent):
         )
 
         return RetrievalResult(
-            query_id=getattr(request, "query_id", doc.id),
-            documents=[doc],
-            scores=[1.0],
+            query_id=request.get("query_id", doc.id),
+            documents=[doc] if text.strip() else [],
+            scores=[1.0] if text.strip() else [],
             method=RetrievalMethod.GRAPH_TRAVERSAL,
             total_searched=1,
             search_time=0.0,
@@ -289,18 +310,14 @@ class GraphRetrieverAgent(StatefulAgent):
 
     async def _handle_user_query(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Handle user query messages by delegating to process_request."""
-        try:
-            request = message.content
-            result = await self.process_request(request, ctx)
-            return AgentMessage(
-                type=MessageType.RETRIEVAL_RESULT,
-                sender=self.agent_type,
-                content=result.model_dump() if hasattr(result, 'model_dump') else result,
-                metadata={"query_id": str(getattr(request, "query_id", "unknown"))}
-            )
-        except Exception as e:
-            self.logger.error(f"Error handling user query: {e}")
-            return None
+        result = await self.process_request(message.content, ctx)
+        return AgentMessage(
+            type=MessageType.RETRIEVAL_RESULT,
+            sender=self.agent_type,
+            recipient=message.sender,
+            content=result.model_dump(),
+            correlation_id=message.correlation_id,
+        )
 
     async def _handle_query_analysis(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Handle query analysis messages - not used by GraphRetriever."""
@@ -314,16 +331,9 @@ class GraphRetrieverAgent(StatefulAgent):
         """
         return await self.process_request(message, ctx)
 
-    def _get_rerank_callable(self) -> Optional[Callable[..., Awaitable[List[Dict[str, Any]]]]]:
-        if self._rerank_func is not None:
-            return self._rerank_func
-
-        try:
-            reranker = Reranker()
-        except Exception as exc:  # pragma: no cover - reranker optional
-            self.logger.warning("DashScope Reranker 初始化失败，GraphAgent 将跳过重排：%s", exc)
-            self._rerank_func = None
-            return None
+    def _create_rerank_callback(self) -> Callable[..., Awaitable[List[Dict[str, Any]]]]:
+        reranker = Reranker()
+        self._reranker = reranker
 
         async def _async_rerank(
             query: str,
@@ -337,16 +347,11 @@ class GraphRetrieverAgent(StatefulAgent):
             def _run():
                 return reranker.rerank(query, documents, top_n)
 
-            try:
-                ranked = await loop.run_in_executor(None, _run)
-            except Exception as exc:  # pragma: no cover - network errors
-                self.logger.warning("调用 DashScope Reranker 失败：%s", exc)
-                return []
+            ranked = await loop.run_in_executor(None, _run)
 
             payload: List[Dict[str, Any]] = []
             for idx, score, _ in ranked:
                 payload.append({"index": idx, "relevance_score": float(score)})
             return payload
 
-        self._rerank_func = _async_rerank
-        return self._rerank_func
+        return _async_rerank

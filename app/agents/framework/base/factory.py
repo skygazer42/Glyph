@@ -3,15 +3,27 @@ Agent factory for creating and managing policy QA agents.
 """
 
 import os
-from typing import Dict, Any, Optional
-from autogen import config_list_from_json
+import asyncio
+from typing import Dict, Any, Optional, Protocol, TYPE_CHECKING
+import json
+from pathlib import Path
+from contextlib import AsyncExitStack
+from functools import partial
+
+from app.utils.lifecycle import close_with_timeout
 
 from .types import AgentTypes
 from app.agents.packs.policy_retriever.node import PolicyRetriever
 from app.agents.packs.question_builder.node import QuestionUnderstander
-from app.agents.packs.policy_review.node import PolicyAnalyzer as PolicyReviewAgent
-from app.agents.packs.answer_generator.node import AnswerGeneratorAgent
+from app.agents.packs.policy_review.node import PolicyReviewAgent
 from ..coordination.coordinator import Coordinator
+
+if TYPE_CHECKING:
+    from app.knowledge.milvus import MilvusStore
+
+
+class PolicyAnswerGenerator(Protocol):
+    async def process_message(self, message: str) -> Dict[str, Any]: ...
 
 
 class AgentFactory:
@@ -20,45 +32,28 @@ class AgentFactory:
     def __init__(self, config_path: Optional[str] = None):
         """Initialize the agent factory."""
         self.agents: Dict[str, Any] = {}
-        self.config_path = config_path or os.path.expanduser("~/.autogen/OAI_CONFIG_LIST")
-        self.llm_config = self._get_llm_config()
-        self.model_client = None
-        self.vector_store = None
-        self.graph_db = None
+        self.config_path = os.path.expanduser("~/.autogen/OAI_CONFIG_LIST") if config_path is None else config_path
+        self.llm_config = self._load_llm_config()
+        self.vector_store: Optional["MilvusStore"] = None
+        self._owned_agents: list[Any] = []
 
-    def _get_llm_config(self) -> Dict[str, Any]:
-        """Get LLM configuration."""
-        try:
-            config_list = config_list_from_json(
-                env_or_file="OAI_CONFIG_LIST",
-                filter_dict={
-                    "model": {
-                        "gpt-4",
-                        "gpt-4-turbo",
-                        "gpt-3.5-turbo",
-                        "deepseek-chat",
-                        "qwen-max"
-                    }
-                }
-            )
-            return {
-                "config_list": config_list,
-                "temperature": 0.1,
-                "timeout": 120,
-            }
-        except Exception as e:
-            # Fallback to environment variables
-            return {
-                "config_list": [
-                    {
-                        "model": os.getenv("MODEL_NAME", "gpt-3.5-turbo"),
-                        "api_key": os.getenv("OPENAI_API_KEY"),
-                        "base_url": os.getenv("OPENAI_BASE_URL"),
-                    }
-                ],
-                "temperature": 0.1,
-                "timeout": 120,
-            }
+    def _load_llm_config(self) -> Dict[str, Any]:
+        """Load provider configuration from the configured JSON or environment."""
+        configured = os.getenv("OAI_CONFIG_LIST")
+        if configured is not None:
+            if configured.lstrip().startswith("["):
+                providers = json.loads(configured)
+            else:
+                providers = json.loads(Path(configured).read_text(encoding="utf-8"))
+        elif Path(self.config_path).is_file():
+            providers = json.loads(Path(self.config_path).read_text(encoding="utf-8"))
+        else:
+            providers = [{"model": os.getenv("MODEL_NAME", "gpt-3.5-turbo"),
+                          "api_key": os.getenv("OPENAI_API_KEY"),
+                          "base_url": os.getenv("OPENAI_BASE_URL")}]
+        if not isinstance(providers, list) or not providers or not all(isinstance(item, dict) for item in providers):
+            raise ValueError("OAI_CONFIG_LIST must be a non-empty list of provider objects")
+        return {"config_list": providers, "temperature": 0.1, "timeout": 120}
 
     def register_agent(self, agent_type: AgentTypes, agent: Any):
         """Register an agent instance."""
@@ -68,13 +63,14 @@ class AgentFactory:
         """Get an agent instance by type."""
         return self.agents.get(agent_type.value)
 
-    def create_all_agents(self):
+    def create_all_agents(self, *, answer_generator: PolicyAnswerGenerator) -> None:
         """Create all necessary agents for the policy QA system."""
+        if self.vector_store is not None or self._owned_agents:
+            raise RuntimeError("Close the existing factory resources before creating agents again")
         # Create knowledge base components
         from app.knowledge.milvus import MilvusStore
 
         self.vector_store = MilvusStore()
-        self.graph_db = None  # 已移除图数据库，使用 LlamaIndex 替代
 
         # Create agents
         question_understander = QuestionUnderstander(
@@ -82,26 +78,24 @@ class AgentFactory:
             llm_config=self.llm_config,
             vector_store=self.vector_store
         )
+        self._owned_agents.append(question_understander)
         self.register_agent(AgentTypes.QUESTION_UNDERSTANDER, question_understander)
 
         policy_retriever = PolicyRetriever(
             name="PolicyRetriever",
             llm_config=self.llm_config,
             vector_store=self.vector_store,
-            graph_db=self.graph_db
         )
+        self._owned_agents.append(policy_retriever)
         self.register_agent(AgentTypes.POLICY_RETRIEVER, policy_retriever)
 
         policy_analyzer = PolicyReviewAgent(
             name="PolicyAnalyzer",
             llm_config=self.llm_config
         )
+        self._owned_agents.append(policy_analyzer)
         self.register_agent(AgentTypes.POLICY_ANALYZER, policy_analyzer)
 
-        answer_generator = AnswerGeneratorAgent(
-            name="AnswerGenerator",
-            llm_config=self.llm_config
-        )
         self.register_agent(AgentTypes.ANSWER_GENERATOR, answer_generator)
 
         coordinator = Coordinator(
@@ -111,23 +105,20 @@ class AgentFactory:
         )
         self.register_agent(AgentTypes.COORDINATOR, coordinator)
 
-    def create_agent_group(self) -> 'GroupChat':
-        """Create a group chat with all agents."""
-        from autogen import GroupChat, GroupChatManager
+    async def aclose(self) -> None:
+        """Close successfully constructed resources, including after a partial build."""
+        agents, self._owned_agents = self._owned_agents, []
+        vector_store, self.vector_store = self.vector_store, None
+        self.agents.clear()
+        async with AsyncExitStack() as stack:
+            if vector_store is not None:
+                stack.push_async_callback(close_with_timeout, partial(asyncio.to_thread, vector_store.close))
+            for agent in agents:
+                stack.push_async_callback(close_with_timeout, agent.close)
 
-        agents = list(self.agents.values())
-
-        group_chat = GroupChat(
-            agents=agents,
-            messages=[],
-            max_round=20,
-            speaker_selection_method="auto"
-        )
-
-        return GroupChatManager(
-            groupchat=group_chat,
-            llm_config=self.llm_config
-        )
+    def create_agent_group(self) -> Any:
+        """Old autogen.GroupChat cannot consume the project's Core/business agents."""
+        raise NotImplementedError("Use app.agents.service.AgentChatTeam with AutoGen AgentChat 0.7.5")
 
     async def process_query(self, query: str) -> Dict[str, Any]:
         """Process a user query through the agent pipeline."""

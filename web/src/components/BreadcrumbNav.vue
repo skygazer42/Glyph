@@ -1,5 +1,8 @@
 <template>
-  <nav class="breadcrumb-nav" aria-label="面包屑导航">
+  <nav
+    class="breadcrumb-nav"
+    aria-label="面包屑导航"
+  >
     <el-breadcrumb separator="/">
       <el-breadcrumb-item :to="{ path: '/' }">
         <el-icon><HomeFilled /></el-icon>
@@ -10,7 +13,7 @@
         :key="index"
         :to="item.path ? { path: item.path } : undefined"
       >
-        <el-icon v-if="item.icon" :class="item.icon" />
+        <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>
         <span>{{ item.title }}</span>
       </el-breadcrumb-item>
     </el-breadcrumb>
@@ -20,26 +23,26 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { HomeFilled } from '@element-plus/icons-vue'
+import { HomeFilled, ChatDotRound, Document, Collection } from '@element-plus/icons-vue'
 
 const route = useRoute()
 
 const routeMap = {
-  '/agent': { title: 'AI问答', icon: 'ChatDotRound' },
-  '/dsl': { title: 'DSL生成', icon: 'Document' },
-  '/knowledge': { title: '知识库管理', icon: 'Collection' }
+  '/agent': { title: 'AI问答', icon: ChatDotRound },
+  '/dsl': { title: 'DSL生成', icon: Document },
+  '/knowledge': { title: '知识库管理', icon: Collection }
 }
 
 const breadcrumbs = computed(() => {
   const path = route.path
-  const matched = route.matched
 
   const crumbs = []
 
   if (routeMap[path]) {
+    const { title, icon } = routeMap[path]
     crumbs.push({
-      title: routeMap[path].title,
-      icon: routeMap[path].icon,
+      title,
+      icon,
       path: null // 当前页面不可点击
     })
   }

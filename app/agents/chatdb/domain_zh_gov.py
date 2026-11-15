@@ -15,9 +15,10 @@ regardless of the underlying engine (MySQL/SQLite/Postgres, etc.).
 from __future__ import annotations
 
 import re
+from calendar import monthrange
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 import json
 import logging
 from pathlib import Path
@@ -85,30 +86,18 @@ TABLE_HINTS: Dict[str, List[str]] = {
 # Time window parsing
 # ---------------------------
 
-_TIME_UNITS = {
-    "天": "days",
-    "日": "days",
-    "周": "weeks",
-    "星期": "weeks",
-    "月": "months",
-    "季度": "quarters",
-    "年": "years",
-}
-
-
 @dataclass
 class TimeWindow:
-    start: Optional[date]
-    end: Optional[date]
+    start: date
+    end: date
     phrase: str
 
 
 def _add_months(base: date, months: int) -> date:
-    # naive month arithmetic sufficient for coarse filters
-    y = base.year + (base.month - 1 + months) // 12
-    m = (base.month - 1 + months) % 12 + 1
-    d = min(base.day, 28)  # keep simple to avoid month-end complexity
-    return date(y, m, d)
+    year = base.year + (base.month - 1 + months) // 12
+    month = (base.month - 1 + months) % 12 + 1
+    day = min(base.day, monthrange(year, month)[1])
+    return date(year, month, day)
 
 
 def parse_time_window(query: str, today: Optional[date] = None) -> Optional[TimeWindow]:
@@ -116,45 +105,49 @@ def parse_time_window(query: str, today: Optional[date] = None) -> Optional[Time
 
     Supports phrases like: 近N天/周/月/季度/年, 本月/本季度/今年, 去年/上个月/上周.
     """
-    q = query.strip()
-    if not q:
+    query = query.strip()
+    if not query:
         return None
     now = today or date.today()
 
     # 近N单位
-    m = re.search(r"近\s*(\d+)\s*(天|日|周|星期|月|季度|年)", q)
-    if m:
-        n = int(m.group(1))
-        unit = m.group(2)
+    match = re.search(r"近\s*(\d+)\s*(天|日|周|星期|月|季度|年)", query)
+    if match:
+        amount = int(match.group(1))
+        unit = match.group(2)
         if unit in ("天", "日"):
-            start = now - timedelta(days=n)
+            start = now - timedelta(days=amount)
         elif unit in ("周", "星期"):
-            start = now - timedelta(weeks=n)
+            start = now - timedelta(weeks=amount)
         elif unit == "月":
-            start = _add_months(now, -n)
+            start = _add_months(now, -amount)
         elif unit == "季度":
-            start = _add_months(now, -3 * n)
+            start = _add_months(now, -3 * amount)
         else:  # 年
-            start = date(now.year - n, now.month, min(now.day, 28))
-        return TimeWindow(start=start, end=now, phrase=m.group(0))
+            start = _add_months(now, -12 * amount)
+        return TimeWindow(start=start, end=now, phrase=match.group(0))
 
     # 今年/本年、本月、本周
-    if re.search(r"(今年|本年)", q):
+    if re.search(r"(今年|本年)", query):
         return TimeWindow(start=date(now.year, 1, 1), end=now, phrase="今年")
-    if re.search(r"本月", q):
+    if re.search(r"本月", query):
         return TimeWindow(start=date(now.year, now.month, 1), end=now, phrase="本月")
-    if re.search(r"本周", q):
+    if re.search(r"本周", query):
         # Monday as start of week
         start = now - timedelta(days=(now.weekday()))
         return TimeWindow(start=start, end=now, phrase="本周")
 
     # 去年/上个月/上周
-    if re.search(r"去年", q):
+    if re.search(r"去年", query):
         return TimeWindow(start=date(now.year - 1, 1, 1), end=date(now.year - 1, 12, 31), phrase="去年")
-    if re.search(r"上个月", q):
-        prev = _add_months(now, -1)
-        return TimeWindow(start=date(prev.year, prev.month, 1), end=date(prev.year, prev.month, 28), phrase="上个月")
-    if re.search(r"上周", q):
+    if re.search(r"上个月", query):
+        previous_month = _add_months(now, -1)
+        return TimeWindow(
+            start=date(previous_month.year, previous_month.month, 1),
+            end=date(previous_month.year, previous_month.month, monthrange(previous_month.year, previous_month.month)[1]),
+            phrase="上个月",
+        )
+    if re.search(r"上周", query):
         last_monday = now - timedelta(days=(now.weekday() + 7))
         last_sunday = last_monday + timedelta(days=6)
         return TimeWindow(start=last_monday, end=last_sunday, phrase="上周")
@@ -167,24 +160,24 @@ def parse_time_window(query: str, today: Optional[date] = None) -> Optional[Time
 # ---------------------------
 
 def infer_intent(query: str) -> Dict[str, str]:
-    q = query.strip()
-    intent = {}
-    if not q:
+    query = query.strip()
+    intent: Dict[str, str] = {}
+    if not query:
         return intent
 
-    if re.search(r"(多少|多少条|数量|有几|有多少)", q):
+    if re.search(r"(多少|多少条|数量|有几|有多少)", query):
         intent["aggregation"] = "count"
-    if re.search(r"(总额|总数|合计|累计|总计|总和)", q):
-        intent["aggregation"] = intent.get("aggregation") or "sum"
-    if re.search(r"(平均|均值|平均值)", q):
-        intent["aggregation"] = intent.get("aggregation") or "avg"
-    if re.search(r"(最新|最近|按时间|近|本月|今年)", q):
+    if re.search(r"(总额|总数|合计|累计|总计|总和)", query):
+        intent.setdefault("aggregation", "sum")
+    if re.search(r"(平均|均值|平均值)", query):
+        intent.setdefault("aggregation", "avg")
+    if re.search(r"(最新|最近|按时间|近|本月|今年)", query):
         intent["order_by"] = "desc_time"
     # Top N
-    m = re.search(r"(前|TOP|Top|top)\s*(\d+)", q)
-    if m:
-        intent["limit"] = m.group(2)
-    elif re.search(r"(列出|展示|清单|有哪些)", q):
+    match = re.search(r"(前|TOP|Top|top)\s*(\d+)", query)
+    if match:
+        intent["limit"] = match.group(2)
+    elif re.search(r"(列出|展示|清单|有哪些)", query):
         intent.setdefault("limit", "100")
     return intent
 
@@ -195,53 +188,47 @@ def normalize_terms(query: str) -> Tuple[str, Dict[str, str]]:
     Returns the normalized NL string and a dict of replacements applied.
     """
     replaced: Dict[str, str] = {}
-    q = query
-    for k, v in REGION_ALIASES.items():
-        if k in q:
-            q = q.replace(k, v)
-            replaced[k] = v
-    return q, replaced
+    for alias, canonical_name in REGION_ALIASES.items():
+        if alias in query:
+            query = query.replace(alias, canonical_name)
+            replaced[alias] = canonical_name
+    return query, replaced
 
 
 def candidate_tables_from_query(query: str) -> List[str]:
     """Return a flat list of candidate table names hinted by NL keywords."""
     hints: List[str] = []
-    for kw, tables in TABLE_HINTS.items():
-        if kw in query:
+    for keyword, tables in TABLE_HINTS.items():
+        if keyword in query:
             hints.extend(tables)
     # unique preserve order
     seen = set()
-    uniq = []
-    for t in hints:
-        if t not in seen:
-            seen.add(t)
-            uniq.append(t)
-    return uniq
+    candidates = []
+    for table in hints:
+        if table not in seen:
+            seen.add(table)
+            candidates.append(table)
+    return candidates
 
 
-def domain_value_mappings_for_schema(schema_context: Dict[str, any]) -> Dict[str, Dict[str, str]]:
+def domain_value_mappings_for_schema(schema_context: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
     """Build additional value-mappings based on generic synonyms and the actual columns in schema_context.
 
     For any column whose name matches keys in GENERIC_COLUMN_VALUE_SYNONYMS, attach the mapping
     under "{table}.{column}".
     """
     mappings: Dict[str, Dict[str, str]] = {}
-    if not schema_context or not schema_context.get("columns"):
-        return mappings
-    for col in schema_context["columns"]:
-        col_name = col.get("name", "").lower()
-        table = col.get("table_name", "")
-        if col_name in GENERIC_COLUMN_VALUE_SYNONYMS:
-            fq = f"{table}.{col['name']}"
-            mappings[fq] = GENERIC_COLUMN_VALUE_SYNONYMS[col_name]
+    for column in schema_context["columns"]:
+        column_name = column["name"].lower()
+        qualified_column = f"{column['table_name']}.{column['name']}"
+        if column_name in GENERIC_COLUMN_VALUE_SYNONYMS:
+            mappings[qualified_column] = GENERIC_COLUMN_VALUE_SYNONYMS[column_name]
         # Merge fully-qualified overrides if available
-        fq_col = f"{table}.{col['name']}"
-        if fq_col in OVERRIDE_COLUMN_VALUE_SYNONYMS:
-            base = mappings.get(fq_col, {})
-            merged = dict(GENERIC_COLUMN_VALUE_SYNONYMS.get(col_name, {}))
-            merged.update(base)
-            merged.update(OVERRIDE_COLUMN_VALUE_SYNONYMS[fq_col])
-            mappings[fq_col] = merged
+        if qualified_column in OVERRIDE_COLUMN_VALUE_SYNONYMS:
+            mappings[qualified_column] = {
+                **mappings.get(qualified_column, {}),
+                **OVERRIDE_COLUMN_VALUE_SYNONYMS[qualified_column],
+            }
     return mappings
 
 
@@ -255,43 +242,40 @@ DEFAULT_OVERRIDE_PATHS = [
 ]
 
 
-def _apply_overrides(payload: Dict[str, any]) -> None:
-    if not payload:
-        return
+def _apply_overrides(payload: Dict[str, Any]) -> None:
     # regions
-    for k, v in payload.get("region_aliases", {}).items():
-        REGION_ALIASES[k] = v
+    REGION_ALIASES.update(payload.get("region_aliases", {}))
     # table hints
-    for kw, tables in payload.get("table_hints", {}).items():
-        current = TABLE_HINTS.get(kw, [])
-        for t in tables:
-            if t not in current:
-                current.append(t)
-        TABLE_HINTS[kw] = current
+    for keyword, tables in payload.get("table_hints", {}).items():
+        current = TABLE_HINTS.setdefault(keyword, [])
+        for table in tables:
+            if table not in current:
+                current.append(table)
     # column synonyms
-    for col, mapping in payload.get("column_value_synonyms", {}).items():
-        if "." in col:
+    for column, mapping in payload.get("column_value_synonyms", {}).items():
+        if "." in column:
             # fully-qualified
-            OVERRIDE_COLUMN_VALUE_SYNONYMS[col] = {
-                **OVERRIDE_COLUMN_VALUE_SYNONYMS.get(col, {}),
+            OVERRIDE_COLUMN_VALUE_SYNONYMS[column] = {
+                **OVERRIDE_COLUMN_VALUE_SYNONYMS.get(column, {}),
                 **mapping,
             }
         else:
-            GENERIC_COLUMN_VALUE_SYNONYMS[col] = {
-                **GENERIC_COLUMN_VALUE_SYNONYMS.get(col, {}),
+            GENERIC_COLUMN_VALUE_SYNONYMS[column] = {
+                **GENERIC_COLUMN_VALUE_SYNONYMS.get(column, {}),
                 **mapping,
             }
 
 
 def load_overrides(paths: Optional[List[Path]] = None) -> None:
-    paths = paths or DEFAULT_OVERRIDE_PATHS
-    for p in paths:
+    if paths is None:
+        paths = DEFAULT_OVERRIDE_PATHS
+    for path in paths:
         try:
-            if p.exists():
-                data = json.loads(p.read_text(encoding="utf-8"))
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
                 _apply_overrides(data)
         except Exception as exc:  # best-effort
-            logging.getLogger(__name__).warning("Failed to load domain overrides %s: %s", p, exc)
+            logging.getLogger(__name__).warning("Failed to load domain overrides %s: %s", path, exc, exc_info=True)
 
 
 # Load on import (best-effort)

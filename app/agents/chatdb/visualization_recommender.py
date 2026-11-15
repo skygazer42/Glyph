@@ -3,7 +3,10 @@
 负责建议合适的可视化方式
 """
 import json
-from typing import Dict, Any
+import logging
+from typing import Dict, Any, Literal
+
+from pydantic import BaseModel, ValidationError
 
 from autogen_core import message_handler, MessageContext, type_subscription
 from autogen_agentchat.agents import AssistantAgent
@@ -11,6 +14,13 @@ from autogen_agentchat.agents import AssistantAgent
 from app.schemas.text2sql import SqlResultMessage, Text2SQLResponse
 from .base import BaseAgent
 from .types import AgentTypes, AGENT_NAMES, TopicTypes
+
+logger = logging.getLogger(__name__)
+
+
+class VisualizationConfig(BaseModel):
+    type: Literal["bar", "line", "pie", "scatter", "table"]
+    config: Dict[str, Any]
 
 
 @type_subscription(topic_type=TopicTypes.VISUALIZATION_RECOMMENDER.value)
@@ -32,7 +42,8 @@ class VisualizationRecommenderAgent(BaseAgent):
         )
         self._prompt = self._build_prompt()
 
-    def _build_prompt(self) -> str:
+    @staticmethod
+    def _build_prompt() -> str:
         """构建提示模板"""
         return """
         你是一名专业的数据可视化专家，负责根据提供的用户指令、SQL查询及其结果数据，推荐最合适的数据可视化方式，并给出详细的配置建议。
@@ -117,7 +128,8 @@ class VisualizationRecommenderAgent(BaseAgent):
         特别注意：如果用户有对生成的图表有明确的特定要求，一定要严格遵守用户的指令。例如用户明确要求生成饼状图，就不能生成柱状图。
         """
 
-    def _prepare_task(self, message: SqlResultMessage) -> str:
+    @staticmethod
+    def _prepare_task(message: SqlResultMessage) -> str:
         """准备任务描述
 
         Args:
@@ -144,7 +156,8 @@ class VisualizationRecommenderAgent(BaseAgent):
         请根据提供的上述信息，分析并输出最合适的可视化类型和配置，输出必须是有效的JSON
         """
 
-    def _parse_visualization_config(self, content: str, fallback_results: list) -> Dict[str, Any]:
+    @staticmethod
+    def _parse_visualization_config(content: str, fallback_results: list) -> Dict[str, Any]:
         """解析可视化配置
 
         Args:
@@ -157,16 +170,14 @@ class VisualizationRecommenderAgent(BaseAgent):
         try:
             # 清理JSON字符串，移除可能的标记
             cleaned_json = content.replace("```json", "").replace("```", "").strip()
-            return json.loads(cleaned_json)
-        except json.JSONDecodeError as e:
-            print(f"解析可视化配置时出错: {str(e)}")
-            # 使用默认配置
+            return VisualizationConfig.model_validate_json(cleaned_json).model_dump()
+        except ValidationError as e:
+            logger.warning("Invalid visualization configuration; displaying result columns: %s", e, exc_info=True)
             return {
-                "type": "bar",
+                "type": "table",
                 "config": {
-                    "title": "数据可视化",
-                    "xAxis": list(fallback_results[0].keys())[0] if fallback_results else "x",
-                    "yAxis": list(fallback_results[0].keys())[1] if fallback_results and len(fallback_results[0].keys()) > 1 else "y"
+                    "title": "数据表格",
+                    "columns": list(fallback_results[0]) if fallback_results else [],
                 }
             }
 
@@ -175,13 +186,13 @@ class VisualizationRecommenderAgent(BaseAgent):
         """处理接收到的消息，推荐可视化方式"""
         try:
             # 检查是否有错误
-            if hasattr(message, 'error') and message.error:
+            if message.error is not None:
                 await self.send_response(f"由于SQL执行错误，无法提供可视化建议: {message.error}")
                 await self.send_response("可视化分析已完成", is_final=True)
                 return
 
             # 检查结果是否为空
-            if not message.results or len(message.results) == 0:
+            if not message.results:
                 await self.send_response("没有数据可供可视化分析")
                 await self.send_response("可视化分析已完成", is_final=True)
                 return
@@ -202,19 +213,19 @@ class VisualizationRecommenderAgent(BaseAgent):
             )
 
             result = await agent.run(task=task)
-            visualization_json = result.messages[-1].content
+            visualization_json = self.final_text(result)
 
             # 处理JSON输出
             visualization = self._parse_visualization_config(visualization_json, message.results)
 
             # 如果是表格，则直接返回，因为表格已经在上个智能体中已经呈现
-            if visualization.get("type") == "table":
+            if visualization["type"] == "table":
                 await self.send_response("可视化分析已完成", is_final=True)
                 return
 
             # 发送可视化建议
             await self.send_response(
-                f"建议使用 {visualization.get('type', 'bar')} 类型进行可视化展示"
+                f"建议使用 {visualization['type']} 类型进行可视化展示"
             )
 
             # 构建最终结果
@@ -222,8 +233,8 @@ class VisualizationRecommenderAgent(BaseAgent):
                 sql=message.sql,
                 explanation=message.explanation,
                 results=message.results,
-                visualization_type=visualization.get("type", "bar"),
-                visualization_config=visualization.get("config", {})
+                visualization_type=visualization["type"],
+                visualization_config=visualization["config"]
             )
 
             # 发送可视化结果到visualization区域
@@ -231,8 +242,8 @@ class VisualizationRecommenderAgent(BaseAgent):
                 "可视化分析完成",
                 is_final=True,
                 result={
-                    "visualization_type": visualization.get("type", "bar"),
-                    "visualization_config": visualization.get("config", {})
+                    "visualization_type": visualization["type"],
+                    "visualization_config": visualization["config"]
                 }
             )
 

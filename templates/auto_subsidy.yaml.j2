@@ -3,57 +3,26 @@ name: {{ name }}
 version: {{ version }}
 
 policy_source:
-  doc_id: {{ policy_source.doc_id | default(null) }}
-  title: "{{ policy_source.title }}"
+  doc_id: {{ policy_source.doc_id | default(none) | tojson }}
+  title: {{ policy_source.title | tojson }}
 
 # ===== 时间窗口配置 =====
-windows:
-  time_basis: "{{ windows.time_basis }}"         # e.g. purchase_time / invoice_time / claim_time
-  purchase_window:
-    start: {{ windows.purchase_window.start | tojson }}
-    end: {{ windows.purchase_window.end | tojson }}
-  claim_window:
-    start: {{ windows.claim_window.start | tojson }}
-    end: {{ windows.claim_window.end | tojson }}
-  modify_window:
-    start: {{ windows.modify_window.start | tojson }}
-    end: {{ windows.modify_window.end | tojson }}
+windows: {{ windows | tojson }}
 
 # ===== 预算配置 =====
-budget:
-  total: {{ budget.total }}
-  currency: "{{ budget.currency }}"
-  allocation: "{{ budget.allocation }}"          # e.g. global / city / dealer
+budget: {{ budget | tojson }}
 
 # ===== 价格基准 =====
-price_basis: "{{ price_basis }}"                 # ex_tax / on_road / etc.
+price_basis: {{ price_basis | tojson }}
 
 # ===== 资格条件 =====
-eligibility:
-  buyer_type: "{{ eligibility.buyer_type }}"     # person/company/...
-  vehicle_scope: "{{ eligibility.vehicle_scope }}" # models/brands allowed
-  combinable_with_upper_policies: {{ eligibility.combinable_with_upper_policies | default(true) | tojson }}
+eligibility: {{ eligibility | tojson }}
 
 # ===== 分档匹配规则 =====
-matching:
-  powertrain_defs:
-    NEV: {{ matching.powertrain_defs.NEV | tojson }}
-    ICE: {{ matching.powertrain_defs.ICE | tojson }}
-
-  # open_interval 采用四种写法: "[]", "[)", "(]", "()"
-  tiers:
-{% for tier in matching.tiers %}
-    - powertrain: {{ tier.powertrain }}          # NEV / ICE
-      min_ex_tax: {{ tier.min_ex_tax }}
-      max_ex_tax: {{ tier.max_ex_tax | default(null) }}
-      open_interval: "{{ tier.open_interval | default('[)') }}"  # 默认左闭右开
-      subsidy: {{ tier.subsidy }}                # 定额金额（同币种）
-{% endfor %}
+matching: {{ matching | tojson }}
 
 # ===== 限制条件 =====
-limits:
-  per_person_max_cars: {{ limits.per_person_max_cars }}
-  dedupe_keys: {{ limits.dedupe_keys | tojson }} # ["vin","invoice_no","buyer_id"]
+limits: {{ limits | tojson }}
 
 # ===== 输入参数 =====
 inputs:

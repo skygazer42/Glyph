@@ -7,9 +7,7 @@ policy_source:
   title: {{ policy_source.title | default(null) | tojson }}
 
 # ===== 有效期 =====
-valid_period:
-  start: "{{ valid_period.start }}"
-  end: {{ valid_period.end | default(null) | tojson }}
+valid_period: {{ valid_period | tojson }}
 
 # ===== 券种类型 =====
 coupon_types: {{ coupon_types | tojson }}   # 例如 ["AMOUNT","PERCENT"]
@@ -20,43 +18,18 @@ tiers:
   - type: {{ tier.type }}                   # AMOUNT: 满减; PERCENT: 折扣
     threshold: {{ tier.threshold }}         # 门槛
     discount: {{ tier.discount }}           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
-    {% if tier.cap is defined %}cap: {{ tier.cap }}{% endif %}   # PERCENT可选封顶金额
+    {% if tier.cap is defined %}cap: {{ tier.cap | tojson }}{% endif %}   # PERCENT可选封顶金额
     {% if tier.name %}name: "{{ tier.name }}"{% endif %}
 {% endfor %}
 
 # ===== 发放规则 =====
-distribution:
-  method: "{{ distribution.method }}"        # auto_claim / manual / code
-  total_quota: {{ distribution.total_quota | default(null) }}
-  quota_per_person: {{ distribution.quota_per_person | default(null) }}
-  {% if distribution.release_schedule %}
-  release_schedule:
-  {% for batch in distribution.release_schedule %}
-    - batch: {{ batch.batch }}
-      time: "{{ batch.time }}"               # ISO时间，<=该时刻方可使用
-      amount: {{ batch.amount }}
-  {% endfor %}
-  {% endif %}
+distribution: {{ distribution | tojson }}
 
 # ===== 使用限制 =====
-usage_limits:
-  valid_days: {{ usage_limits.valid_days | default(30) }}
-  merchant_scope: "{{ usage_limits.merchant_scope | default('参与活动商户') }}"
-  product_scope: "{{ usage_limits.product_scope | default('全品类') }}"
-  {% if usage_limits.time_restrictions %}
-  time_restrictions: "{{ usage_limits.time_restrictions }}"
-  {% endif %}
-  {% set stacking_cfg = usage_limits.stacking if usage_limits.stacking is defined else {'with_merchant_discount': true, 'with_other_coupons': true} %}
-  stacking:
-    with_merchant_discount: {{ stacking_cfg.with_merchant_discount | default(true) | tojson }}
-    with_other_coupons: {{ stacking_cfg.with_other_coupons | default(true) | tojson }}
+usage_limits: {{ usage_limits | tojson }}
 
 # ===== 平台信息 =====
-{% if platform %}
-platform:
-  claim_platform: "{{ platform.claim_platform }}"
-  payment_methods: {{ platform.payment_methods | tojson }}
-{% endif %}
+platform: {{ platform | tojson }}
 
 # ===== 输入参数 =====
 inputs:

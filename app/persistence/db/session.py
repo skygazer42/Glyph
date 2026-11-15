@@ -1,15 +1,13 @@
-from sqlalchemy import create_engine
+from sqlalchemy import URL, create_engine
 from sqlalchemy.orm import sessionmaker
-from urllib.parse import quote_plus
 
-from app.core.config import settings
+from app.config.app_config import settings
 
-db_cfg = settings.database
-password = quote_plus(db_cfg.mysql_password)
-SQLALCHEMY_DATABASE_URL = (
-    f"mysql+pymysql://{db_cfg.mysql_user}:{password}@"
-    f"{db_cfg.mysql_host}:{db_cfg.mysql_port}/{db_cfg.mysql_db}"
-    "?charset=utf8mb4"
+database_settings = settings.database
+SQLALCHEMY_DATABASE_URL = URL.create(
+    "mysql+pymysql", username=database_settings.mysql_user, password=database_settings.mysql_password,
+    host=database_settings.mysql_host, port=database_settings.mysql_port, database=database_settings.mysql_db,
+    query={"charset": "utf8mb4"},
 )
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)

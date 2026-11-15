@@ -2,15 +2,15 @@
 智能体工厂
 统一创建和注册智能体
 """
-from typing import Dict, Any, Callable, Optional
+from typing import Optional
 
 from autogen_core import SingleThreadedAgentRuntime, ClosureAgent, TypeSubscription
 
-from app.core.config import settings
+from app.config.app_config import settings
 from app.core.llms import model_client
 from app.persistence.db.dbaccess import DBAccess
 from .base import StreamResponseCollector
-from .types import AgentTypes, TopicTypes
+from .types import TopicTypes
 from .schema_retriever import SchemaRetrieverAgent
 from .query_analyzer import QueryAnalyzerAgent
 from .sql_generator import SqlGeneratorAgent
@@ -22,7 +22,7 @@ from .visualization_recommender import VisualizationRecommenderAgent
 class AgentFactory:
     """智能体工厂，负责创建和注册所有智能体"""
 
-    def __init__(self, db_type: str = None, db_access: Optional[DBAccess] = None):
+    def __init__(self, *, db_access: DBAccess, db_type: Optional[str] = None):
         """初始化智能体工厂
 
         Args:
@@ -147,6 +147,8 @@ class AgentFactory:
     async def _register_stream_collector(self, runtime: SingleThreadedAgentRuntime,
                                        collector: StreamResponseCollector) -> None:
         """注册消息收集器"""
+        if collector.callback is None:
+            raise ValueError("A stream collector callback is required")
         await ClosureAgent.register_closure(
             runtime,
             "stream_collector_agent",

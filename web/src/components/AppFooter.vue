@@ -2,12 +2,12 @@
   <footer class="app-footer">
     <div class="footer-content">
       <div class="footer-section">
-        <h4>关于平台</h4>
+        <h2>关于平台</h2>
         <p>智策通致力于为政府决策提供智能化支持</p>
       </div>
 
       <div class="footer-section">
-        <h4>功能模块</h4>
+        <h2>功能模块</h2>
         <ul>
           <li>政策智能问答</li>
           <li>DSL规则生成</li>
@@ -16,7 +16,7 @@
       </div>
 
       <div class="footer-section">
-        <h4>技术支持</h4>
+        <h2>技术支持</h2>
         <p>基于先进的AI技术和知识图谱</p>
         <p>支持多源数据融合与智能分析</p>
       </div>
@@ -28,11 +28,11 @@
         <p class="icp">备案号：XXX-XXXXXXXX</p>
       </div>
       <div class="footer-links">
-        <a href="#" @click.prevent>隐私政策</a>
+        <span>隐私政策</span>
         <span>|</span>
-        <a href="#" @click.prevent>使用条款</a>
+        <span>使用条款</span>
         <span>|</span>
-        <a href="#" @click.prevent>帮助中心</a>
+        <span>帮助中心</span>
       </div>
     </div>
   </footer>
@@ -62,7 +62,7 @@ const currentYear = computed(() => new Date().getFullYear())
   margin-bottom: var(--spacing-xl);
 }
 
-.footer-section h4 {
+.footer-section h2 {
   color: white;
   font-size: var(--text-lg);
   font-weight: 600;
@@ -129,14 +129,10 @@ const currentYear = computed(() => new Date().getFullYear())
   font-size: var(--text-sm);
 }
 
-.footer-links a {
+.footer-links > span:nth-child(odd) {
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
   transition: color var(--transition-base);
-}
-
-.footer-links a:hover {
-  color: white;
 }
 
 .footer-links span {

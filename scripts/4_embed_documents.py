@@ -14,18 +14,13 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import traceback
 from pathlib import Path
 from typing import List
 
-# 清除代理环境变量，避免在离线环境触发网络请求
-for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
-    os.environ.pop(key, None)
-
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from app.config import settings
-from app.knowledge.hierarchical_index import HierarchicalIndexBuilder
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,6 +73,12 @@ def find_markdown_files(data_dir: Path) -> List[str]:
 
 def main(args: argparse.Namespace) -> int:
     """主函数"""
+    # These CLI-only imports may initialize model clients; importing this module is inert.
+    for key in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
+        os.environ.pop(key, None)
+    from app.config.app_config import settings
+    from app.knowledge.hierarchical_index import HierarchicalIndexBuilder, HierarchicalRetriever
+
     print("=" * 70)
     print(" 政策文档嵌入系统")
     print("=" * 70)
@@ -105,6 +106,7 @@ def main(args: argparse.Namespace) -> int:
     print("=" * 70)
     print()
 
+    retriever = None
     try:
         print("🔧 初始化索引构建器...")
         builder = HierarchicalIndexBuilder(storage_dir=str(storage_dir), embed_model_name=None)
@@ -121,16 +123,15 @@ def main(args: argparse.Namespace) -> int:
         print(" 索引构建完成！")
         print("=" * 70)
         print("📊 统计信息:")
-        print(f"  - 处理文档数: {stats.get('total_documents', 0)}")
-        print(f"  - 总节点数: {stats.get('total_nodes', 0)}")
-        print(f"  - 文档节点: {stats.get('doc_nodes', 0)}")
-        print(f"  - 章节节点: {stats.get('section_nodes', 0)}")
-        print(f"  - Chunk 节点: {stats.get('chunk_nodes', 0)}")
-        print(f"  - 图片节点: {stats.get('image_nodes', 0)}")
+        print(f"  - 处理文档数: {stats['total_docs']}")
+        print(f"  - 总节点数: {sum(stats[key] for key in ('total_docs', 'total_sections', 'total_chunks', 'total_images'))}")
+        print(f"  - 文档节点: {stats['total_docs']}")
+        print(f"  - 章节节点: {stats['total_sections']}")
+        print(f"  - Chunk 节点: {stats['total_chunks']}")
+        print(f"  - 图片节点: {stats['total_images']}")
         print(f"  - 存储位置: {storage_dir}")
         print()
 
-        from app.knowledge.hierarchical_index import HierarchicalRetriever
 
         print("=" * 70)
         print(" 验证索引")
@@ -145,6 +146,7 @@ def main(args: argparse.Namespace) -> int:
 
         test_queries = ["家电补贴申请条件", "手机以旧换新政策", "汽车消费券领取方式"]
         print("🧪 测试检索功能:")
+        verification_failed = False
         for i, query in enumerate(test_queries, 1):
             print(f"\n  查询 {i}: {query}")
             try:
@@ -157,9 +159,12 @@ def main(args: argparse.Namespace) -> int:
                     print(f"    {j}. [{node_type}] {title}")
                     print(f"       {preview}")
             except Exception as exc:
+                verification_failed = True
                 print(f"  ✗ 检索失败: {exc}")
 
         print("\n" + "=" * 70)
+        if verification_failed:
+            return 1
         print(" 🎉 数据嵌入完成！")
         print("=" * 70)
         print("📝 下一步:")
@@ -171,7 +176,6 @@ def main(args: argparse.Namespace) -> int:
         return 0
 
     except Exception as exc:  # pragma: no cover - CLI 直接输出
-        import traceback
 
         print("\n" + "=" * 70)
         print(" [ERROR]")
@@ -180,6 +184,9 @@ def main(args: argparse.Namespace) -> int:
         print("\n详细错误信息:")
         traceback.print_exc()
         return 1
+    finally:
+        if retriever is not None:
+            retriever.close()
 
 
 if __name__ == "__main__":

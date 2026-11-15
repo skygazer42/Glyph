@@ -1,11 +1,14 @@
 """示例 AG Workflow：演示如何用 AutoGen 组装轻量团队。"""
 
 import asyncio
-from typing import Dict, Any, List, Optional
+import os
+import anyio
+from typing import Dict, Any, List
 from autogen_agentchat.teams import RoundRobinGroupChat, SelectorGroupChat
 from autogen_agentchat.conditions import TextMentionTermination, MaxMessageTermination
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
+from autogen_agentchat.base import ChatAgent, TaskResult, Team, TerminationCondition
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core import SingleThreadedAgentRuntime
 import logging
@@ -18,7 +21,7 @@ from examples.ag_prompt import (
     POLICY_SELECTOR_PROMPT,
     POLICY_SUMMARY_PROMPT,
 )
-from app.core import logging_manager
+from app.core.logging_manager import logging_manager
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +37,7 @@ class AGWorkflow:
 
     async def initialize(self):
         """初始化运行时"""
-        await self.runtime.start()
+        self.runtime.start()
 
     async def shutdown(self):
         """关闭运行时"""
@@ -64,7 +67,7 @@ class AGWorkflow:
         max_turns: int = 10
     ) -> RoundRobinGroupChat:
         """创建轮询团队 - Agent按顺序轮流发言"""
-        team_agents = [self.agents[name] for name in agent_names if name in self.agents]
+        team_agents: List[ChatAgent | Team] = [self.agents[name] for name in agent_names]
 
         # 创建终止条件
         termination = MaxMessageTermination(max_messages=max_turns)
@@ -87,10 +90,11 @@ class AGWorkflow:
         max_turns: int = 20
     ) -> SelectorGroupChat:
         """创建选择器团队 - 智能选择下一个发言的Agent"""
-        team_agents = [self.agents[name] for name in agent_names if name in self.agents]
+        team_agents: List[ChatAgent | Team] = [self.agents[name] for name in agent_names]
 
         # 创建终止条件
-        termination = TextMentionTermination("TERMINATE")
+        termination: TerminationCondition = TextMentionTermination("TERMINATE")
+        termination = termination | MaxMessageTermination(max_messages=max_turns)
 
         # 创建选择器团队
         team = SelectorGroupChat(
@@ -107,8 +111,7 @@ class AGWorkflow:
     async def run_team(
         self,
         team_name: str,
-        message: str,
-        context: Optional[Dict[str, Any]] = None
+        message: str
     ) -> List[TextMessage]:
         """运行团队"""
         if team_name not in self.teams:
@@ -131,6 +134,8 @@ class AGWorkflow:
         messages = []
         try:
             async for item in message_stream:
+                if isinstance(item, TaskResult):
+                    continue
                 messages.append(item)
                 logging_manager.log_message_event(
                     payload=item.content,
@@ -145,6 +150,9 @@ class AGWorkflow:
                 exception=exc,
             )
             raise
+        finally:
+            with anyio.fail_after(5, shield=True):
+                await message_stream.aclose()
 
         return messages
 
@@ -200,20 +208,17 @@ class AGWorkflow:
 
 async def example_usage():
     """使用示例"""
-    import os
-    from autogen_ext.models.openai import OpenAIChatCompletionClient
 
     # 创建模型客户端
     model_client = OpenAIChatCompletionClient(
         model="gpt-4",
-        api_key=os.getenv("OPENAI_API_KEY")
+        api_key=os.environ["OPENAI_API_KEY"]
     )
 
     # 创建编排器
     orchestrator = AGWorkflow(model_client)
-    await orchestrator.initialize()
-
     try:
+        await orchestrator.initialize()
         # 创建政策问答团队
         await orchestrator.create_policy_qa_team()
 
@@ -235,7 +240,11 @@ async def example_usage():
             print(f"{msg.content}")
 
     finally:
-        await orchestrator.shutdown()
+        try:
+            await orchestrator.shutdown()
+        finally:
+            with anyio.fail_after(5, shield=True):
+                await model_client.close()
 
 
 # 高级编排示例 - 带有条件分支的复杂流程
@@ -244,9 +253,8 @@ class AdvancedOrchestrator:
 
     def __init__(self, model_client: OpenAIChatCompletionClient):
         self.model_client = model_client
-        self.runtime = SingleThreadedAgentRuntime()
-        self.agents = {}
-        self.workflows = {}
+        self.agents: Dict[str, AssistantAgent] = {}
+        self.workflows: Dict[str, List[str]] = {}
 
     async def create_conditional_workflow(self):
         """创建条件工作流"""
@@ -294,12 +302,6 @@ class AdvancedOrchestrator:
     async def execute_workflow(self, user_query: str) -> Dict[str, Any]:
         """执行条件工作流"""
         # 1. 路由决策
-        router = self.agents["router"]
-        routing_message = TextMessage(
-            content=f"用户问题：{user_query}\n请选择处理路径。",
-            source="system"
-        )
-
         # 获取路由决策
         # (这里需要实现路由决策逻辑)
         selected_path = "eligibility_path"  # 示例
@@ -319,14 +321,21 @@ class AdvancedOrchestrator:
             )
 
             results = []
-            async for msg in message_stream:
-                results.append(msg)
+            try:
+                async for msg in message_stream:
+                    if not isinstance(msg, TaskResult):
+                        results.append(msg)
+            finally:
+                with anyio.fail_after(5, shield=True):
+                    await message_stream.aclose()
 
             return {
                 "path": selected_path,
                 "messages": results,
                 "agent_sequence": agent_names
             }
+
+        raise ValueError(f"Workflow path {selected_path} not found")
 
 
 if __name__ == "__main__":

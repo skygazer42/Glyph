@@ -1,20 +1,25 @@
 <template>
-  <div class="theme-toggle" :title="isDark ? '切换到亮色模式' : '切换到暗色模式'">
+  <div
+    class="theme-toggle"
+    :title="themeActionLabel"
+  >
     <el-button
       :icon="isDark ? Sunny : Moon"
       circle
       @click="toggleTheme"
       class="theme-button"
-      :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'"
+      :aria-label="themeActionLabel"
     />
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { Sunny, Moon } from '@element-plus/icons-vue'
 import { useTheme } from '@/composables/useTheme'
 
 const { isDark, toggleTheme } = useTheme()
+const themeActionLabel = computed(() => isDark.value ? '切换到亮色模式' : '切换到暗色模式')
 </script>
 
 <style scoped>

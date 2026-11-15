@@ -6,8 +6,9 @@ Agent 问答相关端点
 import json
 import os
 import logging
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+from fastapi import APIRouter, Depends, HTTPException, Query
+from starlette.concurrency import run_in_threadpool
 from sse_starlette.sse import EventSourceResponse
 
 from app.api.schemas import (
@@ -17,11 +18,15 @@ from app.api.schemas import (
     ChatStreamChunk,
     SessionInfo,
     SessionResponse,
-    ListSessionsResponse
+    ListSessionsResponse,
+    DeleteSessionResponse,
+    SessionMessagesResponse,
+    SessionMessagesQuery,
 )
 from app.api.deps import get_session_manager, get_agent_service
 from app.agents.framework.common.session_manager import SessionManager
-from app.agents.service import AgentService
+from app.agents.service.agent_service import AgentService
+from app.utils.lifecycle import close_with_timeout
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -40,20 +45,22 @@ async def agent_chat(
     """
     try:
         # 获取或创建会话
-        session = session_manager.get_or_create_session(
+        session = await run_in_threadpool(
+            session_manager.get_or_create_session,
             request.session_id,
             connection_id=request.connection_id,
             user_id=request.user_id,
         )
 
         # 添加用户消息到会话
-        user_metadata = {"connection_id": request.connection_id}
+        user_metadata: dict[str, object] = {"connection_id": request.connection_id}
         if request.user_id:
             user_metadata["user_id"] = request.user_id
         if request.attachments:
-            user_metadata["attachments"] = [att.model_dump() for att in request.attachments]
+            user_metadata["attachments"] = [attachment.model_dump() for attachment in request.attachments]
 
-        session_manager.add_message(
+        await run_in_threadpool(
+            session_manager.add_message,
             session.session_id,
             "user",
             request.message,
@@ -71,7 +78,8 @@ async def agent_chat(
         )
 
         # 添加助手消息到会话
-        session_manager.add_message(
+        await run_in_threadpool(
+            session_manager.add_message,
             session.session_id,
             "assistant",
             final.answer,
@@ -80,7 +88,7 @@ async def agent_chat(
 
         logger.info(f"会话 {session.session_id} 完成问答，路由：{final.metadata.get('route')}")
 
-        metadata = final.metadata or {}
+        metadata = dict(final.metadata)
         metadata.update(
             {
                 "confidence": final.confidence,
@@ -88,7 +96,7 @@ async def agent_chat(
             }
         )
 
-        session_id = metadata.get("session_id") or session.session_id
+        session_id = metadata["session_id"]
 
         return ChatResponse(
             success=True,
@@ -98,10 +106,8 @@ async def agent_chat(
         )
 
     except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        logger.error(f"Agent 问答失败: {error_detail}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Agent 问答失败")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/chat/stream")
@@ -120,20 +126,22 @@ async def agent_chat_stream(
         """事件生成器"""
         try:
             # 获取或创建会话
-            session = session_manager.get_or_create_session(
+            session = await run_in_threadpool(
+                session_manager.get_or_create_session,
                 request.session_id,
                 connection_id=request.connection_id,
                 user_id=request.user_id,
             )
             session_id = session.session_id
-            user_metadata = {"connection_id": request.connection_id}
+            user_metadata: dict[str, object] = {"connection_id": request.connection_id}
             if request.user_id:
                 user_metadata["user_id"] = request.user_id
             if request.attachments:
-                user_metadata["attachments"] = [att.model_dump() for att in request.attachments]
+                user_metadata["attachments"] = [attachment.model_dump() for attachment in request.attachments]
 
             # 添加用户消息到会话
-            session_manager.add_message(
+            await run_in_threadpool(
+                session_manager.add_message,
                 session_id,
                 "user",
                 request.message,
@@ -151,58 +159,63 @@ async def agent_chat_stream(
             logger.info(f"会话 {session_id} 开始流式问答")
             # 若开启 AgentChat 流式，优先尝试流式；否则回退一次性推送
             use_agentchat_stream = os.getenv("AGENTCHAT_STREAM_ENABLED", "").lower() in {"1", "true", "yes", "on"}
-            if use_agentchat_stream and getattr(agent_service, "_agentchat_team_enabled", False):
-                async for evt in agent_service.process_query_stream(
+            if use_agentchat_stream and agent_service._agentchat_team_enabled:
+                stream = agent_service.process_query_stream(
                     request.message,
                     session_id=session_id,
                     user_id=request.user_id,
                     connection_id=request.connection_id,
                     attachments=request.attachments,
                     force_text2sql=request.text2sql_mode,
-                ):
-                    if evt.get("type") == "chunk":
-                        chunk = ChatStreamChunk(
-                            content=evt.get("content", ""),
-                            done=False,
-                            session_id=session_id,
-                            metadata={},
-                        )
-                        yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
-                    elif evt.get("type") == "final":
-                        final = evt["answer"]
-                        full_metadata = final.metadata or {}
-                        full_metadata.update({"confidence": final.confidence})
-                        # 推送最终内容
-                        chunk = ChatStreamChunk(
-                            content=final.answer,
-                            done=False,
-                            session_id=session_id,
-                            metadata=full_metadata,
-                        )
-                        yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
+                )
+                try:
+                    async for event in stream:
+                        if event["type"] == "chunk":
+                            chunk = ChatStreamChunk(
+                                content=event["content"],
+                                done=False,
+                                session_id=session_id,
+                                metadata={},
+                            )
+                            yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
+                        elif event["type"] == "final":
+                            final = event["answer"]
+                            full_metadata = dict(final.metadata)
+                            full_metadata.update({"confidence": final.confidence})
+                            # 推送最终内容
+                            chunk = ChatStreamChunk(
+                                content=final.answer,
+                                done=False,
+                                session_id=session_id,
+                                metadata=full_metadata,
+                            )
+                            yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
 
-                        session_manager.add_message(
-                            session_id,
-                            "assistant",
-                            final.answer,
-                            metadata=full_metadata,
-                        )
+                            await run_in_threadpool(
+                                session_manager.add_message,
+                                session_id,
+                                "assistant",
+                                final.answer,
+                                metadata=full_metadata,
+                            )
 
-                        done_metadata = dict(full_metadata)
-                        done_metadata.update(
-                            {
-                                "message_count": session.message_count,
-                                "total_length": len(final.answer),
-                            }
-                        )
-                        done_chunk = ChatStreamChunk(
-                            content="",
-                            done=True,
-                            session_id=session_id,
-                            metadata=done_metadata,
-                        )
-                        yield {"event": "done", "data": done_chunk.model_dump_json(ensure_ascii=False)}
-                        logger.info(f"会话 {session_id} 流式问答完成 (agentchat_stream)")
+                            done_metadata = dict(full_metadata)
+                            done_metadata.update(
+                                {
+                                    "message_count": session.message_count,
+                                    "total_length": len(final.answer),
+                                }
+                            )
+                            done_chunk = ChatStreamChunk(
+                                content="",
+                                done=True,
+                                session_id=session_id,
+                                metadata=done_metadata,
+                            )
+                            yield {"event": "done", "data": done_chunk.model_dump_json(ensure_ascii=False)}
+                            logger.info(f"会话 {session_id} 流式问答完成 (agentchat_stream)")
+                finally:
+                    await close_with_timeout(stream.aclose)
             else:
                 final = await agent_service.process_query(
                     request.message,
@@ -214,7 +227,7 @@ async def agent_chat_stream(
                 )
 
                 # 发送内容片段（一次性推送最终答案）
-                full_metadata = final.metadata or {}
+                full_metadata = dict(final.metadata)
                 full_metadata.update({"confidence": final.confidence})
                 chunk = ChatStreamChunk(
                     content=final.answer,
@@ -228,7 +241,8 @@ async def agent_chat_stream(
                 }
 
                 # 添加助手完整响应到会话
-                session_manager.add_message(
+                await run_in_threadpool(
+                    session_manager.add_message,
                     session_id,
                     "assistant",
                     final.answer,
@@ -258,9 +272,7 @@ async def agent_chat_stream(
                 logger.info(f"会话 {session_id} 流式问答完成")
 
         except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            logger.error(f"流式问答失败: {error_detail}")
+            logger.exception("流式问答失败")
 
             # 发送错误信息
             error_chunk = ChatStreamChunk(
@@ -280,13 +292,13 @@ async def agent_chat_stream(
 # ==================== 会话管理端点 ====================
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
-async def get_session(
+def get_session(
     session_id: str,
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """获取会话信息"""
     session = session_manager.get_session(session_id)
-    if not session:
+    if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
 
     return SessionResponse(
@@ -302,7 +314,7 @@ async def get_session(
 
 
 @router.get("/sessions", response_model=ListSessionsResponse)
-async def list_sessions(
+def list_sessions(
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """获取所有活跃会话列表"""
@@ -310,13 +322,13 @@ async def list_sessions(
 
     session_infos = [
         SessionInfo(
-            session_id=s.session_id,
-            created_at=s.created_at,
-            last_active=s.last_active,
-            message_count=s.message_count,
-            status=s.status
+            session_id=session.session_id,
+            created_at=session.created_at,
+            last_active=session.last_active,
+            message_count=session.message_count,
+            status=session.status
         )
-        for s in sessions
+        for session in sessions
     ]
 
     return ListSessionsResponse(
@@ -326,8 +338,8 @@ async def list_sessions(
     )
 
 
-@router.delete("/sessions/{session_id}")
-async def delete_session(
+@router.delete("/sessions/{session_id}", response_model=DeleteSessionResponse)
+def delete_session(
     session_id: str,
     session_manager: SessionManager = Depends(get_session_manager)
 ):
@@ -336,18 +348,18 @@ async def delete_session(
     return {"success": True, "message": "会话已删除"}
 
 
-@router.get("/sessions/{session_id}/messages")
-async def get_session_messages(
+@router.get("/sessions/{session_id}/messages", response_model=SessionMessagesResponse)
+def get_session_messages(
     session_id: str,
-    limit: Optional[int] = None,
+    query: Annotated[SessionMessagesQuery, Query()],
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """获取会话消息历史"""
     session = session_manager.get_session(session_id)
-    if not session:
+    if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
 
-    messages = session_manager.get_messages(session_id, limit=limit)
+    messages = session_manager.get_messages(session_id, limit=query.limit)
 
     return {
         "success": True,

@@ -3,23 +3,17 @@
 """
 
 import asyncio
-import logging
 from typing import Dict, List, Any, Optional
 import re
-from datetime import datetime
 import jieba
 from autogen_core import MessageContext
-from autogen_agentchat.messages import TextMessage
 from app.agents.framework.base.base_agent import PolicyAgentBase
 from app.models.base import (
     AgentType,
-    MessageType,
-    AgentMessage,
     UserQuery,
     QueryAnalysis,
     QueryIntent,
-    PolicyType,
-    UUID
+    PolicyType
 )
 
 
@@ -154,16 +148,7 @@ class QueryAnalyzerAgent(PolicyAgentBase):
         except Exception as e:
             self.logger.error(f"Error analyzing query: {e}", exc_info=True)
             self.metrics["errors"] += 1
-            # 返回默认分析结果
-            return QueryAnalysis(
-                query_id=request.id,
-                intent=QueryIntent.GENERAL_INQUIRY,
-                entities=[],
-                keywords=[],
-                policy_types=[],
-                confidence=0.5,
-                reasoning=f"分析出错，使用默认意图: {str(e)}"
-            )
+            raise
 
     def _preprocess_text(self, text: str) -> str:
         """文本预处理"""
@@ -186,7 +171,7 @@ class QueryAnalyzerAgent(PolicyAgentBase):
 
         # 返回得分最高的意图
         if intent_scores:
-            best_intent = max(intent_scores, key=intent_scores.get)
+            best_intent = max(intent_scores, key=lambda intent: intent_scores[intent])
             if intent_scores[best_intent] > 0:
                 return best_intent
 
@@ -198,16 +183,12 @@ class QueryAnalyzerAgent(PolicyAgentBase):
         entities = []
 
         # 使用正则表达式提取预定义实体
-        for entity_type, pattern in self.entity_patterns.items():
+        for pattern in self.entity_patterns.values():
             matches = re.findall(pattern, text)
             entities.extend(matches)
 
         # 使用 jieba 分词提取其他可能的实体
-        if jieba:
-            words = jieba.cut(text)
-        else:
-            self.logger.debug("jieba 未安装，使用空格分词退化处理")
-            words = text.split()
+        words = jieba.cut(text)
         for word in words:
             # 过滤掉太短的词和常见停用词
             if len(word) > 1 and word not in ["的", "是", "在", "有", "和", "与", "或"]:
@@ -327,16 +308,16 @@ class QueryAnalyzerAgent(PolicyAgentBase):
             confidence += 0.2
 
         # 实体数量
-        if len(entities) >= 3:
-            confidence += 0.1
-        elif len(entities) >= 5:
+        if len(entities) >= 5:
             confidence += 0.2
+        elif len(entities) >= 3:
+            confidence += 0.1
 
         # 关键词匹配
-        if len(keywords) >= 2:
-            confidence += 0.1
-        elif len(keywords) >= 4:
+        if len(keywords) >= 4:
             confidence += 0.2
+        elif len(keywords) >= 2:
+            confidence += 0.1
 
         # 政策类型识别
         if len(policy_types) > 0:
@@ -351,5 +332,5 @@ class QueryAnalyzerAgent(PolicyAgentBase):
             **self.metrics,
             "agent_type": self.agent_type.value,
             "name": self.name,
-            "memory_size": len(self.memory.memory_contents) if self.memory else 0
+            "memory_size": len(self.memory.content)
         }

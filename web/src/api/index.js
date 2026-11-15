@@ -8,11 +8,11 @@ export const dslApi = {
   },
 
   // 保存DSL到文件
-  saveDSL(data) {
+  saveDSL({ rule_id, yaml_content, filename }) {
     return request.post('/dsl/save', {
-      rule_id: data.rule_id,
-      yaml_content: data.yaml_content,
-      filename: data.filename
+      rule_id,
+      yaml_content,
+      filename
     })
   },
 
@@ -46,35 +46,63 @@ export const dbApi = {
 // 知识库相关API（匹配后端实际API）
 export const knowledgeApi = {
   // 上传单个文档
-  uploadDocument(formData) {
+  uploadDocument(formData, options = {}) {
     return request.post('/knowledge/upload', formData, {
+      silentError: true,
+      ...options,
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
 
   // 解析文档为 Markdown（调用 MinerU 等解析器）
-  parseDocument(docId) {
-    return request.post('/knowledge/parse', { doc_id: docId })
+  parseDocument(docId, options = {}) {
+    const { signal, ...payload } = options
+    return request.post('/knowledge/parse', { doc_id: docId, ...payload }, { signal, silentError: true })
   },
 
   // 嵌入文档到向量库
-  embedDocument(docId) {
-    return request.post('/knowledge/embed', { doc_id: docId })
+  embedDocument(docId, options = {}) {
+    const { signal, ...payload } = options
+    return request.post('/knowledge/embed', { doc_id: docId, ...payload }, { signal, silentError: true })
   },
 
   // 搜索知识库
   search(query, options = {}) {
-    const { topK = 10, threshold = 0.7 } = options
+    const { topK = 10, threshold = 0.7, signal } = options
     return request.post('/knowledge/search', {
       query,
       top_k: topK,
       threshold
-    })
+    }, { signal, silentError: true })
   },
 
   // 获取文档列表
-  listDocuments(params = {}) {
-    return request.get('/knowledge/documents', { params })
+  listDocuments(params = {}, options = {}) {
+    return request.get('/knowledge/documents', { params, silentError: true, ...options })
+  },
+
+  getCapabilities(options = {}) {
+    return request.get('/knowledge/capabilities', { silentError: true, ...options })
+  },
+
+  getDocumentWorkspace(docId, options = {}) {
+    return request.get(`/knowledge/documents/${encodeURIComponent(docId)}/workspace`, {
+      silentError: true,
+      ...options
+    })
+  },
+
+  previewChunks(docId, payload, options = {}) {
+    return request.post(`/knowledge/documents/${encodeURIComponent(docId)}/chunks/preview`, payload, {
+      silentError: true,
+      ...options
+    })
+  },
+
+  saveProcessingConfig(docId, payload) {
+    return request.put(`/knowledge/documents/${encodeURIComponent(docId)}/processing-config`, payload, {
+      silentError: true
+    })
   },
 
   // 删除单个文档
@@ -109,7 +137,14 @@ export const systemApi = {
 // Agent相关API（匹配后端实际API）
 export const agentApi = {
   // 发送消息（非流式）- 支持会话、数据库连接以及用户ID
-  chat(message, sessionId = null, connectionId = null, userId = null, attachments = null, options = {}) {
+  chat(
+    message,
+    sessionId = null,
+    connectionId = null,
+    userId = null,
+    attachments = null,
+    options = {}
+  ) {
     const payload = {
       message,
       session_id: sessionId,
@@ -117,11 +152,11 @@ export const agentApi = {
       ...options
     }
 
-    if (userId) {
+    if (userId !== null && userId.length > 0) {
       payload.user_id = userId
     }
 
-    if (attachments && attachments.length > 0) {
+    if (attachments !== null && attachments.length > 0) {
       payload.attachments = attachments
     }
 
@@ -149,7 +184,7 @@ export const agentApi = {
 
   // 获取会话消息历史
   getSessionMessages(sessionId, limit = null) {
-    const params = limit ? { limit } : {}
+    const params = limit !== null && limit !== 0 ? { limit } : {}
     return request.get(`/agent/sessions/${sessionId}/messages`, { params })
   }
 }

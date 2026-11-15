@@ -1,69 +1,14 @@
+"""Six enterprise financial roles built with the installed AutoGen AgentChat SDK.
+
+The caller owns the model client and chooses model parameters and team termination.
 """
-Enterprise-Level Agent Configuration
-Specialized agents for enterprise financial analysis workflows
-"""
 
-import autogen
-import logging
-from typing import Dict, Any, Optional
-from .agent_factory import FinancialAgentFactory
+from autogen_agentchat.agents import AssistantAgent
+from autogen_core.models import ChatCompletionClient
 
 
-class EnterpriseAutoGenConfig:
-    """Enterprise-level AutoGen configuration"""
-
-    def __init__(self, api_keys: Dict[str, str]):
-        self.api_keys = api_keys
-        self.logger = logging.getLogger(__name__)
-        self.factory = FinancialAgentFactory(self._create_base_config())
-
-    def _create_base_config(self) -> Dict[str, Any]:
-        """Create base LLM configuration"""
-        return {
-            "config_list": [
-                {
-                    "model": "gpt-4",
-                    "api_key": self.api_keys.get("openai"),
-                    "api_type": "openai"
-                }
-            ],
-            "temperature": 0.1,
-            "max_tokens": 8000,
-            "top_p": 0.9,
-            "frequency_penalty": 0.1,
-            "presence_penalty": 0.1
-        }
-
-    def create_enterprise_agents(self) -> Dict[str, autogen.AssistantAgent]:
-        """Create enterprise-level specialized agents"""
-
-        agents = {}
-
-        # Enterprise Data Collector
-        agents['enterprise_data_collector'] = self._create_enterprise_data_collector()
-
-        # Enterprise Financial Analyst
-        agents['enterprise_financial_analyst'] = self._create_enterprise_financial_analyst()
-
-        # Enterprise Risk Analyst
-        agents['enterprise_risk_analyst'] = self._create_enterprise_risk_analyst()
-
-        # Enterprise Quantitative Analyst
-        agents['enterprise_quantitative_analyst'] = self._create_enterprise_quantitative_analyst()
-
-        # Enterprise Compliance Officer
-        agents['enterprise_compliance_officer'] = self._create_enterprise_compliance_officer()
-
-        # Enterprise Portfolio Manager
-        agents['enterprise_portfolio_manager'] = self._create_enterprise_portfolio_manager()
-
-        return agents
-
-    def _create_enterprise_data_collector(self) -> autogen.AssistantAgent:
-        """Create enterprise data collector agent"""
-        return autogen.AssistantAgent(
-            name="enterprise_data_collector",
-            system_message="""You are an enterprise-level data engineering specialist with expertise in financial data management.
+ENTERPRISE_SYSTEM_MESSAGES: dict[str, str] = {
+    'enterprise_data_collector': """You are an enterprise-level data engineering specialist with expertise in financial data management.
 
 Core Responsibilities:
 1. Multi-source data integration across Yahoo Finance, Alpha Vantage, Quandl, Bloomberg, Refinitiv
@@ -92,15 +37,7 @@ Enterprise Standards:
 - Support scalable data architecture for growing business needs
 
 Always provide comprehensive data quality assessments and confidence metrics for all collected data.""",
-            llm_config=self._get_enterprise_config(temperature=0.1),
-            max_consecutive_auto_reply=25
-        )
-
-    def _create_enterprise_financial_analyst(self) -> autogen.AssistantAgent:
-        """Create enterprise financial analyst agent"""
-        return autogen.AssistantAgent(
-            name="enterprise_financial_analyst",
-            system_message="""You are an enterprise financial analyst with expertise in comprehensive corporate financial analysis.
+    'enterprise_financial_analyst': """You are an enterprise financial analyst with expertise in comprehensive corporate financial analysis.
 
 Core Competencies:
 1. Advanced financial statement analysis and forecasting
@@ -130,15 +67,7 @@ Enterprise Requirements:
 - Provide comprehensive risk-adjusted valuation analysis
 
 Always deliver analysis with clear investment implications and practical business recommendations.""",
-            llm_config=self._get_enterprise_config(temperature=0.2),
-            max_consecutive_auto_reply=30
-        )
-
-    def _create_enterprise_risk_analyst(self) -> autogen.AssistantAgent:
-        """Create enterprise risk analyst agent"""
-        return autogen.AssistantAgent(
-            name="enterprise_risk_analyst",
-            system_message="""You are an enterprise risk management specialist with expertise in comprehensive financial risk assessment.
+    'enterprise_risk_analyst': """You are an enterprise risk management specialist with expertise in comprehensive financial risk assessment.
 
 Risk Domains:
 1. Market Risk: VaR, CVaR, beta analysis, volatility modeling, correlation analysis
@@ -168,15 +97,7 @@ Enterprise Standards:
 - Ensure model risk management and validation
 
 Always provide actionable risk management recommendations and early warning indicators.""",
-            llm_config=self._get_enterprise_config(temperature=0.1),
-            max_consecutive_auto_reply=25
-        )
-
-    def _create_enterprise_quantitative_analyst(self) -> autogen.AssistantAgent:
-        """Create enterprise quantitative analyst agent"""
-        return autogen.AssistantAgent(
-            name="enterprise_quantitative_analyst",
-            system_message="""You are an enterprise quantitative analyst with expertise in advanced financial modeling and algorithmic trading.
+    'enterprise_quantitative_analyst': """You are an enterprise quantitative analyst with expertise in advanced financial modeling and algorithmic trading.
 
 Quantitative Domains:
 1. Advanced Statistical Modeling: Time series analysis, multivariate statistics, machine learning
@@ -206,15 +127,7 @@ Enterprise Standards:
 - Integration with enterprise risk management systems
 
 Always provide rigorous statistical validation and practical implementation considerations.""",
-            llm_config=self._get_enterprise_config(temperature=0.1),
-            max_consecutive_auto_reply=35
-        )
-
-    def _create_enterprise_compliance_officer(self) -> autogen.AssistantAgent:
-        """Create enterprise compliance officer agent"""
-        return autogen.AssistantAgent(
-            name="enterprise_compliance_officer",
-            system_message="""You are an enterprise compliance specialist with expertise in financial regulations and ethical standards.
+    'enterprise_compliance_officer': """You are an enterprise compliance specialist with expertise in financial regulations and ethical standards.
 
 Compliance Domains:
 1. Regulatory Compliance: SEC, FINRA, MiFID II, Basel III/IV, Dodd-Frank, GDPR
@@ -244,15 +157,7 @@ Enterprise Requirements:
 - Ensure cross-border compliance considerations
 
 Always provide clear compliance guidance and practical risk mitigation strategies.""",
-            llm_config=self._get_enterprise_config(temperature=0.1),
-            max_consecutive_auto_reply=20
-        )
-
-    def _create_enterprise_portfolio_manager(self) -> autogen.AssistantAgent:
-        """Create enterprise portfolio manager agent"""
-        return autogen.AssistantAgent(
-            name="enterprise_portfolio_manager",
-            system_message="""You are an enterprise portfolio management specialist with expertise in institutional investment strategies.
+    'enterprise_portfolio_manager': """You are an enterprise portfolio management specialist with expertise in institutional investment strategies.
 
 Portfolio Management Domains:
 1. Asset Allocation: Strategic and tactical asset allocation, liability-driven investing
@@ -282,40 +187,32 @@ Enterprise Standards:
 - Maintain competitive cost structures and fee transparency
 
 Always deliver portfolio recommendations with clear risk-return profiles and alignment with client objectives.""",
-            llm_config=self._get_enterprise_config(temperature=0.2),
-            max_consecutive_auto_reply=25
-        )
+}
 
-    def _get_enterprise_config(self, temperature: float = 0.1) -> Dict[str, Any]:
-        """Get enterprise-level LLM configuration"""
-        config = self._create_base_config()
-        config.update({
-            "temperature": temperature,
-            "max_tokens": 12000,  # Higher token limit for enterprise complexity
-            "top_p": 0.9,
-            "frequency_penalty": 0.1,
-            "presence_penalty": 0.1
-        })
-        return config
 
-    def get_agent_system_messages(self) -> Dict[str, str]:
-        """Get system messages for all enterprise agents"""
+class EnterpriseAutoGenConfig:
+    """Create independent role agents that borrow the caller's model client."""
+
+    def __init__(self, model_client: ChatCompletionClient) -> None:
+        self._model_client = model_client
+
+    def create_enterprise_agents(self) -> dict[str, AssistantAgent]:
         return {
-            agent_name: agent.system_message
-            for agent_name, agent in self.create_enterprise_agents().items()
+            name: AssistantAgent(
+                name=name,
+                model_client=self._model_client,
+                system_message=message,
+                description=name.replace("_", " "),
+            )
+            for name, message in ENTERPRISE_SYSTEM_MESSAGES.items()
         }
 
-    def validate_agent_configuration(self) -> Dict[str, bool]:
-        """Validate agent configurations"""
-        validation_results = {}
+    def get_agent_system_messages(self) -> dict[str, str]:
+        return ENTERPRISE_SYSTEM_MESSAGES.copy()
+
+    def validate_agent_configuration(self) -> dict[str, bool]:
         agents = self.create_enterprise_agents()
-
-        for agent_name, agent in agents.items():
-            # Check if agent has required attributes
-            has_name = hasattr(agent, 'name') and agent.name is not None
-            has_system_message = hasattr(agent, 'system_message') and len(agent.system_message) > 100
-            has_llm_config = hasattr(agent, 'llm_config') and agent.llm_config is not None
-
-            validation_results[agent_name] = has_name and has_system_message and has_llm_config
-
-        return validation_results
+        return {
+            name: agent.name == name and len(ENTERPRISE_SYSTEM_MESSAGES[name]) > 100
+            for name, agent in agents.items()
+        }

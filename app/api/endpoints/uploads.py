@@ -16,9 +16,11 @@ ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @router.post("", response_model=AttachmentUploadResponse)
-async def upload_attachment(file: UploadFile = File(...)):
+def upload_attachment(file: UploadFile = File(...)):
     """上传聊天或流程附件，返回可供 AgentService 读取的路径。"""
     try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="上传文件缺少文件名")
         extension = Path(file.filename).suffix
         stored_name = f"{uuid.uuid4().hex}{extension}"
         file_path = ATTACHMENT_DIR / stored_name
@@ -33,16 +35,20 @@ async def upload_attachment(file: UploadFile = File(...)):
             path=str(file_path.resolve()),
             url=f"/api/uploads/{stored_name}",
             mime_type=file.content_type or "application/octet-stream",
-            size=getattr(file, "size", None),
+            size=file.size,
         )
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - 防御性处理
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/{filename}")
-async def get_attachment(filename: str):
+def get_attachment(filename: str):
     """提供简单的文件下载/预览能力，便于前端查看上传内容。"""
+    if Path(filename).name != filename:
+        raise HTTPException(status_code=404, detail="文件不存在")
     file_path = ATTACHMENT_DIR / filename
-    if not file_path.exists() or not file_path.is_file():
+    if not file_path.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(file_path)

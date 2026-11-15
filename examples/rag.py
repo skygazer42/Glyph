@@ -1,4 +1,3 @@
-# type: ignore
 import logging
 from typing import Callable, Optional
 
@@ -11,6 +10,7 @@ from core.base.abstractions import (
     SearchSettings,
 )
 from core.base.agent.tools.registry import ToolRegistry
+from shared.abstractions.tool import Tool
 from core.base.providers import DatabaseProvider
 from core.providers import (
     AnthropicCompletionProvider,
@@ -45,6 +45,10 @@ class RAGAgentMixin:
       - call an external web search API
     """
 
+    # Concrete R2R agent bases provide these state attributes before tool registration.
+    config: RAGAgentConfig
+    _tools: list[Tool]
+
     def __init__(
         self,
         *args,
@@ -65,7 +69,7 @@ class RAGAgentMixin:
         self.max_tool_context_length = max_tool_context_length
         self.max_context_window_tokens = max_context_window_tokens
         self.search_results_collector = SearchResultsCollector()
-        self.tool_registry = tool_registry or ToolRegistry()
+        self.tool_registry = ToolRegistry() if tool_registry is None else tool_registry
 
         super().__init__(*args, **kwargs)
 
@@ -78,10 +82,6 @@ class RAGAgentMixin:
                 "No RAG tools requested. Skipping tool registration."
             )
             return
-
-        # Make sure tool_registry exists
-        if not hasattr(self, "tool_registry") or self.tool_registry is None:
-            self.tool_registry = ToolRegistry()
 
         format_function = self.format_search_results_for_llm
 
@@ -136,14 +136,6 @@ class R2RRAGAgent(RAGAgentMixin, R2RAgent):
         max_tool_context_length: int = 20_000,
     ):
         # Initialize base R2RAgent
-        R2RAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            rag_generation_config=rag_generation_config,
-        )
-        self.tool_registry = tool_registry or ToolRegistry()
         # Initialize the RAGAgentMixin
         RAGAgentMixin.__init__(
             self,
@@ -186,14 +178,6 @@ class R2RXMLToolsRAGAgent(RAGAgentMixin, R2RXMLToolsAgent):
         max_tool_context_length: int = 20_000,
     ):
         # Initialize base R2RAgent
-        R2RXMLToolsAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            rag_generation_config=rag_generation_config,
-        )
-        self.tool_registry = tool_registry or ToolRegistry()
         # Initialize the RAGAgentMixin
         RAGAgentMixin.__init__(
             self,
@@ -240,14 +224,6 @@ class R2RStreamingRAGAgent(RAGAgentMixin, R2RStreamingAgent):
         config.stream = True
 
         # Initialize base R2RStreamingAgent
-        R2RStreamingAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            rag_generation_config=rag_generation_config,
-        )
-        self.tool_registry = tool_registry or ToolRegistry()
         # Initialize the RAGAgentMixin
         RAGAgentMixin.__init__(
             self,
@@ -300,14 +276,6 @@ class R2RXMLToolsStreamingRAGAgent(RAGAgentMixin, R2RXMLStreamingAgent):
         config.stream = True
 
         # Initialize base R2RXMLStreamingAgent
-        R2RXMLStreamingAgent.__init__(
-            self,
-            database_provider=database_provider,
-            llm_provider=llm_provider,
-            config=config,
-            rag_generation_config=rag_generation_config,
-        )
-        self.tool_registry = tool_registry or ToolRegistry()
         # Initialize the RAGAgentMixin
         RAGAgentMixin.__init__(
             self,

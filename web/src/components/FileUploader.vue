@@ -1,6 +1,7 @@
 <template>
   <div class="file-uploader">
     <el-upload
+      ref="upload"
       v-model:file-list="fileList"
       :action="uploadUrl"
       :headers="headers"
@@ -23,12 +24,22 @@
           拖拽文件到此处或 <em>点击上传</em>
         </div>
       </div>
-      <el-button v-else type="primary" :icon="Upload" :loading="uploading">
+      <el-button
+        v-else
+        :type="variant === 'quiet' ? '' : 'primary'"
+        :text="variant === 'quiet'"
+        :icon="Upload"
+        :loading="uploading"
+        :disabled="disabled"
+      >
         {{ buttonText }}
       </el-button>
 
-      <template #tip>
-        <div class="el-upload__tip" :style="!drag ? 'margin-left: 12px' : ''">
+      <template v-if="tipText || $slots.tip" #tip>
+        <div
+          class="el-upload__tip"
+          :style="!drag ? 'margin-left: 12px' : ''"
+        >
           <slot name="tip">
             {{ tipText }}
           </slot>
@@ -37,10 +48,18 @@
     </el-upload>
 
     <!-- Custom file list display -->
-    <div v-if="showCustomList && uploadedFiles.length > 0" class="uploaded-files">
+    <div
+      v-if="showCustomList && uploadedFiles.length > 0"
+      class="uploaded-files"
+    >
       <div class="files-header">
         <span>已上传文件 ({{ uploadedFiles.length }})</span>
-        <el-button size="small" text @click="clearAll" v-if="!disabled">
+        <el-button
+          size="small"
+          text
+          @click="clearAll"
+          v-if="!disabled"
+        >
           清空
         </el-button>
       </div>
@@ -73,11 +92,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Upload, UploadFilled, Document } from '@element-plus/icons-vue'
 
 const props = defineProps({
+  variant: {
+    type: String,
+    default: 'default'
+  },
   uploadUrl: {
     type: String,
     default: '/api/upload'
@@ -136,7 +159,9 @@ const emit = defineEmits(['success', 'error', 'remove', 'change'])
 
 const fileList = ref([])
 const uploadedFiles = ref([])
-const uploading = ref(false)
+const upload = ref(null)
+const pendingUploads = ref(new Set())
+const uploading = computed(() => pendingUploads.value.size > 0)
 
 const beforeUpload = (file) => {
   // Check file size
@@ -148,41 +173,48 @@ const beforeUpload = (file) => {
   // Check file type if accept is specified
   if (props.accept) {
     const acceptTypes = props.accept.split(',').map(type => type.trim().toLowerCase())
-    const fileExtension = '.' + file.name.split('.').pop().toLowerCase()
-    if (!acceptTypes.includes(fileExtension)) {
+    const fileExtension = `.${file.name.split('.').pop().toLowerCase()}`
+    if (!acceptTypes.some(type => type === fileExtension || type === file.type?.toLowerCase() ||
+      (type.endsWith('/*') && file.type?.toLowerCase().startsWith(type.slice(0, -1))))) {
       ElMessage.error(`只支持 ${props.accept} 格式的文件`)
       return false
     }
   }
 
-  uploading.value = true
+  pendingUploads.value.add(file.uid)
   return true
 }
 
 const handleSuccess = (response, file, fileList) => {
-  uploading.value = false
+  if (!pendingUploads.value.delete(file.uid)) {
+    return
+  }
+  const { uid, name, size } = file
   uploadedFiles.value.push({
-    uid: file.uid,
-    name: file.name,
-    size: file.size,
-    response: response
+    uid,
+    name,
+    size,
+    response
   })
-  ElMessage.success(`${file.name} 上传成功`)
+  ElMessage.success(`${name} 上传成功`)
   emit('success', { response, file, fileList })
   emit('change', uploadedFiles.value)
 }
 
 const handleError = (error, file, fileList) => {
-  uploading.value = false
+  if (!pendingUploads.value.delete(file.uid)) {
+    return
+  }
   ElMessage.error(`${file.name} 上传失败`)
   emit('error', { error, file, fileList })
 }
 
-const handleExceed = (files, fileList) => {
+const handleExceed = () => {
   ElMessage.warning(`最多只能上传 ${props.limit} 个文件`)
 }
 
 const handleRemove = (file, fileList) => {
+  pendingUploads.value.delete(file.uid)
   const index = uploadedFiles.value.findIndex(f => f.uid === file.uid)
   if (index > -1) {
     uploadedFiles.value.splice(index, 1)
@@ -192,17 +224,23 @@ const handleRemove = (file, fileList) => {
 }
 
 const removeFile = (file) => {
+  upload.value?.abort(file)
+  fileList.value = fileList.value.filter(item => item.uid !== file.uid)
   handleRemove(file, fileList.value)
 }
 
 const clearAll = () => {
+  upload.value?.abort()
+  pendingUploads.value.clear()
   fileList.value = []
   uploadedFiles.value = []
   emit('change', uploadedFiles.value)
 }
 
 const formatFileSize = (size) => {
-  if (!size) return '0B'
+  if (!size) {
+    return '0B'
+  }
   const units = ['B', 'KB', 'MB', 'GB']
   let index = 0
   let fileSize = size
@@ -215,9 +253,15 @@ const formatFileSize = (size) => {
   return `${fileSize.toFixed(1)}${units[index]}`
 }
 
+onUnmounted(() => {
+  upload.value?.abort()
+  pendingUploads.value.clear()
+})
+
 // Expose methods for parent component
 defineExpose({
   clearAll,
+  removeFile,
   getFiles: () => uploadedFiles.value
 })
 </script>

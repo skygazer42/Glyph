@@ -3,13 +3,12 @@
 支持 .docx 和 .txt 格式的文档解析
 """
 
-import json
-import logging
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-logger = logging.getLogger(__name__)
+from docx import Document
+from PyPDF2 import PdfReader
+from llama_index.core import SimpleDirectoryReader
 
 
 class DocumentParser:
@@ -23,16 +22,6 @@ class DocumentParser:
         self.supported_formats = ['.docx', '.txt', '.doc', '.pdf']
         self.use_llama_index = use_llama_index
         self.llama_reader_kwargs = llama_reader_kwargs or {}
-        self._llama_reader_cls = None
-
-        if self.use_llama_index:
-            try:
-                from llama_index.core import SimpleDirectoryReader
-                self._llama_reader_cls = SimpleDirectoryReader
-            except ImportError:
-                logger.warning("未安装 llama-index，改用内置解析器")
-                self.use_llama_index = False
-                self._llama_reader_cls = None
 
     def parse(self, file_path: str) -> str:
         """
@@ -52,11 +41,8 @@ class DocumentParser:
         if suffix not in self.supported_formats:
             raise ValueError(f"不支持的文件格式: {suffix}")
 
-        if self.use_llama_index and self._llama_reader_cls:
-            try:
-                return self._parse_with_llama_reader(path)
-            except Exception as exc:
-                logger.warning("llama_index 解析失败，回退到内置解析器: %s", exc)
+        if self.use_llama_index:
+            return self._parse_with_llama_reader(path)
 
         if suffix == '.txt':
             return self._parse_txt(path)
@@ -74,12 +60,7 @@ class DocumentParser:
 
     def _parse_docx(self, path: Path) -> str:
         """解析 Word 文档"""
-        try:
-            import docx
-        except ImportError:
-            raise ImportError("请安装 python-docx: pip install python-docx")
-
-        doc = docx.Document(str(path))
+        doc = Document(str(path))
         text_parts = []
 
         # 提取段落文本
@@ -101,18 +82,13 @@ class DocumentParser:
 
     def _parse_pdf(self, path: Path) -> str:
         """解析 PDF 文档"""
-        try:
-            import PyPDF2
-        except ImportError:
-            raise ImportError("请安装 PyPDF2: pip install PyPDF2")
-
         text_parts = []
         with open(path, 'rb') as f:
-            pdf_reader = PyPDF2.PdfReader(f)
+            pdf_reader = PdfReader(f)
             for page_num in range(len(pdf_reader.pages)):
                 page = pdf_reader.pages[page_num]
                 text = page.extract_text()
-                if text.strip():
+                if text is not None and text.strip():
                     text_parts.append(text.strip())
 
         return "\n".join(text_parts)
@@ -127,7 +103,7 @@ class DocumentParser:
         Returns:
             预处理后的结构化信息
         """
-        processed = {
+        processed: Dict[str, Any] = {
             'raw_text': text,
             'sections': [],
             'metadata': {}
@@ -313,10 +289,7 @@ class DocumentParser:
 
     def _parse_with_llama_reader(self, path: Path) -> str:
         """Use LlamaIndex SimpleDirectoryReader to extract text."""
-        if not self._llama_reader_cls:
-            raise RuntimeError("LlamaIndex 读取器未初始化")
-
-        reader = self._llama_reader_cls(
+        reader = SimpleDirectoryReader(
             input_files=[str(path)],
             filename_as_id=True,
             recursive=False,
@@ -325,4 +298,4 @@ class DocumentParser:
         documents = reader.load_data()
         if not documents:
             raise ValueError(f"llama_index 未能读取内容: {path}")
-        return "\n\n".join(getattr(doc, "text", "") for doc in documents if getattr(doc, "text", ""))
+        return "\n\n".join(doc.text for doc in documents if doc.text)

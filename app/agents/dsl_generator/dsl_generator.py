@@ -4,7 +4,7 @@ DSL 生成器模块
 """
 
 import yaml
-import json
+from copy import deepcopy
 import jinja2
 import logging
 from pathlib import Path
@@ -49,7 +49,7 @@ limits:
 {% if tiers %}
 tiers:
 {% for tier in tiers %}
-  - range: [{{ tier.range[0] }}, {{ tier.range[1] if tier.range[1] else 'null' }}]
+  - range: [{{ tier.range[0] if tier.range[0] is not none else 'null' }}, {{ tier.range[1] if tier.range[1] is not none else 'null' }}]
     {% for key, value in tier.items() if key != 'range' %}
     {{ key }}: {{ value }}
     {% endfor %}
@@ -66,8 +66,8 @@ calc:
 {% endif %}
 
 output:
-  status: "{{ output.get('status', 'QUALIFIED') }}"
-  final_result: "{{ output.get('final_result', '') }}"
+  status: "{{ output['status'] }}"
+  final_result: "{{ output['final_result'] }}"
   {% if output.get('trace_template') %}
   trace_template: |
     {{ output.get('trace_template') | indent(4) }}
@@ -105,8 +105,7 @@ output:
 
         # 内置模板
         self.builtin_template = self.env.from_string(self.DSL_TEMPLATE)
-        self.template = self.builtin_template
-        self.template_registry = TemplateRegistry(self.template_dir)
+        self.template_registry = TemplateRegistry()
 
     def generate(
         self,
@@ -142,36 +141,26 @@ output:
         if template_name and not template_profile:
             template_profile = self.template_registry.get_profile_by_template(template_name)
 
-        # 选择模板
-        if template_name:
-            try:
-                self.template = self.env.get_template(template_name)
-                logger.info(f"使用外部模板: {template_name}")
-            except jinja2.TemplateNotFound:
-                logger.warning(f"模板文件不存在: {template_name}, 使用内置模板")
-                self.template = self.builtin_template
-                template_profile = None
-        else:
-            self.template = self.builtin_template
-            logger.info("使用内置模板")
+        # Keep selected template local: the generator can serve overlapping calls.
+        template = self.env.get_template(template_name) if template_name else self.builtin_template
 
         # 模板默认值补齐
         processed_data = self.template_registry.apply_defaults(processed_data, template_profile)
 
         # 生成 YAML
-        yaml_content = self._render_template(processed_data)
+        yaml_content = self._render_template(template, processed_data)
 
         # 验证 YAML
         if validate:
             errors = self._validate_yaml(yaml_content)
             if errors:
-                logger.warning(f"DSL 验证发现问题: {errors}")
+                raise ValueError("DSL YAML validation failed: " + "; ".join(errors))
 
         return yaml_content
 
     def _preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """预处理数据，确保格式正确"""
-        processed = data.copy()
+        processed = deepcopy(data)
 
         def _sanitize(value: Any) -> Any:
             if isinstance(value, str):
@@ -255,36 +244,18 @@ output:
                         new_inputs.append(item)
                 processed['inputs'] = new_inputs
 
-        # 处理输出
-        if 'output' not in processed or not isinstance(processed.get('output'), dict):
-            processed['output'] = {
-                'status': 'QUALIFIED',
-                'final_result': '{{ calc.result }}',
-                'trace_template': ''
-            }
-        else:
-            # 确保 output 字典包含必要的字段
-            if 'status' not in processed['output']:
-                processed['output']['status'] = 'QUALIFIED'
-            if 'final_result' not in processed['output']:
-                processed['output']['final_result'] = '{{ calc.result }}'
-            if 'trace_template' not in processed['output']:
-                processed['output']['trace_template'] = ''
-
-        # 处理分档信息 (tiers)
-        if 'tiers' in processed and isinstance(processed['tiers'], list):
-            new_tiers = []
-            for tier in processed['tiers']:
-                if isinstance(tier, dict):
-                    # 确保有 range 字段
-                    if 'range' not in tier:
-                        # 尝试从其他字段推断
-                        if 'min' in tier and 'max' in tier:
-                            tier['range'] = [tier.pop('min'), tier.pop('max')]
-                        else:
-                            tier['range'] = [0, None]
-                    new_tiers.append(tier)
-            processed['tiers'] = new_tiers
+        # Named templates own their output expressions; the generic template requires them.
+        if 'output' in processed:
+            output = processed['output']
+            if not isinstance(output, dict):
+                raise ValueError("output must be an object")
+            if 'status' not in output or 'final_result' not in output:
+                raise ValueError("output requires status and final_result")
+        for tier in processed.get('tiers', []):
+            if not isinstance(tier, dict):
+                raise ValueError("Each tier must be an object")
+            if 'range' not in tier and 'min' in tier and 'max' in tier:
+                tier['range'] = [tier.pop('min'), tier.pop('max')]
 
         # 处理计算逻辑
         if 'calc' in processed:
@@ -308,37 +279,11 @@ output:
         profile = self.template_registry.detect(data, context)
         return profile.template_name if profile else None
 
-    def _render_template(self, data: Dict[str, Any]) -> str:
-        """渲染模板生成 YAML"""
-        try:
-            return self.template.render(**data)
-        except jinja2.exceptions.UndefinedError as e:
-            logger.error(f"模板渲染失败，缺少必要字段: {e}")
-            # 提供默认值再次尝试
-            data.setdefault('policy_source', {})
-            data['policy_source'].setdefault('doc_id', '')
-            data['policy_source'].setdefault('title', '未命名政策')
-            data['policy_source'].setdefault('clause', None)
-
-            data.setdefault('valid_period', {})
-            data.setdefault('limits', {})
-            data.setdefault('tiers', [])
-            data.setdefault('calc', {})
-            data.setdefault('output', {
-                'status': 'QUALIFIED',
-                'final_result': '{{ calc.result }}',
-                'trace_template': ''
-            })
-            # 确保 output 是字典并包含必要字段
-            if isinstance(data.get('output'), dict):
-                data['output'].setdefault('status', 'QUALIFIED')
-                data['output'].setdefault('final_result', '{{ calc.result }}')
-                data['output'].setdefault('trace_template', '')
-            try:
-                return self.template.render(**data)
-            except Exception as e2:
-                logger.error(f"模板渲染再次失败: {e2}")
-                raise
+    def _render_template(self, template: jinja2.Template, data: Dict[str, Any]) -> str:
+        """Render only the selected template; missing required data remains an error."""
+        if template is self.builtin_template and 'output' not in data:
+            raise ValueError("Generic DSL requires explicit output expressions")
+        return template.render(**data)
 
     def _validate_yaml(self, yaml_content: str) -> List[str]:
         """验证生成的 YAML"""
@@ -347,6 +292,8 @@ output:
         try:
             # 尝试解析 YAML
             data = yaml.safe_load(yaml_content)
+            if not isinstance(data, dict):
+                return ["YAML must contain an object"]
 
             # 检查必填字段
             required_fields = ['rule_id', 'inputs', 'output']
@@ -378,15 +325,15 @@ output:
         Returns:
             保存的文件路径
         """
-        if not filename:
+        if filename is None:
             # 从 YAML 中提取 rule_id 作为文件名
-            try:
-                data = yaml.safe_load(yaml_content)
-                rule_id = data.get('rule_id', 'unknown')
-                filename = f"{rule_id}.yaml"
-            except:
-                filename = f"rule_{datetime.now().strftime('%Y%m%d%H%M%S')}.yaml"
-
+            data = yaml.safe_load(yaml_content)
+            rule_id = data['rule_id']
+            if not isinstance(rule_id, str) or not rule_id.strip():
+                raise ValueError("rule_id must be non-empty text")
+            filename = f"{rule_id}.yaml"
+        if not filename or Path(filename).name != filename or '/' in filename or '\\' in filename:
+            raise ValueError("DSL filename must be a single file name")
         file_path = self.output_dir / filename
         file_path.write_text(yaml_content, encoding='utf-8')
         logger.info(f"DSL 已保存到: {file_path}")
@@ -424,7 +371,7 @@ output:
             'title': kwargs.get('title', '家电以旧换新补贴实施细则'),
             'inputs': [
                 {'name': 'price', 'type': 'float', 'required': True, 'description': '商品价格'},
-                {'name': 'energy_level', 'type': 'int', 'required': False, 'description': '能效等���'},
+                {'name': 'energy_level', 'type': 'int', 'required': False, 'description': '能效等级'},
                 {'name': 'category', 'type': 'string', 'required': True, 'description': '商品类别'}
             ],
             'limits': {
@@ -434,24 +381,37 @@ output:
             'calc': {
                 'base_rate': kwargs.get('base_rate', 0.15),
                 'extra_rate': kwargs.get('extra_rate', 0.05),
-                'subsidy': """rate = base_rate
-if energy_level == 1:
-    rate += extra_rate
-raw = price * rate
-min(raw, per_item_cap)"""
+                'rate': "calc['base_rate'] + (calc['extra_rate'] if inputs.get('energy_level') is not None and int(inputs['energy_level']) == 1 else 0)",
+                'subsidy': "min(float(inputs['price']) * calc['rate'], limits['per_item_cap'])",
             },
             'output': {
                 'status': 'QUALIFIED',
                 'final_result': '{{ calc.subsidy }}',
-                'trace_template': """- 判定能效等级 → {{ energy_level }}
-- 补贴比例 → {{ rate * 100 }}%
-- 原始补贴 = {{ price }} × {{ rate }} = {{ price * rate }}
-- 封顶后补贴 = min({{ price * rate }}, {{ per_item_cap }}) = {{ calc.subsidy }}"""
+                'trace_template': """- 判定能效等级 → {{ inputs.get('energy_level') }}
+- 补贴比例 → {{ calc.rate * 100 }}%
+- 原始补贴 = {{ inputs.price }} × {{ calc.rate }}
+- 封顶后补贴 = min(原始补贴, {{ limits.per_item_cap }}) = {{ calc.subsidy }}"""
             }
         }
 
     def _get_car_template(self, **kwargs) -> Dict[str, Any]:
         """汽车补贴模板"""
+        tiers = kwargs.get('tiers', [
+            {'range': [0, 100000], 'package': 1900},
+            {'range': [100000, 150000], 'package': 3200},
+            {'range': [150000, 250000], 'package': 4800},
+            {'range': [250000, 400000], 'package': 6400},
+            {'range': [400000, None], 'package': 8500}
+        ])
+        # Encode the configured first-match ranges with the existing expression
+        # language. No loop statements or arbitrary Python execution are needed.
+        tier_expression = 'None'
+        for index in reversed(range(len(tiers))):
+            tier = f'tiers[{index}]'
+            amount = "float(inputs['invoice_no_tax'])"
+            matches = (f"({tier}['range'][0] is None or {amount} >= {tier}['range'][0]) and "
+                       f"({tier}['range'][1] is None or {amount} < {tier}['range'][1])")
+            tier_expression = f'{tier} if {matches} else ({tier_expression})'
         return {
             'rule_id': kwargs.get('rule_id', 'Rule_Jinan_Car_2025'),
             'doc_id': kwargs.get('doc_id', '济南市汽车消费补贴公告'),
@@ -460,27 +420,17 @@ min(raw, per_item_cap)"""
                 {'name': 'invoice_no_tax', 'type': 'float', 'required': True, 'description': '不含税价格'},
                 {'name': 'vehicle_type', 'type': 'string', 'required': True, 'description': '车辆类型'}
             ],
-            'tiers': kwargs.get('tiers', [
-                {'range': [0, 100000], 'package': 1900},
-                {'range': [100000, 150000], 'package': 3200},
-                {'range': [150000, 250000], 'package': 4800},
-                {'range': [250000, 400000], 'package': 6400},
-                {'range': [400000, None], 'package': 8500}
-            ]),
+            'tiers': tiers,
             'calc': {
-                'tier': """for t in tiers:
-    lo, hi = t.range
-    if (lo is None or invoice_no_tax >= lo) and (hi is None or invoice_no_tax < hi):
-        return t
-return None""",
-                'subsidy': '{{ tier.package }}'
+                'tier': tier_expression,
+                'subsidy': "calc['tier']['package'] if calc['tier'] is not None else 0"
             },
             'output': {
-                'status': "{{ 'QUALIFIED' if tier else 'NOT_QUALIFIED' }}",
+                'status': "{{ 'QUALIFIED' if calc.tier is not none else 'NOT_QUALIFIED' }}",
                 'final_result': '{{ calc.subsidy }}',
-                'trace_template': """- 发票不含税价 = {{ invoice_no_tax }}
-- 匹配档位 = {{ tier.range }}
-- 礼包总额 = {{ tier.package }}"""
+                'trace_template': """- 发票不含税价 = {{ inputs.invoice_no_tax }}
+- 匹配档位 = {{ calc.tier.range if calc.tier is not none else '无匹配档位' }}
+- 礼包总额 = {{ calc.subsidy }}"""
             }
         }
 
@@ -500,13 +450,13 @@ return None""",
             },
             'calc': {
                 'rate': kwargs.get('rate', 0.1),
-                'subsidy': 'min(amount * rate, per_user_limit)'
+                'subsidy': "min(float(inputs['amount']) * calc['rate'], limits['per_user_limit'])"
             },
             'output': {
                 'status': 'QUALIFIED',
                 'final_result': '{{ calc.subsidy }}',
-                'trace_template': """- 消费金额 = {{ amount }}
-- 补贴比例 = {{ rate * 100 }}%
-- 补贴金额 = min({{ amount * rate }}, {{ per_user_limit }}) = {{ calc.subsidy }}"""
+                'trace_template': """- 消费金额 = {{ inputs.amount }}
+- 补贴比例 = {{ calc.rate * 100 }}%
+- 补贴金额 = min(消费金额 × 补贴比例, {{ limits.per_user_limit }}) = {{ calc.subsidy }}"""
             }
         }

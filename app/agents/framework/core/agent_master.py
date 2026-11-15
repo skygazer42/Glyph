@@ -3,17 +3,21 @@ Agent Master Controller - Agent总控制器
 """
 
 import asyncio
-from typing import Dict, List, Any, Optional, Type, Callable
+from typing import Dict, Any, Optional, Type, Callable
 import logging
 from datetime import datetime
+from functools import partial
 import json
 from pathlib import Path
+from contextlib import AsyncExitStack
+
+from app.utils.lifecycle import close_with_timeout
 
 from ..models.base import AgentType, MessageType, QueryIntent
 from .agent_base import AgentBase
-from .agent_registry import AgentRegistry, AgentInfo
+from .agent_registry import AgentRegistry
 from .message_bus import MessageBus, Message
-from .orchestrator import AgentOrchestrator, Workflow
+from .orchestrator import AgentOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +36,7 @@ class AgentMasterController:
         self.running = False
         self.start_time: Optional[datetime] = None
         self._shutdown_event = asyncio.Event()
+        self._creation_tasks: set[asyncio.Task[Optional[AgentBase]]] = set()
 
         # 内置工作流
         self.built_in_workflows: Dict[str, Callable] = {}
@@ -49,7 +54,7 @@ class AgentMasterController:
         """
         try:
             # 加载配置
-            if config:
+            if config is not None:
                 self.config.update(config)
             elif self.config_path:
                 await self._load_config()
@@ -63,20 +68,29 @@ class AgentMasterController:
             # 初始化默认Agent实例
             await self._initialize_default_agents()
 
+            self._shutdown_event.clear()
             self.running = True
             self.start_time = datetime.now()
 
             logger.info("Agent Master Controller initialized successfully")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to initialize controller: {e}")
+        except asyncio.CancelledError:
+            await self.stop()
+            raise
+        except Exception:
+            logger.exception("Failed to initialize controller")
+            try:
+                await self.stop()
+            except Exception:
+                logger.exception("Failed to clean up partially initialized controller")
             return False
 
     async def start(self) -> None:
         """启动控制器"""
         if not self.running:
-            await self.initialize()
+            if not await self.initialize():
+                raise RuntimeError("Agent Master Controller initialization failed")
 
         logger.info("Agent Master Controller started")
 
@@ -90,11 +104,22 @@ class AgentMasterController:
         self.running = False
         self._shutdown_event.set()
 
-        # 关闭所有Agent
-        await self.registry.shutdown_all()
-
-        # 停止消息总线
-        await self.message_bus.stop()
+        async with AsyncExitStack() as stack:
+            stack.push_async_callback(close_with_timeout, self.message_bus.stop)
+            stack.push_async_callback(close_with_timeout, self.registry.shutdown_all)
+            tasks, self._creation_tasks = self._creation_tasks, set()
+            for task in tasks:
+                task.cancel()
+            if tasks:
+                results = await close_with_timeout(
+                    partial(asyncio.gather, *tasks, return_exceptions=True)
+                )
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.error(
+                            "Agent creation failed during shutdown: %s", result,
+                            exc_info=(type(result), result, result.__traceback__),
+                        )
 
         logger.info("Agent Master Controller stopped")
 
@@ -120,6 +145,7 @@ class AgentMasterController:
             auto_create: 是否自动创建实例
             config: 配置参数
         """
+        loop = asyncio.get_running_loop() if auto_create else None
         # 注册到注册中心
         self.registry.register(
             agent_id=agent_id,
@@ -130,10 +156,8 @@ class AgentMasterController:
         )
 
         # 自动创建实例
-        if auto_create:
-            asyncio.create_task(
-                self.create_agent_instance(agent_id, config)
-            )
+        if loop is not None:
+            self._creation_tasks.add(loop.create_task(self.create_agent_instance(agent_id, config)))
 
     async def create_agent_instance(
         self,
@@ -184,7 +208,7 @@ class AgentMasterController:
         )
 
         # 如果指定了工作流，使用编排器执行
-        if workflow_name and workflow_name in self.orchestrator.workflows:
+        if workflow_name is not None:
             result = await self.orchestrator.execute_workflow(
                 workflow_name,
                 message,
@@ -209,7 +233,7 @@ class AgentMasterController:
             return None
 
         # 2. 根据意图选择处理流程
-        intent = router_result.content.get("intent")
+        intent = QueryIntent(router_result.content["intent"])
         context = router_result.content.get("context", {})
 
         # 选择合适的工作流
@@ -237,10 +261,10 @@ class AgentMasterController:
         """根据意图选择工作流"""
         workflow_mapping = {
             QueryIntent.ELIGIBILITY_CHECK: "eligibility_workflow",
-            QueryIntent.SUBSIDY_CALCULATION: "calculation_workflow",
+            QueryIntent.BENEFIT_CALCULATION: "calculation_workflow",
             QueryIntent.APPLICATION_PROCESS: "application_workflow",
-            QueryIntent.POLICY_COMPARISON: "comparison_workflow",
-            QueryIntent.DOCUMENTATION_QUERY: "documentation_workflow"
+            QueryIntent.COMPARISON: "comparison_workflow",
+            QueryIntent.POLICY_INQUIRY: "documentation_workflow"
         }
         return workflow_mapping.get(intent)
 
@@ -248,9 +272,9 @@ class AgentMasterController:
         """直接路由到Agent"""
         agent_mapping = {
             QueryIntent.ELIGIBILITY_CHECK: "policy_analyzer",
-            QueryIntent.SUBSIDY_CALCULATION: "calculation_agent",
+            QueryIntent.BENEFIT_CALCULATION: "calculation_agent",
             QueryIntent.APPLICATION_PROCESS: "application_agent",
-            QueryIntent.DOCUMENTATION_QUERY: "retrieval_agent"
+            QueryIntent.POLICY_INQUIRY: "retrieval_agent"
         }
         return agent_mapping.get(intent)
 
@@ -269,14 +293,14 @@ class AgentMasterController:
         workflow_type = config.get("type", "sequential")
 
         if workflow_type == "sequential":
-            agents = config.get("agents", [])
+            agents = config["agents"]
             self.orchestrator.create_simple_workflow(
                 workflow_name,
                 agents,
                 config.get("description", "")
             )
         elif workflow_type == "conditional":
-            branches = config.get("branches", {})
+            branches = config["branches"]
             default = config.get("default_branch")
             self.orchestrator.create_conditional_workflow(
                 workflow_name,
@@ -284,52 +308,27 @@ class AgentMasterController:
                 default,
                 config.get("description", "")
             )
+        else:
+            raise ValueError(f"Unknown workflow type: {workflow_type}")
 
     async def _auto_register_agents(self) -> None:
-        """自动注册所有Agent"""
-        # 这里可以通过反射或配置文件自动注册
-        # 示例：注册一些基础Agent
-        from app.agents.packs.query_analyzer.node import QueryAnalyzerAgent
-        from app.agents.packs.policy_review.node import PolicyReviewAgent
-        from app.agents.packs.intent_router.node import IntentRouterAgent
-
-        # 注册查询分析器
-        self.register_agent_module(
-            agent_id="query_analyzer",
-            agent_class=QueryAnalyzerAgent,
-            agent_type=AgentType.QUERY_ANALYZER,
-            name="Query Analyzer",
-            description="分析用户查询并提取关键信息"
-        )
-
-        # 注册政策分析器
-        self.register_agent_module(
-            agent_id="policy_analyzer",
-            agent_class=PolicyReviewAgent,
-            agent_type=AgentType.POLICY_ANALYZER,
-            name="Policy Analyzer",
-            description="分析政策内容并提供解答"
-        )
-
-        # 注册意图路由器
-        self.register_agent_module(
-            agent_id="intent_router",
-            agent_class=IntentRouterAgent,
-            agent_type=AgentType.INTENT_ROUTER,
-            name="Intent Router",
-            description="识别用户意图并路由到合适的处理流程"
-        )
+        """Core controllers require explicit Core-protocol agent registration."""
+        if not self.registry.list_agents():
+            raise ValueError("Register AgentBase subclasses before initialization; policy packs use AgentChatTeam")
 
     async def _initialize_default_agents(self) -> None:
         """初始化默认Agent实例"""
-        default_agents = [
-            "query_analyzer",
-            "policy_analyzer",
-            "intent_router"
-        ]
-
-        for agent_id in default_agents:
-            await self.create_agent_instance(agent_id)
+        tasks = tuple(self._creation_tasks)
+        if tasks:
+            try:
+                results = await asyncio.gather(*tasks)
+            finally:
+                self._creation_tasks.difference_update(task for task in tasks if task.done())
+            if any(instance is None for instance in results):
+                raise RuntimeError("An automatically created agent failed initialization")
+        for agent_id in self.registry.list_agent_ids():
+            if await self.create_agent_instance(agent_id) is None:
+                raise RuntimeError(f"Agent {agent_id} failed initialization")
 
     def _load_builtin_workflows(self) -> None:
         """加载内置工作流"""
@@ -355,14 +354,18 @@ class AgentMasterController:
         )
 
     async def _load_config(self) -> None:
-        """加载配置文件"""
-        if self.config_path and Path(self.config_path).exists():
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                self.config = json.load(f)
+        """Read owned filesystem configuration outside the event loop."""
+        if self.config_path is not None:
+            self.config = await asyncio.to_thread(self._read_config, self.config_path)
+
+    @staticmethod
+    def _read_config(path: str) -> Dict[str, Any]:
+        with Path(path).open(encoding="utf-8") as config_file:
+            return json.load(config_file)
 
     def get_system_status(self) -> Dict[str, Any]:
         """获取系统状态"""
-        uptime = 0
+        uptime = 0.0
         if self.start_time:
             uptime = (datetime.now() - self.start_time).total_seconds()
 
@@ -393,11 +396,12 @@ class AgentMasterController:
             for agent_id, instance in self.registry._instances.items():
                 if not await instance.health_check():
                     logger.warning(f"Agent {agent_id} is unhealthy")
+                    return False
 
             return True
 
-        except Exception as e:
-            logger.error(f"Health check failed: {e}")
+        except Exception:
+            logger.exception("Health check failed")
             return False
 
     async def reload_config(self) -> bool:
@@ -406,8 +410,8 @@ class AgentMasterController:
             await self._load_config()
             logger.info("Configuration reloaded")
             return True
-        except Exception as e:
-            logger.error(f"Failed to reload configuration: {e}")
+        except Exception:
+            logger.exception("Failed to reload configuration")
             return False
 
     def save_config(self, path: str) -> bool:
@@ -416,6 +420,6 @@ class AgentMasterController:
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
             return True
-        except Exception as e:
-            logger.error(f"Failed to save configuration: {e}")
+        except Exception:
+            logger.exception("Failed to save configuration")
             return False

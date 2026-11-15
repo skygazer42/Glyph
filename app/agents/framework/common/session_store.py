@@ -1,7 +1,7 @@
 """
 In-memory session store for multi-turn conversation (infrastructure, not an agent).
 
-Keeps recent turns and provides lightweight context like recent history.
+Keeps recent turns and provides lightweight conversation history.
 Controlled via environment variables:
 - CONVERSATION__MAX_TURNS (default 20)
 - CONVERSATION__HISTORY_WINDOW (default 5)
@@ -11,21 +11,24 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from ...models.base import UserQuery, FinalAnswer
+from app.models.base import FinalAnswer, UserQuery
 
 
 MAX_TURNS = int(os.getenv("CONVERSATION__MAX_TURNS", os.getenv("CONVERSATION_MAX_TURNS", "20")))
 HISTORY_WINDOW = int(os.getenv("CONVERSATION__HISTORY_WINDOW", os.getenv("CONVERSATION_HISTORY_WINDOW", "5")))
 
+if MAX_TURNS <= 0 or HISTORY_WINDOW < 0:
+    raise ValueError("MAX_TURNS must be positive and HISTORY_WINDOW non-negative")
+
 _SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
 def create_or_update_session(session_id: Optional[str], user_id: Optional[str]) -> Tuple[str, Dict[str, Any]]:
-    sid = session_id or f"session_{datetime.now().timestamp()}"
-    sess = _SESSIONS.get(sid)
-    if not sess:
-        sess = {
-            "session_id": sid,
+    session_id = session_id or f"session_{datetime.now().timestamp()}"
+    session = _SESSIONS.get(session_id)
+    if not session:
+        session = {
+            "session_id": session_id,
             "user_id": user_id,
             "created_at": datetime.now().isoformat(),
             "last_active": datetime.now().isoformat(),
@@ -34,58 +37,48 @@ def create_or_update_session(session_id: Optional[str], user_id: Optional[str]) 
             "query_count": 0,
             "context": {},
         }
-        _SESSIONS[sid] = sess
+        _SESSIONS[session_id] = session
     else:
-        sess["last_active"] = datetime.now().isoformat()
-        if user_id and not sess.get("user_id"):
-            sess["user_id"] = user_id
-    return sid, sess
+        session["last_active"] = datetime.now().isoformat()
+        if user_id and not session["user_id"]:
+            session["user_id"] = user_id
+    return session_id, session
 
 
 def add_query(session_id: str, query: UserQuery) -> None:
-    sess = _SESSIONS.get(session_id)
-    if not sess:
-        return
+    session = _SESSIONS[session_id]
     record = {
         "timestamp": datetime.now().isoformat(),
         "text": query.text,
         "query_id": str(query.id),
     }
-    # enforce max turns
-    if sess["query_count"] >= MAX_TURNS:
-        if sess["queries"]:
-            sess["queries"] = sess["queries"][-(MAX_TURNS - 1) :]
-        if sess["answers"] and len(sess["answers"]) > (MAX_TURNS - 1):
-            sess["answers"] = sess["answers"][-(MAX_TURNS - 1) :]
-
-    sess["queries"].append(record)
-    sess["query_count"] = min(sess["query_count"] + 1, MAX_TURNS)
-    sess["last_active"] = datetime.now().isoformat()
+    session["queries"].append(record)
+    session["queries"] = session["queries"][-MAX_TURNS:]
+    session["query_count"] = min(session["query_count"] + 1, MAX_TURNS)
+    session["last_active"] = datetime.now().isoformat()
 
 
 def add_answer(session_id: str, answer: FinalAnswer) -> None:
-    sess = _SESSIONS.get(session_id)
-    if not sess:
-        return
+    session = _SESSIONS[session_id]
     record = {
         "timestamp": datetime.now().isoformat(),
         "answer": answer.answer,
         "confidence": float(answer.confidence),
-        "sources_count": len(answer.sources) if answer.sources else 0,
+        "sources_count": len(answer.sources),
     }
-    sess["answers"].append(record)
-    sess["last_active"] = datetime.now().isoformat()
-    if len(sess["answers"]) > MAX_TURNS:
-        sess["answers"] = sess["answers"][ -MAX_TURNS : ]
+    session["answers"].append(record)
+    session["last_active"] = datetime.now().isoformat()
+    if len(session["answers"]) > MAX_TURNS:
+        session["answers"] = session["answers"][ -MAX_TURNS : ]
 
 
-def get_context(session_id: Optional[str], current_query: str = "") -> Dict[str, Any]:
+def get_context(session_id: Optional[str]) -> Dict[str, Any]:
     if not session_id or session_id not in _SESSIONS:
         return {"is_new_session": True, "history": []}
-    sess = _SESSIONS[session_id]
-    recent = max(1, min(HISTORY_WINDOW, MAX_TURNS))
-    recent_queries = sess["queries"][ -recent : ]
-    recent_answers = sess["answers"][ -recent : ]
+    session = _SESSIONS[session_id]
+    history_limit = max(0, min(HISTORY_WINDOW, MAX_TURNS))
+    recent_queries = session["queries"][-history_limit:] if history_limit else []
+    recent_answers = session["answers"][-history_limit:] if history_limit else []
 
     history: List[Dict[str, Any]] = []
     for i in range(max(len(recent_queries), len(recent_answers))):
@@ -103,8 +96,8 @@ def get_context(session_id: Optional[str], current_query: str = "") -> Dict[str,
             })
 
     return {
-        "is_new_session": sess["query_count"] == 0,
+        "is_new_session": session["query_count"] == 0,
         "history": history,
-        "last_active": sess["last_active"],
+        "last_active": session["last_active"],
     }
 

@@ -4,7 +4,30 @@ import logging
 from typing import Any, List, Optional, Sequence, Tuple
 
 import requests
-from app.config import settings
+from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, PrivateAttr
+from llama_index.core.schema import NodeWithScore, QueryBundle
+from llama_index.core.postprocessor.types import BaseNodePostprocessor
+from app.config.app_config import settings
+
+
+class RerankItem(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    index: int = Field(ge=0)
+    relevance_score: float = Field(
+        allow_inf_nan=False, validation_alias=AliasChoices("relevance_score", "score")
+    )
+
+
+class DashscopeRerankResponse(BaseModel):
+    results: list[RerankItem] = Field(
+        validation_alias=AliasChoices(AliasPath("output", "results"), "data")
+    )
+
+
+class XinferenceRerankResponse(BaseModel):
+    results: list[RerankItem] = Field(validation_alias=AliasChoices("data", "results"))
+
 
 def _log() -> logging.Logger:
     logger = logging.getLogger("rerank")
@@ -19,36 +42,33 @@ def _log() -> logging.Logger:
 class Reranker:
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.s = settings.reranker
-        self.logger = logger or _log()
-        self.session = requests.Session()
-        self.backend = (self.s.backend or "dashscope").lower()
-
-        self.local_model = None
-        self.local_type = None  # "flag" | "cross"
+        self.logger = _log() if logger is None else logger
+        self.backend = self.s.backend.lower()
 
         if self.backend == "dashscope":
-            if not (getattr(self.s, 'dashscope_api_key', None) or getattr(self.s, 'api_key', None)):
+            api_key = self.s.dashscope_api_key
+            if api_key is None:
+                api_key = self.s.api_key
+            if not api_key:
                 raise RuntimeError("DashScope 需要 DASHSCOPE_API_KEY。")
-            api_key = getattr(self.s, 'dashscope_api_key', None) or getattr(self.s, 'api_key', None)
+            self.session = requests.Session()
             self.session.headers.update({
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             })
-            self.base_url = getattr(self.s, 'base_url', getattr(self.s, 'endpoint', ''))
+            self.base_url = self.s.base_url
             self.model = self.s.model_name
             self.logger.info(f"[Rerank] dashscope model={self.model} url={self.base_url}")
 
         elif self.backend == "xinference":
-            x_base = getattr(self.s, "xinference_base_url", "http://10.168.2.250:9997/v1")
-            x_path = getattr(self.s, "xinference_rerank_path", "/v1/rerank")
-            x_key  = getattr(self.s, "xinference_api_key", None)
-            self.x_url = x_base.rstrip("/") + x_path
+            self.base_url = self.s.base_url
+            x_key = self.s.api_key
             self.model = self.s.model_name  # 例如 bge-reranker-large / bge-m3
+            self.session = requests.Session()
             self.session.headers.update({"Content-Type": "application/json"})
             if x_key:
                 self.session.headers.update({"Authorization": f"Bearer {x_key}"})
-            self.x_return_docs = bool(getattr(self.s, "xinference_return_documents", True))
-            self.logger.info(f"[Rerank] xinference model={self.model} url={self.x_url}")
+            self.logger.info(f"[Rerank] xinference model={self.model} url={self.base_url}")
 
         elif self.backend == "llamaindex":
             # 只用于 Postprocessor 包装
@@ -63,22 +83,11 @@ class Reranker:
                normalize: Optional[bool] = None) -> List[Tuple[int, float, str]]:
         if not documents:
             return []
-        k = int(top_n or self.s.top_n)
-        norm = bool(self.s.normalize_scores if normalize is None else normalize)
-
-        if self.backend in ("local", "flagembedding", "sentence-transformers"):
-            pairs = [(query, t) for t in documents]
-            if self.local_type == "flag":
-                scores = self.local_model.compute_score(pairs, normalize=norm)
-            else:
-                scores = self.local_model.predict(pairs)
-                scores = scores.tolist() if hasattr(scores, "tolist") else list(scores)
-                if norm and len(scores) > 1:
-                    mn, mx = min(scores), max(scores)
-                    if mx > mn:
-                        scores = [(s - mn) / (mx - mn) for s in scores]
-            ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:k]
-            return [(i, float(s), documents[i]) for i, s in ranked]
+        k = int(self.s.top_n if top_n is None else top_n)
+        if k < 0:
+            raise ValueError("top_n must not be negative")
+        if k == 0:
+            return []
 
         if self.backend == "dashscope":
             return self._call_dashscope(query, documents, k)
@@ -98,21 +107,17 @@ class Reranker:
             "input": {"query": query, "documents": list(docs)},
             "parameters": {"return_documents": bool(self.s.return_documents), "top_n": k},
         }
-        resp = self.session.post(self.base_url, json=payload, timeout=self.s.timeout)
-        resp.raise_for_status()
-        data = resp.json()
+        with self.session.post(self.base_url, json=payload, timeout=self.s.timeout) as resp:
+            resp.raise_for_status()
+            data = resp.json()
 
-        items = (data.get("output") or {}).get("results") or data.get("data") or []
+        result = DashscopeRerankResponse.model_validate(data)
         out: List[Tuple[int, float, str]] = []
-        for it in items:
-            idx = it.get("index")
-            score = float(it.get("score", 0.0))
-            doc = it.get("document")
-            text = doc.get("text", "") if isinstance(doc, dict) else (doc if isinstance(doc, str) else None)
-            if idx is None and text and text in docs:
-                idx = docs.index(text)
-            if isinstance(idx, int) and 0 <= idx < len(docs):
-                out.append((idx, score, docs[idx]))
+        for item in result.results:
+            idx = item.index
+            if idx >= len(docs):
+                raise ValueError("DashScope reranker returned an invalid document index")
+            out.append((idx, item.relevance_score, docs[idx]))
         out.sort(key=lambda x: x[1], reverse=True)
         return out[:k]
 
@@ -123,88 +128,84 @@ class Reranker:
             "query": query,
             "documents": list(docs),
             "top_n": k,
-            "return_documents": self.x_return_docs,
+            "return_documents": self.s.return_documents,
         }
-        resp = self.session.post(self.x_url, json=payload, timeout=self.s.timeout)
-        resp.raise_for_status()
-        data = resp.json()
+        with self.session.post(self.base_url, json=payload, timeout=self.s.timeout) as resp:
+            resp.raise_for_status()
+            data = resp.json()
 
-        items = data.get("data") or data.get("results") or []
+        result = XinferenceRerankResponse.model_validate(data)
         out: List[Tuple[int, float, str]] = []
-        for it in items:
-            idx = it.get("index")
-            score = it.get("relevance_score", it.get("score", 0.0))
-            try: score = float(score)
-            except Exception: score = 0.0
-            doc = it.get("document")
-            text = doc.get("text", "") if isinstance(doc, dict) else (doc if isinstance(doc, str) else None)
-            if idx is None and text and text in docs:
-                idx = docs.index(text)
-            if isinstance(idx, int) and 0 <= idx < len(docs):
-                out.append((idx, score, docs[idx]))
+        for item in result.results:
+            idx = item.index
+            if idx >= len(docs):
+                raise ValueError("Xinference reranker returned an invalid document index")
+            out.append((idx, item.relevance_score, docs[idx]))
         out.sort(key=lambda x: x[1], reverse=True)
         return out[:k]
 
 
-# ---------------- LlamaIndex Postprocessor（按 settings 使用） ----------------
-try:
-    from llama_index.core.schema import NodeWithScore
-    from llama_index.core.postprocessor.types import BaseNodePostprocessor
-except Exception:
-    NodeWithScore = Any
-    class BaseNodePostprocessor:  # 允许未安装 LlamaIndex 也能 import
-        def __init__(self, **kwargs): ...
-        def _postprocess_nodes(self, nodes: List[Any], query_str: Optional[str] = None) -> List[Any]: return nodes
+    def close(self) -> None:
+        if self.backend in {"dashscope", "xinference"}:
+            self.session.close()
+
 
 class LlamaIndexReranker(BaseNodePostprocessor):
+    """Apply the configured reranker using LlamaIndex's QueryBundle protocol."""
+
+    _settings: Any = PrivateAttr()
+    _logger: Any = PrivateAttr()
+    _native: Any = PrivateAttr(default=None)
+    _service: Any = PrivateAttr(default=None)
+
     def __init__(self):
         super().__init__()
-        self.rerank = settings.reranker
-        self.logger = _log()
-        self.native = None
-        self.service = None
+        self._settings = settings.reranker
+        self._logger = _log()
         self._prepare()
 
-    def _prepare(self):
-        if self.s.backend.lower() == "llamaindex":
-            mn = (self.s.model_name or "").lower()
-            try:
-                if any(k in mn for k in ("bge", "reranker", "flag")):
-                    from llama_index.core.postprocessor import FlagEmbeddingReranker
-                    self.native = FlagEmbeddingReranker(model=self.s.model_name,
-                                                        top_n=self.s.rerank_top_k,
-                                                        use_fp16=True,
-                                                        normalize=self.s.normalize_scores)
-                else:
-                    from llama_index.core.postprocessor import SentenceTransformerRerank
-                    self.native = SentenceTransformerRerank(model=self.s.model_name,
-                                                            top_n=self.s.rerank_top_k)
-            except Exception as e:
-                self.logger.warning(f"LlamaIndex 内置不可用，回退通用 Service: {e}")
-        if self.native is None:
-            self.service = Reranker(self.logger)
+    def _prepare(self) -> None:
+        if self._settings.backend.lower() == "llamaindex":
+            model = self._settings.model_name
+            if any(key in model.lower() for key in ("bge", "reranker", "flag")):
+                from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
+                self._native = FlagEmbeddingReranker(
+                    model=model, top_n=self._settings.rerank_top_k, use_fp16=True,
+                )
+            else:
+                from llama_index.core.postprocessor import SentenceTransformerRerank
+                self._native = SentenceTransformerRerank(
+                    model=model, top_n=self._settings.rerank_top_k,
+                )
+        else:
+            self._service = Reranker(self._logger)
 
-    def _postprocess_nodes(self, nodes: List[NodeWithScore], query_str: Optional[str] = None) -> List[NodeWithScore]:
-        if not nodes: return nodes
-        k = self.s.rerank_top_k or self.s.top_n
-        if self.native is not None:
-            out = self.native._postprocess_nodes(nodes, query_str=query_str)  # type: ignore
-            return out[:k]
+    def _postprocess_nodes(
+        self, nodes: List[NodeWithScore], query_bundle: Optional[QueryBundle] = None,
+    ) -> List[NodeWithScore]:
+        if not nodes:
+            return []
+        if query_bundle is None:
+            raise ValueError("Reranking requires a query")
+        k = self._settings.rerank_top_k
+        if k < 0:
+            raise ValueError("rerank_top_k must not be negative")
+        if k == 0:
+            return []
+        if self._native is not None:
+            return self._native.postprocess_nodes(nodes, query_bundle=query_bundle)[:k]
+        if self._service is None:
+            raise RuntimeError("Reranker service has not been initialized")
+        ranked = self._service.rerank(
+            query_bundle.query_str, [item.node.get_content() for item in nodes],
+            top_n=k, normalize=self._settings.normalize_scores,
+        )
+        return [NodeWithScore(node=nodes[index].node, score=score)
+                for index, score, _ in ranked]
 
-        texts = [getattr(n.node, "get_content", None)() if hasattr(n.node, "get_content")
-                 else getattr(n.node, "text", "") for n in nodes]
-        ranked = self.service.rerank(query_str or "", texts, top_n=k, normalize=self.s.normalize_scores)
-        keep = {i: sc for i, sc, _ in ranked}
-        filtered: List[NodeWithScore] = []
-        for i, n in enumerate(nodes):
-            if i in keep:
-                try:
-                    n = NodeWithScore(node=n.node, score=float(keep[i]))
-                except Exception:
-                    pass
-                filtered.append(n)
-        filtered.sort(key=lambda x: getattr(x, "score", 0.0), reverse=True)
-        return filtered[:k]
+    def close(self) -> None:
+        if self._service is not None:
+            self._service.close()
 
 
 # ---------------- 自测 ----------------
@@ -216,5 +217,8 @@ if __name__ == "__main__":
         "量子计算是计算科学的一个前沿领域",
         "预训练语言模型的发展给文本排序模型带来了新的进展",
     ]
-    for i, s, t in r.rerank(q, docs, top_n=5, normalize=True):
-        print(f"[{i}] {s:.4f}  {t}")
+    try:
+        for i, s, t in r.rerank(q, docs, top_n=5, normalize=True):
+            print(f"[{i}] {s:.4f}  {t}")
+    finally:
+        r.close()

@@ -1,7 +1,14 @@
 <template>
-  <div class="skeleton-loader" :aria-busy="true" aria-label="加载中">
+  <div
+    class="skeleton-loader"
+    :aria-busy="true"
+    aria-label="加载中"
+  >
     <!-- 卡片骨架 -->
-    <div v-if="type === 'card'" class="skeleton-card">
+    <div
+      v-if="type === 'card'"
+      class="skeleton-card"
+    >
       <div class="skeleton-header">
         <div class="skeleton-avatar"></div>
         <div class="skeleton-lines">
@@ -17,8 +24,15 @@
     </div>
 
     <!-- 列表骨架 -->
-    <div v-else-if="type === 'list'" class="skeleton-list">
-      <div v-for="i in count" :key="i" class="skeleton-list-item">
+    <div
+      v-else-if="type === 'list'"
+      class="skeleton-list"
+    >
+      <div
+        v-for="i in count"
+        :key="i"
+        class="skeleton-list-item"
+      >
         <div class="skeleton-avatar small"></div>
         <div class="skeleton-lines flex-1">
           <div class="skeleton-line"></div>
@@ -28,11 +42,18 @@
     </div>
 
     <!-- 表格骨架 -->
-    <div v-else-if="type === 'table'" class="skeleton-table">
+    <div
+      v-else-if="type === 'table'"
+      class="skeleton-table"
+    >
       <div class="skeleton-table-header">
         <div class="skeleton-line"></div>
       </div>
-      <div v-for="i in count" :key="i" class="skeleton-table-row">
+      <div
+        v-for="i in count"
+        :key="i"
+        class="skeleton-table-row"
+      >
         <div class="skeleton-line"></div>
         <div class="skeleton-line short"></div>
         <div class="skeleton-line medium"></div>
@@ -40,8 +61,16 @@
     </div>
 
     <!-- 文本骨架 -->
-    <div v-else class="skeleton-text">
-      <div v-for="i in count" :key="i" class="skeleton-line" :class="{ short: i === count }"></div>
+    <div
+      v-else
+      class="skeleton-text"
+    >
+      <div
+        v-for="i in count"
+        :key="i"
+        class="skeleton-line"
+        :class="{ short: i === count }"
+      ></div>
     </div>
   </div>
 </template>
@@ -55,7 +84,8 @@ defineProps({
   },
   count: {
     type: Number,
-    default: 3
+    default: 3,
+    validator: (value) => value >= 0 && value % 1 === 0
   }
 })
 </script>

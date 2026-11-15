@@ -3,17 +3,22 @@
 提供实时监控、指标收集、告警管理等功能
 """
 
-import time
 import asyncio
 import logging
+import smtplib
+from functools import partial
 from typing import Dict, Any, List, Callable, Optional
 from collections import deque, defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from pathlib import Path
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import json
 
-from app.config import settings
+import psutil
+
+from app.config.app_config import settings
+from app.utils.lifecycle import close_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +72,11 @@ class SystemMonitor:
     4. 统计计算
     """
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
 
         # 指标存储 (指标名 -> 指标历史)
-        self.metrics = defaultdict(lambda: deque(maxlen=1000))
+        self.metrics: Dict[str, deque[Metric]] = defaultdict(lambda: deque(maxlen=1000))
 
         # 告警管理器
         self.alert_manager = AlertManager()
@@ -90,7 +95,7 @@ class SystemMonitor:
 
         # 监控状态
         self.monitoring = False
-        self._monitor_task = None
+        self._monitor_task: Optional[asyncio.Task[None]] = None
 
     async def start(self):
         """启动监控"""
@@ -104,37 +109,33 @@ class SystemMonitor:
     async def stop(self):
         """停止监控"""
         self.monitoring = False
-        if self._monitor_task:
-            self._monitor_task.cancel()
-            try:
-                await self._monitor_task
-            except asyncio.CancelledError:
-                pass
+        task = self._monitor_task
+        self._monitor_task = None
+        if task is not None:
+            task.cancel()
+            result, = await close_with_timeout(partial(asyncio.gather, task, return_exceptions=True))
+            if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                raise result
         logger.info("系统监控已停止")
 
     async def _monitoring_loop(self):
         """监控主循环"""
         interval = self.config.get('interval', 60)  # 默认60秒
 
-        while self.monitoring:
-            try:
-                # 收集系统指标
-                await self._collect_system_metrics()
-
-                # 等待下一个周期
+        try:
+            while self.monitoring:
+                try:
+                    await self._collect_system_metrics()
+                except Exception:
+                    logger.exception("监控循环异常")
                 await asyncio.sleep(interval)
-
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"监控循环异常: {e}")
+        finally:
+            self.monitoring = False
 
     async def _collect_system_metrics(self):
         """收集系统指标"""
-        import psutil
-
         # CPU使用率
-        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_percent = await asyncio.to_thread(psutil.cpu_percent, interval=1)
         await self.record_metric('system.cpu_usage', cpu_percent / 100)
 
         # 内存使用率
@@ -150,7 +151,7 @@ class SystemMonitor:
         await self.record_metric('system.network_sent_bytes', net_io.bytes_sent)
         await self.record_metric('system.network_recv_bytes', net_io.bytes_recv)
 
-    async def record_metric(self, name: str, value: float, tags: Dict[str, str] = None):
+    async def record_metric(self, name: str, value: float, tags: Optional[Dict[str, str]] = None):
         """
         记录指标
 
@@ -207,7 +208,7 @@ class SystemMonitor:
                 threshold=thresholds['warning']
             ))
 
-    def get_metrics(self, name: str, duration: timedelta = None) -> List[Metric]:
+    def get_metrics(self, name: str, duration: Optional[timedelta] = None) -> List[Metric]:
         """
         获取指标历史
 
@@ -220,13 +221,13 @@ class SystemMonitor:
         """
         metrics = list(self.metrics[name])
 
-        if duration:
+        if duration is not None:
             cutoff = datetime.now() - duration
             metrics = [m for m in metrics if m.timestamp >= cutoff]
 
         return metrics
 
-    def get_statistics(self, name: str, duration: timedelta = None) -> Dict[str, float]:
+    def get_statistics(self, name: str, duration: Optional[timedelta] = None) -> Dict[str, float]:
         """
         获取指标统计
 
@@ -257,20 +258,22 @@ class SystemMonitor:
         }
 
     @staticmethod
-    def _percentile(values: List[float], p: int) -> float:
+    def _percentile(values: List[float], percentile: int) -> float:
         """计算百分位数"""
         if not values:
             return 0.0
 
         sorted_values = sorted(values)
-        k = (len(sorted_values) - 1) * p / 100
-        f = int(k)
-        c = f + 1 if f + 1 < len(sorted_values) else f
+        position = (len(sorted_values) - 1) * percentile / 100
+        lower_index = int(position)
+        upper_index = min(lower_index + 1, len(sorted_values) - 1)
 
-        if f == c:
-            return sorted_values[f]
+        if lower_index == upper_index:
+            return sorted_values[lower_index]
 
-        return sorted_values[f] + (k - f) * (sorted_values[c] - sorted_values[f])
+        lower_value = sorted_values[lower_index]
+        upper_value = sorted_values[upper_index]
+        return lower_value + (position - lower_index) * (upper_value - lower_value)
 
     def get_dashboard_data(self) -> Dict[str, Any]:
         """获取监控面板数据"""
@@ -323,10 +326,10 @@ class AlertManager:
 
     def __init__(self):
         self.alert_channels: List[AlertChannel] = []
-        self.alert_history = deque(maxlen=1000)
+        self.alert_history: deque[Alert] = deque(maxlen=1000)
 
         # 告警抑制规则 (指标:级别 -> 最后告警时间)
-        self.suppression_rules = {}
+        self.suppression_rules: Dict[str, datetime] = {}
 
         # 抑制窗口 (默认5分钟内相同告警只发送一次)
         self.suppression_window = timedelta(minutes=5)
@@ -355,8 +358,8 @@ class AlertManager:
         for channel in self.alert_channels:
             try:
                 await channel.send(alert)
-            except Exception as e:
-                logger.error(f"发送告警失败: {e}")
+            except Exception:
+                logger.exception("发送告警失败")
 
     def _should_suppress(self, alert: Alert) -> bool:
         """检查是否应该抑制告警"""
@@ -373,6 +376,8 @@ class AlertManager:
 
     def get_recent_alerts(self, limit: int = 10) -> List[Alert]:
         """获取最近的告警"""
+        if limit == 0:
+            return []
         return list(self.alert_history)[-limit:]
 
 
@@ -404,6 +409,15 @@ class LogAlertChannel(AlertChannel):
         )
         fh.setFormatter(formatter)
         self.logger.addHandler(fh)
+        self._handler: Optional[logging.FileHandler] = fh
+
+    def close(self) -> None:
+        """Detach and close only the handler created by this channel."""
+        handler = self._handler
+        self._handler = None
+        if handler is not None:
+            self.logger.removeHandler(handler)
+            handler.close()
 
     async def send(self, alert: Alert):
         """发送告警到日志"""
@@ -454,19 +468,16 @@ class EmailAlertChannel(AlertChannel):
 
     async def send(self, alert: Alert):
         """发送告警邮件"""
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
+        await asyncio.to_thread(self._send_email, alert)
 
-        try:
-            # 构建邮件
-            msg = MIMEMultipart()
-            msg['From'] = self.smtp_config['from_addr']
-            msg['To'] = ', '.join(self.smtp_config['to_addrs'])
-            msg['Subject'] = f"[{alert.level}] 系统告警: {alert.metric.name}"
+    def _send_email(self, alert: Alert) -> None:
+        """Own the synchronous SMTP connection in its worker thread."""
+        msg = MIMEMultipart()
+        msg['From'] = self.smtp_config['from_addr']
+        msg['To'] = ', '.join(self.smtp_config['to_addrs'])
+        msg['Subject'] = f"[{alert.level}] 系统告警: {alert.metric.name}"
 
-            # 邮件正文
-            body = f"""
+        body = f"""
 告警级别: {alert.level}
 告警消息: {alert.message}
 指标名称: {alert.metric.name}
@@ -475,18 +486,13 @@ class EmailAlertChannel(AlertChannel):
 时间: {alert.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
             """
 
-            msg.attach(MIMEText(body, 'plain'))
+        msg.attach(MIMEText(body, 'plain'))
 
-            # 发送邮件
-            with smtplib.SMTP(self.smtp_config['host'], self.smtp_config['port']) as server:
-                server.starttls()
-                server.login(self.smtp_config['username'], self.smtp_config['password'])
-                server.send_message(msg)
-
-            logger.info(f"告警邮件已发送: {alert.message}")
-
-        except Exception as e:
-            logger.error(f"发送告警邮件失败: {e}")
+        with smtplib.SMTP(self.smtp_config['host'], self.smtp_config['port'], timeout=10) as server:
+            server.starttls()
+            server.login(self.smtp_config['username'], self.smtp_config['password'])
+            server.send_message(msg)
+        logger.info(f"告警邮件已发送: {alert.message}")
 
 
 class HealthChecker:
@@ -553,7 +559,8 @@ async def example_usage():
     })
 
     # 添加告警通道
-    monitor.alert_manager.add_channel(LogAlertChannel())
+    log_channel = LogAlertChannel()
+    monitor.alert_manager.add_channel(log_channel)
     monitor.alert_manager.add_channel(ConsoleAlertChannel())
 
     # 注册健康检查
@@ -568,10 +575,8 @@ async def example_usage():
     monitor.health_checker.register_check('database', check_database)
     monitor.health_checker.register_check('milvus', check_milvus)
 
-    # 启动监控
-    await monitor.start()
-
     try:
+        await monitor.start()
         # 模拟业务指标记录
         for i in range(10):
             # 记录查询响应时间
@@ -597,12 +602,15 @@ async def example_usage():
 
         # 获取监控面板数据
         dashboard = monitor.get_dashboard_data()
-        print(f"\n监控面板数据:")
+        print("\n监控面板数据:")
         print(json.dumps(dashboard, indent=2, ensure_ascii=False))
 
     finally:
         # 停止监控
-        await monitor.stop()
+        try:
+            await monitor.stop()
+        finally:
+            log_channel.close()
 
 
 if __name__ == '__main__':

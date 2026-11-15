@@ -2,25 +2,70 @@
 Policy analysis agent for analyzing retrieved policy documents.
 """
 
-import json
-import asyncio
+import logging
+import anyio
+
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 
-from app.agents.framework.base.base_agent import BaseAgent
-from app.agents.framework.base.types import MessageTypes, PolicyDocument
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from app.agents.framework.common.model_client import create_openai_client
+from autogen_core.models import SystemMessage, UserMessage
+from app.agents.framework.base.types import MessageTypes
+from app.models.base import PolicyDocument
 
 
-class PolicyReviewAgent(BaseAgent):
+class ReviewRequest(BaseModel):
+    """Policy documents and the actual user query being evaluated."""
+
+    model_config = ConfigDict(strict=True, extra="ignore")
+
+    query: str = Field(min_length=1)
+    documents: list[PolicyDocument]
+
+    @field_validator("query")
+    @classmethod
+    def require_nonempty_query(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Policy review requires a nonempty query")
+        return value
+
+
+class PolicyReviewAnalysis(BaseModel):
+    """Policy facts returned by the document-analysis prompt."""
+
+    model_config = ConfigDict(strict=True, extra="ignore")
+
+    relevance_score: float = Field(ge=0, le=1)
+    policy_summary: str
+    key_points: list[str]
+    eligibility_criteria: list[str]
+    benefits: str
+    application_process: str
+    deadlines: str
+    contact_info: str | None = None
+    answered_questions: list[str]
+    missing_information: list[str]
+    confidence: float = Field(ge=0, le=1)
+    reasoning: str
+
+
+class PolicyReviewAgent:
     """Agent responsible for analyzing retrieved policy documents."""
 
     def __init__(
         self,
         name: str,
-        llm_config: Dict[str, Any]
+        llm_config: Dict[str, Any],
+        *, model_client=None,
     ):
         """Initialize the policy analyzer."""
-        super().__init__(name, "policy_review", llm_config)
+        self.name = name
+        self.llm_config = llm_config
+        self.logger = logging.getLogger(f"{__name__}.{name}")
+        self.system_message = self._get_default_system_message()
+        self._owns_model_client = model_client is None
+        self.model_client = create_openai_client(llm_config=llm_config) if model_client is None else model_client
 
     def _get_default_system_message(self) -> str:
         """Get the default system message."""
@@ -50,48 +95,42 @@ class PolicyReviewAgent(BaseAgent):
 
     async def process_message(
         self,
-        message: str,
+        message: str | Dict[str, Any],
         sender: Optional[Any] = None,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process and analyze policy documents."""
         try:
             # Parse the message
-            data = json.loads(message) if isinstance(message, str) else message
-            query = data.get("query", "")
-            documents = data.get("documents", [])
+            if isinstance(message, str):
+                request = ReviewRequest.model_validate_json(message)
+            else:
+                request = ReviewRequest.model_validate(message)
 
-            if not documents:
-                return self.format_error_response("No documents provided for analysis")
+            if not request.documents:
+                return {"success": False, "error": "No documents provided for analysis"}
 
             # Analyze each document
             analyzed_documents = []
-            for doc_data in documents:
-                if isinstance(doc_data, dict):
-                    doc = PolicyDocument(**doc_data)
-                else:
-                    doc = doc_data
-
-                analysis = await self._analyze_document(doc, query)
+            for document in request.documents:
+                analysis = await self._analyze_document(document, request.query)
                 analyzed_documents.append({
-                    "document": doc.__dict__,
+                    "document": document.model_dump(mode="json"),
                     "analysis": analysis
                 })
 
             # Synthesize overall analysis
-            synthesis = await self._synthesize_analysis(query, analyzed_documents)
+            synthesis = await self._synthesize_analysis(request.query, analyzed_documents)
 
-            return self.format_success_response(
-                {
-                    "query": query,
+            return {"success": True, "data": {
+                    "query": request.query,
                     "document_analyses": analyzed_documents,
                     "synthesis": synthesis
-                },
-                MessageTypes.ANALYSIS_REPORT
-            )
+                }, "type": MessageTypes.ANALYSIS_REPORT.value}
 
         except Exception as e:
-            return self.format_error_response(str(e))
+            self.logger.exception("Policy request failed")
+            return {"success": False, "error": str(e)}
 
     async def _analyze_document(self, document: PolicyDocument, query: str) -> Dict[str, Any]:
         """Analyze a single policy document."""
@@ -147,14 +186,12 @@ Focus on information directly relevant to answering the user's question.
             }
         ]
 
-        response = await self.a_create(messages)
+        response = await self._request_completion(messages)
 
         try:
-            analysis = json.loads(response.content)
-            if not isinstance(analysis, dict):
-                raise ValueError("Invalid analysis format")
-            return analysis
-        except:
+            return PolicyReviewAnalysis.model_validate_json(response).model_dump()
+        except ValidationError:
+            self.logger.warning("Invalid policy analysis; using keyword analysis", exc_info=True)
             # Fallback: simple keyword-based analysis
             return self._simple_analysis(document, query)
 
@@ -174,12 +211,12 @@ Focus on information directly relevant to answering the user's question.
         deadlines = []
 
         for doc_analysis in analyzed_documents:
-            analysis = doc_analysis.get("analysis", {})
-            all_key_points.extend(analysis.get("key_points", []))
-            all_eligibility.extend(analysis.get("eligibility_criteria", []))
-            if analysis.get("benefits"):
+            analysis = doc_analysis["analysis"]
+            all_key_points.extend(analysis["key_points"])
+            all_eligibility.extend(analysis["eligibility_criteria"])
+            if analysis["benefits"]:
                 benefits.append(analysis["benefits"])
-            if analysis.get("deadlines"):
+            if analysis["deadlines"]:
                 deadlines.append(analysis["deadlines"])
 
         # Remove duplicates
@@ -190,7 +227,7 @@ Focus on information directly relevant to answering the user's question.
             "total_documents": len(analyzed_documents),
             "most_relevant": max(
                 analyzed_documents,
-                key=lambda x: x.get("analysis", {}).get("relevance_score", 0)
+                key=lambda document_analysis: document_analysis["analysis"]["relevance_score"]
             )["document"]["title"],
             "summary": f"Found {len(analyzed_documents)} relevant policies",
             "key_points": unique_key_points[:10],
@@ -216,8 +253,8 @@ Focus on information directly relevant to answering the user's question.
         conflicting = []
         benefits = []
         for doc in analyzed_documents:
-            analysis = doc.get("analysis", {})
-            if analysis.get("benefits"):
+            analysis = doc["analysis"]
+            if analysis["benefits"]:
                 benefits.append(analysis["benefits"])
 
         if len(benefits) > 3:
@@ -249,11 +286,21 @@ Focus on information directly relevant to answering the user's question.
             "reasoning": "Simple keyword-based analysis"
         }
 
-    async def a_create(self, messages: List[Dict[str, str]]) -> Any:
-        """Async wrapper for creating messages."""
-        return self.generate_reply(
-            messages=[msg["content"] for msg in messages],
-            sender=None
-        )
 
-PolicyAnalyzer = PolicyReviewAgent
+    async def _request_completion(self, messages: List[Dict[str, str]]) -> str:
+        """Send complete role-tagged messages through the current async SDK."""
+        sdk_messages = [SystemMessage(content=message["content"])
+                        if message["role"] == "system"
+                        else UserMessage(content=message["content"], source="user")
+                        for message in messages]
+        response = await self.model_client.create(sdk_messages)
+        if not isinstance(response.content, str):
+            raise ValueError("Policy model must return text")
+        return response.content
+
+    async def close(self):
+        """Release only the model client created by this business object."""
+        if self._owns_model_client:
+            self._owns_model_client = False
+            with anyio.fail_after(5, shield=True):
+                await self.model_client.close()

@@ -11,7 +11,7 @@ from typing import Dict
 from autogen_core.models import UserMessage
 
 from app.core.llms import model_client
-from app.agents.domain import PolicyDomainContextBuilder
+from app.agents.domain.policy_domain import PolicyDomainContext, PolicyDomainContextBuilder
 
 
 @dataclass
@@ -59,11 +59,11 @@ class RewriteAgent:
         self.logger = logging.getLogger(__name__)
         self.max_length = max_length
         self._domain_builder = PolicyDomainContextBuilder()
-        self._cache: OrderedDict[str, str] = OrderedDict()
+        self._cache: OrderedDict[tuple[str, str], str] = OrderedDict()
         self._cache_max = 256
 
-    async def rewrite(self, query: str, context: dict | None = None, domain_hint: dict | None = None) -> str:
-        key = query.strip()
+    async def rewrite(self, query: str, context: dict | None = None) -> str:
+        key = (query.strip(), repr(context))
         if key in self._cache:
             self._cache.move_to_end(key)
             return self._cache[key]
@@ -109,15 +109,18 @@ class RewriteAgent:
             response = await model_client.create(
                 [UserMessage(content=prompt[: self.max_length * 4], source="user")]
             )
-            text = (response.content or "").strip()
+            if not isinstance(response.content, str):
+                raise ValueError("Rewrite model returned no text")
+            text = response.content.strip()
             if not text:
-                self._remember(key, normalized)
-                return self._compose_standalone(normalized, context_hints)[: self.max_length]
+                result = self._compose_standalone(normalized, context_hints)[: self.max_length]
+                self._remember(key, result)
+                return result
             result = self._compose_standalone(text, context_hints)[: self.max_length]
             self._remember(key, result)
             return result
         except Exception as exc:  # pragma: no cover - best effort
-            self.logger.warning("Rewrite agent failed: %s", exc)
+            self.logger.warning("Rewrite agent failed: %s", exc, exc_info=True)
             result = self._compose_standalone(normalized, context_hints)[: self.max_length]
             self._remember(key, result)
             return result
@@ -128,10 +131,12 @@ class RewriteAgent:
             topic = self._topic_hint_from_history(context)
             if topic:
                 hints.topic = topic[:80]
-            history = context.get("history") or []
-            for item in history:
-                text = (item.get("text") or "").strip()
-                if not text or item.get("type") != "query":
+            history = context.get("history", [])
+            for message in history:
+                if not message.startswith("用户:"):
+                    continue
+                text = message.removeprefix("用户:").strip()
+                if not text:
                     continue
                 slots = self._extract_slots(text)
                 hints.product = hints.product or slots.get("product", "")
@@ -172,9 +177,7 @@ class RewriteAgent:
             return "process"
         return "inquiry"
 
-    def _build_domain_hint(self, ctx) -> str:
-        if not ctx:
-            return "无"
+    def _build_domain_hint(self, ctx: PolicyDomainContext) -> str:
         req_tokens = []
         if ctx.region:
             req_tokens.append(f"地区={ctx.region}")
@@ -221,7 +224,7 @@ class RewriteAgent:
             return f"{q}（{'；'.join(supplements)}）"
         return q
 
-    def _remember(self, key: str, value: str) -> None:
+    def _remember(self, key: tuple[str, str], value: str) -> None:
         self._cache[key] = value
         self._cache.move_to_end(key)
         if len(self._cache) > self._cache_max:
@@ -230,18 +233,18 @@ class RewriteAgent:
     def _topic_hint_from_history(self, context: dict | None) -> str:
         if not context:
             return ""
-        history = context.get("history") or []
+        history = context.get("history", [])
         keywords = ["政策", "细则", "消费券", "以旧换新", "首保", "汽车消费", "泉城购"]
-        for item in reversed(history):
-            if item.get("type") != "query":
+        for message in reversed(history):
+            if not message.startswith("用户:"):
                 continue
-            text = (item.get("text") or "").strip()
+            text = message.removeprefix("用户:").strip()
             if any(k in text for k in keywords):
                 return text[:50]
-        for item in reversed(history):
-            if item.get("type") != "answer":
+        for message in reversed(history):
+            if not message.startswith("助手:"):
                 continue
-            text = (item.get("text") or "").strip()
+            text = message.removeprefix("助手:").strip()
             for line in text.splitlines():
                 line = line.strip()
                 if line.startswith("- ") and ("细则" in line or "消费券" in line or "活动" in line):

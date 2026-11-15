@@ -4,32 +4,33 @@
 """
 
 import sys
-import os
+import traceback
 from pathlib import Path
 
 # 添加项目路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from app.knowledge.hierarchical_index import HierarchicalRetriever
+from app.knowledge.hierarchical_index import HierarchicalRetriever  # noqa: E402 - executable script bootstraps the repository path
 
 
 def demo_image_search():
     """演示图片搜索"""
 
     # 存储目录（假设已构建索引）
-    storage_dir = "/data/temp33/gov/storage/hierarchical"
+    storage_dir = str(project_root / "storage/policy_index")
 
     # 检查索引是否存在
     if not Path(storage_dir).exists():
         print("❌ 索引不存在，请先构建索引：")
-        print("python scripts/batch_process.py build --data-dir /data/temp33/gov/data/process")
+        print("python scripts/4_embed_documents.py")
         return
 
     print("="*60)
     print("   图片检索演示")
     print("="*60)
 
+    retriever = None
     try:
         # 初始化检索器
         print("\n初始化检索器...")
@@ -42,35 +43,23 @@ def demo_image_search():
 
         # 演示查询
         demos = [
-            {
-                "title": "查找二维码",
-                "query": "二维码 扫码 申请",
-                "image_only": True
-            },
-            {
-                "title": "查找补贴流程图",
-                "query": "补贴 流程 步骤 图",
-                "image_only": False
-            },
-            {
-                "title": "查找所有图片",
-                "query": "图片 图像 附图",
-                "image_only": True
-            }
+            ("查找二维码", "二维码 扫码 申请", True),
+            ("查找补贴流程图", "补贴 流程 步骤 图", False),
+            ("查找所有图片", "图片 图像 附图", True),
         ]
 
-        for demo in demos:
+        for title, query, image_only in demos:
             print(f"\n{'='*60}")
-            print(f"演示: {demo['title']}")
-            print(f"查询: {demo['query']}")
-            print(f"模式: {'仅图片' if demo['image_only'] else '图文混合'}")
+            print(f"演示: {title}")
+            print(f"查询: {query}")
+            print(f"模式: {'仅图片' if image_only else '图文混合'}")
             print("-"*60)
 
             # 执行检索
             results = retriever.retrieve_with_images(
-                query=demo['query'],
+                query=query,
                 top_k=5,
-                image_only=demo['image_only']
+                image_only=image_only
             )
 
             # 显示结果
@@ -81,7 +70,7 @@ def demo_image_search():
                     if img.get('caption'):
                         print(f"      说明: {img['caption']}")
                     if img.get('is_qrcode'):
-                        print(f"      类型: 二维码")
+                        print("      类型: 二维码")
                         if img.get('qr_content'):
                             print(f"      内容: {img['qr_content'][:50]}...")
                     if img.get('alt_text'):
@@ -89,7 +78,7 @@ def demo_image_search():
             else:
                 print("\n未找到相关图片")
 
-            if not demo['image_only'] and results['text_nodes']:
+            if not image_only and results['text_nodes']:
                 print(f"\n另有 {len(results['text_nodes'])} 个文本结果")
 
         # 交互模式
@@ -127,7 +116,7 @@ def demo_image_search():
                     if img.get('caption'):
                         print(f"      {img['caption']}")
                     if img.get('is_qrcode'):
-                        print(f"      [二维码]")
+                        print("      [二维码]")
             else:
                 print("\n未找到相关图片")
 
@@ -136,8 +125,10 @@ def demo_image_search():
 
     except Exception as e:
         print(f"\n❌ 出错: {e}")
-        import traceback
         traceback.print_exc()
+    finally:
+        if retriever is not None:
+            retriever.close()
 
 
 if __name__ == "__main__":

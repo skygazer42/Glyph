@@ -8,11 +8,11 @@ import re
 import json
 import hashlib
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
-from dataclasses import dataclass
-import numpy as np
+from typing import Any, List, Dict, Optional
+from dataclasses import dataclass, field
+from openai import OpenAI
+from llama_index.embeddings.openai import OpenAIEmbedding
 
-# 直接导入 LlamaIndex 相关模块（假设开发环境已安装依赖）
 from llama_index.core import (
     Document,
     VectorStoreIndex,
@@ -22,42 +22,24 @@ from llama_index.core import (
     load_index_from_storage
 )
 from llama_index.core.node_parser import (
-    MarkdownNodeParser,
-    SentenceSplitter,
-    HierarchicalNodeParser,
-    get_leaf_nodes
+    SentenceSplitter
 )
 from llama_index.core.schema import (
-    BaseNode,
     TextNode,
+    NodeWithScore,
     NodeRelationship,
-    RelatedNodeInfo,
-    IndexNode
+    RelatedNodeInfo
 )
+from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.storage.docstore import SimpleDocumentStore
-from llama_index.core.vector_stores import SimpleVectorStore
-from llama_index.core.retrievers import (
-    VectorIndexRetriever,
-    RecursiveRetriever,
-    QueryFusionRetriever,
-    AutoMergingRetriever
-)
-from llama_index.core.postprocessor import (
-    SentenceTransformerRerank,
-    MetadataReplacementPostProcessor,
-    SimilarityPostprocessor
-)
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.response_synthesizers import get_response_synthesizer
-from llama_index.core.indices.utils import embed_nodes
-LLAMA_INDEX_AVAILABLE = True
+from llama_index.core.response_synthesizers.type import ResponseMode
 
-# 直接导入项目配置（如果不存在会抛出错误，按你的要求不进行捕获）
-from app.config import settings
+from app.config.app_config import settings
 
-# 直接导入图片检索模块（如果不存在会抛出错误，按你的要求不进行捕获）
-from .image_retrieval import ImageExtractor, ImageIndexer, ImageInfo
-IMAGE_RETRIEVAL_AVAILABLE = True
+from .image_retrieval import ImageIndexer
+from .rerank import Reranker
 
 
 @dataclass
@@ -74,7 +56,7 @@ class ChunkConfig:
     include_tables: bool = True
     include_code_blocks: bool = True
     # 关键词感知配置（仅当 chunking_strategy='keyword_aware' 时使用）
-    keywords: set = None
+    keywords: set[str] = field(default_factory=set)
     min_chunk_size: int = 200
     max_chunk_size: int = 800
     keyword_context_window: int = 80
@@ -83,31 +65,29 @@ class ChunkConfig:
 class HierarchicalMarkdownProcessor:
     """分级 Markdown 处理器"""
 
-    def __init__(self, config: ChunkConfig = None, enable_images: bool = True):
-        self.config = config or ChunkConfig()
+    def __init__(self, config: Optional[ChunkConfig] = None, enable_images: bool = True):
+        self.config = ChunkConfig() if config is None else config
         self.heading_pattern = re.compile(r'^(#{1,6})\s+(.*)$', re.MULTILINE)
-        self.enable_images = enable_images and IMAGE_RETRIEVAL_AVAILABLE
+        self.enable_images = enable_images
 
         if self.enable_images:
-            self.image_extractor = ImageExtractor()
-            self.image_indexer = ImageIndexer()
+            self.image_indexer: Optional[ImageIndexer] = ImageIndexer()
         else:
-            self.image_extractor = None
             self.image_indexer = None
 
     def extract_hierarchy(self, text: str, doc_id: str) -> Dict:
         """提取文档的层级结构"""
         lines = text.split('\n')
-        hierarchy = {
+        hierarchy: Dict[str, Any] = {
             'doc_id': doc_id,
             'title': '',
             'sections': [],
             'full_text': text
         }
 
-        current_section = None
-        current_subsection = None
-        current_content = []
+        current_section: Optional[Dict[str, Any]] = None
+        current_subsection: Optional[Dict[str, Any]] = None
+        current_content: List[str] = []
 
         for line in lines:
             match = self.heading_pattern.match(line)
@@ -119,6 +99,8 @@ class HierarchicalMarkdownProcessor:
                         current_subsection['content'] = content_text
                     elif current_section:
                         current_section['content'] = content_text
+                    else:
+                        hierarchy['sections'].append({'level': 1, 'title': '文档内容', 'content': content_text, 'path': '文档内容', 'subsections': []})
                     current_content = []
 
                 level = len(match.group(1))
@@ -130,6 +112,8 @@ class HierarchicalMarkdownProcessor:
                         hierarchy['title'] = title
                     else:
                         if current_section:
+                            if current_subsection:
+                                current_section['subsections'].append(current_subsection)
                             hierarchy['sections'].append(current_section)
                         current_section = {
                             'level': 1,
@@ -180,6 +164,8 @@ class HierarchicalMarkdownProcessor:
                 current_subsection['content'] = content_text
             elif current_section:
                 current_section['content'] = content_text
+            else:
+                hierarchy['sections'].append({'level': 1, 'title': '文档内容', 'content': content_text, 'path': '文档内容', 'subsections': []})
 
         if current_subsection and current_section:
             current_section['subsections'].append(current_subsection)
@@ -198,10 +184,8 @@ class HierarchicalMarkdownProcessor:
         # 去除多余空白
         text = re.sub(r'\s+', ' ', section_text).strip()
 
-        if use_llm and settings:
+        if use_llm:
             # 使用 LLM 生成摘要（直接导入 OpenAI，出现导入错误会向上抛出）
-            from openai import OpenAI
-
             client = OpenAI(
                 api_key=settings.model.llm_api_key,
                 base_url=settings.model.llm_base_url
@@ -221,11 +205,15 @@ class HierarchicalMarkdownProcessor:
                     max_tokens=300
                 )
 
-                summary = response.choices[0].message.content.strip()
+                content = response.choices[0].message.content
+                if content is None:
+                    raise ValueError("Summary model returned no text")
+                summary = content.strip()
+                if not summary:
+                    raise ValueError("Summary model returned empty text")
                 return summary[:self.config.section_summary_size]
-
-            except Exception as e:
-                print(f"LLM 摘要生成失败，使用截取方式: {e}")
+            finally:
+                client.close()
 
         # 默认：截取前 N 个字符作为摘要
         if len(text) > self.config.section_summary_size:
@@ -233,7 +221,7 @@ class HierarchicalMarkdownProcessor:
         return text
 
     def create_nodes_from_hierarchy(self, hierarchy: Dict, use_llm: bool = False,
-                                   md_path: str = None, md_content: str = None) -> List[TextNode]:
+                                   md_path: Optional[str] = None, md_content: Optional[str] = None) -> List[TextNode]:
         """从层级结构创建 LlamaIndex 节点
 
         Args:
@@ -256,10 +244,10 @@ class HierarchicalMarkdownProcessor:
             }
         )
         nodes.append(doc_node)
+        doc_children = []
 
         # 处理图片（如果启用）
-        image_nodes_data = []
-        if self.enable_images and md_path and md_content:
+        if self.image_indexer is not None and md_path and md_content:
             images, img_nodes = self.image_indexer.process_markdown_with_images(md_path, md_content)
             # 将图片节点转换为 TextNode
             for img_node in img_nodes:
@@ -284,7 +272,7 @@ class HierarchicalMarkdownProcessor:
             # 如果有子章节，合并内容
             if section['subsections']:
                 for subsec in section['subsections']:
-                    section_text += '\n' + subsec.get('content', '')
+                    section_text += '\n' + subsec['content']
 
             # 生成摘要（可选 LLM）
             section_summary = self.generate_section_summary(section_text, use_llm=use_llm)
@@ -307,10 +295,10 @@ class HierarchicalMarkdownProcessor:
                 node_id=doc_node.id_,
                 metadata={'title': hierarchy['title']}
             )
-            doc_node.relationships[NodeRelationship.CHILD] = RelatedNodeInfo(
+            doc_children.append(RelatedNodeInfo(
                 node_id=section_node.id_,
                 metadata={'title': section['title']}
-            )
+            ))
 
             nodes.append(section_node)
 
@@ -339,6 +327,7 @@ class HierarchicalMarkdownProcessor:
 
                 nodes.append(chunk_node)
 
+        doc_node.relationships[NodeRelationship.CHILD] = doc_children
         return nodes
 
     def _split_into_chunks(self, text: str, section_id: str, path: str) -> List[str]:
@@ -366,7 +355,7 @@ class HierarchicalMarkdownProcessor:
         # 策略3: 关键词感知切分
         elif strategy == 'keyword_aware':
             if not self.config.keywords:
-                print(f"  ⚠ 警告: 未配置关键词，回退到 sentence 策略")
+                print("  ⚠ 警告: 未配置关键词，回退到 sentence 策略")
                 return self._split_sentence(text)
             return self._split_keyword_aware(text)
 
@@ -415,9 +404,6 @@ class HierarchicalMarkdownProcessor:
         - 基于 token 数量切分（更准确）
         - 自动处理重叠
         """
-        from llama_index.core import Document
-        from llama_index.core.node_parser import SentenceSplitter
-
         # 创建切分器
         splitter = SentenceSplitter(
             chunk_size=self.config.chunk_size,      # tokens
@@ -443,9 +429,6 @@ class HierarchicalMarkdownProcessor:
         1. 第一阶段: 使用 SentenceSplitter 初步切分
         2. 第二阶段: 在关键词边界进行智能切分
         """
-        from llama_index.core import Document
-        from llama_index.core.node_parser import SentenceSplitter
-
         # 第一阶段: 初步切分
         splitter = SentenceSplitter(
             chunk_size=self.config.chunk_size,
@@ -567,27 +550,22 @@ class HierarchicalIndexBuilder:
 
     def __init__(self,
                  storage_dir: str = "./storage/hierarchical",
-                 embed_model_name: str = None):
-        if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError("LlamaIndex 未安装。请运行: pip install llama-index llama-index-core")
-
+                 embed_model_name: Optional[str] = None):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         # 配置嵌入模型
-        if embed_model_name and settings:
-            from llama_index.embeddings.openai import OpenAIEmbedding
+        if embed_model_name is not None:
             Settings.embed_model = OpenAIEmbedding(
                 model=embed_model_name,
-                api_key=settings.embedding.openai_api_key if settings else None,
-                api_base=settings.embedding.openai_base_url if settings else None
+                api_key=settings.embedding.openai_api_key,
+                api_base=settings.embedding.openai_base_url
             )
 
         self.processor = HierarchicalMarkdownProcessor()
         self.doc_store = SimpleDocumentStore()
-        self.vector_stores = {}  # 分级向量存储
 
-    def build_from_markdown_files(self, file_paths: List[str], use_llm: bool = False, enable_images: bool = True) -> Dict:
+    def build_from_markdown_files(self, file_paths: List[str], use_llm: bool = False, enable_images: bool = True, *, document_ids: Optional[Dict[str, str]] = None) -> Dict:
         """从 Markdown 文件构建分级索引
 
         Args:
@@ -610,7 +588,8 @@ class HierarchicalIndexBuilder:
                 text = f.read()
 
             # 生成文档 ID
-            doc_id = hashlib.md5(file_path.encode()).hexdigest()[:16]
+            doc_id = (document_ids[file_path] if document_ids is not None else
+                      hashlib.md5(file_path.encode(), usedforsecurity=False).hexdigest()[:16])
 
             # 提取层级结构
             hierarchy = self.processor.extract_hierarchy(text, doc_id)
@@ -712,12 +691,9 @@ class HierarchicalRetriever:
                  storage_dir: str = "./storage/hierarchical",
                  use_rerank: str = "dashscope",  # "dashscope", "simple", "none"
                  enable_images: bool = True):
-        if not LLAMA_INDEX_AVAILABLE:
-            raise ImportError("LlamaIndex 未安装。请运行: pip install llama-index llama-index-core")
-
         self.storage_dir = Path(storage_dir)
         self.use_rerank = use_rerank
-        self.enable_images = enable_images and IMAGE_RETRIEVAL_AVAILABLE
+        self.enable_images = enable_images
 
         # 加载索引
         self.indices = self._load_indices()
@@ -728,12 +704,7 @@ class HierarchicalRetriever:
         )
 
         # 初始化重排器
-        self.reranker = None
-        if use_rerank == "dashscope":
-            self._init_dashscope_reranker()
-        elif use_rerank == "simple":
-            self.reranker = "simple"  # 使用基于相似度分数的简单重排
-
+        self.reranker: Optional[Reranker] = None
         # 初始化图片索引器
         if self.enable_images:
             self.image_indexer = ImageIndexer()
@@ -742,57 +713,31 @@ class HierarchicalRetriever:
             if image_index_path.exists():
                 self.image_indexer.load_index(str(image_index_path))
 
-    def _init_dashscope_reranker(self):
-        """初始化 DashScope 重排器"""
-        # 直接导入重排器模块（导入错误将向上抛出）
-        from app.knowledge.rerank import Reranker
-        self.reranker = Reranker()
-        print("使用 DashScope 重排器")
+        if use_rerank == "dashscope":
+            self.reranker = Reranker()
+            print("使用 DashScope 重排器")
 
-    def _simple_rerank(self, nodes: List, query: str, top_k: int) -> List:
+    def _rank_by_retrieval_score(self, nodes: List, top_k: int) -> List:
         """简单的基于分数的重排"""
-        # 根据节点类型调整权重
-        for node in nodes:
-            if hasattr(node, 'score'):
-                # 章节节点权重更高
-                if node.metadata.get('type') == 'section':
-                    node.score *= 1.2
-                # 文档节点权重较低
-                elif node.metadata.get('type') == 'document':
-                    node.score *= 0.8
+        def weighted_score(node) -> float:
+            score = node.metadata["retrieval_score"]
+            weight = 1.2 if node.metadata.get("type") == "section" else .8 if node.metadata.get("type") == "document" else 1.0
+            return float(score) * weight
 
-        # 按分数排序
-        sorted_nodes = sorted(nodes, key=lambda x: getattr(x, 'score', 0), reverse=True)
-        return sorted_nodes[:top_k]
+        return sorted(nodes, key=weighted_score, reverse=True)[:top_k]
 
     def _dashscope_rerank(self, nodes: List, query: str, top_k: int) -> List:
         """使用 DashScope 重排"""
-        if not hasattr(self.reranker, 'rerank'):
-            return self._simple_rerank(nodes, query, top_k)
-
-        try:
-            # 准备文档文本
-            texts = [node.text for node in nodes]
-
-            # 调用重排
-            reranked = self.reranker.rerank(
-                query=query,
-                documents=texts,
-                top_n=top_k
-            )
-
-            # 根据重排结果重新排序节点
-            reranked_nodes = []
-            for result in reranked:
-                idx = result.get('index', 0)
-                if idx < len(nodes):
-                    reranked_nodes.append(nodes[idx])
-
-            return reranked_nodes[:top_k]
-
-        except Exception as e:
-            print(f"DashScope 重排失败: {e}")
-            return self._simple_rerank(nodes, query, top_k)
+        if self.reranker is None:
+            raise RuntimeError("Configured reranker is not initialized")
+        texts = [node.text for node in nodes]
+        ranking = self.reranker.rerank(query=query, documents=texts, top_n=top_k)
+        reranked_nodes = []
+        for index, score, _ in ranking:
+            node = nodes[index]
+            node.metadata["retrieval_score"] = float(score)
+            reranked_nodes.append(node)
+        return reranked_nodes[:top_k]
 
     def _load_indices(self) -> Dict:
         """加载保存的索引"""
@@ -829,6 +774,8 @@ class HierarchicalRetriever:
                 - "direct": 直接检索
         """
 
+        if top_k <= 0:
+            raise ValueError("top_k must be positive")
         if retrieval_mode == "hybrid":
             nodes = self._hybrid_retrieve(query, top_k * 2)  # 多召回一些用于重排
         elif retrieval_mode == "hierarchical":
@@ -838,10 +785,10 @@ class HierarchicalRetriever:
 
         # 重排
         if use_rerank and self.use_rerank != "none" and len(nodes) > 0:
-            if self.use_rerank == "dashscope" and self.reranker and self.reranker != "simple":
+            if self.use_rerank == "dashscope" and self.reranker is not None:
                 nodes = self._dashscope_rerank(nodes, query, top_k)
             else:
-                nodes = self._simple_rerank(nodes, query, top_k)
+                nodes = self._rank_by_retrieval_score(nodes, top_k)
         else:
             nodes = nodes[:top_k]
 
@@ -858,7 +805,7 @@ class HierarchicalRetriever:
                 similarity_top_k=top_k * 2
             )
             section_nodes = section_retriever.retrieve(query)
-            all_nodes.extend([n.node for n in section_nodes])
+            all_nodes.extend([self._scored_node(n) for n in section_nodes])
 
         # 2. 从块索引直接检索（获取精确匹配）
         if 'chunk_index' in self.indices:
@@ -866,7 +813,7 @@ class HierarchicalRetriever:
                 similarity_top_k=top_k * 3
             )
             chunk_nodes = chunk_retriever.retrieve(query)
-            all_nodes.extend([n.node for n in chunk_nodes])
+            all_nodes.extend([self._scored_node(n) for n in chunk_nodes])
 
         # 3. 从摘要索引检索（获取全局相关）
         if 'summary_index' in self.indices:
@@ -874,7 +821,7 @@ class HierarchicalRetriever:
                 similarity_top_k=top_k
             )
             summary_nodes = summary_retriever.retrieve(query)
-            all_nodes.extend([n.node for n in summary_nodes])
+            all_nodes.extend([self._scored_node(n) for n in summary_nodes])
 
         # 去重（基于节点 ID）
         unique_nodes = {}
@@ -914,13 +861,13 @@ class HierarchicalRetriever:
 
             # 过滤：只保留属于相关章节的块
             for chunk_result in chunk_results:
-                chunk_node = chunk_result.node
+                chunk_node = self._scored_node(chunk_result)
                 if chunk_node.metadata.get('section_id') in section_ids:
                     result_nodes.append(chunk_node)
 
         # 4. 添加章节节点本身（提供上下文）
         for section_result in section_results[:2]:  # 只添加前2个最相关的章节
-            result_nodes.append(section_result.node)
+            result_nodes.append(self._scored_node(section_result))
 
         return result_nodes
 
@@ -935,8 +882,21 @@ class HierarchicalRetriever:
         )
         results = retriever.retrieve(query)
 
-        nodes = [r.node for r in results]
+        nodes = [self._scored_node(r) for r in results]
         return nodes
+
+    @staticmethod
+    def _scored_node(result) -> TextNode:
+        node = result.node.model_copy(deep=True)
+        if result.score is None:
+            raise ValueError("Retrieval result is missing its relevance score")
+        node.metadata["retrieval_score"] = float(result.score)
+        return node
+
+    def close(self) -> None:
+        reranker, self.reranker = self.reranker, None
+        if reranker is not None:
+            reranker.close()
 
     def retrieve_with_images(self,
                             query: str,
@@ -968,7 +928,7 @@ class HierarchicalRetriever:
         # 如果有图片索引器，格式化图片结果
         image_results = []
         if self.enable_images and self.image_indexer:
-            image_infos = self.image_indexer.search_images(query, image_nodes)
+            image_infos = self.image_indexer.get_images_for_nodes(image_nodes)
             for img_info in image_infos:
                 image_results.append({
                     'image_id': img_info.image_id,
@@ -991,26 +951,26 @@ class HierarchicalRetriever:
         """获取查询引擎"""
 
         # 创建自定义检索器
-        class CustomRetriever:
+        class CustomRetriever(BaseRetriever):
             def __init__(self, parent_retriever, mode):
+                super().__init__()
                 self.parent_retriever = parent_retriever
                 self.mode = mode
 
-            def retrieve(self, query_str):
+            def _retrieve(self, query_bundle):
                 nodes = self.parent_retriever.retrieve(
-                    query_str,
+                    query_bundle.query_str,
                     top_k=10,
                     use_rerank=True,
                     retrieval_mode=self.mode
                 )
-                from llama_index.core.schema import NodeWithScore
-                return [NodeWithScore(node=n, score=1.0) for n in nodes]
+                return [NodeWithScore(node=n, score=n.metadata["retrieval_score"]) for n in nodes]
 
         retriever = CustomRetriever(self, retrieval_mode)
 
         # 创建响应合成器
         response_synthesizer = get_response_synthesizer(
-            response_mode=response_mode
+            response_mode=ResponseMode(response_mode)
         )
 
         # 创建查询引擎
@@ -1025,11 +985,10 @@ class HierarchicalRetriever:
 # 使用示例函数
 def build_index_from_directory(data_dir: str, storage_dir: str = "./storage/hierarchical"):
     """从目录构建索引"""
-    from glob import glob
 
     # 查找所有 Markdown 文件
     md_files = []
-    for root, dirs, files in os.walk(data_dir):
+    for root, _dirs, files in os.walk(data_dir):
         for file in files:
             if file.endswith('.md'):
                 md_files.append(os.path.join(root, file))
@@ -1051,41 +1010,45 @@ def test_retrieval(storage_dir: str = "./storage/hierarchical"):
 
     retriever = HierarchicalRetriever(storage_dir=storage_dir)
 
-    # 测试查询
-    test_queries = [
-        "家电以旧换新补贴标准是什么？",
-        "手机购新补贴的申请条件",
-        "补贴金额如何计算？"
-    ]
+    try:
+        # 测试查询
+        test_queries = [
+            "家电以旧换新补贴标准是什么？",
+            "手机购新补贴的申请条件",
+            "补贴金额如何计算？"
+        ]
 
-    for query in test_queries:
-        print(f"\n查询: {query}")
-        print("-" * 50)
+        for query in test_queries:
+            print(f"\n查询: {query}")
+            print("-" * 50)
 
-        # 混合检索
-        nodes = retriever.retrieve(
-            query,
-            top_k=5,
-            use_rerank=True,
-            retrieval_mode="hybrid"
-        )
+            # 混合检索
+            nodes = retriever.retrieve(
+                query,
+                top_k=5,
+                use_rerank=True,
+                retrieval_mode="hybrid"
+            )
 
-        for i, node in enumerate(nodes, 1):
-            print(f"\n结果 {i}:")
-            print(f"  类型: {node.metadata.get('type', 'unknown')}")
-            print(f"  路径: {node.metadata.get('path', 'N/A')}")
-            print(f"  内容: {node.text[:200]}...")
+            for i, node in enumerate(nodes, 1):
+                print(f"\n结果 {i}:")
+                print(f"  类型: {node.metadata.get('type', 'unknown')}")
+                print(f"  路径: {node.metadata.get('path', 'N/A')}")
+                print(f"  内容: {node.text[:200]}...")
 
-    # 测试查询引擎
-    engine = retriever.get_query_engine()
-    response = engine.query("家电以旧换新的具体流程是什么？")
-    print(f"\n查询引擎响应:\n{response}")
+        # 测试查询引擎
+        engine = retriever.get_query_engine()
+        response = engine.query("家电以旧换新的具体流程是什么？")
+        print(f"\n查询引擎响应:\n{response}")
+    finally:
+        retriever.close()
 
 
 if __name__ == "__main__":
     # 构建索引
-    data_dir = "/data/temp33/gov/data/process"
-    storage_dir = "/data/temp33/gov/storage/hierarchical"
+    project_root = Path(__file__).resolve().parents[2]
+    data_dir = str(project_root / "resources/data/process")
+    storage_dir = str(project_root / "storage/hierarchical")
 
     print("开始构建分级索引...")
     build_index_from_directory(data_dir, storage_dir)

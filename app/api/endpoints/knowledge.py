@@ -4,13 +4,16 @@
 """
 
 import json
+import os
 import time
 import shutil
 import logging
 from pathlib import Path
-from uuid import uuid4
-from typing import Optional, Tuple
+from uuid import NAMESPACE_URL, uuid4, uuid5
+from typing import BinaryIO, Optional, Tuple
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi.responses import FileResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 from app.api.schemas import (
     EmbedRequest,
@@ -24,13 +27,18 @@ from app.api.schemas import (
     ListDocumentsResponse,
     DocumentInfo,
     DeleteDocumentResponse,
-    StatsResponse
+    StatsResponse,
+    CapabilitiesResponse, ProcessingCapabilities, ParserCapability,
+    ProcessingConfig, DocumentWorkspaceResponse, ChunkPreviewRequest,
+    ChunkPreviewResponse, SaveProcessingConfigRequest, SaveProcessingConfigResponse,
 )
 from app.api.deps import (
     get_enhanced_doc_processor,
     get_knowledge_service,
 )
-from app.knowledge import EnhancedDocumentProcessor, KnowledgeService
+from app.knowledge.doc_enhanced import EnhancedDocumentProcessor
+from app.knowledge.service import KnowledgeService
+from app.knowledge.document_workspace import DocumentWorkspace, SUPPORTED_FORMATS, atomic_write, safe_document_id
 from app.models.base import PolicyDocument, PolicyType
 
 router = APIRouter()
@@ -50,59 +58,118 @@ EMBED_STATUS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _safe_doc_id(raw_id: str) -> str:
-    """避免路径遍历，始终返回文件名部分。"""
-    return Path(raw_id).name
+    return safe_document_id(raw_id)
+
+
+def _workspace() -> DocumentWorkspace:
+    return DocumentWorkspace(UPLOAD_DIR, PARSED_DIR, PARSED_STATUS_DIR, EMBED_STATUS_DIR)
+
+
+def _capabilities() -> ProcessingCapabilities:
+    from app.config.app_config import settings
+
+    return ProcessingCapabilities(
+        parsers=[
+            ParserCapability(value="auto", label="自动选择", available=True),
+            ParserCapability(value="mineru", label="MinerU", available=bool(settings.mineru.enabled and settings.mineru.api_key)),
+            ParserCapability(value="llamaindex", label="LlamaIndex", available=True),
+            ParserCapability(value="text", label="纯文本", available=True),
+        ],
+        ocr=False, hierarchical_index=False,
+    )
+
+
+def _selected_processor(config: ProcessingConfig, processor: EnhancedDocumentProcessor) -> EnhancedDocumentProcessor:
+    if config.parser == "auto":
+        return processor
+    return EnhancedDocumentProcessor(config={
+        "mineru_enabled": config.parser == "mineru",
+        "llamaindex_enabled": config.parser == "llamaindex",
+    })
+
+
+def _save_upload(file_path: Path, source: BinaryIO) -> tuple[int, int]:
+    """Keep file creation, copying and closing in the same worker thread."""
+    identity = None
+    try:
+        with open(file_path, "xb") as buffer:
+            stat = os.fstat(buffer.fileno())
+            identity = (stat.st_dev, stat.st_ino)
+            shutil.copyfileobj(source, buffer)
+    except BaseException as exc:
+        if identity is None and isinstance(exc, FileExistsError):
+            raise HTTPException(status_code=409, detail="同名文档已存在，请重命名后上传") from exc
+        if identity is not None and file_path.exists():
+            stat = file_path.stat()
+            if (stat.st_dev, stat.st_ino) == identity:
+                file_path.unlink()
+        raise
+    return identity
+
+
+def _snapshot_parse_cache(workspace: DocumentWorkspace, doc_id: str) -> dict[Path, bytes | None]:
+    paths = (workspace.parsed_path(doc_id), workspace.marker_path(PARSED_STATUS_DIR, doc_id))
+    return {path: path.read_bytes() if path.is_file() else None for path in paths}
+
+
+def _rollback_failed_upload(file_path: Path, identity: tuple[int, int], source_version: str | None,
+                            parsed_text: str | None, previous_cache: dict[Path, bytes | None]) -> None:
+    """Remove only this request's unchanged file and restore its own cache writes."""
+    if not file_path.is_file() or file_path.is_symlink():
+        return
+    stat = file_path.stat()
+    if (stat.st_dev, stat.st_ino) != identity:
+        return
+    workspace = _workspace()
+    if source_version is not None and workspace.source_version(file_path.name) != source_version:
+        return
+    for path, previous in previous_cache.items():
+        if not path.is_file():
+            continue
+        current = path.read_text(encoding="utf-8")
+        if path.suffix == ".md":
+            owned = current == parsed_text
+        else:
+            owned = json.loads(current).get("source_version") == source_version
+        if not owned:
+            continue
+        if previous is None:
+            path.unlink()
+        else:
+            atomic_write(path, previous.decode("utf-8"))
+    file_path.unlink()
 
 
 def _write_status_marker(dir_path: Path, doc_id: str, payload: dict) -> Path:
     """将状态信息写入 marker 文件。"""
     doc_id = _safe_doc_id(doc_id)
-    marker_path = dir_path / f"{doc_id}.json"
+    marker_path = _workspace().marker_path(dir_path, doc_id)
     dir_path.mkdir(parents=True, exist_ok=True)
     payload_with_meta = {
         "doc_id": doc_id,
         "updated_at": time.time(),
         **payload,
     }
-    marker_path.write_text(json.dumps(payload_with_meta, ensure_ascii=False), encoding="utf-8")
+    atomic_write(marker_path, json.dumps(payload_with_meta, ensure_ascii=False))
     return marker_path
 
 
-def _mark_parsed(doc_id: str, markdown_path: Path, content_length: int) -> None:
-    """记录文档已解析的状态。"""
-    doc_id = _safe_doc_id(doc_id)
-    _write_status_marker(
-        PARSED_STATUS_DIR,
-        doc_id,
-        {
-            "markdown_path": str(markdown_path),
-            "content_length": content_length,
-        },
-    )
-
-
-def _mark_embedded(doc_id: str) -> None:
+def _mark_embedded(doc_id: str, source_version: str, parsed_version: str, vector_id: str) -> None:
     """记录文档已嵌入的状态。"""
     doc_id = _safe_doc_id(doc_id)
     _write_status_marker(
         EMBED_STATUS_DIR,
         doc_id,
-        {},
+        {"source_version": source_version, "parsed_version": parsed_version, "vector_id": vector_id},
     )
 
 
 def _remove_status_marker(dir_path: Path, doc_id: str) -> None:
     """删除对应的状态文件。"""
     doc_id = _safe_doc_id(doc_id)
-    marker = dir_path / f"{doc_id}.json"
+    marker = _workspace().marker_path(dir_path, doc_id)
     if marker.exists():
         marker.unlink()
-
-
-def _has_marker(dir_path: Path, doc_id: str) -> bool:
-    """检查 doc_id 的状态文件是否存在。"""
-    doc_id = _safe_doc_id(doc_id)
-    return (dir_path / f"{doc_id}.json").exists()
 
 
 async def _build_policy_document(
@@ -113,16 +180,16 @@ async def _build_policy_document(
 ) -> Tuple[PolicyDocument, int]:
     """使用增强文档处理器提取文本并构建 PolicyDocument。"""
     metadata = await processor.extract_with_metadata(file_path)
-    if not metadata.get("success"):
+    if not metadata["success"]:
         raise HTTPException(
             status_code=400,
-            detail=metadata.get("error", "无法提取文档内容"),
+            detail=metadata["error"],
         )
-    text = metadata.get("text") or ""
+    text = metadata["text"]
     if not text.strip():
         raise HTTPException(status_code=400, detail="上传文档未解析到有效文本")
 
-    title = metadata.get("title") or metadata.get("file_name") or file_path.stem
+    title = metadata.get("title") or metadata["file_name"]
     summary = text[:200].strip()
     policy_type = metadata.get("doc_type")
     try:
@@ -137,7 +204,7 @@ async def _build_policy_document(
         summary=summary,
         source=str(file_path),
         doc_type=doc_type,
-        metadata={**metadata, "uploaded_doc_id": doc_id or file_path.name},
+        metadata={**metadata, "uploaded_doc_id": file_path.name if doc_id is None else doc_id},
     )
     return document, len(text)
 
@@ -150,7 +217,6 @@ def _build_policy_document_from_cache(
     parsed_path: Path,
 ) -> Tuple[PolicyDocument, int]:
     """根据缓存的 Markdown 文本构建 PolicyDocument。"""
-    title = doc_id or file_path.stem
     summary = text[:200].strip()
     metadata = {
         "uploaded_doc_id": doc_id,
@@ -158,16 +224,43 @@ def _build_policy_document_from_cache(
         "parsed_markdown_path": str(parsed_path),
         "extraction_method": "cached_markdown",
     }
+    source_identity = file_path.resolve().as_uri()
+    if file_path.drive:
+        source_identity = source_identity.casefold()
     document = PolicyDocument(
-        id=uuid4(),
-        title=title,
+        id=uuid5(NAMESPACE_URL, f"glyph:knowledge:{source_identity}"),
+        title=doc_id,
         content=text,
-        summary=summary or title,
+        summary=summary,
         source=str(file_path),
         doc_type=PolicyType.GUIDELINE,
         metadata=metadata,
     )
     return document, len(text)
+
+
+def _embed_document_once(request: EmbedRequest, knowledge_service: KnowledgeService) -> EmbedResponse:
+    """Keep the OS lock and all blocking work in one worker thread."""
+    doc_id = _safe_doc_id(request.doc_id)
+    workspace = _workspace()
+    with workspace.document_lock(doc_id, "embedding"):
+        file_path = workspace.source_path(doc_id)
+        source_version = workspace.require_source_version(doc_id, request.source_version)
+        config, _, _ = workspace.config(doc_id)
+        workspace.validate_config(doc_id, config, _capabilities())
+        parsed_text, parsed_version = workspace.require_parsed_version(doc_id, source_version, request.parsed_version)
+        if workspace.embedded(doc_id, source_version):
+            return EmbedResponse(success=True, doc_id=doc_id, message="当前版本文档已入库")
+        document, _ = _build_policy_document_from_cache(
+            parsed_text, file_path, doc_id=doc_id, parsed_path=workspace.parsed_path(doc_id),
+        )
+        # Stable primary keys plus Milvus upsert keep retries safe after an
+        # uncertain flush or local marker-write failure. Shared hierarchy stays intact.
+        knowledge_service.vector_store.add_documents([document], upsert=True)
+        workspace.require_source_version(doc_id, source_version)
+        workspace.require_parsed_version(doc_id, source_version, parsed_version)
+        _mark_embedded(doc_id, source_version, parsed_version, str(document.id))
+    return EmbedResponse(success=True, doc_id=doc_id, message="文档已成功入库并可用于检索")
 
 
 @router.post("/upload", response_model=UploadResponse)
@@ -184,27 +277,53 @@ async def upload_document(
     Returns:
         上传结果
     """
+    created_identity = None
+    source_version = None
+    parsed_text = None
+    previous_cache: dict[Path, bytes | None] = {}
     try:
         # 保存文件
-        file_path = UPLOAD_DIR / file.filename
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        if file.filename is None:
+            raise HTTPException(status_code=400, detail="上传文件缺少文件名")
+        doc_id = _safe_doc_id(Path(file.filename).name)
+        if not doc_id:
+            raise HTTPException(status_code=400, detail="上传文件缺少文件名")
+        workspace = _workspace()
+        file_path = workspace.source_path(doc_id, must_exist=False)
+        if file_path.suffix.lower() not in SUPPORTED_FORMATS:
+            raise HTTPException(status_code=422, detail="不支持的文档格式")
+        created_identity = await run_in_threadpool(_save_upload, file_path, file.file)
 
         # 解析文档，确保可被知识库使用
-        _, content_length = await _build_policy_document(file_path, processor, doc_id=file.filename)
+        source_version = await run_in_threadpool(workspace.source_version, doc_id)
+        document, content_length = await _build_policy_document(file_path, processor, doc_id=doc_id)
+        parsed_text = document.content
+        previous_cache = await run_in_threadpool(_snapshot_parse_cache, workspace, doc_id)
+        await run_in_threadpool(workspace.store_parsed, doc_id, document.content, source_version,
+                                document.metadata.get("extraction_method", "auto"))
 
         logger.info(f"文档上传成功: {file.filename}")
 
         return UploadResponse(
             success=True,
-            doc_id=file.filename,
+            doc_id=doc_id,
             file_path=str(file_path),
-            content_length=content_length
+            content_length=content_length,
+            parsed=True,
+            source_version=source_version,
         )
 
+    except HTTPException:
+        if created_identity is not None:
+            await run_in_threadpool(_rollback_failed_upload, file_path, created_identity, source_version,
+                                    parsed_text, previous_cache)
+        raise
     except Exception as e:
-        logger.error(f"文档上传失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if created_identity is not None:
+            await run_in_threadpool(_rollback_failed_upload, file_path, created_identity, source_version,
+                                    parsed_text, previous_cache)
+        logger.exception(f"文档上传失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/parse", response_model=ParseResponse)
@@ -217,16 +336,19 @@ async def parse_document(
     """
     safe_doc_id = _safe_doc_id(request.doc_id)
     try:
-        file_path = UPLOAD_DIR / safe_doc_id
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="文档不存在")
-
+        workspace = _workspace()
+        file_path = await run_in_threadpool(workspace.source_path, safe_doc_id)
+        source_version = await run_in_threadpool(workspace.require_source_version, safe_doc_id, request.source_version)
+        saved_config, _, _ = await run_in_threadpool(workspace.config, safe_doc_id)
+        config = saved_config if request.options is None else request.options
+        overrides = request.model_dump(include={"parser", "ocr"}, exclude_none=True)
+        config = ProcessingConfig.model_validate({**config.model_dump(), **overrides})
+        await run_in_threadpool(workspace.validate_config, safe_doc_id, config, _capabilities())
+        processor = await run_in_threadpool(_selected_processor, config, processor)
         document, content_length = await _build_policy_document(file_path, processor, doc_id=safe_doc_id)
-
-        parsed_path = PARSED_DIR / f"{safe_doc_id}.md"
-        parsed_path.write_text(document.content or "", encoding="utf-8")
-
-        _mark_parsed(safe_doc_id, parsed_path, content_length)
+        parsed = await run_in_threadpool(workspace.store_parsed, safe_doc_id, document.content, source_version,
+                                         document.metadata.get("extraction_method", config.parser))
+        parsed_path = workspace.parsed_path(safe_doc_id)
 
         logger.info(f"文档解析成功: {safe_doc_id} -> {parsed_path}")
 
@@ -236,20 +358,21 @@ async def parse_document(
             markdown_path=str(parsed_path),
             content_length=content_length,
             message="文档已解析为 Markdown，可直接用于嵌入",
+            source_version=source_version,
+            parsed_version=parsed.version,
         )
 
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"文档解析失败: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.exception(f"文档解析失败: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/embed", response_model=EmbedResponse)
 async def embed_document(
     request: EmbedRequest,
     knowledge_service: KnowledgeService = Depends(get_knowledge_service),
-    processor: EnhancedDocumentProcessor = Depends(get_enhanced_doc_processor),
 ):
     """
     将文档嵌入到向量库
@@ -260,46 +383,14 @@ async def embed_document(
     Returns:
         嵌入结果
     """
-    safe_doc_id = _safe_doc_id(request.doc_id)
     try:
-        # 检查文档是否存在
-        file_path = UPLOAD_DIR / safe_doc_id
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="文档不存在")
-
-        parsed_path = PARSED_DIR / f"{safe_doc_id}.md"
-        if parsed_path.exists():
-            text = parsed_path.read_text(encoding="utf-8")
-            if not text.strip():
-                raise HTTPException(status_code=400, detail="已解析的 Markdown 内容为空")
-            document, _ = _build_policy_document_from_cache(
-                text,
-                file_path,
-                doc_id=safe_doc_id,
-                parsed_path=parsed_path,
-            )
-        else:
-            # 解析文档并构建 PolicyDocument
-            document, _ = await _build_policy_document(file_path, processor, doc_id=safe_doc_id)
-
-        # 添加到知识库
-        await knowledge_service.index_documents([document])
-
-        _mark_embedded(safe_doc_id)
-
-        logger.info(f"文档已嵌入知识库: {safe_doc_id}")
-
-        return EmbedResponse(
-            success=True,
-            doc_id=safe_doc_id,
-            message="文档已成功入库并可用于检索"
-        )
+        return await run_in_threadpool(_embed_document_once, request, knowledge_service)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"文档嵌入失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"文档嵌入失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -326,16 +417,13 @@ async def search_knowledge(
 
         # 转换为响应格式
         results = []
-        for doc, score in zip(documents, scores):
-            doc_id = getattr(doc, "id", "") or ""
-            # 确保返回字符串，避免 Pydantic 校验 UUID 类型报错
-            doc_id = str(doc_id)
+        for doc, score in zip(documents, scores, strict=True):
             results.append(
                 SearchResult(
-                    id=doc_id,
-                    title=getattr(doc, 'title', ''),
-                    content=getattr(doc, 'content', '')[:500],  # 限制长度
-                    source=getattr(doc, 'source', ''),
+                    id=str(doc.id),
+                    title=doc.title,
+                    content=doc.content[:500],  # 限制长度
+                    source=doc.source,
                     score=float(score)
                 )
             )
@@ -351,12 +439,12 @@ async def search_knowledge(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"搜索失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"搜索失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/documents", response_model=ListDocumentsResponse)
-async def list_documents():
+def list_documents():
     """
     获取已上传的文档列表
 
@@ -372,15 +460,21 @@ async def list_documents():
             )
 
         documents = []
+        workspace = _workspace()
         for file_path in UPLOAD_DIR.iterdir():
-            if file_path.is_file():
+            if file_path.is_file() and not file_path.is_symlink() and file_path.suffix.lower() in SUPPORTED_FORMATS:
+                source_version = workspace.source_version(file_path.name)
+                parsed = workspace.parsed_content(file_path.name, source_version)
                 documents.append(
                     DocumentInfo(
                         id=file_path.name,
                         name=file_path.name,
                         size=file_path.stat().st_size,
                         modified=file_path.stat().st_mtime,
-                        embedded=_has_marker(EMBED_STATUS_DIR, file_path.name)
+                        embedded=workspace.embedded(file_path.name, source_version),
+                        parsed=parsed.available,
+                        content_length=parsed.content_length,
+                        source_version=source_version,
                     )
                 )
 
@@ -393,12 +487,51 @@ async def list_documents():
         )
 
     except Exception as e:
-        logger.error(f"获取文档列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"获取文档列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/capabilities", response_model=CapabilitiesResponse)
+def get_capabilities():
+    return CapabilitiesResponse(success=True, capabilities=_capabilities())
+
+
+@router.get("/documents/{doc_id}/workspace", response_model=DocumentWorkspaceResponse)
+def get_document_workspace(doc_id: str, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return _workspace().workspace(doc_id, _capabilities())
+
+
+@router.get("/documents/{doc_id}/source")
+def get_document_source(doc_id: str, source_version: str | None = None):
+    workspace = _workspace()
+    workspace.require_source_version(doc_id, source_version)
+    path = workspace.source_path(doc_id)
+    media_type = {".pdf": "application/pdf", ".txt": "text/plain", ".md": "text/markdown"}.get(
+        path.suffix.lower(), "application/octet-stream"
+    )
+    return FileResponse(path, media_type=media_type, filename=doc_id, content_disposition_type="inline",
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+
+
+@router.get("/documents/{doc_id}/pages/{page}")
+def get_document_page(doc_id: str, page: int, source_version: str | None = None):
+    image = _workspace().page_image(doc_id, page, source_version)
+    return Response(image, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@router.post("/documents/{doc_id}/chunks/preview", response_model=ChunkPreviewResponse)
+def preview_document_chunks(doc_id: str, request: ChunkPreviewRequest):
+    return _workspace().preview(doc_id, request)
+
+
+@router.put("/documents/{doc_id}/processing-config", response_model=SaveProcessingConfigResponse)
+def save_processing_config(doc_id: str, request: SaveProcessingConfigRequest):
+    return _workspace().save_config(doc_id, request, _capabilities())
 
 
 @router.delete("/documents/{doc_id}", response_model=DeleteDocumentResponse)
-async def delete_document(doc_id: str):
+def delete_document(doc_id: str):
     """
     删除文档
 
@@ -410,14 +543,16 @@ async def delete_document(doc_id: str):
     """
     try:
         safe_doc_id = _safe_doc_id(doc_id)
-        file_path = UPLOAD_DIR / safe_doc_id
+        workspace = _workspace()
+        file_path = workspace.source_path(safe_doc_id, must_exist=False)
         if file_path.exists():
             file_path.unlink()
-        parsed_path = PARSED_DIR / f"{safe_doc_id}.md"
+        parsed_path = workspace.parsed_path(safe_doc_id)
         if parsed_path.exists():
             parsed_path.unlink()
         _remove_status_marker(PARSED_STATUS_DIR, safe_doc_id)
         _remove_status_marker(EMBED_STATUS_DIR, safe_doc_id)
+        workspace.marker_path(workspace.config_dir, safe_doc_id).unlink(missing_ok=True)
 
         logger.info(f"文档已删除: {safe_doc_id}")
 
@@ -426,13 +561,15 @@ async def delete_document(doc_id: str):
             message="文档已删除"
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"删除文档失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"删除文档失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/stats", response_model=StatsResponse)
-async def get_stats(
+def get_stats(
     knowledge_service: KnowledgeService = Depends(get_knowledge_service),
 ):
     """
@@ -446,18 +583,19 @@ async def get_stats(
 
         document_files = [
             path for path in UPLOAD_DIR.iterdir()
-            if path.is_file()
+            if path.is_file() and not path.is_symlink() and path.suffix.lower() in SUPPORTED_FORMATS
         ] if UPLOAD_DIR.exists() else []
 
         total_size = sum(path.stat().st_size for path in document_files)
+        workspace = _workspace()
         embedded_count = sum(
             1 for path in document_files
-            if _has_marker(EMBED_STATUS_DIR, path.name)
+            if workspace.embedded(path.name, workspace.source_version(path.name))
         )
 
         stats_payload = {
             "total_documents": len(document_files),
-            "total_chunks": vector_stats.get("total_documents", 0),
+            "total_chunks": vector_stats["total_documents"],
             "embedding_count": embedded_count,
             "total_size": total_size,
             "vector_details": vector_stats,
@@ -473,5 +611,5 @@ async def get_stats(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取统计信息失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"获取统计信息失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e

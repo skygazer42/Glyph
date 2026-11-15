@@ -3,6 +3,7 @@
 无需 PyTorch 和图像模型，基于文本上下文实现
 """
 
+import logging
 import os
 import re
 import hashlib
@@ -11,19 +12,9 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 import json
 
-try:
-    from PIL import Image
-    PIL_AVAILABLE = True
-except ImportError:
-    PIL_AVAILABLE = False
-    print("警告: PIL 未安装，图片尺寸获取功能不可用")
-
-try:
-    import pyzbar.pyzbar as pyzbar
-    PYZBAR_AVAILABLE = True
-except ImportError:
-    PYZBAR_AVAILABLE = False
-    print("提示: pyzbar 未安装，二维码识别功能不可用")
+from PIL import Image
+from pyzbar.pyzbar import decode
+from llama_index.core.schema import TextNode
 
 
 @dataclass
@@ -62,11 +53,10 @@ class ImageInfo:
 class ImageExtractor:
     """从 Markdown 文档中提取图片信息"""
 
-    def __init__(self, base_dir: str = None):
-        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
+    def __init__(self):
         # Markdown 图片正则
         self.image_pattern = re.compile(
-            r'!\[([^\]]*)\]\(([^)]+)(?:\s+"([^"]+)")?\)',
+            r'!\[([^\]]*)\]\(([^)]+?)(?:\s+"([^"]+)")?\)',
             re.MULTILINE
         )
         # 图说明正则（匹配"图："、"图1："等）
@@ -78,17 +68,16 @@ class ImageExtractor:
     def extract_images_from_markdown(self, md_path: str, md_content: str) -> List[ImageInfo]:
         """从 Markdown 文件中提取所有图片信息"""
         images = []
-        md_path = Path(md_path)
-        doc_id = hashlib.md5(str(md_path).encode()).hexdigest()[:16]
+        path = Path(md_path)
+        doc_id = hashlib.md5(str(path).encode(), usedforsecurity=False).hexdigest()[:16]
 
         # 按行分割，方便获取行号
         lines = md_content.split('\n')
 
         # 查找所有图片
         for match in self.image_pattern.finditer(md_content):
-            alt_text = match.group(1) or ""
+            alt_text = match.group(1)
             image_path = match.group(2)
-            title = match.group(3) or ""
 
             # 获取行号
             char_pos = match.start()
@@ -96,13 +85,13 @@ class ImageExtractor:
 
             # 构建绝对路径
             if not os.path.isabs(image_path):
-                abs_path = (md_path.parent / image_path).resolve()
+                abs_path = (path.parent / image_path).resolve()
             else:
                 abs_path = Path(image_path)
 
             # 创建图片信息
             image_info = ImageInfo(
-                image_id=hashlib.md5(f"{doc_id}_{image_path}".encode()).hexdigest()[:16],
+                image_id=hashlib.md5(f"{doc_id}_{image_path}".encode(), usedforsecurity=False).hexdigest()[:16],
                 file_path=str(abs_path),
                 relative_path=image_path,
                 doc_id=doc_id,
@@ -122,8 +111,7 @@ class ImageExtractor:
             self._get_image_metadata(image_info)
 
             # 检测二维码
-            if PYZBAR_AVAILABLE:
-                self._detect_qrcode(image_info)
+            self._detect_qrcode(image_info)
 
             # 生成用于搜索的组合文本
             image_info.embedding_text = self._generate_embedding_text(image_info)
@@ -176,30 +164,26 @@ class ImageExtractor:
 
                 # 文件哈希
                 with open(file_path, 'rb') as f:
-                    image_info.file_hash = hashlib.md5(f.read()).hexdigest()
+                    image_info.file_hash = hashlib.md5(f.read(), usedforsecurity=False).hexdigest()
 
                 # 图片尺寸
-                if PIL_AVAILABLE:
-                    try:
-                        with Image.open(file_path) as img:
-                            image_info.width = img.width
-                            image_info.height = img.height
-                    except:
-                        pass
+                try:
+                    with Image.open(file_path) as img:
+                        image_info.width = img.width
+                        image_info.height = img.height
+                except (OSError, ValueError) as exc:
+                    logging.getLogger(__name__).warning("Image dimensions failed for %s: %s", file_path, exc, exc_info=True)
         except Exception as e:
-            print(f"获取图片元数据失败 {image_info.file_path}: {e}")
+            logging.getLogger(__name__).warning("Image metadata failed for %s: %s", image_info.file_path, e, exc_info=True)
 
     def _detect_qrcode(self, image_info: ImageInfo):
         """检测图片是否包含二维码"""
-        if not PYZBAR_AVAILABLE or not PIL_AVAILABLE:
-            return
-
         try:
             file_path = Path(image_info.file_path)
             if file_path.exists():
                 with Image.open(file_path) as img:
                     # 检测二维码
-                    qrcodes = pyzbar.decode(img)
+                    qrcodes = decode(img)
                     if qrcodes:
                         image_info.is_qrcode = True
                         # 提取二维码内容
@@ -208,12 +192,12 @@ class ImageExtractor:
                             try:
                                 data = qr.data.decode('utf-8')
                                 qr_contents.append(data)
-                            except:
-                                pass
+                            except UnicodeDecodeError as exc:
+                                logging.getLogger(__name__).warning("QR is not UTF-8 text for %s: %s", file_path, exc, exc_info=True)
                         if qr_contents:
                             image_info.qr_content = '\n'.join(qr_contents)
         except Exception as e:
-            print(f"二维码检测失败 {image_info.file_path}: {e}")
+            logging.getLogger(__name__).warning("QR decode failed for %s: %s", image_info.file_path, e, exc_info=True)
 
     def _generate_embedding_text(self, image_info: ImageInfo) -> str:
         """生成用于向量化的文本"""
@@ -286,19 +270,13 @@ class ImageIndexer:
 
         return images, image_nodes
 
-    def search_images(self, query: str, retrieved_nodes: List) -> List[ImageInfo]:
-        """从检索结果中筛选出图片"""
+    def get_images_for_nodes(self, retrieved_nodes: List[TextNode]) -> List[ImageInfo]:
+        """Resolve retrieved image nodes to their stored image information."""
         image_results = []
 
         for node in retrieved_nodes:
             # 检查是否是图片节点
-            if hasattr(node, 'metadata'):
-                metadata = node.metadata
-            elif isinstance(node, dict):
-                metadata = node.get('metadata', {})
-            else:
-                continue
-
+            metadata = node.metadata
             if metadata.get('content_type') == 'image':
                 image_id = metadata.get('image_id')
                 if image_id and image_id in self.image_store:

@@ -13,8 +13,8 @@ _HASH_DELIMITER = "$"
 def _split_hash(hash_value: str) -> Tuple[str, str]:
     try:
         salt, digest = hash_value.split(_HASH_DELIMITER, 1)
-    except ValueError:  # pragma: no cover - defensive fallback
-        raise ValueError("Invalid hash format; expected '<salt>$<digest>'")
+    except ValueError as exc:
+        raise ValueError("Invalid hash format; expected '<salt>$<digest>'") from exc
     return salt, digest
 
 

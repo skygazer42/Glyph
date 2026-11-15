@@ -5,10 +5,13 @@ Glyph数据导入脚本
 """
 
 import os
+import subprocess
+import sys
+import tempfile
 import asyncio
+import anyio
 import json
 from pathlib import Path
-import time
 import logging
 from datetime import datetime
 
@@ -19,56 +22,63 @@ logger = logging.getLogger(__name__)
 class DataImporter:
     """数据导入器"""
 
-    def __init__(self):
-        self.project_root = Path("/data/temp33/Glyph")
+    def __init__(self, project_root: Path | None = None):
+        self.project_root = Path(__file__).resolve().parents[1] if project_root is None else Path(project_root)
         self.data_dir = self.project_root / "resources" / "data"
 
-    async def init_mysql(self):
-        """初始化MySQL数据库"""
-        logger.info("🔧 初始化MySQL数据库...")
+    async def _run_command(
+        self, command: list[str], *, input: str | None = None,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        """Own the subprocess until completion, timeout, or cancelled cleanup."""
+        process = await asyncio.create_subprocess_exec(
+            *command, stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env,
+        )
+        try:
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(None if input is None else input.encode('utf-8')), timeout=120,
+                )
+            except asyncio.TimeoutError as exc:
+                raise subprocess.TimeoutExpired(command, 120) from exc
+            output, errors = stdout.decode('utf-8'), stderr.decode('utf-8')
+            returncode = process.returncode
+            if returncode is None:
+                raise RuntimeError('Subprocess completed without an exit status')
+            if returncode != 0:
+                raise subprocess.CalledProcessError(returncode, command, output=output, stderr=errors)
+            return subprocess.CompletedProcess(command, returncode, output, errors)
+        finally:
+            if process.returncode is None:
+                process.kill()
+                with anyio.fail_after(5, shield=True):
+                    await process.communicate()
 
-        # 使用Docker执行SQL
-        import subprocess
+    async def _run_python_script(self, source: str, *args: str):
+        with tempfile.TemporaryDirectory(prefix="glyph-import-") as directory:
+            script_path = Path(directory) / "import_data.py"
+            await anyio.to_thread.run_sync(lambda: script_path.write_text(source, encoding="utf-8"))
+            return await self._run_command([sys.executable, "-X", "utf8", str(script_path), *args])
 
-        # 创建数据库
-        cmd = [
-            "docker", "exec", "glyph_mysql_1", "mysql",
-            "-uroot", "-p123456",
-            "-e", "CREATE DATABASE IF NOT EXISTS policy_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    def _mysql_command(self, *args: str) -> list[str]:
+        return [
+            "docker", "exec", "-i", "-e", "MYSQL_PWD",
+            os.getenv("MYSQL_CONTAINER", "glyph_mysql_1"), "mysql", "-uroot", *args,
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            logger.info("✅ MySQL数据库创建成功")
-        else:
-            logger.warning(f"⚠️ 数据库可能已存在: {result.stderr}")
-
-        # 导入schema
-        schema_file = self.project_root / "resources" / "database" / "schema" / "policy_qa_schema.sql"
-        if schema_file.exists():
-            # 转换SQLite语法到MySQL
-            mysql_schema = self._convert_sqlite_to_mysql(schema_file)
-
-            # 临时文件保存MySQL schema
-            temp_file = Path("/tmp/mysql_schema.sql")
-            temp_file.write_text(mysql_schema, encoding='utf-8')
-
-            # 执行SQL
-            cmd = [
-                "docker", "exec", "-i", "glyph_mysql_1", "mysql",
-                "-uroot", "-p123456", "policy_db"
-            ]
-
-            with open(temp_file, 'r') as f:
-                result = subprocess.run(cmd, input=f.read(), capture_output=True, text=True)
-
-            if result.returncode == 0:
-                logger.info("✅ MySQL Schema导入成功")
-            else:
-                logger.error(f"❌ Schema导入失败: {result.stderr}")
-
-            # 清理临时文件
-            temp_file.unlink()
+    async def init_mysql(self):
+        """Initialize MySQL and stop the import if creation or schema loading fails."""
+        logger.info("🔧 初始化MySQL数据库...")
+        mysql_env = {**os.environ, "MYSQL_PWD": os.environ["MYSQL_ROOT_PASSWORD"]}
+        await self._run_command(self._mysql_command(
+            "-e", "CREATE DATABASE IF NOT EXISTS policy_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+        ), env=mysql_env)
+        logger.info("✅ MySQL数据库创建成功")
+        schema_file = self.project_root / "resources/database/schema/policy_qa_schema.sql"
+        mysql_schema = await asyncio.to_thread(self._convert_sqlite_to_mysql, schema_file)
+        await self._run_command(self._mysql_command("policy_db"), input=mysql_schema, env=mysql_env)
+        logger.info("✅ MySQL Schema导入成功")
 
     def _convert_sqlite_to_mysql(self, sqlite_file):
         """将SQLite语法转换为MySQL"""
@@ -119,65 +129,60 @@ async def init_milvus():
         port='19530'
     )
 
-    # 定义collection schema
-    fields = [
-        FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=100, is_primary=True),
-        FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=500),
-        FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
-        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1024),
-        FieldSchema(name="metadata", dtype=DataType.JSON),
-        FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=100),
-        FieldSchema(name="doc_type", dtype=DataType.VARCHAR, max_length=50)
-    ]
+    try:
 
-    schema = CollectionSchema(
-        fields,
-        "Policy documents collection"
-    )
+        # 定义collection schema
+        fields = [
+            FieldSchema(name="id", dtype=DataType.VARCHAR, max_length=100, is_primary=True),
+            FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=500),
+            FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=65535),
+            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=1024),
+            FieldSchema(name="metadata", dtype=DataType.JSON),
+            FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=100),
+            FieldSchema(name="doc_type", dtype=DataType.VARCHAR, max_length=50)
+        ]
 
-    collection_name = "policy_documents"
+        schema = CollectionSchema(
+            fields,
+            "Policy documents collection"
+        )
 
-    # 删除已存在的collection
-    if utility.has_collection(collection_name):
-        utility.drop_collection(collection_name)
-        print(f"已删除现有collection: {collection_name}")
+        collection_name = "policy_documents"
 
-    # 创建collection
-    collection = Collection(collection_name, schema)
+        # 删除已存在的collection
+        if utility.has_collection(collection_name):
+            utility.drop_collection(collection_name)
+            print(f"已删除现有collection: {collection_name}")
 
-    # 创建索引
-    index_params = {
-        "metric_type": "COSINE",
-        "index_type": "HNSW",
-        "params": {"M": 8, "efConstruction": 64}
-    }
+        # 创建collection
+        collection = Collection(collection_name, schema)
 
-    collection.create_index(
-        field_name="embedding",
-        index_params=index_params
-    )
+        # 创建索引
+        index_params = {
+            "metric_type": "COSINE",
+            "index_type": "HNSW",
+            "params": {"M": 8, "efConstruction": 64}
+        }
 
-    print(f"✅ Milvus collection '{collection_name}' 创建成功")
+        collection.create_index(
+            field_name="embedding",
+            index_params=index_params
+        )
 
-    # 加载collection
-    collection.load()
+        print(f"✅ Milvus collection '{collection_name}' 创建成功")
 
-    connections.disconnect("default")
+        # 加载collection
+        collection.load()
+
+    finally:
+        connections.disconnect("default")
 
 if __name__ == "__main__":
     asyncio.run(init_milvus())
 """
 
-        # 保存并执行脚本
-        script_path = Path("/tmp/init_milvus.py")
-        script_path.write_text(init_script)
-
-        # 执行脚本
-        result = os.system(f"python {script_path}")
-        if result == 0:
-            logger.info("✅ Milvus初始化成功")
-        else:
-            logger.error("❌ Milvus初始化失败")
+        await self._run_python_script(init_script)
+        logger.info("✅ Milvus初始化成功")
 
     async def import_sample_data(self):
         """导入示例数据"""
@@ -275,8 +280,8 @@ if __name__ == "__main__":
 
         # 保存示例数据
         sample_data_file = self.data_dir / "sample_policies.json"
-        sample_data_file.parent.mkdir(exist_ok=True)
-        sample_data_file.write_text(json.dumps(sample_policies, ensure_ascii=False, indent=2))
+        await asyncio.to_thread(sample_data_file.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(sample_data_file.write_text, json.dumps(sample_policies, ensure_ascii=False, indent=2), encoding='utf-8')
 
         logger.info(f"✅ 示例数据已保存到: {sample_data_file}")
 
@@ -285,7 +290,7 @@ if __name__ == "__main__":
         logger.info("🔗 准备LightRAG数据...")
 
         lightrag_dir = self.data_dir / "lightrag"
-        lightrag_dir.mkdir(exist_ok=True)
+        await asyncio.to_thread(lightrag_dir.mkdir, parents=True, exist_ok=True)
 
         # 创建示例文档
         sample_docs = [
@@ -341,7 +346,7 @@ if __name__ == "__main__":
         # 保存文档
         for doc in sample_docs:
             file_path = lightrag_dir / doc["filename"]
-            file_path.write_text(doc["content"], encoding='utf-8')
+            await asyncio.to_thread(file_path.write_text, doc["content"], encoding='utf-8')
 
         logger.info(f"✅ 已保存 {len(sample_docs)} 个文档到LightRAG目录")
 
@@ -355,6 +360,7 @@ import asyncio
 import json
 from pathlib import Path
 import numpy as np
+import sys
 from pymilvus import connections, Collection
 
 async def import_embeddings():
@@ -365,117 +371,102 @@ async def import_embeddings():
         port='19530'
     )
 
-    # 加载示例数据
-    with open('/data/temp33/Glyph/resources/data/sample_policies.json', 'r') as f:
-        policies = json.load(f)
+    try:
 
-    # 连接collection
-    collection = Collection("policy_documents")
+        # 加载示例数据
+        with open(sys.argv[1], 'r', encoding='utf-8') as f:
+            policies = json.load(f)
 
-    # 生成模拟embeddings（实际应该使用真实的embedding模型）
-    documents = []
-    for policy in policies:
-        # 这里使用随机向量模拟，实际应该调用embedding API
-        embedding = np.random.random(1024).astype(np.float32).tolist()
+        # 连接collection
+        collection = Collection("policy_documents")
 
-        documents.append({
-            "id": policy["doc_id"],
-            "title": policy["title"],
-            "content": policy["content"][:5000],  # 限制长度
-            "embedding": embedding,
-            "metadata": {
-                "category": policy["category"],
-                "region": policy["region"],
-                "effective_date": policy["effective_date"]
-            },
-            "source": "government_policy",
-            "doc_type": "policy_document"
-        })
+        # 生成模拟embeddings（实际应该使用真实的embedding模型）
+        documents = []
+        for policy in policies:
+            # 这里使用随机向量模拟，实际应该调用embedding API
+            embedding = np.random.random(1024).astype(np.float32).tolist()
 
-    # 准备数据
-    ids = [doc["id"] for doc in documents]
-    titles = [doc["title"] for doc in documents]
-    contents = [doc["content"] for doc in documents]
-    embeddings = [doc["embedding"] for doc in documents]
-    metadatas = [doc["metadata"] for doc in documents]
-    sources = [doc["source"] for doc in documents]
-    doc_types = [doc["doc_type"] for doc in documents]
+            documents.append({
+                "id": policy["doc_id"],
+                "title": policy["title"],
+                "content": policy["content"][:5000],  # 限制长度
+                "embedding": embedding,
+                "metadata": {
+                    "category": policy["category"],
+                    "region": policy["region"],
+                    "effective_date": policy["effective_date"]
+                },
+                "source": "government_policy",
+                "doc_type": "policy_document"
+            })
 
-    # 插入数据
-    collection.insert([
-        ids,
-        titles,
-        contents,
-        embeddings,
-        metadatas,
-        sources,
-        doc_types
-    ])
+        # 准备数据
+        ids = [doc["id"] for doc in documents]
+        titles = [doc["title"] for doc in documents]
+        contents = [doc["content"] for doc in documents]
+        embeddings = [doc["embedding"] for doc in documents]
+        metadatas = [doc["metadata"] for doc in documents]
+        sources = [doc["source"] for doc in documents]
+        doc_types = [doc["doc_type"] for doc in documents]
 
-    # 刷新数据
-    collection.flush()
+        # 插入数据
+        collection.insert([
+            ids,
+            titles,
+            contents,
+            embeddings,
+            metadatas,
+            sources,
+            doc_types
+        ])
 
-    print(f"✅ 成功导入 {len(documents)} 个文档到Milvus")
+        # 刷新数据
+        collection.flush()
 
-    # 统计
-    stats = collection.num_entities
-    print(f"📊 Milvus collection 现有 {stats} 个实体")
+        print(f"✅ 成功导入 {len(documents)} 个文档到Milvus")
 
-    connections.disconnect("default")
+        # 统计
+        stats = collection.num_entities
+        print(f"📊 Milvus collection 现有 {stats} 个实体")
+
+    finally:
+        connections.disconnect("default")
 
 if __name__ == "__main__":
     asyncio.run(import_embeddings())
 """
 
-        script_path = Path("/tmp/import_embeddings.py")
-        script_path.write_text(import_script)
-
-        # 执行导入
-        result = os.system(f"python {script_path}")
-        if result == 0:
-            logger.info("✅ Embeddings导入成功")
-        else:
-            logger.error("❌ Embeddings导入失败")
+        await self._run_python_script(import_script, str(self.data_dir / "sample_policies.json"))
+        logger.info("✅ Embeddings导入成功")
 
     async def verify_import(self):
         """验证导入结果"""
         logger.info("✅ 验证数据导入结果...")
 
-        # 验证MySQL
-        import subprocess
-        cmd = [
-            "docker", "exec", "glyph_mysql_1", "mysql",
-            "-uroot", "-p123456", "-e",
-            "USE policy_db; SHOW TABLES;"
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            logger.info("✅ MySQL数据库连接正常")
-            tables = result.stdout.split('\n')[1:]  # 跳过表头
-            if tables:
-                logger.info(f"📊 MySQL中的表: {tables}")
-        else:
-            logger.error("❌ MySQL连接失败")
+        mysql_env = {**os.environ, "MYSQL_PWD": os.environ["MYSQL_ROOT_PASSWORD"]}
+        result = await self._run_command(self._mysql_command("-e", "USE policy_db; SHOW TABLES;"), env=mysql_env)
+        logger.info("✅ MySQL数据库连接正常")
+        tables = result.stdout.splitlines()[1:]
+        logger.info("📊 MySQL中的表: %s", tables)
 
         # 验证Milvus
         verify_script = """
 from pymilvus import connections, Collection
 
 connections.connect(host='localhost', port='19530')
-collection = Collection("policy_documents")
-stats = collection.num_entities
-print(f"Milvus文档数量: {stats}")
-connections.disconnect()
+try:
+    collection = Collection("policy_documents")
+    stats = collection.num_entities
+    print(f"Milvus文档数量: {stats}")
+finally:
+    connections.disconnect("default")
 """
 
-        script_path = Path("/tmp/verify_milvus.py")
-        script_path.write_text(verify_script)
-        result = os.system(f"python {script_path}")
+        await self._run_python_script(verify_script)
 
         # 验证LightRAG
         lightrag_dir = self.data_dir / "lightrag"
-        doc_count = len(list(lightrag_dir.glob("*.md")))
+        doc_count = await asyncio.to_thread(lambda: len(list(lightrag_dir.glob("*.md"))))
         logger.info(f"📄 LightRAG文档数量: {doc_count}")
 
         logger.info("\n" + "="*60)
@@ -503,7 +494,7 @@ connections.disconnect()
             await self.verify_import()
 
         except Exception as e:
-            logger.error(f"❌ 导入失败: {str(e)}")
+            logger.error(f"❌ 导入失败: {str(e)}", exc_info=True)
             raise
 
         logger.info("\n🎉 所有数据导入成功！")

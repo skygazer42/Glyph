@@ -10,16 +10,60 @@ import os
 import logging
 import json
 import asyncio
-import tempfile
+import anyio
+import io
 import zipfile
 import time
 from pathlib import Path
-from typing import Dict, List, Any, Optional, AsyncGenerator, Literal
-from datetime import datetime
+from typing import Dict, List, Any, Optional, Literal
 import aiohttp
 import aiofiles
 
-from app.config import settings
+from app.config.app_config import settings
+
+
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
+
+class MinerUApiResponse(BaseModel):
+    model_config = ConfigDict(strict=True)
+    code: int
+    msg: str | None = None
+    data: dict[str, Any] | None = None
+
+
+class MinerUUploadData(BaseModel):
+    model_config = ConfigDict(strict=True)
+    batch_id: str = Field(min_length=1)
+    file_urls: list[str] = Field(min_length=1)
+
+
+class MinerUTaskFile(BaseModel):
+    model_config = ConfigDict(strict=True, extra="allow")
+    state: str = Field(min_length=1)
+    full_zip_url: str | None = None
+    err_msg: str | None = None
+
+
+class MinerUTaskData(BaseModel):
+    model_config = ConfigDict(strict=True)
+    # An empty list while the service schedules a task is a real pending state.
+    extract_result: list[MinerUTaskFile] = Field(default_factory=list)
+
+
+class MinerULocalFile(BaseModel):
+    model_config = ConfigDict(strict=True)
+    markdown: str = Field(min_length=1, validation_alias=AliasChoices("md", "markdown", "md_content"))
+
+
+class MinerULocalResponse(BaseModel):
+    model_config = ConfigDict(strict=True)
+    results: dict[str, MinerULocalFile] = Field(min_length=1)
+
+
+class MinerUArchiveContent(BaseModel):
+    model_config = ConfigDict(strict=True)
+    content: str
 
 
 class MinerUAdapter:
@@ -73,24 +117,24 @@ class MinerUAdapter:
         self.backend = self.config.get("backend", "vlm-http-client")  # 本地服务后端
 
         # 会话管理
-        self.session = None
+        self.session: Optional[aiohttp.ClientSession] = None
 
         self.logger.info(f"MinerU 适配器初始化: mode={self.mode}, url={self.base_url}")
 
     async def __aenter__(self):
         """异步上下文管理器入口"""
-        await self._ensure_session()
+        await self._get_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """异步上下文管理器出口"""
         await self.close()
 
-    async def _ensure_session(self):
-        """确保会话存在"""
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """获取可用的 HTTP 会话，首次调用时创建"""
         if self.session is None or self.session.closed:
             timeout = aiohttp.ClientTimeout(total=self.timeout)
-            headers = {"Content-Type": "application/json"}
+            headers: Dict[str, str] = {}
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
 
@@ -98,11 +142,14 @@ class MinerUAdapter:
                 timeout=timeout,
                 headers=headers
             )
+        return self.session
 
     async def close(self):
         """关闭会话"""
-        if self.session and not self.session.closed:
-            await self.session.close()
+        session, self.session = self.session, None
+        if session is not None and not session.closed:
+            with anyio.fail_after(5, shield=True):
+                await session.close()
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -115,7 +162,7 @@ class MinerUAdapter:
                 - details: 详细信息
         """
         try:
-            await self._ensure_session()
+            await self._get_session()
 
             if self.mode == "official":
                 # 官方 API: 测试创建任务
@@ -125,7 +172,7 @@ class MinerUAdapter:
                 return await self._health_check_local()
 
         except Exception as e:
-            self.logger.error(f"Health check failed: {e}")
+            self.logger.error(f"Health check failed: {e}", exc_info=True)
             return {
                 "status": "error",
                 "message": f"健康检查失败: {str(e)}",
@@ -134,6 +181,7 @@ class MinerUAdapter:
 
     async def _health_check_official(self) -> Dict[str, Any]:
         """官方 API 健康检查"""
+        session = await self._get_session()
         try:
             # 测试 API key 有效性
             test_data = {
@@ -141,7 +189,7 @@ class MinerUAdapter:
                 "is_ocr": True
             }
 
-            async with self.session.post(
+            async with session.post(
                 f"{self.base_url}/extract/task",
                 json=test_data,
                 timeout=aiohttp.ClientTimeout(total=10)
@@ -194,8 +242,9 @@ class MinerUAdapter:
 
     async def _health_check_local(self) -> Dict[str, Any]:
         """本地服务健康检查"""
+        session = await self._get_session()
         try:
-            async with self.session.get(
+            async with session.get(
                 f"{self.base_url}/openapi.json",
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
@@ -268,7 +317,7 @@ class MinerUAdapter:
                 - metadata: 元数据
                 - processing_time: 处理时间
         """
-        if not os.path.exists(file_path):
+        if not await asyncio.to_thread(os.path.exists, file_path):
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
         # 检查服务健康状态
@@ -292,7 +341,7 @@ class MinerUAdapter:
 
             self.logger.info(
                 f"MinerU 处理成功: {os.path.basename(file_path)} - "
-                f"{len(result.get('content', ''))} 字符 ({processing_time:.2f}s)"
+                f"{len(result['content'])} 字符 ({processing_time:.2f}s)"
             )
 
             return result
@@ -300,7 +349,7 @@ class MinerUAdapter:
         except Exception as e:
             processing_time = time.time() - start_time
             error_msg = f"MinerU 处理失败: {str(e)} ({processing_time:.2f}s)"
-            self.logger.error(error_msg)
+            self.logger.error(error_msg, exc_info=True)
             return {
                 "success": False,
                 "error": str(e),
@@ -323,14 +372,14 @@ class MinerUAdapter:
         self.logger.info(f"任务完成，状态: {result['state']}")
 
         # 步骤 3: 下载并解压结果
-        content = await self._download_and_extract(result.get("full_zip_url"))
+        content = await self._download_and_extract(result["full_zip_url"])
 
         return {
             "success": True,
             "content": content,
             "metadata": {
                 "batch_id": batch_id,
-                "state": result.get("state"),
+                "state": result["state"],
                 "file_name": os.path.basename(file_path)
             }
         }
@@ -355,8 +404,9 @@ class MinerUAdapter:
             }]
         }
 
+        session = await self._get_session()
         # 申请上传链接
-        async with self.session.post(
+        async with session.post(
             f"{self.base_url}/file-urls/batch",
             json=upload_data,
             timeout=aiohttp.ClientTimeout(total=30)
@@ -364,28 +414,21 @@ class MinerUAdapter:
             if response.status != 200:
                 raise RuntimeError(f"申请上传链接失败: HTTP {response.status}")
 
-            result = await response.json()
-            if result.get("code") != 0:
-                raise RuntimeError(f"申请上传链接失败: {result.get('msg', '未知错误')}")
-
-            batch_id = result["data"]["batch_id"]
-            upload_urls = result["data"]["file_urls"]
-
-            if not upload_urls:
-                raise RuntimeError("未获取到文件上传链接")
+            result = MinerUApiResponse.model_validate(await response.json())
+            if result.code != 0:
+                raise RuntimeError(f"申请上传链接失败: {result.msg}")
+            upload = MinerUUploadData.model_validate(result.data)
+            batch_id, upload_urls = upload.batch_id, upload.file_urls
 
         # 上传文件
         upload_url = upload_urls[0]
         async with aiofiles.open(file_path, "rb") as f:
             file_data = await f.read()
 
-        async with self.session.put(
-            upload_url,
-            data=file_data,
-            timeout=aiohttp.ClientTimeout(total=60)
-        ) as response:
-            if response.status != 200:
-                raise RuntimeError(f"文件上传失败: HTTP {response.status}")
+        # The pre-signed object-storage URL must not receive our MinerU bearer token.
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as upload_session:
+            async with upload_session.put(upload_url, data=file_data) as response:
+                response.raise_for_status()
 
         return batch_id
 
@@ -395,34 +438,31 @@ class MinerUAdapter:
         max_wait_time: int = 600
     ) -> Dict[str, Any]:
         """轮询批量任务结果"""
-        start_time = time.time()
+        session = await self._get_session()
+        start_time = time.monotonic()
 
-        while time.time() - start_time < max_wait_time:
-            async with self.session.get(
+        while time.monotonic() - start_time < max_wait_time:
+            async with session.get(
                 f"{self.base_url}/extract-results/batch/{batch_id}",
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
                 if response.status != 200:
                     raise RuntimeError(f"查询任务状态失败: HTTP {response.status}")
 
-                result = await response.json()
-                if result.get("code") != 0:
-                    raise RuntimeError(f"查询任务状态失败: {result.get('msg', '未知错误')}")
-
-                extract_results = result["data"].get("extract_result", [])
-                if not extract_results:
+                result = MinerUApiResponse.model_validate(await response.json())
+                if result.code != 0:
+                    raise RuntimeError(f"查询任务状态失败: {result.msg}")
+                task = MinerUTaskData.model_validate(result.data)
+                if not task.extract_result:
                     await asyncio.sleep(5)
                     continue
-
-                # 检查第一个文件的状态
-                file_result = extract_results[0]
-                state = file_result.get("state")
-
-                if state == "done":
-                    return file_result
-                elif state == "failed":
-                    err_msg = file_result.get("err_msg", "未知错误")
-                    raise RuntimeError(f"文档解析失败: {err_msg}")
+                file_result = task.extract_result[0]
+                if file_result.state == "done":
+                    if not file_result.full_zip_url:
+                        raise ValueError("Completed MinerU task requires full_zip_url")
+                    return file_result.model_dump(exclude_none=True)
+                if file_result.state == "failed":
+                    raise RuntimeError(f"文档解析失败: {file_result.err_msg}")
 
                 # 继续等待
                 await asyncio.sleep(5)
@@ -434,45 +474,28 @@ class MinerUAdapter:
         if not zip_url:
             raise RuntimeError("未获取到结果下载链接")
 
-        # 下载文件
-        async with self.session.get(
-            zip_url,
-            timeout=aiohttp.ClientTimeout(total=60)
-        ) as response:
-            if response.status != 200:
-                raise RuntimeError(f"下载结果失败: HTTP {response.status}")
+        # Signed object-storage URLs must not receive the API bearer token.
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.get(zip_url) as response:
+                response.raise_for_status()
+                zip_content = await response.read()
 
-            zip_content = await response.read()
+        return await asyncio.to_thread(self._read_result_archive, zip_content)
 
-        # 解压到临时目录
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_file:
-            tmp_file.write(zip_content)
-            tmp_file.flush()
-
-            try:
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    with zipfile.ZipFile(tmp_file.name, "r") as zip_ref:
-                        zip_ref.extractall(tmp_dir)
-
-                    # 查找 markdown 文件
-                    md_files = list(Path(tmp_dir).glob("*.md"))
-                    if md_files:
-                        async with aiofiles.open(md_files[0], encoding="utf-8") as f:
-                            return await f.read()
-
-                    # 如果没有 markdown 文件，查找 json 文件
-                    json_files = list(Path(tmp_dir).glob("*.json"))
-                    if json_files:
-                        async with aiofiles.open(json_files[0], encoding="utf-8") as f:
-                            data = json.loads(await f.read())
-                            if isinstance(data, dict) and "content" in data:
-                                return str(data["content"])
-                            return str(data)
-
-                    raise RuntimeError("无法从结果中提取文本内容")
-
-            finally:
-                os.unlink(tmp_file.name)
+    @staticmethod
+    def _read_result_archive(zip_content: bytes) -> str:
+        """Read result members without extracting paths or creating temporary files."""
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
+            names = [name for name in archive.namelist() if not name.endswith("/")]
+            markdown = next((name for name in names if Path(name).name == "full.md"), None)
+            if markdown is None:
+                markdown = next((name for name in names if name.lower().endswith(".md")), None)
+            if markdown is not None:
+                return archive.read(markdown).decode("utf-8")
+            result_json = next((name for name in names if name.lower().endswith(".json")), None)
+            if result_json is not None:
+                return MinerUArchiveContent.model_validate_json(archive.read(result_json)).content
+        raise RuntimeError("无法从结果中提取文本内容")
 
     async def _extract_local(
         self,
@@ -504,8 +527,9 @@ class MinerUAdapter:
         if options.get("backend") == "vlm-http-client" and options.get("server_url"):
             data.add_field("server_url", options["server_url"])
 
+        session = await self._get_session()
         # 发送请求
-        async with self.session.post(
+        async with session.post(
             f"{self.base_url}/file_parse",
             data=data,
             timeout=aiohttp.ClientTimeout(total=300)
@@ -515,22 +539,16 @@ class MinerUAdapter:
                 try:
                     error_data = await response.json()
                     error_detail = error_data.get("detail", str(error_data))
-                except Exception:
+                except (ValueError, aiohttp.ContentTypeError):
                     error_detail = await response.text() or f"HTTP {response.status}"
 
                 raise RuntimeError(f"MinerU 处理失败: {error_detail}")
 
             # 解析响应
-            result = await response.json()
-
-            # 提取 markdown 内容
-            if isinstance(result, dict) and "results" in result:
-                file_result = list(result["results"].values())[0]
-                content = file_result.get("md") or file_result.get("markdown") or file_result.get("md_content", "")
-            else:
-                content = str(result) if result else ""
-
-            if not content:
+            result = MinerULocalResponse.model_validate(await response.json())
+            file_result = next(iter(result.results.values()))
+            content = file_result.markdown
+            if not content.strip():
                 raise RuntimeError("MinerU 未返回任何文本内容")
 
             return {
@@ -570,6 +588,8 @@ class MinerUAdapter:
         Returns:
             List[Dict]: 提取结果列表
         """
+        if max_concurrent <= 0:
+            raise ValueError("max_concurrent must be positive")
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def extract_single(file_path: str) -> Dict[str, Any]:
@@ -577,7 +597,7 @@ class MinerUAdapter:
                 try:
                     return await self.extract_document(file_path, options)
                 except Exception as e:
-                    self.logger.error(f"Failed to extract {file_path}: {e}")
+                    self.logger.error(f"Failed to extract {file_path}: {e}", exc_info=True)
                     return {
                         "success": False,
                         "file_path": file_path,
@@ -599,29 +619,29 @@ class MinerUAdapter:
         Returns:
             Dict: 统计信息
         """
-        if not result.get("success"):
+        if not result["success"]:
             return {
                 "success": False,
-                "error": result.get("error", "Unknown error")
+                "error": result["error"]
             }
 
-        content = result.get("content", "")
-        metadata = result.get("metadata", {})
+        content = result["content"]
+        metadata = result["metadata"]
 
         stats = {
             "success": True,
             "text_length": len(content),
-            "processing_time": result.get("processing_time", 0),
-            "file_name": metadata.get("file_name", ""),
+            "processing_time": result["processing_time"],
+            "file_name": metadata["file_name"],
             "mode": self.mode
         }
 
         # 添加模式相关的统计
         if self.mode == "official":
-            stats["batch_id"] = metadata.get("batch_id", "")
-            stats["state"] = metadata.get("state", "")
+            stats["batch_id"] = metadata["batch_id"]
+            stats["state"] = metadata["state"]
         else:
-            stats["backend"] = metadata.get("backend", "")
+            stats["backend"] = metadata["backend"]
 
         return stats
 

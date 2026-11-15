@@ -1,20 +1,63 @@
-﻿"""
+"""
 DSL 提取器模块（优化版）
 使用项目配置中的 LLM 从政策文本中提取结构化信息并生成 DSL
 """
 
-import os
-import sys
 import json
-import yaml
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import re
-from pathlib import Path
 
-# 添加项目根目录到路径
-sys.path.append(str(Path(__file__).parent.parent.parent))
+from openai import OpenAI
+
+from app.config.app_config import settings
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class ExtractedInput(BaseModel):
+    model_config = ConfigDict(strict=True, extra="allow")
+    name: str = Field(min_length=1)
+    type: str = Field(min_length=1)
+    required: bool = True
+    description: str | None = None
+
+
+class ExtractedPolicySource(BaseModel):
+    model_config = ConfigDict(strict=True, extra="allow")
+    doc_id: str | None = None
+    title: str | None = None
+    clause: str | None = None
+
+
+class ExtractedValidity(BaseModel):
+    model_config = ConfigDict(strict=True, extra="allow")
+    start: str | None = None
+    end: str | None = None
+
+    @field_validator("start", "end")
+    @classmethod
+    def validate_date(cls, value: str | None) -> str | None:
+        if value is not None:
+            datetime.strptime(value, "%Y-%m-%d")
+        return value
+
+    @model_validator(mode="after")
+    def validate_order(self):
+        if self.start is not None and self.end is not None and self.start > self.end:
+            raise ValueError("Policy start must not follow end")
+        return self
+
+
+class ExtractedPolicy(BaseModel):
+    # Domains have distinct calculation sections; validate the shared external envelope here.
+    model_config = ConfigDict(strict=True, extra="allow")
+    rule_id: str | None = None
+    inputs: list[ExtractedInput] = Field(default_factory=list)
+    policy_source: ExtractedPolicySource = Field(default_factory=ExtractedPolicySource)
+    valid_period: ExtractedValidity = Field(default_factory=ExtractedValidity)
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +73,9 @@ class DSLExtractor:
             use_project_config: 是否使用项目配置，默认为 True
         """
         self.use_project_config = use_project_config
-
+        self.settings = settings
         if use_project_config:
-            # 使用项目配置
-            try:
-                from app.config import settings
-                self.settings = settings
-                logger.info(f"使用项目配置: LLM={settings.model.llm_model_name}")
-            except ImportError:
-                logger.warning("无法导入项目配置，使用默认设置")
-                self.settings = None
-                self.use_project_config = False
+            logger.info("使用项目配置: LLM=%s", settings.model.llm_model_name)
 
     def extract(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -57,7 +92,10 @@ class DSLExtractor:
         prompt = self._build_prompt(text, metadata)
 
         # 调用 LLM
-        response = self._call_llm(prompt)
+        if self.use_project_config:
+            response = self._call_llm(prompt)
+        else:
+            response = self._extract_with_rules(text)
 
         # 解析响应
         dsl_data = self._parse_response(response, text, metadata)
@@ -241,40 +279,27 @@ class DSLExtractor:
 
     def _call_llm(self, prompt: str) -> str:
         """调用 LLM API"""
-        if self.use_project_config and self.settings:
-            # 使用项目配置调用 LLM
-            try:
-                from openai import OpenAI
-
-                client = OpenAI(
-                    api_key=self.settings.model.llm_api_key,
-                    base_url=self.settings.model.llm_base_url
-                )
-
-                response = client.chat.completions.create(
-                    model=self.settings.model.llm_model_name,
-                    messages=[
-                        {"role": "system", "content": "你是一个专业的政策规则提取专家，擅长从政策文本中提取结构化信息。"},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=self.settings.model.llm_temperature or 0.1,
-                    max_tokens=2000
-                )
-
-                return response.choices[0].message.content
-
-            except Exception as e:
-                logger.error(f"使用项目配置调用 LLM 失败: {e}")
-                # 降级到规则提取
-                return self._extract_with_rules(prompt)
-        else:
-            # 不使用项目配置，直接使用规则提取
-            logger.info("使用内置规则提取")
-            return self._extract_with_rules(prompt)
+        with OpenAI(
+            api_key=self.settings.model.llm_api_key,
+            base_url=self.settings.model.llm_base_url,
+        ) as client:
+            response = client.chat.completions.create(
+                model=self.settings.model.llm_model_name,
+                messages=[
+                    {"role": "system", "content": "你是一个专业的政策规则提取专家，擅长从政策文本中提取结构化信息。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.1 if self.settings.model.llm_temperature is None else self.settings.model.llm_temperature,
+                max_tokens=2000,
+            )
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("LLM response contains no text")
+        return content
 
     def _extract_with_rules(self, text: str) -> str:
         """使用规则提取（不依赖 LLM）"""
-        result = {
+        result: Dict[str, Any] = {
             "rule_id": "Rule_Jinan_Policy_2025",
             "doc_id": None,
             "title": None,
@@ -400,19 +425,19 @@ class DSLExtractor:
             return None
 
         try:
-            # 尝试解析 JSON
             data = json.loads(response)
         except json.JSONDecodeError:
-            # 如果不是有效的 JSON，尝试提取 JSON 部分
-            json_pattern = r'\{[\s\S]*\}'
-            json_match = re.search(json_pattern, response)
-            if json_match:
-                try:
-                    data = json.loads(json_match.group())
-                except:
-                    data = {}
-            else:
-                data = {}
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match is None:
+                raise ValueError("LLM响应未包含JSON对象") from None
+            try:
+                data = json.loads(json_match.group())
+            except json.JSONDecodeError as exc:
+                raise ValueError("LLM响应格式错误") from exc
+        if not isinstance(data, dict):
+            raise ValueError("LLM响应必须是JSON对象")
+
+        data = ExtractedPolicy.model_validate(data).model_dump(exclude_unset=True)
 
         # 补充缺失的字段
         if not data.get('rule_id'):
@@ -432,18 +457,19 @@ class DSLExtractor:
         if policy_type == 'appliance':
             # 家电补贴必要字段
             if 'efficiency_rates' not in data:
-                data['efficiency_rates'] = {
-                    'base_rate': 0.15,
-                    'level_1_bonus': 0.05,
-                    'no_label_rate': 0.10
-                }
+                extracted_rate = data.get('calc', {}).get('base_rate')
+                if extracted_rate is None:
+                    raise ValueError("Missing policy efficiency_rates.base_rate")
+                data['efficiency_rates'] = {'base_rate': extracted_rate}
+            if data['efficiency_rates'].get('base_rate') is None:
+                raise ValueError("Missing policy efficiency_rates.base_rate")
+            if data.get('per_item_cap') is None:
+                extracted_cap = data.get('limits', {}).get('per_item_cap')
+                if extracted_cap is None:
+                    raise ValueError("Missing policy per_item_cap")
+                data['per_item_cap'] = extracted_cap
             if 'category_limits' not in data:
-                data['category_limits'] = {
-                    'per_category': {},
-                    'total_items': None
-                }
-            if 'per_item_cap' not in data:
-                data['per_item_cap'] = 2000
+                data['category_limits'] = {'per_category': {}, 'total_items': None}
 
             # 确保inputs正确
             if 'inputs' not in data or not data['inputs']:
@@ -459,13 +485,13 @@ class DSLExtractor:
             for field in required_fields:
                 if field not in data:
                     if field == 'coupon_types':
-                        data[field] = ['AMOUNT']
+                        data[field] = []
                     elif field == 'tiers':
                         data[field] = []
                     elif field == 'distribution':
-                        data[field] = {'method': 'auto_claim', 'total_quota': None, 'quota_per_person': None}
+                        data[field] = {}
                     elif field == 'usage_limits':
-                        data[field] = {'valid_days': 30, 'merchant_scope': None, 'product_scope': None, 'stacking': {}}
+                        data[field] = {}
                     elif field == 'platform':
                         data[field] = {'claim_platform': None, 'payment_methods': []}
 
@@ -485,7 +511,7 @@ class DSLExtractor:
                 if parsed_tiers:
                     data['tiers'] = parsed_tiers
             if not data.get('coupon_types'):
-                data['coupon_types'] = ['AMOUNT']
+                data['coupon_types'] = list(dict.fromkeys(tier['type'] for tier in data.get('tiers', [])))
 
         # 确保基本字段存在
         if 'policy_source' not in data:
@@ -515,33 +541,7 @@ class DSLExtractor:
             end_hint = normalize_date(meta_dates[-1])
             if end_hint and not valid_period.get('end'):
                 valid_period['end'] = end_hint
-        start_val = valid_period.get('start')
-        end_val = valid_period.get('end')
-        if start_val and end_val:
-            try:
-                start_dt = datetime.strptime(start_val, '%Y-%m-%d')
-                end_dt = datetime.strptime(end_val, '%Y-%m-%d')
-                if start_dt > end_dt:
-                    valid_period['start'], valid_period['end'] = valid_period['end'], valid_period['start']
-            except ValueError:
-                pass
-
-        # 确保 inputs 是正确格式的列表
-        if 'inputs' in data and isinstance(data['inputs'], list):
-            fixed_inputs = []
-            for inp in data['inputs']:
-                if isinstance(inp, dict) and 'name' in inp and 'type' in inp:
-                    if 'required' not in inp:
-                        inp['required'] = True
-                    fixed_inputs.append(inp)
-                elif isinstance(inp, str):
-                    fixed_inputs.append({
-                        'name': inp,
-                        'type': 'string',
-                        'required': True
-                    })
-            if fixed_inputs:
-                data['inputs'] = fixed_inputs
+        data['valid_period'] = ExtractedValidity.model_validate(valid_period).model_dump(exclude_unset=True)
 
         return data
 
@@ -609,7 +609,9 @@ class DSLExtractor:
         errors = []
 
         # 检查必填字段
-        required_fields = ['rule_id', 'inputs', 'output']
+        required_fields = ['rule_id', 'inputs']
+        if dsl_data.get('policy_type') not in {'appliance', 'auto', 'coupon'}:
+            required_fields.append('output')
         for field in required_fields:
             if field not in dsl_data or not dsl_data[field]:
                 errors.append(f"缺少必填字段: {field}")

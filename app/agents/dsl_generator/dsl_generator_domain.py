@@ -4,19 +4,22 @@ Domain-Driven DSL Generator with Schema Constraints
 """
 
 import os
+import sys
+from copy import deepcopy
 import json
-import yaml
 import docx
 import jinja2
 import re
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union
-from datetime import datetime
-from pydantic import ValidationError
+from typing import Dict, Any, List, Optional, Union, cast
+from datetime import datetime, timedelta
+from pydantic import BaseModel, ValidationError
+from openai import OpenAI
 
 # 导入配置和模式
-from app.domains import domain_config, SCHEMA_REGISTRY
+from app.domains.manager import domain_config
+from app.domains.schemas import SCHEMA_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +69,7 @@ class DomainDrivenDSLGenerator:
         Returns:
             提取的文本内容
         """
-        doc = docx.Document(docx_path)
+        doc = docx.Document(str(docx_path))
         paragraphs = []
 
         # 提取段落文本
@@ -126,46 +129,52 @@ class DomainDrivenDSLGenerator:
 
         # 调用LLM
         try:
-            from openai import OpenAI
 
-            client = OpenAI(
+            with OpenAI(
                 api_key=self.api_key,
                 base_url=self.api_base
-            )
+            ) as client:
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": f"你是{domain}政策规则提取专家"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.0,  # 降低随机性
+                    max_tokens=2000
+                )
 
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": f"你是{domain}政策规则提取专家"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.0,  # 降低随机性
-                max_tokens=2000
-            )
+                content = response.choices[0].message.content
+                if content is None:
+                    raise ValueError("LLM response contains no text")
+                logger.debug(f"LLM响应: {content[:500]}...")
 
-            content = response.choices[0].message.content
-            logger.debug(f"LLM响应: {content[:500]}...")
-
-            # 解析JSON响应
-            return self._parse_json_response(content)
+                # 解析JSON响应
+                return self._parse_json_response(content)
 
         except Exception as e:
-            logger.error(f"LLM调用失败: {e}")
+            logger.error(f"LLM调用失败: {e}", exc_info=True)
             raise
 
     def _parse_json_response(self, response: str) -> Dict[str, Any]:
         """解析LLM返回的JSON"""
         try:
             # 直接尝试解析
-            return json.loads(response)
+            data = json.loads(response)
+            if not isinstance(data, dict):
+                raise ValueError("LLM响应必须是JSON对象")
+            return data
         except json.JSONDecodeError:
             # 尝试提取JSON部分
             json_pattern = r'\{[\s\S]*\}'
             json_match = re.search(json_pattern, response)
             if json_match:
                 try:
-                    return json.loads(json_match.group())
-                except:
+                    data = json.loads(json_match.group())
+                    if not isinstance(data, dict):
+                        raise ValueError("LLM响应必须是JSON对象")
+                    return data
+                except json.JSONDecodeError:
                     pass
 
             # 尝试修复常见问题
@@ -176,10 +185,13 @@ class DomainDrivenDSLGenerator:
             fixed = fixed.replace("'", '"')
 
             try:
-                return json.loads(fixed)
-            except:
-                logger.error("无法解析LLM响应为JSON")
-                raise ValueError("LLM响应格式错误")
+                data = json.loads(fixed)
+                if not isinstance(data, dict):
+                    raise ValueError("LLM响应必须是JSON对象")
+                return data
+            except json.JSONDecodeError as exc:
+                logger.error("无法解析LLM响应为JSON", exc_info=True)
+                raise ValueError("LLM响应格式错误") from exc
 
     def validate_with_schema(self, data: Dict[str, Any], domain: str) -> Dict[str, Any]:
         """
@@ -192,35 +204,35 @@ class DomainDrivenDSLGenerator:
         Returns:
             验证后的数据
         """
-        schema_class = SCHEMA_REGISTRY.get(domain)
+        schema_class = cast(type[BaseModel] | None, SCHEMA_REGISTRY.get(domain))
         if not schema_class:
-            logger.warning(f"未找到领域 {domain} 的Schema，跳过验证")
-            return data
+            raise ValueError(f"未找到领域 {domain} 的Schema")
 
         try:
             # 使用Pydantic Schema验证
-            schema_instance = schema_class(**data)
-            validated_data = schema_instance.dict()
+            schema_instance = schema_class.model_validate(data)
+            validated_data = schema_instance.model_dump()
             logger.info("Schema验证通过")
             return validated_data
 
         except ValidationError as e:
-            logger.warning(f"Schema验证失败: {e}")
+            logger.warning(f"Schema验证失败: {e}", exc_info=True)
             # 尝试修复常见问题
-            return self._fix_common_issues(data, domain)
+            fixed = self._fix_common_issues(data, domain)
+            return schema_class.model_validate(fixed).model_dump()
 
     def _fix_common_issues(self, data: Dict[str, Any], domain: str) -> Dict[str, Any]:
         """修复常见的数据问题"""
-        fixed = data.copy()
+        fixed = deepcopy(data)
 
         # 修复rule_id格式
         if 'rule_id' in fixed:
             if domain == "汽车补贴" and "Car" not in fixed['rule_id']:
-                fixed['rule_id'] = re.sub(r'_\w+_(\d{4})$', f'_Car_\\1', fixed['rule_id'])
+                fixed['rule_id'] = re.sub(r'_\w+_(\d{4})$', '_Car_\\1', fixed['rule_id'])
             elif domain == "家电补贴" and "Appliance" not in fixed['rule_id']:
-                fixed['rule_id'] = re.sub(r'_\w+_(\d{4})$', f'_Appliance_\\1', fixed['rule_id'])
+                fixed['rule_id'] = re.sub(r'_\w+_(\d{4})$', '_Appliance_\\1', fixed['rule_id'])
             elif domain == "消费券" and "Coupon" not in fixed['rule_id']:
-                fixed['rule_id'] = re.sub(r'_\w+_(\d{4})$', f'_Coupon_\\1', fixed['rule_id'])
+                fixed['rule_id'] = re.sub(r'_\w+_(\d{4})$', '_Coupon_\\1', fixed['rule_id'])
 
         # 修复时间格式（24:00 -> 次日00:00）
         def fix_time(time_str):
@@ -228,7 +240,6 @@ class DomainDrivenDSLGenerator:
                 # 提取日期部分
                 date_match = re.match(r'(\d{4}-\d{2}-\d{2})', time_str)
                 if date_match:
-                    from datetime import datetime, timedelta
                     date = datetime.strptime(date_match.group(1), "%Y-%m-%d")
                     next_day = date + timedelta(days=1)
                     return next_day.strftime("%Y-%m-%d 00:00:00")
@@ -302,6 +313,8 @@ class DomainDrivenDSLGenerator:
         Returns:
             保存的文件路径
         """
+        if not rule_id or Path(rule_id).name != rule_id or '/' in rule_id or '\\' in rule_id:
+            raise ValueError("rule_id must be a single non-empty name")
         file_path = self.output_dir / f"{rule_id}.yaml"
         file_path.write_text(yaml_content, encoding='utf-8')
         logger.info(f"DSL已保存到: {file_path}")
@@ -336,7 +349,7 @@ class DomainDrivenDSLGenerator:
         yaml_content = self.generate_dsl_yaml(validated_data, domain)
 
         # 5. 保存文件
-        rule_id = validated_data.get('rule_id', f'Rule_Unknown_{datetime.now().strftime("%Y%m%d")}')
+        rule_id = validated_data['rule_id']
         file_path = self.save_dsl(yaml_content, rule_id)
 
         return file_path
@@ -384,7 +397,7 @@ class DomainDrivenDSLGenerator:
                     "status": "success"
                 })
             except Exception as e:
-                logger.error(f"处理 {docx_file.name} 失败: {e}")
+                logger.error(f"处理 {docx_file.name} 失败: {e}", exc_info=True)
                 results.append({
                     "source": docx_file.name,
                     "error": str(e),
@@ -405,7 +418,7 @@ class DomainDrivenDSLGenerator:
             "failed": sum(1 for r in results if r["status"] == "failed"),
             "details": results
         }
-        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info(f"生成报告已保存: {report_path}")
 
 
@@ -431,7 +444,6 @@ def generate_dsl(text_or_path: Union[str, Path], domain: Optional[str] = None) -
 
 if __name__ == "__main__":
     # 测试示例
-    import sys
 
     if len(sys.argv) > 1:
         input_file = sys.argv[1]

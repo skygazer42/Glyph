@@ -4,8 +4,10 @@
 """
 
 import asyncio
+import anyio
 import argparse
 import logging
+import json
 import sys
 from pathlib import Path
 
@@ -13,8 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from app.agents.service import AgentService
-from app.config import Config
+from app.agents.service.agent_service import AgentService  # noqa: E402 - executable script bootstraps the repository path
+from app.utils.config import Config  # noqa: E402 - executable script bootstraps the repository path
 
 
 class AgentOrchestratorService:
@@ -33,12 +35,14 @@ class AgentOrchestratorService:
         await self._ensure_initialized()
         return await self._service.process_query(query, session_id=session_id)
 
+    async def aclose(self) -> None:
+        await self._service.aclose()
+
     async def get_metrics(self):
         await self._ensure_initialized()
         return {
             "total_agents": 5,
             "processing_chains": ["dialogue", "knowledge", "graph", "rule_engine", "text2sql"],
-            "agent_metrics": {},
         }
 
 
@@ -60,7 +64,7 @@ async def interactive_mode(orchestrator: AgentOrchestratorService):
 
     while True:
         try:
-            query = input("\n您: ").strip()
+            query = (await asyncio.to_thread(input, "\n您: ")).strip()
 
             if query.lower() in ['quit', 'exit', '退出', 'q']:
                 print("\n助手：感谢使用，再见！")
@@ -108,11 +112,11 @@ async def interactive_mode(orchestrator: AgentOrchestratorService):
 
             # 显示来源
             if response.sources:
-                print(f"\n📄 政策来源:")
+                print("\n📄 政策来源:")
                 for i, source in enumerate(response.sources[:3], 1):
                     print(f"  {i}. {source.title[:50]}...")
 
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, EOFError):
             print("\n\n程序被中断，正在退出...")
             break
         except Exception as e:
@@ -190,14 +194,14 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
     print(f"\n批量处理模式: {query_file}")
 
     try:
-        with open(query_file, 'r', encoding='utf-8') as f:
-            queries = [line.strip() for line in f if line.strip()]
+        query_text = await asyncio.to_thread(Path(query_file).read_text, encoding="utf-8")
+        queries = [line.strip() for line in query_text.splitlines() if line.strip()]
 
         print(f"共{len(queries)}个查询待处理")
 
         results = []
-        chain_stats = {}
-        intent_stats = {}
+        chain_stats: dict[str, int] = {}
+        intent_stats: dict[str, int] = {}
 
         for i, query in enumerate(queries, 1):
             print(f"\n[{i}/{len(queries)}] 处理: {query[:50]}...")
@@ -222,13 +226,12 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
 
         # 保存结果
         output_file = Path(query_file).with_suffix('.json')
-        import json
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump({
+        output_text = json.dumps({
                 "results": results,
                 "chain_statistics": chain_stats,
                 "intent_statistics": intent_stats
-            }, f, ensure_ascii=False, indent=2)
+            }, ensure_ascii=False, indent=2)
+        await asyncio.to_thread(output_file.write_text, output_text, encoding="utf-8")
 
         print(f"\n[OK] Results saved to: {output_file}")
 
@@ -244,13 +247,16 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
             percentage = count / len(queries) * 100
             print(f"  {intent}: {count} ({percentage:.1f}%)")
 
+        if not results:
+            return
+
         # 计算平均置信度
         avg_confidence = sum(r["confidence"] for r in results) / len(results)
         print(f"\n平均置信度: {avg_confidence:.1%}")
 
     except Exception as e:
         print(f"[ERROR]: {e}")
-        logging.error(f"Error in batch mode: {e}", exc_info=True)
+        raise
 
 
 async def metrics_mode(orchestrator: AgentOrchestratorService):
@@ -260,23 +266,9 @@ async def metrics_mode(orchestrator: AgentOrchestratorService):
     # 获取指标
     metrics = await orchestrator.get_metrics()
 
-    print(f"\n[STATS] Agent statistics:")
+    print("\n[STATS] Agent statistics:")
     print(f"   总智能体数: {metrics['total_agents']}")
     print(f"   处理链数: {metrics['processing_chains']}")
-
-    print("\n[AGENTS] Agent details:")
-    for name, agent_metrics in metrics["agent_metrics"].items():
-        if hasattr(agent_metrics, "metrics"):
-            print(f"\n   {name}:")
-            for key, value in agent_metrics.items():
-                if isinstance(value, dict):
-                    print(f"     {key}:")
-                    for sub_key, sub_value in value.items():
-                        print(f"       - {sub_key}: {sub_value}")
-                else:
-                    print(f"     {key}: {value}")
-        else:
-            print(f"   {name}: 已初始化")
 
     print("\n[OK] Metrics retrieved successfully")
 
@@ -303,20 +295,27 @@ async def main():
 
     try:
         # 加载配置
-        config = Config.from_file(args.config) if Path(args.config).exists() else Config.from_env()
+        if await asyncio.to_thread(Path(args.config).exists):
+            config = await asyncio.to_thread(Config.from_file, args.config)
+        else:
+            config = Config.from_env()
 
         # 初始化编排服务
         orchestrator = AgentOrchestratorService(config)
 
-        # 根据模式运行
-        if args.metrics:
-            await metrics_mode(orchestrator)
-        elif args.demo:
-            await demo_mode(orchestrator)
-        elif args.interactive or not args.batch:
-            await interactive_mode(orchestrator)
-        elif args.batch:
-            await batch_mode(orchestrator, args.batch)
+        try:
+            # 根据模式运行
+            if args.metrics:
+                await metrics_mode(orchestrator)
+            elif args.demo:
+                await demo_mode(orchestrator)
+            elif args.interactive or not args.batch:
+                await interactive_mode(orchestrator)
+            elif args.batch:
+                await batch_mode(orchestrator, args.batch)
+        finally:
+            with anyio.fail_after(5, shield=True):
+                await orchestrator.aclose()
 
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)

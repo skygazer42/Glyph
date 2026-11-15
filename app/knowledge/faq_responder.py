@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass
+import os
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import List, Optional, Tuple
 from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from app.models.base import FinalAnswer
 
@@ -16,12 +17,13 @@ from app.models.base import FinalAnswer
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FAQEntry:
-    question: str
-    answer: str
-    tags: List[str]
-    source: str
+class FAQEntry(BaseModel):
+    model_config = ConfigDict(strict=True, str_strip_whitespace=True)
+
+    question: str = Field(min_length=1)
+    answer: str = Field(min_length=1)
+    tags: list[str] = Field(default_factory=list)
+    source: str = ""
 
 
 class FAQResponder:
@@ -32,14 +34,10 @@ class FAQResponder:
         data_path: str = "resources/faq/qa_pairs.json",
         *,
         threshold: float = 0.95,
-        max_candidates: int = 1,
     ) -> None:
-        import os
-
         self.data_path = Path(data_path)
         # allow env override: FAQ_THRESHOLD（默认 0.95，高相似度命中）
         self.threshold = float(os.getenv("FAQ_THRESHOLD", str(threshold)))
-        self.max_candidates = max(1, max_candidates)
         self.entries: List[FAQEntry] = []
         self._load_entries()
 
@@ -47,24 +45,10 @@ class FAQResponder:
         if not self.data_path.exists():
             logger.warning("FAQResponder 找不到数据文件：%s", self.data_path)
             return
-        try:
-            raw = json.loads(self.data_path.read_text(encoding="utf-8"))
-            self.entries = [
-                FAQEntry(
-                    question=item.get("question", "").strip(),
-                    answer=item.get("answer", "").strip(),
-                    tags=item.get("tags", []),
-                    source=item.get("source", ""),
-                )
-                for item in raw
-                if item.get("question") and item.get("answer")
-            ]
-            logger.info(
-                "FAQResponder loaded %s entries from %s", len(self.entries), self.data_path
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("FAQResponder 载入失败：%s", exc)
-            self.entries = []
+        self.entries = TypeAdapter(list[FAQEntry]).validate_json(
+            self.data_path.read_text(encoding="utf-8")
+        )
+        logger.info("FAQResponder loaded %s entries from %s", len(self.entries), self.data_path)
 
     def maybe_answer(self, query: str) -> Optional[FinalAnswer]:
         """Only answer when当前问题与 FAQ 问法高度一致（≥阈值）。"""
@@ -104,8 +88,9 @@ class FAQResponder:
             if score > best[1]:
                 best = (entry, score)
 
-        if best[0] and best[1] >= self.threshold:
-            return best  # type: ignore[return-value]
+        best_entry, best_score = best
+        if best_entry is not None and best_score >= self.threshold:
+            return best_entry, best_score
         return None
 
 

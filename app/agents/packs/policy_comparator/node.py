@@ -3,13 +3,9 @@
 """
 
 import asyncio
-import logging
 import re
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
-import difflib
-from collections import defaultdict
-from pydantic import Field
+from pydantic import BaseModel, Field
 from uuid import UUID
 from autogen_core import MessageContext
 
@@ -17,9 +13,6 @@ from app.agents.framework.base.base_agent import PolicyAgentBase
 from app.models.base import (
     AgentType,
     PolicyDocument,
-    PolicyAnalysis,
-    QueryIntent,
-    BaseModel
 )
 
 
@@ -48,7 +41,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
         self.model_client = model_client
 
         # 比较维度定义
-        self.comparison_dimensions = {
+        self.comparison_dimensions: Dict[str, Dict[str, Any]] = {
             "eligibility": {
                 "name": "申请资格",
                 "keywords": ["申请条件", "资格要求", "申请人", "符合条件", "申请资格"],
@@ -82,8 +75,8 @@ class PolicyComparatorAgent(PolicyAgentBase):
         context: MessageContext
     ) -> PolicyComparison:
         """处理政策比较请求"""
-        documents = request.get("documents", [])
-        query_id = request.get("query_id")
+        documents = request["documents"]
+        query_id = request["query_id"]
         comparison_type = request.get("comparison_type", "all")
 
         self.logger.info(f"Comparing {len(documents)} policies")
@@ -121,19 +114,20 @@ class PolicyComparatorAgent(PolicyAgentBase):
         """执行政策比较"""
         comparison_result = PolicyComparison(
             query_id=query_id,
-            documents=[doc.id for doc in documents]
+            documents=[doc.id for doc in documents],
+            comparison_type=comparison_type,
         )
 
         # 根据比较类型选择维度
         if comparison_type == "all":
-            dimensions = self.comparison_dimensions.keys()
+            dimensions = list(self.comparison_dimensions)
         else:
             dimensions = [comparison_type] if comparison_type in self.comparison_dimensions else []
 
         # 初始化比较结果
         all_similarities = []
         all_differences = []
-        comparison_table = defaultdict(list)
+        comparison_table: Dict[str, List[Any]] = {}
 
         # 对每个维度进行比较
         for dimension in dimensions:
@@ -176,7 +170,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
         table_data = []
 
         # 提取每个文档在该维度的信息
-        dimension_info = []
+        dimension_info: List[Dict[str, Any]] = []
         for doc in documents:
             info = await self._extract_dimension_info(doc, dimension)
             dimension_info.append({
@@ -192,12 +186,12 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         # 找出差异点
         unique_elements = self._find_unique_elements(dimension_info)
-        for element in unique_elements:
+        for unique_element in unique_elements:
             differences.append({
                 "dimension": dim_config["name"],
                 "type": "difference",
-                "content": element,
-                "affected_policies": element["policies"]
+                "content": unique_element["content"],
+                "affected_policies": unique_element["policies"]
             })
 
         # 构建表格数据
@@ -435,8 +429,6 @@ class PolicyComparatorAgent(PolicyAgentBase):
         total_points = similarity_count + difference_count
         if total_points >= 5:
             base_confidence += 0.1
-        elif total_points >= 10:
-            base_confidence += 0.1
 
         return min(base_confidence, 1.0)
 
@@ -447,5 +439,5 @@ class PolicyComparatorAgent(PolicyAgentBase):
             "agent_type": self.agent_type.value,
             "name": self.name,
             "comparison_dimensions": len(self.comparison_dimensions),
-            "memory_size": len(self.memory.memory_contents) if self.memory else 0
+            "memory_size": len(self.memory.content)
         }

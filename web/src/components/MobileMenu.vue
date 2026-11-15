@@ -34,7 +34,10 @@
 
       <div class="drawer-content">
         <!-- 导航菜单 -->
-        <nav class="nav-list" role="navigation">
+        <nav
+          class="nav-list"
+          role="navigation"
+        >
           <router-link
             v-for="item in menuItems"
             :key="item.path"
@@ -57,7 +60,7 @@
           <div class="theme-control">
             <span>深色模式</span>
             <el-switch
-              v-model="isDark"
+              :model-value="isDark"
               @change="toggleTheme"
               aria-label="切换深色模式"
             />

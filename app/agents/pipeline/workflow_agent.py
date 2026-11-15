@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import logging
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import uuid4
 
+import anyio
+
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.base import ChatAgent
 from autogen_agentchat.conditions import SourceMatchTermination
 from autogen_agentchat.messages import BaseChatMessage, TextMessage
 from autogen_agentchat.teams import DiGraphBuilder, GraphFlow
-from autogen_core.tools import FunctionTool
+from autogen_core.tools import BaseTool, FunctionTool
 from typing_extensions import Annotated
 
 from app.agents.pipeline.knowledge_agent import KnowledgeAgent
@@ -17,6 +21,9 @@ from app.agents.pipeline.rule_agent import RuleEngineAgent
 from app.agents.service.tools import VisionTool, UserProfileTool
 from app.core.llms import model_client
 from app.models.base import Attachment, FinalAnswer
+
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowAgent:
@@ -57,12 +64,16 @@ class WorkflowAgent:
         last_message: Optional[BaseChatMessage] = None
 
         try:
-            async for event in flow.run_stream(  # type: ignore[attr-defined]
-                task=self._build_task_prompt(query, attachments)
-            ):
-                if isinstance(event, BaseChatMessage):
-                    last_message = event
+            stream = flow.run_stream(task=self._build_task_prompt(query, attachments))
+            try:
+                async for event in stream:
+                    if isinstance(event, BaseChatMessage):
+                        last_message = event
+            finally:
+                with anyio.fail_after(5, shield=True):
+                    await stream.aclose()
         except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("GraphFlow execution failed")
             # 回退：若 GraphFlow 失败，直接返回兜底答案
             return self._fallback_answer(query, f"GraphFlow 执行异常：{exc}")
 
@@ -73,7 +84,7 @@ class WorkflowAgent:
             context["rule_result"],
             context["user_profile"],
         )
-        metadata = final.metadata or {}
+        metadata = final.metadata
         workflow_meta = metadata.get("workflow") or {}
         if context["vision_summary"]:
             workflow_meta["vision_summary"] = context["vision_summary"]
@@ -99,7 +110,7 @@ class WorkflowAgent:
         intent: Optional[Dict[str, Any]],
     ) -> GraphFlow:
         builder = DiGraphBuilder()
-        participants: List[AssistantAgent] = []
+        participants: List[ChatAgent] = []
         previous_agent: Optional[AssistantAgent] = None
 
         # 工具闭包
@@ -146,7 +157,7 @@ class WorkflowAgent:
             context["user_profile"] = profile
             return self.user_profile_tool.format_profile(profile)
 
-        router_tools = [
+        router_tools: List[BaseTool[Any, Any] | Callable[..., Any] | Callable[..., Awaitable[Any]]] = [
             FunctionTool(query_policy_knowledge, description="当需要检索政策或知识库信息时调用。"),
             FunctionTool(execute_rule_engine, description="当需要根据票据/参数计算优惠、折扣、补贴时调用。"),
             FunctionTool(fetch_user_profile, description="查询指定用户ID的历史、等级与最近活动。"),

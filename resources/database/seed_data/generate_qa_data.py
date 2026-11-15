@@ -107,9 +107,14 @@ qa_data = {
     ]
 }
 
-# 导出
-with open("policy_qa_初始数据.json", "w", encoding="utf-8") as f:
-    json.dump(qa_data, f, ensure_ascii=False, indent=2)
+def main() -> None:
+    """Export the sample dataset when explicitly run as a script."""
+    with open("policy_qa_初始数据.json", "w", encoding="utf-8") as output:
+        json.dump(qa_data, output, ensure_ascii=False, indent=2)
 
-print(f"已生成 {len(qa_data['qa_pairs'])} 个QA对")
-print("文件：policy_qa_初始数据.json")
+    print(f"已生成 {len(qa_data['qa_pairs'])} 个QA对")
+    print("文件：policy_qa_初始数据.json")
+
+
+if __name__ == "__main__":
+    main()

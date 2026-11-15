@@ -3,11 +3,15 @@ Message Bus - 消息总线系统
 """
 
 import asyncio
+from functools import partial
+
+from app.utils.lifecycle import close_with_timeout
 from typing import Dict, List, Callable, Any, Optional
 from datetime import datetime
 import logging
 from collections import defaultdict
 import uuid
+import inspect
 
 from ..models.base import MessageType
 
@@ -88,8 +92,8 @@ class MessageBus:
     def __init__(self, max_queue_size: int = 1000):
         self.max_queue_size = max_queue_size
         self._subscribers: Dict[MessageType, List[Callable]] = defaultdict(list)
-        self._agent_subscribers: Dict[str, List[Callable]] = defaultdict(list)
-        self._message_queue = asyncio.Queue(maxsize=max_queue_size)
+        self._agent_subscribers: Dict[str, Dict[MessageType, List[Callable]]] = defaultdict(lambda: defaultdict(list))
+        self._message_queue: asyncio.Queue[Message] = asyncio.Queue(maxsize=max_queue_size)
         self._running = False
         self._worker_tasks: List[asyncio.Task] = []
         self._message_history: Dict[str, Message] = {}
@@ -121,8 +125,9 @@ class MessageBus:
             task.cancel()
 
         if self._worker_tasks:
-            await asyncio.gather(*self._worker_tasks, return_exceptions=True)
+            await close_with_timeout(partial(asyncio.gather, *self._worker_tasks, return_exceptions=True))
 
+        self._worker_tasks.clear()
         logger.info("Message bus stopped")
 
     def subscribe(
@@ -139,9 +144,9 @@ class MessageBus:
             handler: 处理函数
             agent_id: Agent ID（可选）
         """
-        self._subscribers[message_type].append(handler)
-        if agent_id:
-            self._agent_subscribers[agent_id].append(handler)
+        subscribers = self._subscribers if agent_id is None else self._agent_subscribers[agent_id]
+        if handler not in subscribers[message_type]:
+            subscribers[message_type].append(handler)
         logger.debug(f"Subscribed to {message_type.value}")
 
     def unsubscribe(
@@ -158,12 +163,9 @@ class MessageBus:
             handler: 处理函数
             agent_id: Agent ID（可选）
         """
-        if handler in self._subscribers[message_type]:
-            self._subscribers[message_type].remove(handler)
-
-        if agent_id and agent_id in self._agent_subscribers:
-            if handler in self._agent_subscribers[agent_id]:
-                self._agent_subscribers[agent_id].remove(handler)
+        subscribers = self._subscribers if agent_id is None else self._agent_subscribers[agent_id]
+        if handler in subscribers[message_type]:
+            subscribers[message_type].remove(handler)
 
         logger.debug(f"Unsubscribed from {message_type.value}")
 
@@ -174,19 +176,10 @@ class MessageBus:
         Args:
             message: 要发布的消息
         """
-        try:
-            # 将消息放入队列
-            await self._message_queue.put(message)
-            self._stats["messages_sent"] += 1
-
-            # 记录消息历史
-            self._record_message(message)
-
-            logger.debug(f"Published message {message.id} of type {message.type.value}")
-
-        except asyncio.QueueFull:
-            self._stats["messages_failed"] += 1
-            logger.error("Message queue is full, dropping message")
+        # Queue.put provides backpressure; it waits instead of raising QueueFull.
+        await self._message_queue.put(message)
+        self._stats["messages_sent"] += 1
+        self._record_message(message)
 
     async def request(
         self,
@@ -216,11 +209,11 @@ class MessageBus:
         )
 
         # 创建响应等待器
-        response_future = asyncio.Future()
+        response_future: asyncio.Future[Message] = asyncio.get_running_loop().create_future()
 
         # 临时订阅响应
         def response_handler(message: Message):
-            if message.reply_to == request.id:
+            if message.reply_to == request.id and not response_future.done():
                 response_future.set_result(message)
 
         self.subscribe(message_type, response_handler)
@@ -253,12 +246,15 @@ class MessageBus:
                 )
 
                 # 分发消息
-                await self._dispatch_message(message)
+                try:
+                    await self._dispatch_message(message)
+                finally:
+                    self._message_queue.task_done()
 
             except asyncio.TimeoutError:
                 continue
-            except Exception as e:
-                logger.error(f"Worker {worker_name} error: {e}")
+            except Exception:
+                logger.exception("Worker %s error", worker_name)
 
         logger.info(f"Message bus worker {worker_name} stopped")
 
@@ -274,7 +270,11 @@ class MessageBus:
 
         # 添加特定Agent订阅者
         if message.recipient:
-            subscribers.extend(self._agent_subscribers.get(message.recipient, []))
+            subscribers.extend(self._agent_subscribers.get(message.recipient, {}).get(message.type, []))
+        else:
+            for by_type in self._agent_subscribers.values():
+                subscribers.extend(by_type.get(message.type, []))
+        subscribers = list(dict.fromkeys(subscribers))
 
         # 并发调用所有订阅者
         if subscribers:
@@ -288,8 +288,10 @@ class MessageBus:
 
                 # 检查是否有成功的处理
                 for result in results:
-                    if isinstance(result, Exception):
-                        logger.error(f"Handler error: {result}")
+                    if isinstance(result, BaseException):
+                        if not isinstance(result, Exception):
+                            raise result
+                        logger.error("Handler error", exc_info=(type(result), result, result.__traceback__))
                     else:
                         delivered = True
 
@@ -301,13 +303,9 @@ class MessageBus:
 
     async def _safe_call_handler(self, handler: Callable, message: Message) -> None:
         """安全调用处理函数"""
-        try:
-            if asyncio.iscoroutinefunction(handler):
-                await handler(message)
-            else:
-                handler(message)
-        except Exception as e:
-            logger.error(f"Handler error: {e}")
+        result = handler(message)
+        if inspect.isawaitable(result):
+            await result
 
     def _record_message(self, message: Message) -> None:
         """记录消息历史"""
@@ -315,7 +313,7 @@ class MessageBus:
 
         # 清理旧消息
         if len(self._message_history) > self._max_history:
-            oldest_key = min(self._message_history.keys())
+            oldest_key = next(iter(self._message_history))
             del self._message_history[oldest_key]
 
     def get_stats(self) -> Dict[str, Any]:
@@ -323,7 +321,8 @@ class MessageBus:
         return {
             **self._stats,
             "queue_size": self._message_queue.qsize(),
-            "subscriber_count": sum(len(subs) for subs in self._subscribers.values()),
+            "subscriber_count": sum(len(subs) for subs in self._subscribers.values())
+                + sum(len(subs) for by_type in self._agent_subscribers.values() for subs in by_type.values()),
             "history_size": len(self._message_history)
         }
 

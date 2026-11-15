@@ -9,13 +9,11 @@ This module borrows concepts from ChatDB's domain_zh_gov helper to:
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from app.agents.chatdb.domain_zh_gov import (
     REGION_ALIASES,
-    TABLE_HINTS,
     normalize_terms,
     parse_time_window,
     TimeWindow,
@@ -52,7 +50,7 @@ class PolicyDomainContext:
     search_variants: List[str] = field(default_factory=list)
     synonyms_applied: Dict[str, str] = field(default_factory=dict)
 
-    def to_metadata(self) -> Dict[str, any]:
+    def to_metadata(self) -> Dict[str, Any]:
         return {
             "region": self.region,
             "time_window": {
@@ -79,7 +77,7 @@ class PolicyDomainContextBuilder:
         keywords = self._extract_keywords(normalized)
 
         search_variants = self._compose_search_variants(normalized, region, keywords, time_window)
-        ctx = PolicyDomainContext(
+        return PolicyDomainContext(
             original_query=query,
             normalized_query=normalized,
             region=region,
@@ -89,23 +87,18 @@ class PolicyDomainContextBuilder:
             search_variants=search_variants,
             synonyms_applied=replacements,
         )
-        return ctx
 
     def _detect_region(self, normalized: str, replacements: Dict[str, str]) -> Optional[str]:
-        for src, dst in replacements.items():
-            if src.endswith("市"):
-                return dst
-        for alias, short in self.region_aliases.items():
+        for original_term, replacement in replacements.items():
+            if original_term.endswith("市"):
+                return replacement
+        for alias, region in self.region_aliases.items():
             if alias in normalized:
-                return short
+                return region
         return None
 
     def _extract_keywords(self, normalized: str) -> List[str]:
-        hits: List[str] = []
-        for kw in self.policy_keywords:
-            if kw in normalized:
-                hits.append(kw)
-        return hits
+        return [keyword for keyword in self.policy_keywords if keyword in normalized]
 
     def _compose_search_variants(
         self,
@@ -117,21 +110,21 @@ class PolicyDomainContextBuilder:
         variants = [normalized]
         if region and region not in normalized:
             variants.append(f"{normalized} {region}")
-        for kw in keywords[:2]:  # limit expansions
-            if kw not in normalized:
-                variants.append(f"{region or ''} {kw} 政策".strip())
+        for keyword in keywords[:2]:  # limit expansions
+            if keyword not in normalized:
+                variants.append(f"{region or ''} {keyword} 政策".strip())
         if time_window and time_window.phrase:
             variants.append(f"{normalized} {time_window.phrase}")
         # Deduplicate while preserving order
         seen = set()
-        uniq: List[str] = []
+        unique_variants: List[str] = []
         for text in variants:
             key = text.strip()
             if not key or key in seen:
                 continue
             seen.add(key)
-            uniq.append(key)
-        return uniq
+            unique_variants.append(key)
+        return unique_variants
 
 
 __all__ = ["PolicyDomainContext", "PolicyDomainContextBuilder"]

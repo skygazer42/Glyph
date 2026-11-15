@@ -206,7 +206,8 @@ test_results*.json
 test_results*.md
 analyze_results.py
 test_*.py
-!tests/**/*.py  # 保留 tests 目录下的测试文件
+# 保留 tests 目录下的测试文件
+!tests/**/*.py
 
 # 临时测试脚本
 check_*.py

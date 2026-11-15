@@ -4,15 +4,23 @@ from __future__ import annotations
 
 import json
 import logging
-from statistics import mean
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from autogen_core.models import UserMessage
+from pydantic import BaseModel, ConfigDict
 
 from app.agents.dsl_generator.rule_engine import PolicyEngine
 from app.core.llms import model_client
 from app.models.base import FinalAnswer
+
+
+class RuleExecutionPlan(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    rule_id: str | None
+    inputs: dict[str, Any]
+    reasoning: str | None = None
 
 
 class RuleEngineAgent:
@@ -31,22 +39,25 @@ class RuleEngineAgent:
             return self._no_rule_answer()
 
         plan = await self._plan_execution(query, rules_context)
-        rule_id = plan.get("rule_id")
+        rule_id = plan.rule_id
         if not rule_id or rule_id not in self.engine.rules:
-            return self._unable_to_match_answer(query, plan.get("reasoning"))
+            return self._unable_to_match_answer(query, plan.reasoning)
 
-        rule_info = self.engine.get_rule_info(rule_id) or {}
-        inputs = self._coerce_inputs(rule_info, plan.get("inputs", {}))
+        rule_info = self.engine.get_rule_info(rule_id)
+        if rule_info is None:
+            raise KeyError(rule_id)
+        inputs = self._coerce_inputs(rule_info, plan.inputs)
         result = self.engine.execute(rule_id, inputs)
         answer_text = self._format_result(rule_id, result, inputs)
-        confidence = 0.85 if result.get("status") == "SUCCESS" else 0.45
+        qualified = result["status"] in {"QUALIFIED", "SUCCESS"}
+        confidence = 0.85 if qualified else 0.45
 
         return FinalAnswer(
             query_id=uuid4(),
             answer=answer_text,
             sources=[],
             confidence=confidence,
-            verification_passed=result.get("status") == "SUCCESS",
+            verification_passed=qualified,
             metadata={
                 "route": "rule_engine",
                 "rule_id": rule_id,
@@ -58,17 +69,19 @@ class RuleEngineAgent:
         )
 
     def _collect_rules(self) -> List[Dict[str, Any]]:
-        rules = self.engine.list_rules() or []
+        rules = self.engine.list_rules()
         # 优先活跃规则
-        active_rules = [r for r in rules if r.get("is_active")]
-        sorted_rules = active_rules + [r for r in rules if not r.get("is_active")]
+        active_rules = [r for r in rules if r["is_active"]]
+        sorted_rules = active_rules + [r for r in rules if not r["is_active"]]
         contexts = []
         for rule_meta in sorted_rules[: self.max_rules]:
-            info = self.engine.get_rule_info(rule_meta["rule_id"]) or {}
+            info = self.engine.get_rule_info(rule_meta["rule_id"])
+            if info is None:
+                raise KeyError(rule_meta["rule_id"])
             contexts.append(
                 {
                     "rule_id": rule_meta["rule_id"],
-                    "title": rule_meta.get("title") or info.get("title") or "",
+                    "title": rule_meta["title"],
                     "inputs": info.get("inputs", []),
                     "description": info.get("description") or info.get("notes") or "",
                 }
@@ -77,16 +90,16 @@ class RuleEngineAgent:
 
     async def _plan_execution(
         self, query: str, contexts: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    ) -> RuleExecutionPlan:
         prompt = self._build_planner_prompt(query, contexts)
         try:
             response = await model_client.create(
                 [UserMessage(content=prompt, source="user")]
             )
-            return self._safe_parse_json(response.content) or {}
+            return self._parse_execution_plan(response.content)
         except Exception as exc:  # pragma: no cover
-            self.logger.error("Rule planner调用失败: %s", exc)
-            return {}
+            self.logger.error("Rule planner调用失败: %s", exc, exc_info=True)
+            raise
 
     def _build_planner_prompt(self, query: str, contexts: List[Dict[str, Any]]) -> str:
         lines = [
@@ -95,7 +108,7 @@ class RuleEngineAgent:
         ]
         for ctx in contexts:
             inputs_desc = ", ".join(
-                f"{spec.get('name')}({spec.get('type','string')}): {spec.get('description','')}"
+                f"{spec['name']}({spec['type']}): {spec.get('description', '')}"
                 for spec in ctx["inputs"]
             )
             lines.append(
@@ -112,7 +125,7 @@ class RuleEngineAgent:
         self, rule_info: Dict[str, Any], raw_inputs: Dict[str, Any]
     ) -> Dict[str, Any]:
         specs_map = {
-            spec.get("name"): spec for spec in rule_info.get("inputs", []) if spec.get("name")
+            spec["name"]: spec for spec in rule_info.get("inputs", [])
         }
         converted: Dict[str, Any] = {}
         for key, value in raw_inputs.items():
@@ -120,17 +133,23 @@ class RuleEngineAgent:
             if spec is None or value is None:
                 converted[key] = value
                 continue
-            input_type = (spec.get("type") or "string").lower()
+            input_type = spec["type"].lower()
             try:
                 if input_type == "float":
                     converted[key] = float(value)
-                elif input_type == "int":
+                elif input_type in {"int", "integer"}:
                     converted[key] = int(value)
-                elif input_type == "boolean":
+                elif input_type in {"bool", "boolean"}:
                     if isinstance(value, bool):
                         converted[key] = value
                     else:
-                        converted[key] = str(value).lower() in {"true", "1", "yes", "是"}
+                        token = str(value).lower()
+                        if token in {"true", "1", "yes", "是"}:
+                            converted[key] = True
+                        elif token in {"false", "0", "no", "否"}:
+                            converted[key] = False
+                        else:
+                            converted[key] = value
                 else:
                     converted[key] = value
             except (ValueError, TypeError):
@@ -140,11 +159,11 @@ class RuleEngineAgent:
     def _format_result(
         self, rule_id: str, result: Dict[str, Any], inputs: Dict[str, Any]
     ) -> str:
-        status = (result or {}).get("status", "UNKNOWN")
-        msg = (result or {}).get("message", "")
-        final_value = (result or {}).get("final_result")
-        trace_steps = (result or {}).get("explainability_trace") or []
-        policy_source = (result or {}).get("policy_source") or {}
+        status = result["status"]
+        msg = result.get("message", "")
+        final_value = result.get("final_result")
+        trace_steps = result.get("explainability_trace", [])
+        policy_source = result.get("policy_source", {})
         title = policy_source.get("title") or ""
 
         lines: list[str] = []
@@ -217,20 +236,17 @@ class RuleEngineAgent:
             total_processing_time=0.0,
         )
 
-    def _safe_parse_json(self, text: Optional[str]) -> Dict[str, Any]:
-        if not text:
-            return {}
+    def _parse_execution_plan(self, text: Any) -> RuleExecutionPlan:
+        if not isinstance(text, str):
+            raise ValueError("Rule planner returned non-text content")
         text = text.strip()
         try:
-            return json.loads(text)
-        except json.JSONDecodeError:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
             start = text.find("{")
             end = text.rfind("}")
             if start != -1 and end != -1:
-                try:
-                    return json.loads(text[start : end + 1])
-                except Exception:
-                    return {}
-        except Exception:
-            return {}
-        return {}
+                parsed = json.loads(text[start : end + 1])
+            else:
+                raise ValueError("Rule planner returned invalid JSON") from exc
+        return RuleExecutionPlan.model_validate(parsed)

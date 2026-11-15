@@ -4,7 +4,11 @@ Agent Registry - Agent注册中心
 
 from typing import Dict, List, Type, Optional, Any
 import logging
+import asyncio
 from datetime import datetime
+from functools import partial
+
+from app.utils.lifecycle import close_with_timeout
 
 from ..models.base import AgentType
 from .agent_base import AgentBase
@@ -22,7 +26,7 @@ class AgentInfo:
         name: str,
         description: str,
         version: str,
-        dependencies: List[str] = None,
+        dependencies: Optional[List[str]] = None,
         config_schema: Optional[Dict[str, Any]] = None
     ):
         self.agent_class = agent_class
@@ -42,6 +46,8 @@ class AgentRegistry:
         self._agents: Dict[str, AgentInfo] = {}  # agent_id -> AgentInfo
         self._agents_by_type: Dict[AgentType, List[AgentInfo]] = {}
         self._instances: Dict[str, AgentBase] = {}  # agent_id -> Agent instance
+        self._creation_locks: Dict[str, asyncio.Lock] = {}
+        self._shutdown_tasks: List[asyncio.Task] = []
         self._enabled_agents: Dict[str, bool] = {}  # agent_id -> enabled
 
     def register(
@@ -52,7 +58,7 @@ class AgentRegistry:
         name: str,
         description: str = "",
         version: str = "1.0.0",
-        dependencies: List[str] = None,
+        dependencies: Optional[List[str]] = None,
         config_schema: Optional[Dict[str, Any]] = None
     ) -> None:
         """
@@ -68,6 +74,8 @@ class AgentRegistry:
             dependencies: 依赖的Agent列表
             config_schema: 配置模式
         """
+        if not issubclass(agent_class, AgentBase):
+            raise TypeError("Registry agents must implement the framework AgentBase protocol")
         if agent_id in self._agents:
             logger.warning(f"Agent {agent_id} already registered, updating...")
             self.unregister(agent_id)
@@ -104,18 +112,21 @@ class AgentRegistry:
             return
 
         agent_info = self._agents[agent_id]
+        # Validate ownership before changing indexes or creating a coroutine.
+        loop = asyncio.get_running_loop() if agent_id in self._instances else None
 
         # 从类型索引中移除
         if agent_info.agent_type in self._agents_by_type:
             self._agents_by_type[agent_info.agent_type] = [
                 info for info in self._agents_by_type[agent_info.agent_type]
-                if info.name != agent_id
+                if info is not agent_info
             ]
 
         # 销毁实例
         if agent_id in self._instances:
             instance = self._instances[agent_id]
-            asyncio.create_task(instance.shutdown())
+            assert loop is not None
+            self._shutdown_tasks.append(loop.create_task(close_with_timeout(instance.shutdown)))
             del self._instances[agent_id]
 
         # 移除注册信息
@@ -124,59 +135,31 @@ class AgentRegistry:
 
         logger.info(f"Unregistered agent {agent_id}")
 
-    async def create_instance(
-        self,
-        agent_id: str,
-        config: Optional[Dict[str, Any]] = None
-    ) -> Optional[AgentBase]:
-        """
-        创建Agent实例
-
-        Args:
-            agent_id: Agent ID
-            config: 配置参数
-
-        Returns:
-            Optional[AgentBase]: Agent实例
-        """
-        if agent_id not in self._agents:
-            logger.error(f"Agent {agent_id} not registered")
-            return None
-
-        if not self._enabled_agents[agent_id]:
-            logger.error(f"Agent {agent_id} is disabled")
-            return None
-
-        if agent_id in self._instances:
-            logger.warning(f"Agent {agent_id} instance already exists")
-            return self._instances[agent_id]
-
-        agent_info = self._agents[agent_id]
-
-        try:
-            # 创建实例
-            instance = agent_info.agent_class(
-                agent_id=agent_id,
-                agent_type=agent_info.agent_type,
-                name=agent_info.name,
-                description=agent_info.description,
-                version=agent_info.version
-            )
-
-            # 初始化
-            config = config or {}
-            success = await instance.initialize(config)
-            if not success:
-                logger.error(f"Failed to initialize agent {agent_id}")
+    async def create_instance(self, agent_id: str, config: Optional[Dict[str, Any]] = None) -> Optional[AgentBase]:
+        lock = self._creation_locks.setdefault(agent_id, asyncio.Lock())
+        async with lock:
+            info = self._agents.get(agent_id)
+            if info is None or not self.is_enabled(agent_id):
                 return None
-
-            self._instances[agent_id] = instance
-            logger.info(f"Created instance for agent {agent_id}")
-            return instance
-
-        except Exception as e:
-            logger.error(f"Failed to create instance for agent {agent_id}: {e}")
-            return None
+            if agent_id in self._instances:
+                return self._instances[agent_id]
+            instance = info.agent_class(agent_id=agent_id, agent_type=info.agent_type,
+                name=info.name, description=info.description, version=info.version)
+            published = False
+            try:
+                if not await instance.initialize({} if config is None else config):
+                    return None
+                if self._agents.get(agent_id) is not info or not self.is_enabled(agent_id):
+                    return None
+                self._instances[agent_id] = instance
+                published = True
+                return instance
+            except Exception:
+                logger.exception("Failed to create instance for agent %s", agent_id)
+                return None
+            finally:
+                if not published:
+                    await close_with_timeout(instance.shutdown)
 
     async def get_instance(self, agent_id: str) -> Optional[AgentBase]:
         """
@@ -202,6 +185,10 @@ class AgentRegistry:
         """
         return self._agents.get(agent_id)
 
+    def list_agent_ids(self) -> List[str]:
+        """Return enabled registry identities without confusing them with display names."""
+        return [agent_id for agent_id in self._agents if self.is_enabled(agent_id)]
+
     def list_agents(
         self,
         agent_type: Optional[AgentType] = None,
@@ -217,17 +204,9 @@ class AgentRegistry:
         Returns:
             List[AgentInfo]: Agent信息列表
         """
-        agents = []
-
-        if agent_type:
-            agents = self._agents_by_type.get(agent_type, [])
-        else:
-            agents = list(self._agents.values())
-
-        if enabled_only:
-            agents = [a for a in agents if self._enabled_agents.get(a.name, True)]
-
-        return agents
+        return [info for agent_id, info in self._agents.items()
+                if (agent_type is None or info.agent_type == agent_type)
+                and (not enabled_only or self.is_enabled(agent_id))]
 
     def enable_agent(self, agent_id: str) -> None:
         """启用Agent"""
@@ -280,29 +259,28 @@ class AgentRegistry:
         Returns:
             List[AgentBase]: 按依赖顺序排列的Agent实例列表
         """
-        if not self.validate_dependencies(agent_id):
-            return []
+        chain: List[AgentBase] = []
+        visited: set[str] = set()
+        visiting: set[str] = set()
 
-        chain = []
-        visited = set()
-
-        def dfs(current_id: str):
+        async def visit(current_id: str) -> None:
+            if current_id in visiting:
+                raise ValueError(f"Cyclic agent dependency: {current_id}")
             if current_id in visited:
                 return
+            if current_id not in self._agents or not self.is_enabled(current_id):
+                raise ValueError(f"Unavailable agent dependency: {current_id}")
+            visiting.add(current_id)
+            for dependency in self.get_dependencies(current_id):
+                await visit(dependency)
+            instance = await self.create_instance(current_id)
+            if instance is None:
+                raise RuntimeError(f"Agent initialization failed: {current_id}")
+            chain.append(instance)
+            visiting.remove(current_id)
             visited.add(current_id)
 
-            # 先创建依赖
-            for dep_id in self.get_dependencies(current_id):
-                dfs(dep_id)
-
-            # 创建当前Agent
-            if current_id not in self._instances:
-                asyncio.create_task(self.create_instance(current_id))
-
-            if current_id in self._instances:
-                chain.append(self._instances[current_id])
-
-        dfs(agent_id)
+        await visit(agent_id)
         return chain
 
     def get_stats(self) -> Dict[str, Any]:
@@ -319,8 +297,22 @@ class AgentRegistry:
 
     async def shutdown_all(self) -> None:
         """关闭所有Agent实例"""
-        for agent_id, instance in self._instances.items():
-            await instance.shutdown()
-            logger.info(f"Shutdown agent {agent_id}")
-
-        self._instances.clear()
+        instances, self._instances = self._instances, {}
+        pending, self._shutdown_tasks = self._shutdown_tasks, []
+        results = await close_with_timeout(partial(
+            asyncio.gather,
+            *(close_with_timeout(instance.shutdown) for instance in instances.values()),
+            *pending,
+            return_exceptions=True,
+        ))
+        for result in results:
+            if isinstance(result, BaseException) and not isinstance(result, Exception):
+                raise result
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            for error in errors:
+                logger.error(
+                    "Agent shutdown failure: %s", error,
+                    exc_info=(type(error), error, error.__traceback__),
+                )
+            raise RuntimeError(f"{len(errors)} agent shutdowns failed") from errors[0]

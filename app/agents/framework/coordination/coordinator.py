@@ -3,19 +3,16 @@ Coordinator agent for managing the policy QA workflow.
 """
 
 import json
-import asyncio
-from typing import Dict, Any, List
-from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
+import logging
+from pydantic import TypeAdapter
+from typing import Dict, Any
 
-from ..base.base_agent import BaseAgent
 from ..base.types import (
-    MessageTypes,
-    AgentTypes,
-    TopicTypes
+    AgentTypes
 )
 
 
-class Coordinator(BaseAgent):
+class Coordinator:
     """Coordinator agent that manages the entire policy QA workflow."""
 
     def __init__(
@@ -25,34 +22,14 @@ class Coordinator(BaseAgent):
         agents: Dict[str, Any]
     ):
         """Initialize the coordinator."""
-        super().__init__(name, "coordinator", llm_config)
+        self.name = name
+        self.llm_config = llm_config
+        self.logger = logging.getLogger(f"{__name__}.{name}")
         self.agents = agents
-        self.workflow_state = {}
-
-    def _get_default_system_message(self) -> str:
-        """Get the default system message."""
-        return """您是政策问答协调员，负责协调整个问答工作流程。
-
-您的职责：
-1. 协调不同专业Agent之间的工作
-2. 管理从问题理解到最终答案的整个流程
-3. 确保所有Agent有效协作
-4. 处理错误并在必要时重试
-5. 编译最终的综合响应
-
-工作流程：
-1. 将问题发送给问题理解专员进行分析
-2. 将分析结果发送给政策检索专员进行文档检索
-3. 将结果发送给政策分析专员进行详细分析
-4. 将分析发送给答案生成专员创建答案
-5. 将答案发送给答案验证专员进行验证
-6. 编译并返回最终验证的答案
-
-始终维护上下文并确保Agent之间的顺畅转换。"""
 
     async def process_query(self, query: str) -> Dict[str, Any]:
         """Process a user query through the complete workflow."""
-        self.workflow_state = {
+        workflow_state: Dict[str, Any] = {
             "query": query,
             "step": 1,
             "total_steps": 5,
@@ -67,11 +44,12 @@ class Coordinator(BaseAgent):
                 raise ValueError("QuestionUnderstander not available")
 
             analysis_result = await question_understander.process_message(query)
-            if not analysis_result.get("success"):
+            if not analysis_result["success"]:
                 raise ValueError(f"Question understanding failed: {analysis_result.get('error')}")
 
-            self.workflow_state["results"]["analysis"] = analysis_result["data"]
-            self.workflow_state["step"] = 2
+            analysis = TypeAdapter(Any).dump_python(analysis_result["data"], mode="json")
+            workflow_state["results"]["analysis"] = analysis
+            workflow_state["step"] = 2
 
             # Step 2: Policy Retrieval
             self.logger.info("Step 2: Retrieving relevant policies...")
@@ -81,18 +59,19 @@ class Coordinator(BaseAgent):
 
             retrieval_request = {
                 "query": query,
-                "analysis": analysis_result["data"],
+                "analysis": analysis,
                 "method": "hybrid"
             }
 
             retrieval_result = await policy_retriever.process_message(
                 json.dumps(retrieval_request)
             )
-            if not retrieval_result.get("success"):
+            if not retrieval_result["success"]:
                 raise ValueError(f"Policy retrieval failed: {retrieval_result.get('error')}")
 
-            self.workflow_state["results"]["retrieval"] = retrieval_result["data"]
-            self.workflow_state["step"] = 3
+            retrieval = TypeAdapter(Any).dump_python(retrieval_result["data"], mode="json")
+            workflow_state["results"]["retrieval"] = retrieval
+            workflow_state["step"] = 3
 
             # Step 3: Policy Analysis
             self.logger.info("Step 3: Analyzing retrieved policies...")
@@ -102,18 +81,18 @@ class Coordinator(BaseAgent):
 
             analysis_request = {
                 "query": query,
-                "documents": [doc.__dict__ if hasattr(doc, '__dict__') else doc
-                             for doc in retrieval_result["data"].documents]
+                "documents": retrieval["documents"]
             }
 
             analysis_report = await policy_analyzer.process_message(
                 json.dumps(analysis_request)
             )
-            if not analysis_report.get("success"):
+            if not analysis_report["success"]:
                 raise ValueError(f"Policy analysis failed: {analysis_report.get('error')}")
 
-            self.workflow_state["results"]["analysis_report"] = analysis_report["data"]
-            self.workflow_state["step"] = 4
+            report = TypeAdapter(Any).dump_python(analysis_report["data"], mode="json")
+            workflow_state["results"]["analysis_report"] = report
+            workflow_state["step"] = 4
 
             # Step 4: Answer Generation
             self.logger.info("Step 4: Generating answer...")
@@ -123,18 +102,19 @@ class Coordinator(BaseAgent):
 
             generation_request = {
                 "query": query,
-                "analysis": analysis_result["data"],
-                "document_analyses": analysis_report["data"]["document_analyses"]
+                "analysis": analysis,
+                "document_analyses": report["document_analyses"]
             }
 
             answer_result = await answer_generator.process_message(
                 json.dumps(generation_request)
             )
-            if not answer_result.get("success"):
+            if not answer_result["success"]:
                 raise ValueError(f"Answer generation failed: {answer_result.get('error')}")
 
-            self.workflow_state["results"]["answer"] = answer_result["data"]
-            self.workflow_state["step"] = 5
+            answer_data = TypeAdapter(Any).dump_python(answer_result["data"], mode="json")
+            workflow_state["results"]["answer"] = answer_data
+            workflow_state["step"] = 5
 
             # Step 5: Answer Verification
             self.logger.info("Step 5: Verifying answer...")
@@ -142,15 +122,15 @@ class Coordinator(BaseAgent):
             if answer_verifier:
                 verification_request = {
                     "query": query,
-                    "answer": answer_result["data"].get("answer", ""),
-                    "sources": answer_result["data"].get("sources", []),
-                    "document_analyses": analysis_report["data"]["document_analyses"]
+                    "answer": answer_data["answer"],
+                    "sources": answer_data["sources"],
+                    "document_analyses": report["document_analyses"]
                 }
 
                 verification_result = await answer_verifier.process_message(
                     json.dumps(verification_request)
                 )
-                if not verification_result.get("success"):
+                if not verification_result["success"]:
                     # Continue even if verification fails
                     self.logger.warning(f"Verification failed: {verification_result.get('error')}")
                     verification_result["data"] = {
@@ -168,49 +148,49 @@ class Coordinator(BaseAgent):
                     }
                 }
 
-            self.workflow_state["results"]["verification"] = verification_result["data"]
+            workflow_state["results"]["verification"] = verification_result["data"]
 
             # Compile final response
-            final_response = self._compile_final_response()
-            self.workflow_state["step"] = "completed"
+            final_response = self._compile_final_response(workflow_state)
+            workflow_state["step"] = "completed"
 
             return {
                 "success": True,
                 "query": query,
                 "answer": final_response,
-                "workflow_state": self.workflow_state
+                "workflow_state": workflow_state
             }
 
         except Exception as e:
-            self.logger.error(f"Workflow failed: {e}")
+            self.logger.exception("Workflow failed")
             return {
                 "success": False,
                 "error": str(e),
                 "query": query,
-                "workflow_state": self.workflow_state
+                "workflow_state": workflow_state
             }
 
-    def _compile_final_response(self) -> Dict[str, Any]:
+    def _compile_final_response(self, workflow_state: Dict[str, Any]) -> Dict[str, Any]:
         """Compile the final response from all workflow results."""
-        results = self.workflow_state["results"]
+        results = workflow_state["results"]
 
         # Get the generated answer
-        answer_data = results.get("answer", {})
-        verification_data = results.get("verification", {})
+        answer_data = results["answer"]
+        verification_data = results["verification"]
 
         # Format the final response
         final_response = {
-            "answer": answer_data.get("answer", ""),
-            "sources": answer_data.get("sources", []),
-            "confidence": answer_data.get("confidence", 0.0),
+            "answer": answer_data["answer"],
+            "sources": answer_data["sources"],
+            "confidence": answer_data["confidence"],
             "verification": {
-                "is_verified": verification_data.get("is_accurate", False),
-                "issues": verification_data.get("issues", []),
+                "is_verified": verification_data["is_accurate"],
+                "issues": verification_data["issues"],
                 "suggestions": verification_data.get("suggestions", [])
             },
             "metadata": {
-                "retrieved_documents": len(results.get("retrieval", {}).get("documents", [])),
-                "processing_steps": self.workflow_state.get("step", 0),
+                "retrieved_documents": len(results["retrieval"]["documents"]),
+                "processing_steps": workflow_state["step"],
                 "total_processing_time": "N/A"
             }
         }

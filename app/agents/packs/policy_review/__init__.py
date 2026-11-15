@@ -1,5 +1,5 @@
 """Policy review/summary agent package."""
 
-from .node import PolicyReviewAgent, PolicyAnalyzer
+from .node import PolicyReviewAgent
 
-__all__ = ["PolicyReviewAgent", "PolicyAnalyzer"]
+__all__ = ["PolicyReviewAgent"]

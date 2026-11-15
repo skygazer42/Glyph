@@ -13,14 +13,17 @@ from llama_index.core import (
     Document,
     VectorStoreIndex,
     StorageContext,
-    Settings
+    Settings,
+    SimpleDirectoryReader
 )
 from llama_index.core.schema import NodeWithScore
-from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.vector_stores.milvus import MilvusVectorStore
 
-from app.config import settings
+from app.config.app_config import settings
+from llama_index.embeddings.dashscope import DashScopeEmbedding, DashScopeTextEmbeddingModels, DashScopeTextEmbeddingType
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI
 
 
 class LlamaIndexHybridRetriever:
@@ -60,9 +63,13 @@ class LlamaIndexHybridRetriever:
             overwrite: 是否覆盖已存在的集合
         """
         # 从 settings 读取配置
-        self.uri = uri or f"http://{settings.database.milvus_host}:{settings.database.milvus_port}"
+        self.uri = f"http://{settings.database.milvus_host}:{settings.database.milvus_port}" if uri is None else uri
         self.token = token
-        self.dim = dim or self._infer_dim()
+        self.dim = self._infer_dim() if dim is None else dim
+        if self.dim <= 0:
+            raise ValueError("dim must be positive")
+        if not 0 <= alpha <= 1:
+            raise ValueError("Alpha must be between 0 and 1")
         self.collection_name = collection_name
         self.alpha = alpha
         self.similarity_top_k = similarity_top_k
@@ -71,7 +78,7 @@ class LlamaIndexHybridRetriever:
         self._setup_llama_settings()
 
         # 创建 Milvus Vector Store (支持稀疏向量)
-        print(f"[LlamaIndexHybridRetriever] 初始化")
+        print("[LlamaIndexHybridRetriever] 初始化")
         print(f"  URI: {self.uri}")
         print(f"  Collection: {self.collection_name}")
         print(f"  Dimension: {self.dim}")
@@ -102,24 +109,34 @@ class LlamaIndexHybridRetriever:
             similarity_metric="IP",  # 向量索引使用 IP
             index_config=index_config,  # 向量索引配置
             sparse_index_config=sparse_index_config,  # 稀疏索引配置
-            overwrite=overwrite
+            overwrite=overwrite,
+            use_async_client=False,  # This retriever exposes synchronous operations only.
         )
 
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=self.vector_store
-        )
+        try:
+            self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
+        except BaseException:
+            self.vector_store.client.close()
+            raise
+        self._closed = False
 
         self.index: Optional[VectorStoreIndex] = None
-        self.query_engine = None
+        self.query_engine: Optional[RetrieverQueryEngine] = None
 
-        print(f"✓ 混合检索器初始化完成")
+        print("✓ 混合检索器初始化完成")
+
+    def close(self) -> None:
+        """Close the synchronous Milvus client owned by this retriever."""
+        if not self._closed:
+            self._closed = True
+            self.vector_store.client.close()
 
     def _infer_dim(self) -> int:
         """从 settings 推断向量维度"""
         backend = settings.embedding.backend
 
         if backend == "openai":
-            model_name = settings.embedding.openai_model or "text-embedding-3-small"
+            model_name = settings.embedding.openai_model
             if "3-large" in model_name:
                 return 3072
             elif "3-small" in model_name:
@@ -127,31 +144,19 @@ class LlamaIndexHybridRetriever:
             return 1536
         elif backend == "dashscope":
             # DashScope 默认使用配置的维度
-            if settings.embedding.dashscope_dimension:
+            if settings.embedding.dashscope_dimension is not None:
                 return settings.embedding.dashscope_dimension
             return 1024
 
         # 默认使用 settings 中的配置
-        return settings.embedding.dimension or 1024
+        return settings.embedding.dimension
 
     def _setup_llama_settings(self):
         """配置 LlamaIndex 全局设置"""
         backend = settings.embedding.backend
 
-        # 禁用代理（如果环境变量设置了代理）
-        os.environ.pop("http_proxy", None)
-        os.environ.pop("https_proxy", None)
-        os.environ.pop("HTTP_PROXY", None)
-        os.environ.pop("HTTPS_PROXY", None)
-
         if backend == "dashscope":
             # 使用 DashScope (阿里云) - 优先处理
-            from llama_index.embeddings.dashscope import (
-                DashScopeEmbedding,
-                DashScopeTextEmbeddingModels,
-                DashScopeTextEmbeddingType
-            )
-
             api_key = settings.embedding.dashscope_api_key or os.getenv("DASHSCOPE_API_KEY")
 
             if not api_key:
@@ -166,10 +171,10 @@ class LlamaIndexHybridRetriever:
             # LLM 配置（如果使用 DeepSeek 或其他 OpenAI 兼容 API）
             llm_api_key = settings.model.llm_api_key or os.getenv("LLM_API_KEY")
             if llm_api_key:
-                from llama_index.llms.openai import OpenAI
-
+                if not settings.model.llm_model_name.strip():
+                    raise ValueError("llm_model_name must not be empty when an LLM API key is configured")
                 Settings.llm = OpenAI(
-                    model=settings.model.llm_model_name or "qwen-turbo",
+                    model=settings.model.llm_model_name,
                     api_key=llm_api_key,
                     api_base=settings.model.llm_base_url
                 )
@@ -178,19 +183,18 @@ class LlamaIndexHybridRetriever:
             print(f"  LLM: {settings.model.llm_model_name} via {settings.model.llm_base_url}")
 
         elif backend == "openai":
-            from llama_index.embeddings.openai import OpenAIEmbedding
-            from llama_index.llms.openai import OpenAI
-
             Settings.embed_model = OpenAIEmbedding(
-                model=settings.embedding.openai_model or "text-embedding-3-small",
+                model=settings.embedding.openai_model,
                 api_key=settings.embedding.openai_api_key or os.getenv("OPENAI_API_KEY")
             )
 
             # LLM 配置（使用 ModelSettings）
             llm_api_key = settings.model.llm_api_key or os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
             if llm_api_key:
+                if not settings.model.llm_model_name.strip():
+                    raise ValueError("llm_model_name must not be empty when an LLM API key is configured")
                 Settings.llm = OpenAI(
-                    model=settings.model.llm_model_name or "gpt-4",
+                    model=settings.model.llm_model_name,
                     api_key=llm_api_key,
                     api_base=settings.model.llm_base_url if settings.model.llm_base_url != "https://api.deepseek.com" else None
                 )
@@ -213,7 +217,7 @@ class LlamaIndexHybridRetriever:
             show_progress=True
         )
 
-        print(f"✓ 索引构建完成")
+        print("✓ 索引构建完成")
 
         # 创建混合检索查询引擎
         self._create_query_engine()
@@ -229,7 +233,7 @@ class LlamaIndexHybridRetriever:
             storage_context=self.storage_context
         )
 
-        print(f"✓ 索引加载完成")
+        print("✓ 索引加载完成")
 
         # 创建混合检索查询引擎
         self._create_query_engine()
@@ -331,8 +335,6 @@ def load_documents_from_dir(data_dir: Path) -> List[Document]:
     Returns:
         LlamaIndex Document 对象列表
     """
-    from llama_index.core import SimpleDirectoryReader
-
     print(f"\n[加载文档] 从 {data_dir} 加��...")
 
     reader = SimpleDirectoryReader(
@@ -361,61 +363,64 @@ if __name__ == "__main__":
         overwrite=True
     )
 
-    # 2. 加载文档
-    data_dir = Path("/data/temp33/gov/data/process")
-    documents = load_documents_from_dir(data_dir)
+    try:
+        # 2. 加载文档
+        data_dir = Path(__file__).resolve().parents[2] / "resources/data/process"
+        documents = load_documents_from_dir(data_dir)
 
-    # 3. 构建索引
-    retriever.build_index(documents)
+        # 3. 构建索引
+        retriever.build_index(documents)
 
-    # 4. 测试查询
-    test_queries = [
-        "家电以旧换新有什么补贴政策？",
-        "买新手机有什么优惠活动？",
-        "汽车消费补贴怎么申请？",
-        "济南市2025年有哪些消费活动？",
-        "智能手表购新补贴的条件是什么？"
-    ]
+        # 4. 测试查询
+        test_queries = [
+            "家电以旧换新有什么补贴政策？",
+            "买新手机有什么优惠活动？",
+            "汽车消费补贴怎么申请？",
+            "济南市2025年有哪些消费活动？",
+            "智能手表购新补贴的条件是什么？"
+        ]
 
-    print("\n" + "=" * 80)
-    print("  测试混合检索 (Alpha=0.5)")
-    print("=" * 80)
+        print("\n" + "=" * 80)
+        print("  测试混合检索 (Alpha=0.5)")
+        print("=" * 80)
 
-    for i, query in enumerate(test_queries, 1):
-        print(f"\n{'=' * 80}")
-        print(f"查询 {i}: {query}")
-        print('=' * 80)
+        for i, query in enumerate(test_queries, 1):
+            print(f"\n{'=' * 80}")
+            print(f"查询 {i}: {query}")
+            print('=' * 80)
 
-        # 执行检索
-        nodes = retriever.retrieve(query)
+            # 执行检索
+            nodes = retriever.retrieve(query)
 
-        # 显示结果
-        print(f"\n[检索结果] Top 3:")
-        for j, node in enumerate(nodes[:3], 1):
-            print(f"\n  结果 {j}:")
-            print(f"    Score: {node.score:.4f}")
-            print(f"    Text: {node.node.text[:150]}...")
+            # 显示结果
+            print("\n[检索结果] Top 3:")
+            for j, node in enumerate(nodes[:3], 1):
+                print(f"\n  结果 {j}:")
+                print(f"    Score: {node.score:.4f}")
+                print(f"    Text: {node.node.get_content()[:150]}...")
 
-    # 5. 测试不同 alpha 值
-    print("\n" + "=" * 80)
-    print("  测试不同 Alpha 值")
-    print("=" * 80)
+        # 5. 测试不同 alpha 值
+        print("\n" + "=" * 80)
+        print("  测试不同 Alpha 值")
+        print("=" * 80)
 
-    query = "家电以旧换新补贴"
+        query = "家电以旧换新补贴"
 
-    for alpha in [0.0, 0.3, 0.5, 0.7, 1.0]:
-        retriever.update_alpha(alpha)
+        for alpha in [0.0, 0.3, 0.5, 0.7, 1.0]:
+            retriever.update_alpha(alpha)
 
-        print(f"\n{'=' * 60}")
-        print(f"Alpha = {alpha:.1f} ({'纯BM25' if alpha == 0 else '纯向量' if alpha == 1 else '混合'})")
-        print('=' * 60)
+            print(f"\n{'=' * 60}")
+            print(f"Alpha = {alpha:.1f} ({'纯BM25' if alpha == 0 else '纯向量' if alpha == 1 else '混合'})")
+            print('=' * 60)
 
-        nodes = retriever.retrieve(query)
+            nodes = retriever.retrieve(query)
 
-        print(f"Top 3 结果:")
-        for j, node in enumerate(nodes[:3], 1):
-            print(f"  {j}. [{node.score:.4f}] {node.node.text[:80]}...")
+            print("Top 3 结果:")
+            for j, node in enumerate(nodes[:3], 1):
+                print(f"  {j}. [{node.score:.4f}] {node.node.get_content()[:80]}...")
 
-    print("\n" + "=" * 80)
-    print("  测试完成")
-    print("=" * 80)
+        print("\n" + "=" * 80)
+        print("  测试完成")
+        print("=" * 80)
+    finally:
+        retriever.close()

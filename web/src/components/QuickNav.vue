@@ -1,5 +1,8 @@
 <template>
-  <div class="quick-nav" role="navigation" aria-label="快速导航">
+  <nav
+    class="quick-nav"
+    aria-label="快速导航"
+  >
     <el-card class="nav-card">
       <template #header>
         <div class="card-header">
@@ -16,19 +19,22 @@
           class="nav-item"
           :aria-label="`前往${item.title}`"
         >
-          <div class="nav-icon" :style="{ background: item.color }">
+          <div
+            class="nav-icon"
+            :style="{ background: item.color }"
+          >
             <el-icon :size="24">
               <component :is="item.icon" />
             </el-icon>
           </div>
           <div class="nav-info">
-            <h4>{{ item.title }}</h4>
+            <p>{{ item.title }}</p>
             <p>{{ item.description }}</p>
           </div>
         </router-link>
       </div>
     </el-card>
-  </div>
+  </nav>
 </template>
 
 <script setup>
@@ -138,14 +144,14 @@ const navItems = [
   flex: 1;
 }
 
-.nav-info h4 {
+.nav-info p:first-child {
   margin: 0 0 var(--spacing-xs) 0;
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.nav-info p {
+.nav-info p:last-child {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--text-secondary);

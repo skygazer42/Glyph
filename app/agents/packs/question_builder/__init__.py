@@ -1,5 +1,5 @@
 """Question construction agent package."""
 
-from .node import QuestionUnderstander, QuestionGenerator
+from .node import QuestionUnderstander
 
-__all__ = ["QuestionUnderstander", "QuestionGenerator"]
+__all__ = ["QuestionUnderstander"]

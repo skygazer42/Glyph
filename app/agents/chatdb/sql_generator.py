@@ -2,8 +2,6 @@
 SQL生成智能体
 负责将自然语言转换为SQL
 """
-from typing import Dict, Any
-
 from autogen_core import message_handler, MessageContext, TopicId, type_subscription
 from autogen_agentchat.agents import AssistantAgent
 
@@ -31,7 +29,8 @@ class SqlGeneratorAgent(BaseAgent):
         )
         self._prompt_template = self._build_prompt_template()
 
-    def _build_prompt_template(self) -> str:
+    @staticmethod
+    def _build_prompt_template() -> str:
         """构建提示模板"""
         return """
         你是一名专业的SQL转换专家。你的任务是基于上下文信息及SQL命令生成报告，将用户的自然语言查询转换为精确的SQL语句。
@@ -55,34 +54,12 @@ class SqlGeneratorAgent(BaseAgent):
         特别注意：请严格根据上下文提供的 `SQL 命令分析报告` 最终只生成一条您认为最符合用户查询需求的SQL语句。
         """
 
-    def _prepare_prompt(self, schema_context: Dict[str, Any] = None, mappings_str: str = "") -> str:
-        """准备提示模板
-
-        Args:
-            schema_context: 可选的表结构信息
-            mappings_str: 值映射字符串，默认为空字符串
-
-        Returns:
-            str: 准备好的提示
-        """
-        prompt = self._prompt_template.format(db_type=self.db_type)
-
-        # 如果有表结构信息，则添加到提示中
-        if schema_context and schema_context.get('tables'):
-            prompt += self.format_schema_as_markdown(schema_context)
-
-        return prompt
-
     @message_handler
     async def handle_analysis_message(self, message: AnalysisMessage, ctx: MessageContext) -> None:
         """处理AnalysisMessage类型的消息"""
         try:
             # 从memory_content重建ListMemory对象
             memory = self.rebuild_memory_from_content(message.memory_content)
-
-            # 准备系统提示
-            # mappings_str = message.mappings_str or ""
-            # system_message = self._prepare_prompt(message.schema_context, mappings_str)
 
             system_message = self._prompt_template.format(db_type=self.db_type)
 
@@ -96,10 +73,7 @@ class SqlGeneratorAgent(BaseAgent):
             )
 
             result = await agent.run(task="严格根据上下文信息生成SQL语句")
-            sql_content = result.messages[-1].content
-
-            # 首先将SQL内容发送为流式消息，供前端实时更新
-            # await self.send_response(sql_content)
+            sql_content = self.final_text(result)
 
             # 发送SQL内容为final_sql类型，触发前端SQL语句区域显示
             await self.send_response(
@@ -112,7 +86,7 @@ class SqlGeneratorAgent(BaseAgent):
             sql_message = SqlMessage(
                 query=message.query,
                 sql=sql_content,
-                connection_id=getattr(message, 'connection_id', None)
+                connection_id=message.connection_id
             )
 
             await self.publish_message(

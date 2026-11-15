@@ -70,7 +70,7 @@ class ClarifierAgent:
         )
 
     def _detect_domain(self, query: str, domain_meta: Optional[Dict[str, Any]]) -> str:
-        text = (query or "").strip()
+        text = query.strip()
         meta_keywords = (domain_meta or {}).get("keywords") or []
         meta_joined = "".join(str(k) for k in meta_keywords)
         haystack = text + meta_joined
@@ -91,7 +91,7 @@ class ClarifierAgent:
         query: str,
         domain_meta: Optional[Dict[str, Any]],
     ) -> Set[str]:
-        text = (query or "").strip()
+        text = query.strip()
         keywords = (domain_meta or {}).get("keywords") or []
         joined = text + "".join(str(k) for k in keywords)
 

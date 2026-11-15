@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -23,7 +23,7 @@ class CRUDChatSession(CRUDBase[ChatSession, ChatSessionCreate, ChatSessionUpdate
         connection_id: Optional[int] = None
     ) -> List[ChatSession]:
         """获取用户的聊天会话列表"""
-        query = db.query(self.model).filter(self.model.is_active == True)
+        query = db.query(self.model).filter(self.model.is_active.is_(True))
         
         if connection_id is not None:
             query = query.filter(self.model.connection_id == connection_id)
@@ -33,15 +33,15 @@ class CRUDChatSession(CRUDBase[ChatSession, ChatSessionCreate, ChatSessionUpdate
     def get_with_messages(self, db: Session, *, session_id: str) -> Optional[ChatSession]:
         """获取包含消息的会话"""
         return db.query(self.model).filter(
-            and_(self.model.id == session_id, self.model.is_active == True)
+            and_(self.model.id == session_id, self.model.is_active.is_(True))
         ).first()
 
     def update_activity(self, db: Session, *, session_id: str) -> Optional[ChatSession]:
         """更新会话活动时间"""
         session = db.query(self.model).filter(self.model.id == session_id).first()
-        if session:
+        if session is not None:
             session.updated_at = datetime.utcnow()
-            db.commit()
+            self._commit(db)
             db.refresh(session)
         return session
 
@@ -75,17 +75,17 @@ class CRUDChatMessage(CRUDBase[ChatMessage, ChatMessageCreate, ChatMessageUpdate
         """批量创建消息"""
         db_messages = []
         for message_data in messages:
-            db_message = self.model(**message_data.dict())
+            db_message = self.model(**message_data.model_dump())
             db.add(db_message)
             db_messages.append(db_message)
         
-        db.commit()
+        self._commit(db)
         for db_message in db_messages:
             db.refresh(db_message)
         return db_messages
 
 
-class CRUDChatHistorySnapshot(CRUDBase[ChatHistorySnapshot, ChatHistorySnapshotCreate, None]):
+class CRUDChatHistorySnapshot(CRUDBase[ChatHistorySnapshot, ChatHistorySnapshotCreate, ChatHistorySnapshotCreate]):
     def get_by_session(self, db: Session, *, session_id: str) -> List[ChatHistorySnapshot]:
         """获取会话的历史快照"""
         return db.query(self.model).filter(

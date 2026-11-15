@@ -9,7 +9,7 @@
       <div class="editor-actions">
         <slot name="actions">
           <el-button
-            v-if="showCopy && modelValue"
+            v-if="showCopy && modelValue !== ''"
             size="small"
             @click="handleCopy"
             :icon="CopyDocument"
@@ -23,27 +23,34 @@
     <div class="editor-body">
       <el-input
         v-if="mode === 'input'"
-        :modelValue="modelValue"
+        :model-value="modelValue"
         @update:modelValue="$emit('update:modelValue', $event)"
         type="textarea"
         :rows="rows"
         :placeholder="placeholder"
+        :aria-label="title || placeholder || '代码内容'"
         :disabled="disabled"
         :readonly="readonly"
       />
 
-      <div v-else-if="mode === 'display' && modelValue" class="code-display">
+      <div
+        v-else-if="mode === 'display' && modelValue !== ''"
+        class="code-display"
+      >
         <pre><code :class="language">{{ modelValue }}</code></pre>
       </div>
 
       <el-empty
-        v-else-if="mode === 'display' && !modelValue"
+        v-else-if="mode === 'display' && modelValue === ''"
         :description="emptyText"
         :image-size="80"
       />
     </div>
 
-    <div v-if="$slots.footer" class="editor-footer">
+    <div
+      v-if="$slots.footer"
+      class="editor-footer"
+    >
       <slot name="footer"></slot>
     </div>
   </div>
@@ -99,9 +106,13 @@ const props = defineProps({
 
 defineEmits(['update:modelValue'])
 
-const handleCopy = () => {
-  navigator.clipboard.writeText(props.modelValue)
-  ElMessage.success('已复制到剪贴板')
+const handleCopy = async () => {
+  try {
+    await navigator.clipboard.writeText(props.modelValue)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败，请手动复制内容')
+  }
 }
 </script>
 
@@ -144,7 +155,8 @@ const handleCopy = () => {
 }
 
 .code-display {
-  background-color: #f6f8fa;
+  background-color: var(--wb-tint, var(--el-fill-color-light));
+  color: var(--wb-ink, var(--el-text-color-primary));
   padding: 16px;
   max-height: 600px;
   overflow: auto;
@@ -165,14 +177,4 @@ const handleCopy = () => {
   background-color: var(--el-fill-color-blank);
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .code-display {
-    background-color: #1e1e1e;
-  }
-
-  .code-display pre code {
-    color: #d4d4d4;
-  }
-}
 </style>

@@ -3,42 +3,32 @@ Base agent implementation using AutoGen Core.
 """
 
 import asyncio
+from anyio import fail_after
 import logging
-from typing import Any, Dict, List, Optional, TypeVar, Generic
+from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, TypeVar, Generic
 from abc import ABC, abstractmethod
 from uuid import UUID
 
 from autogen_core import (
-    BaseAgent,
-    Component,
+    RoutedAgent,
     MessageContext,
     TopicId,
-    CancellationToken,
     default_subscription,
     message_handler
 )
 from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
-from autogen_agentchat.messages import TextMessage, ModelClientStreamingChunkEvent
 
 from app.models.base import (
     AgentType,
     MessageType,
-    AgentMessage,
-    UserQuery,
-    QueryAnalysis,
-    RetrievalRequest,
-    RetrievalResult,
-    PolicyAnalysis,
-    GeneratedAnswer,
-    FactCheck,
-    ConsistencyCheck,
-    FinalAnswer
+    AgentMessage
 )
 
 T = TypeVar('T')
 
 
-class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
+@default_subscription
+class PolicyAgentBase(RoutedAgent, ABC, Generic[T]):
     """Base class for all policy QA agents."""
 
     def __init__(
@@ -57,6 +47,8 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
 
         # Initialize memory
         self.memory = ListMemory()
+        if memory_size <= 0:
+            raise ValueError("memory_size must be positive")
         self.memory_size = memory_size
 
         # State management
@@ -81,7 +73,9 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
     @message_handler
     async def handle_message(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Handle incoming messages."""
-        start_time = asyncio.get_event_loop().time()
+        if message.recipient is not None and message.recipient != self.agent_type:
+            return None
+        start_time = asyncio.get_running_loop().time()
 
         try:
             self.logger.debug(f"Received {message.type} from {message.sender}")
@@ -93,7 +87,7 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
             response = await self._route_message(message, ctx)
 
             # Update metrics
-            processing_time = asyncio.get_event_loop().time() - start_time
+            processing_time = asyncio.get_running_loop().time() - start_time
             self._update_metrics(processing_time)
 
             return response
@@ -114,35 +108,25 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
     async def _route_message(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
         """Route message to appropriate handler."""
         handlers = {
-            MessageType.USER_QUERY: self._handle_user_query,
-            MessageType.QUERY_ANALYSIS: self._handle_query_analysis,
-            MessageType.RETRIEVAL_REQUEST: self._handle_retrieval_request,
-            MessageType.RETRIEVAL_RESULT: self._handle_retrieval_result,
-            MessageType.ANALYSIS_REQUEST: self._handle_analysis_request,
-            MessageType.ANALYSIS_RESULT: self._handle_analysis_result,
-            MessageType.REQUIREMENT_EXTRACTION: self._handle_requirement_extraction,
-            MessageType.ANSWER_GENERATION: self._handle_answer_generation,
-            MessageType.FACT_CHECK: self._handle_fact_check,
-            MessageType.CONSISTENCY_CHECK: self._handle_consistency_check,
-            MessageType.FINAL_ANSWER: self._handle_final_answer
+            MessageType.USER_QUERY: "_handle_user_query",
+            MessageType.QUERY_ANALYSIS: "_handle_query_analysis",
+            MessageType.RETRIEVAL_REQUEST: "_handle_retrieval_request",
+            MessageType.RETRIEVAL_RESULT: "_handle_retrieval_result",
+            MessageType.ANALYSIS_REQUEST: "_handle_analysis_request",
+            MessageType.ANALYSIS_RESULT: "_handle_analysis_result",
+            MessageType.REQUIREMENT_EXTRACTION: "_handle_requirement_extraction",
+            MessageType.ANSWER_GENERATION: "_handle_answer_generation",
+            MessageType.FACT_CHECK: "_handle_fact_check",
+            MessageType.CONSISTENCY_CHECK: "_handle_consistency_check",
+            MessageType.FINAL_ANSWER: "_handle_final_answer",
         }
-
-        handler = handlers.get(message.type)
-        if handler:
-            return await handler(message, ctx)
-        else:
-            self.logger.warning(f"No handler for message type: {message.type}")
+        name = handlers.get(message.type)
+        # Message handlers are optional capabilities provided by concrete agents.
+        handler = getattr(self, name, None) if name is not None else None
+        if handler is None:
+            self.logger.warning("No handler for message type: %s", message.type)
             return None
-
-    @abstractmethod
-    async def _handle_user_query(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
-        """Handle user query messages."""
-        pass
-
-    @abstractmethod
-    async def _handle_query_analysis(self, message: AgentMessage, ctx: MessageContext) -> Optional[AgentMessage]:
-        """Handle query analysis messages."""
-        pass
+        return await handler(message, ctx)
 
     async def _store_in_memory(self, message: AgentMessage):
         """Store message in agent memory."""
@@ -151,13 +135,8 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
             mime_type=MemoryMimeType.TEXT
         )
 
-        self.memory.add(content)
-
-        # Maintain memory size
-        if len(self.memory) > self.memory_size:
-            # Remove oldest messages
-            while len(self.memory) > self.memory_size:
-                self.memory.remove(0)
+        await self.memory.add(content)
+        self.memory.content = self.memory.content[-self.memory_size:]
 
     def _update_metrics(self, processing_time: float):
         """Update agent metrics."""
@@ -168,7 +147,7 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
         current_avg = self.metrics["avg_processing_time"]
         self.metrics["avg_processing_time"] = (current_avg * (n - 1) + processing_time) / n
 
-    async def send_message(
+    async def send_policy_message(
         self,
         recipient: AgentType,
         message_type: MessageType,
@@ -185,23 +164,18 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
             requires_response=True
         )
 
-        # Publish to message bus
-        # Implementation depends on your message bus setup
-        await self._publish_message(message)
-
-    async def _publish_message(self, message: AgentMessage):
-        """Publish message to the message bus."""
-        # This would integrate with your message broker
-        # For now, just log it
-        self.logger.info(f"Publishing {message.type} to {message.recipient}")
+        await self.publish_message(message, TopicId("default", self.id.key))
 
     async def get_memory_context(self, limit: int = 10) -> str:
         """Get recent context from memory."""
-        recent_memories = self.memory[-limit:] if len(self.memory) > limit else self.memory[:]
+        if limit < 0:
+            raise ValueError("limit must be non-negative")
+        recent_memories = self.memory.content[-limit:] if limit else []
 
         context_parts = []
         for memory in recent_memories:
-            context_parts.append(memory.content)
+            if isinstance(memory.content, str):
+                context_parts.append(memory.content)
 
         return "\n".join(context_parts)
 
@@ -209,7 +183,7 @@ class PolicyAgentBase(BaseAgent, ABC, Generic[T]):
         """Get agent metrics."""
         return {
             **self.metrics,
-            "memory_size": len(self.memory),
+            "memory_size": len(self.memory.content),
             "queue_size": self.processing_queue.qsize(),
             "is_running": self._is_running
         }
@@ -241,13 +215,11 @@ class StatefulAgent(PolicyAgentBase):
 
     async def persist_state(self):
         """Persist agent state."""
-        # Implementation depends on your persistence layer
-        pass
+        raise NotImplementedError("Persistent state storage is not configured")
 
     async def restore_state(self):
         """Restore agent state."""
-        # Implementation depends on your persistence layer
-        pass
+        raise NotImplementedError("Persistent state storage is not configured")
 
 
 class ReactiveAgent(PolicyAgentBase):
@@ -255,15 +227,15 @@ class ReactiveAgent(PolicyAgentBase):
 
     def __init__(self, agent_type: AgentType, name: str, **kwargs):
         super().__init__(agent_type, name, **kwargs)
-        self.event_handlers: Dict[str, callable] = {}
+        self.event_handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[None]]] = {}
         self.triggers: List[Dict[str, Any]] = []
 
-    def register_event_handler(self, event_type: str, handler: callable):
+    def register_event_handler(self, event_type: str, handler: Callable[[Dict[str, Any]], Awaitable[None]]):
         """Register an event handler."""
         self.event_handlers[event_type] = handler
         self.logger.debug(f"Registered handler for {event_type}")
 
-    def add_trigger(self, condition: Dict[str, Any], action: callable):
+    def add_trigger(self, condition: Dict[str, Any], action: Callable[[Dict[str, Any]], Awaitable[None]]):
         """Add a trigger condition and action."""
         self.triggers.append({"condition": condition, "action": action})
 
@@ -289,7 +261,7 @@ class ProactiveAgent(PolicyAgentBase):
         super().__init__(agent_type, name, **kwargs)
         self.goals: List[Dict[str, Any]] = []
         self.plans: List[Dict[str, Any]] = []
-        self._task_scheduler = asyncio.TaskScheduler()
+        self._scheduled_tasks: set[asyncio.Task[None]] = set()
 
     def add_goal(self, goal: Dict[str, Any]):
         """Add a goal for the agent to pursue."""
@@ -307,11 +279,48 @@ class ProactiveAgent(PolicyAgentBase):
         raise NotImplementedError
 
     async def start_task_scheduler(self):
-        """Start the task scheduler."""
-        self._task_scheduler.start()
+        """Mark this agent ready to own scheduled work."""
+        await self.start()
 
-    async def schedule_task(self, coro, delay: float = 0):
-        """Schedule a task to run after a delay."""
-        if delay > 0:
-            await asyncio.sleep(delay)
-        await self._task_scheduler.schedule(coro)
+    async def schedule_task(self, coro: Coroutine[Any, Any, None], delay: float = 0):
+        """Schedule work whose completion and cancellation belong to this agent."""
+        started = False
+        async def run():
+            nonlocal started
+            try:
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                started = True
+                await coro
+            finally:
+                if not started:
+                    coro.close()
+        task = asyncio.create_task(run())
+        self._scheduled_tasks.add(task)
+        def completed(task: asyncio.Task[None]) -> None:
+            if not started:
+                coro.close()
+            self._scheduled_tasks.discard(task)
+            if not task.cancelled():
+                error = task.exception()
+                if error is not None:
+                    self.logger.error(
+                        "Scheduled task failed: %s", error,
+                        exc_info=(type(error), error, error.__traceback__),
+                    )
+        task.add_done_callback(completed)
+
+    async def stop(self):
+        tasks, self._scheduled_tasks = self._scheduled_tasks, set()
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            with fail_after(5, shield=True):
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    self.logger.error(
+                        "Scheduled task failed: %s", result,
+                        exc_info=(type(result), result, result.__traceback__),
+                    )
+        await super().stop()

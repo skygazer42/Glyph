@@ -4,7 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.persistence.db.base_class import Base
+from app.models.base import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
@@ -23,8 +23,16 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         self.model = model
 
+    @staticmethod
+    def _commit(db: Session) -> None:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
     def get(self, db: Session, id: Any) -> Optional[ModelType]:
-        return db.query(self.model).filter(self.model.id == id).first()
+        return db.get(self.model, id)
 
     def get_multi(
         self, db: Session, *, skip: int = 0, limit: int = 100
@@ -35,7 +43,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         obj_in_data = jsonable_encoder(obj_in)
         db_obj = self.model(**obj_in_data)
         db.add(db_obj)
-        db.commit()
+        self._commit(db)
         db.refresh(db_obj)
         return db_obj
 
@@ -46,21 +54,22 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db_obj: ModelType,
         obj_in: Union[UpdateSchemaType, Dict[str, Any]]
     ) -> ModelType:
-        obj_data = jsonable_encoder(db_obj)
         if isinstance(obj_in, dict):
             update_data = obj_in
         else:
-            update_data = obj_in.dict(exclude_unset=True)
-        for field in obj_data:
-            if field in update_data:
-                setattr(db_obj, field, update_data[field])
+            update_data = obj_in.model_dump(exclude_unset=True)
+        for field in self.model.__mapper__.column_attrs:
+            if field.key in update_data:
+                setattr(db_obj, field.key, update_data[field.key])
         db.add(db_obj)
-        db.commit()
+        self._commit(db)
         db.refresh(db_obj)
         return db_obj
 
-    def remove(self, db: Session, *, id: int) -> ModelType:
-        obj = db.query(self.model).get(id)
+    def remove(self, db: Session, *, id: int) -> Optional[ModelType]:
+        obj = db.get(self.model, id)
+        if obj is None:
+            return None
         db.delete(obj)
-        db.commit()
+        self._commit(db)
         return obj

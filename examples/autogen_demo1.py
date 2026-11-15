@@ -1,17 +1,13 @@
 import asyncio
 
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.messages import  StructuredMessage,TextMessage
-from autogen_agentchat.ui import  Console
-from autogen_core import CancellationToken
-from autogen_ext.models.openai import  OpenAIChatCompletionClient
-from app.models.llms import model_client
+from app.core.llms import model_client
 
-async  def web_search(city:str)->str:
+async def web_search(city: str) -> str:
     """
     搜索星系
     """
-    return
+    raise NotImplementedError("Configure a real search provider before using this demo tool")
 
 async  def main():
     agent=AssistantAgent(
@@ -34,4 +30,5 @@ async  def main():
     print(result)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

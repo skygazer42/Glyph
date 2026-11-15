@@ -8,22 +8,14 @@ To avoid双重维护，这里直接重用主模型定义，并仅保留 agent �
 from datetime import datetime
 from typing import Dict, Any
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from app.models.base import (
-    BaseModel,
-    UserQuery as CoreUserQuery,
-    FinalAnswer as CoreFinalAnswer,
-    PolicyDocument as CorePolicyDocument,
-    RetrievalResult as CoreRetrievalResult,
+    FinalAnswer,
+    PolicyDocument,
+    RetrievalResult,
+    UserQuery,
 )
-
-
-# 直接复用核心模型，确保所有字段/验证逻辑一致
-UserQuery = CoreUserQuery
-FinalAnswer = CoreFinalAnswer
-PolicyDocument = CorePolicyDocument
-RetrievalResult = CoreRetrievalResult
 
 
 class AgentResponse(BaseModel):

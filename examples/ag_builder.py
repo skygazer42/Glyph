@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
 import logging
 
-from app.models.base import AgentType, MessageType
+from app.models.base import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class AGMessageBus:
     """简单的消息队列"""
 
     def __init__(self):
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
         self._subscribers: Dict[str, List[Callable]] = {}
 
     async def publish(self, topic: str, data: Dict[str, Any]):
@@ -58,7 +58,7 @@ class AGMessageBus:
                     else:
                         callback(data)
                 except Exception as e:
-                    logger.error(f"Subscriber error: {e}")
+                    logger.error(f"Subscriber error: {e}", exc_info=True)
 
     def subscribe(self, topic: str, callback: Callable):
         """订阅主题"""
@@ -151,7 +151,7 @@ class QueryAnalyzer(AGModule):
 
     async def handle(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """分析用户查询"""
-        query = data.get("query", "")
+        query = data["query"]
 
         # 简单的意图识别
         if "补贴" in query or "金额" in query:
@@ -205,7 +205,7 @@ class PolicyRetriever(AGModule):
 
     async def handle(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """检索相关政策"""
-        keywords = data.get("keywords", [])
+        keywords = data["keywords"]
 
         # 根据关键词检索政策
         retrieved_policies = []
@@ -230,9 +230,8 @@ class AnswerGenerator(AGModule):
 
     async def handle(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """生成最终答案"""
-        query = data.get("query", "")
-        intent = data.get("intent", "")
-        policies = data.get("retrieved_policies", [])
+        query = data["query"]
+        policies = data["retrieved_policies"]
 
         # 生成答案
         if policies:
@@ -246,7 +245,7 @@ class AnswerGenerator(AGModule):
 
             answer += "如需了解更多详情或申请流程，请咨询相关部门。"
         else:
-            answer = f"抱歉，暂未找到与您的问题相关的政策信息。\n"
+            answer = "抱歉，暂未找到与您的问题相关的政策信息。\n"
             answer += "建议您：\n"
             answer += "1. 使用更具体的关键词\n"
             answer += "2. 咨询当地政策服务热线\n"

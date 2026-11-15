@@ -1,0 +1,1045 @@
+{
+  "metadata": {
+    "dbconnection": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": true,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "db_type",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "host",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "port",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "username",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "password_encrypted",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "database_name",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": "now()",
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_dbconnection_id",
+          false,
+          [
+            "id"
+          ]
+        ],
+        [
+          "ix_dbconnection_name",
+          true,
+          [
+            "name"
+          ]
+        ]
+      ]
+    },
+    "chatsession": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "title",
+          "type": "VARCHAR(500)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "connection_id",
+          "type": "INTEGER",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "dbconnection.id",
+              "SET NULL",
+              null
+            ]
+          ]
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": "now()",
+          "foreign_keys": []
+        },
+        {
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": "True",
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_chatsession_connection_id",
+          false,
+          [
+            "connection_id"
+          ]
+        ],
+        [
+          "ix_chatsession_id",
+          false,
+          [
+            "id"
+          ]
+        ]
+      ]
+    },
+    "schematable": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "connection_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "dbconnection.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "table_name",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "ui_metadata",
+          "type": "JSON",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": "now()",
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_schematable_connection_id",
+          false,
+          [
+            "connection_id"
+          ]
+        ],
+        [
+          "ix_schematable_id",
+          false,
+          [
+            "id"
+          ]
+        ]
+      ]
+    },
+    "chathistorysnapshot": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "chatsession.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "query",
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "response_data",
+          "type": "JSON",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_chathistorysnapshot_id",
+          false,
+          [
+            "id"
+          ]
+        ]
+      ]
+    },
+    "chatmessage": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "session_id",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "chatsession.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "message_type",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "content",
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "message_metadata",
+          "type": "JSON",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "region",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "order_index",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_chat_message_session_order",
+          false,
+          [
+            "session_id",
+            "order_index"
+          ]
+        ],
+        [
+          "ix_chatmessage_id",
+          false,
+          [
+            "id"
+          ]
+        ],
+        [
+          "ix_chatmessage_session_id",
+          false,
+          [
+            "session_id"
+          ]
+        ]
+      ]
+    },
+    "schemacolumn": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "table_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "schematable.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "column_name",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "data_type",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "is_primary_key",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": "False",
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "is_foreign_key",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": "False",
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "is_unique",
+          "type": "BOOLEAN",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": "False",
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": "now()",
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_schemacolumn_id",
+          false,
+          [
+            "id"
+          ]
+        ],
+        [
+          "ix_schemacolumn_table_id",
+          false,
+          [
+            "table_id"
+          ]
+        ]
+      ]
+    },
+    "schemarelationship": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "connection_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "dbconnection.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "source_table_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "schematable.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "source_column_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "schemacolumn.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "target_table_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "schematable.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "target_column_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "schemacolumn.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "relationship_type",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": "now()",
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_schemarelationship_id",
+          false,
+          [
+            "id"
+          ]
+        ]
+      ]
+    },
+    "valuemapping": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": true,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "column_id",
+          "type": "INTEGER",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": [
+            [
+              "schemacolumn.id",
+              null,
+              null
+            ]
+          ]
+        },
+        {
+          "name": "nl_term",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": true,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "db_value",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "created_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": "now()",
+          "onupdate": null,
+          "foreign_keys": []
+        },
+        {
+          "name": "updated_at",
+          "type": "DATETIME",
+          "nullable": true,
+          "primary_key": false,
+          "unique": null,
+          "index": null,
+          "default": null,
+          "server_default": null,
+          "onupdate": "now()",
+          "foreign_keys": []
+        }
+      ],
+      "indexes": [
+        [
+          "ix_valuemapping_id",
+          false,
+          [
+            "id"
+          ]
+        ],
+        [
+          "ix_valuemapping_nl_term",
+          false,
+          [
+            "nl_term"
+          ]
+        ]
+      ]
+    }
+  },
+  "ddl": {
+    "sqlite": [
+      "\nCREATE TABLE dbconnection (\n\tid INTEGER NOT NULL, \n\tname VARCHAR(255) NOT NULL, \n\tdb_type VARCHAR(50) NOT NULL, \n\thost VARCHAR(255) NOT NULL, \n\tport INTEGER NOT NULL, \n\tusername VARCHAR(255) NOT NULL, \n\tpassword_encrypted VARCHAR(255) NOT NULL, \n\tdatabase_name VARCHAR(255) NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id)\n)\n\n",
+      "CREATE INDEX ix_dbconnection_id ON dbconnection (id)",
+      "CREATE UNIQUE INDEX ix_dbconnection_name ON dbconnection (name)",
+      "\nCREATE TABLE chatsession (\n\tid VARCHAR(255) NOT NULL, \n\ttitle VARCHAR(500) NOT NULL, \n\tconnection_id INTEGER, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME, \n\tis_active BOOLEAN, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id) ON DELETE SET NULL\n)\n\n",
+      "CREATE INDEX ix_chatsession_connection_id ON chatsession (connection_id)",
+      "CREATE INDEX ix_chatsession_id ON chatsession (id)",
+      "\nCREATE TABLE schematable (\n\tid INTEGER NOT NULL, \n\tconnection_id INTEGER NOT NULL, \n\ttable_name VARCHAR(255) NOT NULL, \n\tdescription TEXT, \n\tui_metadata JSON, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id)\n)\n\n",
+      "CREATE INDEX ix_schematable_connection_id ON schematable (connection_id)",
+      "CREATE INDEX ix_schematable_id ON schematable (id)",
+      "\nCREATE TABLE chathistorysnapshot (\n\tid INTEGER NOT NULL, \n\tsession_id VARCHAR(255) NOT NULL, \n\t\"query\" TEXT NOT NULL, \n\tresponse_data JSON NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES chatsession (id)\n)\n\n",
+      "CREATE INDEX ix_chathistorysnapshot_id ON chathistorysnapshot (id)",
+      "\nCREATE TABLE chatmessage (\n\tid INTEGER NOT NULL, \n\tsession_id VARCHAR(255) NOT NULL, \n\tmessage_type VARCHAR(50) NOT NULL, \n\tcontent TEXT NOT NULL, \n\tmessage_metadata JSON, \n\tregion VARCHAR(50), \n\torder_index INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES chatsession (id)\n)\n\n",
+      "CREATE INDEX ix_chat_message_session_order ON chatmessage (session_id, order_index)",
+      "CREATE INDEX ix_chatmessage_id ON chatmessage (id)",
+      "CREATE INDEX ix_chatmessage_session_id ON chatmessage (session_id)",
+      "\nCREATE TABLE schemacolumn (\n\tid INTEGER NOT NULL, \n\ttable_id INTEGER NOT NULL, \n\tcolumn_name VARCHAR(255) NOT NULL, \n\tdata_type VARCHAR(100) NOT NULL, \n\tdescription TEXT, \n\tis_primary_key BOOLEAN, \n\tis_foreign_key BOOLEAN, \n\tis_unique BOOLEAN, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(table_id) REFERENCES schematable (id)\n)\n\n",
+      "CREATE INDEX ix_schemacolumn_id ON schemacolumn (id)",
+      "CREATE INDEX ix_schemacolumn_table_id ON schemacolumn (table_id)",
+      "\nCREATE TABLE schemarelationship (\n\tid INTEGER NOT NULL, \n\tconnection_id INTEGER NOT NULL, \n\tsource_table_id INTEGER NOT NULL, \n\tsource_column_id INTEGER NOT NULL, \n\ttarget_table_id INTEGER NOT NULL, \n\ttarget_column_id INTEGER NOT NULL, \n\trelationship_type VARCHAR(50), \n\tdescription TEXT, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id), \n\tFOREIGN KEY(source_table_id) REFERENCES schematable (id), \n\tFOREIGN KEY(source_column_id) REFERENCES schemacolumn (id), \n\tFOREIGN KEY(target_table_id) REFERENCES schematable (id), \n\tFOREIGN KEY(target_column_id) REFERENCES schemacolumn (id)\n)\n\n",
+      "CREATE INDEX ix_schemarelationship_id ON schemarelationship (id)",
+      "\nCREATE TABLE valuemapping (\n\tid INTEGER NOT NULL, \n\tcolumn_id INTEGER NOT NULL, \n\tnl_term VARCHAR(255) NOT NULL, \n\tdb_value VARCHAR(255) NOT NULL, \n\tcreated_at DATETIME DEFAULT CURRENT_TIMESTAMP, \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(column_id) REFERENCES schemacolumn (id)\n)\n\n",
+      "CREATE INDEX ix_valuemapping_id ON valuemapping (id)",
+      "CREATE INDEX ix_valuemapping_nl_term ON valuemapping (nl_term)"
+    ],
+    "mysql": [
+      "\nCREATE TABLE dbconnection (\n\tid INTEGER NOT NULL AUTO_INCREMENT, \n\tname VARCHAR(255) NOT NULL, \n\tdb_type VARCHAR(50) NOT NULL, \n\thost VARCHAR(255) NOT NULL, \n\tport INTEGER NOT NULL, \n\tusername VARCHAR(255) NOT NULL, \n\tpassword_encrypted VARCHAR(255) NOT NULL, \n\tdatabase_name VARCHAR(255) NOT NULL, \n\tcreated_at DATETIME DEFAULT now(), \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id)\n)\n\n",
+      "CREATE INDEX ix_dbconnection_id ON dbconnection (id)",
+      "CREATE UNIQUE INDEX ix_dbconnection_name ON dbconnection (name)",
+      "\nCREATE TABLE chatsession (\n\tid VARCHAR(255) NOT NULL, \n\ttitle VARCHAR(500) NOT NULL, \n\tconnection_id INTEGER, \n\tcreated_at DATETIME DEFAULT now(), \n\tupdated_at DATETIME, \n\tis_active BOOL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id) ON DELETE SET NULL\n)\n\n",
+      "CREATE INDEX ix_chatsession_connection_id ON chatsession (connection_id)",
+      "CREATE INDEX ix_chatsession_id ON chatsession (id)",
+      "\nCREATE TABLE schematable (\n\tid INTEGER NOT NULL AUTO_INCREMENT, \n\tconnection_id INTEGER NOT NULL, \n\ttable_name VARCHAR(255) NOT NULL, \n\tdescription TEXT, \n\tui_metadata JSON, \n\tcreated_at DATETIME DEFAULT now(), \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id)\n)\n\n",
+      "CREATE INDEX ix_schematable_connection_id ON schematable (connection_id)",
+      "CREATE INDEX ix_schematable_id ON schematable (id)",
+      "\nCREATE TABLE chathistorysnapshot (\n\tid INTEGER NOT NULL AUTO_INCREMENT, \n\tsession_id VARCHAR(255) NOT NULL, \n\tquery TEXT NOT NULL, \n\tresponse_data JSON NOT NULL, \n\tcreated_at DATETIME DEFAULT now(), \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES chatsession (id)\n)\n\n",
+      "CREATE INDEX ix_chathistorysnapshot_id ON chathistorysnapshot (id)",
+      "\nCREATE TABLE chatmessage (\n\tid INTEGER NOT NULL AUTO_INCREMENT, \n\tsession_id VARCHAR(255) NOT NULL, \n\tmessage_type VARCHAR(50) NOT NULL, \n\tcontent TEXT NOT NULL, \n\tmessage_metadata JSON, \n\tregion VARCHAR(50), \n\torder_index INTEGER NOT NULL, \n\tcreated_at DATETIME DEFAULT now(), \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES chatsession (id)\n)\n\n",
+      "CREATE INDEX ix_chat_message_session_order ON chatmessage (session_id, order_index)",
+      "CREATE INDEX ix_chatmessage_id ON chatmessage (id)",
+      "CREATE INDEX ix_chatmessage_session_id ON chatmessage (session_id)",
+      "\nCREATE TABLE schemacolumn (\n\tid INTEGER NOT NULL AUTO_INCREMENT, \n\ttable_id INTEGER NOT NULL, \n\tcolumn_name VARCHAR(255) NOT NULL, \n\tdata_type VARCHAR(100) NOT NULL, \n\tdescription TEXT, \n\tis_primary_key BOOL, \n\tis_foreign_key BOOL, \n\tis_unique BOOL, \n\tcreated_at DATETIME DEFAULT now(), \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(table_id) REFERENCES schematable (id)\n)\n\n",
+      "CREATE INDEX ix_schemacolumn_id ON schemacolumn (id)",
+      "CREATE INDEX ix_schemacolumn_table_id ON schemacolumn (table_id)",
+      "\nCREATE TABLE schemarelationship (\n\tid INTEGER NOT NULL AUTO_INCREMENT, \n\tconnection_id INTEGER NOT NULL, \n\tsource_table_id INTEGER NOT NULL, \n\tsource_column_id INTEGER NOT NULL, \n\ttarget_table_id INTEGER NOT NULL, \n\ttarget_column_id INTEGER NOT NULL, \n\trelationship_type VARCHAR(50), \n\tdescription TEXT, \n\tcreated_at DATETIME DEFAULT now(), \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id), \n\tFOREIGN KEY(source_table_id) REFERENCES schematable (id), \n\tFOREIGN KEY(source_column_id) REFERENCES schemacolumn (id), \n\tFOREIGN KEY(target_table_id) REFERENCES schematable (id), \n\tFOREIGN KEY(target_column_id) REFERENCES schemacolumn (id)\n)\n\n",
+      "CREATE INDEX ix_schemarelationship_id ON schemarelationship (id)",
+      "\nCREATE TABLE valuemapping (\n\tid INTEGER NOT NULL AUTO_INCREMENT, \n\tcolumn_id INTEGER NOT NULL, \n\tnl_term VARCHAR(255) NOT NULL, \n\tdb_value VARCHAR(255) NOT NULL, \n\tcreated_at DATETIME DEFAULT now(), \n\tupdated_at DATETIME, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(column_id) REFERENCES schemacolumn (id)\n)\n\n",
+      "CREATE INDEX ix_valuemapping_id ON valuemapping (id)",
+      "CREATE INDEX ix_valuemapping_nl_term ON valuemapping (nl_term)"
+    ],
+    "postgresql": [
+      "\nCREATE TABLE dbconnection (\n\tid SERIAL NOT NULL, \n\tname VARCHAR(255) NOT NULL, \n\tdb_type VARCHAR(50) NOT NULL, \n\thost VARCHAR(255) NOT NULL, \n\tport INTEGER NOT NULL, \n\tusername VARCHAR(255) NOT NULL, \n\tpassword_encrypted VARCHAR(255) NOT NULL, \n\tdatabase_name VARCHAR(255) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (id)\n)\n\n",
+      "CREATE INDEX ix_dbconnection_id ON dbconnection (id)",
+      "CREATE UNIQUE INDEX ix_dbconnection_name ON dbconnection (name)",
+      "\nCREATE TABLE chatsession (\n\tid VARCHAR(255) NOT NULL, \n\ttitle VARCHAR(500) NOT NULL, \n\tconnection_id INTEGER, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE, \n\tis_active BOOLEAN, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id) ON DELETE SET NULL\n)\n\n",
+      "CREATE INDEX ix_chatsession_connection_id ON chatsession (connection_id)",
+      "CREATE INDEX ix_chatsession_id ON chatsession (id)",
+      "\nCREATE TABLE schematable (\n\tid SERIAL NOT NULL, \n\tconnection_id INTEGER NOT NULL, \n\ttable_name VARCHAR(255) NOT NULL, \n\tdescription TEXT, \n\tui_metadata JSON, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id)\n)\n\n",
+      "CREATE INDEX ix_schematable_connection_id ON schematable (connection_id)",
+      "CREATE INDEX ix_schematable_id ON schematable (id)",
+      "\nCREATE TABLE chathistorysnapshot (\n\tid SERIAL NOT NULL, \n\tsession_id VARCHAR(255) NOT NULL, \n\tquery TEXT NOT NULL, \n\tresponse_data JSON NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES chatsession (id)\n)\n\n",
+      "CREATE INDEX ix_chathistorysnapshot_id ON chathistorysnapshot (id)",
+      "\nCREATE TABLE chatmessage (\n\tid SERIAL NOT NULL, \n\tsession_id VARCHAR(255) NOT NULL, \n\tmessage_type VARCHAR(50) NOT NULL, \n\tcontent TEXT NOT NULL, \n\tmessage_metadata JSON, \n\tregion VARCHAR(50), \n\torder_index INTEGER NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(session_id) REFERENCES chatsession (id)\n)\n\n",
+      "CREATE INDEX ix_chat_message_session_order ON chatmessage (session_id, order_index)",
+      "CREATE INDEX ix_chatmessage_id ON chatmessage (id)",
+      "CREATE INDEX ix_chatmessage_session_id ON chatmessage (session_id)",
+      "\nCREATE TABLE schemacolumn (\n\tid SERIAL NOT NULL, \n\ttable_id INTEGER NOT NULL, \n\tcolumn_name VARCHAR(255) NOT NULL, \n\tdata_type VARCHAR(100) NOT NULL, \n\tdescription TEXT, \n\tis_primary_key BOOLEAN, \n\tis_foreign_key BOOLEAN, \n\tis_unique BOOLEAN, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(table_id) REFERENCES schematable (id)\n)\n\n",
+      "CREATE INDEX ix_schemacolumn_id ON schemacolumn (id)",
+      "CREATE INDEX ix_schemacolumn_table_id ON schemacolumn (table_id)",
+      "\nCREATE TABLE schemarelationship (\n\tid SERIAL NOT NULL, \n\tconnection_id INTEGER NOT NULL, \n\tsource_table_id INTEGER NOT NULL, \n\tsource_column_id INTEGER NOT NULL, \n\ttarget_table_id INTEGER NOT NULL, \n\ttarget_column_id INTEGER NOT NULL, \n\trelationship_type VARCHAR(50), \n\tdescription TEXT, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(connection_id) REFERENCES dbconnection (id), \n\tFOREIGN KEY(source_table_id) REFERENCES schematable (id), \n\tFOREIGN KEY(source_column_id) REFERENCES schemacolumn (id), \n\tFOREIGN KEY(target_table_id) REFERENCES schematable (id), \n\tFOREIGN KEY(target_column_id) REFERENCES schemacolumn (id)\n)\n\n",
+      "CREATE INDEX ix_schemarelationship_id ON schemarelationship (id)",
+      "\nCREATE TABLE valuemapping (\n\tid SERIAL NOT NULL, \n\tcolumn_id INTEGER NOT NULL, \n\tnl_term VARCHAR(255) NOT NULL, \n\tdb_value VARCHAR(255) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now(), \n\tupdated_at TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(column_id) REFERENCES schemacolumn (id)\n)\n\n",
+      "CREATE INDEX ix_valuemapping_id ON valuemapping (id)",
+      "CREATE INDEX ix_valuemapping_nl_term ON valuemapping (nl_term)"
+    ]
+  }
+}

@@ -3,20 +3,25 @@ Text2SQL服务 - 重构后的版本
 提供向后兼容的接口，内部使用新的工具模块
 """
 import asyncio
+import logging
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 
 from autogen_core.models import UserMessage
 
 from app.models.db_connection import DBConnection
+from app.persistence import crud
+from app.persistence.db.session import SessionLocal
 from app.schemas.query import QueryResponse
-from app.agents.chatdb.db_service import execute_query
+from app.agents.chatdb.db_service import ConnectionSettings, execute_query
 from app.agents.chatdb.text2sql_utils import (
-    retrieve_relevant_schema, get_value_mappings, format_schema_for_prompt,
+    snapshot_schema, select_relevant_schema, get_value_mappings, format_schema_for_prompt,
     process_sql_with_value_mappings, validate_sql, extract_sql_from_llm_response
 )
 from app.core.llms import model_client
 from .domain_zh_gov import parse_time_window, infer_intent, normalize_terms
+
+logger = logging.getLogger(__name__)
 
 
 def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings: Dict[str, Dict[str, str]], *, hints: Dict[str, Any] | None = None) -> str:
@@ -37,21 +42,20 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
         mappings_str += "\n"
 
     # 领域/时间/意图提示
-    hints = hints or {}
     intent_lines = []
-    if agg := hints.get("aggregation"):
-        intent_lines.append(f"- 建议聚合: {agg}")
-    if order := hints.get("order_by"):
-        intent_lines.append("- 时间排序: 倒序(最近优先)" if order == "desc_time" else f"- 排序: {order}")
-    if lim := hints.get("limit"):
-        intent_lines.append(f"- 默认限制返回行数: {lim}")
-
     time_hint = ""
-    if (tw := hints.get("time_window")) and tw.get("start"):
-        # 告诉LLM优先使用与时间相关的列进行过滤
-        time_hint = (
-            "-- 时间范围建议: {start} 至 {end} (若表含有 publish_date/start_date/start_time 等日期列, 请据此过滤)\n"
-        ).format(start=tw["start"], end=tw.get("end") or "当前")
+    if hints is not None:
+        if aggregation := hints.get("aggregation"):
+            intent_lines.append(f"- 建议聚合: {aggregation}")
+        if order := hints.get("order_by"):
+            intent_lines.append("- 时间排序: 倒序(最近优先)" if order == "desc_time" else f"- 排序: {order}")
+        if row_limit := hints.get("limit"):
+            intent_lines.append(f"- 默认限制返回行数: {row_limit}")
+        if (time_window := hints.get("time_window")) and time_window.get("start"):
+            # 告诉LLM优先使用与时间相关的列进行过滤
+            time_hint = (
+                "-- 时间范围建议: {start} 至 {end} (若表含有 publish_date/start_date/start_time 等日期列, 请据此过滤)\n"
+            ).format(start=time_window["start"], end=time_window.get("end") or "当前")
 
     extra_block = "\n" + ("\n".join(intent_lines) if intent_lines else "- 无特别意图推断") + "\n"
 
@@ -95,15 +99,14 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
     return prompt
 
 
-async def call_llm_api(prompt: str) -> str:
+async def generate_sql_with_model(prompt: str) -> str:
     """
     调用LLM API 使用 model_client 生成 SQL。
 
     为了与项目中其他模块保持一致，这里使用 `model_client.create(...)`
     并传入单条 UserMessage。
     """
-    try:
-        system_message = """
+    system_message = """
 你是一名专业的SQL开发专家，专门将自然语言问题转换为精确的SQL查询。
 你的专长包括:
 1. 理解复杂的数据库结构和关系
@@ -113,22 +116,37 @@ async def call_llm_api(prompt: str) -> str:
 
 始终生成遵循标准SQL语法的有效SQL。专注于准确性和精确性。
 """
-        # 将系统提示拼接到用户提示中，简化消息结构
-        full_prompt = f"{system_message}\n\n{prompt}"
-
-        response = await model_client.create(
-            [UserMessage(content=full_prompt, source="user")]
-        )
-
-        # Autogen 的 OpenAIChatCompletionClient 返回对象带有 content 属性
-        return response.content if hasattr(response, "content") else str(response)
-    except Exception as e:
-        raise Exception(f"调用LLM API时出错: {str(e)}")
+    # 将系统提示拼接到用户提示中，简化消息结构
+    full_prompt = f"{system_message}\n\n{prompt}"
+    response = await model_client.create(
+        [UserMessage(content=full_prompt, source="user")]
+    )
+    # Autogen 的 OpenAIChatCompletionClient 返回对象带有 content 属性
+    if not isinstance(response.content, str):
+        raise TypeError("SQL generation requires a text model response")
+    return response.content
 
 
-async def _process_text2sql_query_async(
-    db: Session,
-    connection: DBConnection,
+def _load_text2sql_context(connection_id: int) -> tuple[Dict[str, Any], Dict[str, Dict[str, str]], ConnectionSettings]:
+    """Create, consume and close one Session on the same worker thread."""
+    with SessionLocal() as db:
+        connection = crud.db_connection.get(db, id=connection_id)
+        if connection is None:
+            raise ValueError(f"DB connection not found: {connection_id}")
+        schema = snapshot_schema(db, connection_id)
+        mappings = get_value_mappings(db, schema)
+        return schema, mappings, ConnectionSettings.from_connection(connection)
+
+
+async def retrieve_schema_for_connection(connection_id: int, query: str) -> tuple[Dict[str, Any], Dict[str, Dict[str, str]], ConnectionSettings]:
+    snapshot, mappings, settings = await asyncio.to_thread(_load_text2sql_context, connection_id)
+    schema = await select_relevant_schema(snapshot, query)
+    selected_columns = {f"{column['table_name']}.{column['name']}" for column in schema["columns"]}
+    return schema, {key: values for key, values in mappings.items() if key in selected_columns}, settings
+
+
+async def process_text2sql_query_for_connection_async(
+    connection_id: int,
     natural_language_query: str
 ) -> QueryResponse:
     """
@@ -136,19 +154,19 @@ async def _process_text2sql_query_async(
     """
     try:
         # 0. 领域预处理（规范地区/常见词，并推断时间窗/意图）
-        normalized_query, replacements = normalize_terms(natural_language_query)
+        normalized_query, _ = normalize_terms(natural_language_query)
         time_window = parse_time_window(normalized_query)
         inferred = infer_intent(normalized_query)
-        hints = {**inferred}
+        hints: Dict[str, Any] = {**inferred}
         if time_window:
             hints["time_window"] = {
-                "start": time_window.start.isoformat() if time_window.start else None,
-                "end": time_window.end.isoformat() if time_window.end else None,
+                "start": time_window.start.isoformat(),
+                "end": time_window.end.isoformat(),
                 "phrase": time_window.phrase,
             }
 
         # 1. 检索相关表结构（使用规范化后的查询以提升召回）
-        schema_context = await retrieve_relevant_schema(db, connection.id, normalized_query)
+        schema_context, value_mappings, connection_settings = await retrieve_schema_for_connection(connection_id, normalized_query)
 
         # 如果没有找到相关表结构，返回错误
         if not schema_context["tables"]:
@@ -159,14 +177,11 @@ async def _process_text2sql_query_async(
                 context={"schema_context": schema_context}
             )
 
-        # 2. 获取值映射（合并领域映射，如 city/vehicle_type 等）
-        value_mappings = get_value_mappings(db, schema_context)
-
         # 3. 构建提示（附带时间/意图提示）
         prompt = construct_prompt(schema_context, normalized_query, value_mappings, hints=hints)
 
         # 4. 调用LLM API
-        llm_response = await call_llm_api(prompt)
+        llm_response = await generate_sql_with_model(prompt)
 
         # 5. 从响应中提取SQL
         sql = extract_sql_from_llm_response(llm_response)
@@ -175,7 +190,7 @@ async def _process_text2sql_query_async(
         processed_sql = process_sql_with_value_mappings(sql, value_mappings)
 
         # 6.1 缺省行数保护：无聚合/无显式LIMIT时默认限制返回数量
-        if "limit" not in (processed_sql.lower()) and inferred.get("aggregation") not in ("count",):
+        if "limit" not in processed_sql.lower() and inferred.get("aggregation") != "count":
             processed_sql = processed_sql.rstrip("; ") + " LIMIT 100"
 
         # 7. 验证SQL
@@ -193,7 +208,7 @@ async def _process_text2sql_query_async(
 
         # 8. 执行SQL
         try:
-            results = execute_query(connection, processed_sql)
+            results = await asyncio.to_thread(execute_query, connection_settings, processed_sql)
 
             return QueryResponse(
                 sql=processed_sql,
@@ -206,6 +221,7 @@ async def _process_text2sql_query_async(
                 }
             )
         except Exception as e:
+            logger.exception("Text2SQL query execution failed")
             return QueryResponse(
                 sql=processed_sql,
                 results=None,
@@ -217,6 +233,7 @@ async def _process_text2sql_query_async(
                 }
             )
     except Exception as e:
+        logger.exception("Text2SQL query processing failed")
         return QueryResponse(
             sql="",
             results=None,
@@ -229,28 +246,8 @@ class Text2SQLService:
     """Object-oriented facade for the Text2SQL helpers."""
 
     async def run_async(self, db: Session, connection: DBConnection, query: str) -> QueryResponse:
-        return await _process_text2sql_query_async(db, connection, query)
+        return await process_text2sql_query_for_connection_async(connection.id, query)
 
     def run(self, db: Session, connection: DBConnection, query: str) -> QueryResponse:
         # 为向后兼容保留同步接口，在独立线程内可安全调用
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(self.run_async(db, connection, query))
-        finally:
-            loop.close()
-
-
-def process_text2sql_query(db: Session, connection: DBConnection, natural_language_query: str) -> QueryResponse:
-    """同步包装，保持对 legacy 调用的兼容。"""
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(_process_text2sql_query_async(db, connection, natural_language_query))
-    finally:
-        loop.close()
-
-
-async def process_text2sql_query_async(
-    db: Session, connection: DBConnection, natural_language_query: str
-) -> QueryResponse:
-    """异步接口，允许在现有事件循环内调用。"""
-    return await _process_text2sql_query_async(db, connection, natural_language_query)
+        return asyncio.run(self.run_async(db, connection, query))

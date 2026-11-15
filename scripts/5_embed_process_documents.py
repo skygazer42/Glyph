@@ -11,17 +11,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import anyio
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from loguru import logger
+from loguru import logger  # noqa: E402 - executable script bootstraps the repository path
 
-from app.knowledge.service import KnowledgeService
-from app.knowledge import DocumentLoader
+from app.knowledge.service import KnowledgeService  # noqa: E402 - executable script bootstraps the repository path
+from app.knowledge.document_loader import DocumentLoader  # noqa: E402 - executable script bootstraps the repository path
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,43 +61,53 @@ async def ingest_documents(
     dry_run: bool,
 ) -> None:
     loader = DocumentLoader()
-    knowledge_service = KnowledgeService()
 
     source_path = Path(input_dir)
-    if not source_path.exists():
+    if not await asyncio.to_thread(source_path.exists):
         raise FileNotFoundError(f"输入目录不存在：{input_dir}")
 
-    logger.info("开始读取目录：%s", source_path.resolve())
-    batch = []
-    loaded = 0
-    indexed = 0
+    knowledge_service = None if dry_run else await asyncio.to_thread(KnowledgeService)
+    try:
+        logger.info("开始读取目录：{}", source_path)
+        batch: list[Any] = []
+        loaded = 0
+        indexed = 0
 
-    async def flush_batch():
-        nonlocal batch, indexed
-        if not batch:
-            return
-        if dry_run:
-            logger.info("Dry-run 模式：跳过向量入库，批次大小 %s", len(batch))
-        else:
-            inserted = await knowledge_service.index_documents(batch)
-            indexed += inserted
-            logger.info("已写入 %s 篇文档到向量存储", inserted)
-        batch = []
+        async def flush_batch():
+            nonlocal batch, indexed
+            if not batch:
+                return
+            if dry_run:
+                logger.info("Dry-run 模式：跳过向量入库，批次大小 {}", len(batch))
+            else:
+                assert knowledge_service is not None
+                inserted = await knowledge_service.index_documents(batch)
+                indexed += inserted
+                logger.info("已写入 {} 篇文档到向量存储", inserted)
+            batch = []
 
-    for document in loader.iter_documents_from_directory(str(source_path), limit=limit):
-        batch.append(document)
-        loaded += 1
-        if len(batch) >= batch_size:
+        documents = iter(loader.iter_documents_from_directory(str(source_path), limit=limit))
+        while True:
+            document = await asyncio.to_thread(next, documents, None)
+            if document is None:
+                break
+            batch.append(document)
+            loaded += 1
+            if len(batch) >= batch_size:
+                await flush_batch()
+
+        if batch:
             await flush_batch()
 
-    if batch:
-        await flush_batch()
-
-    logger.success(
-        "处理完成：读取 %s 篇文档，%s",
-        loaded,
-        "dry-run 模式未写入向量库" if dry_run else f"成功写入 {indexed} 篇到向量库",
-    )
+        logger.success(
+            "处理完成：读取 {} 篇文档，{}",
+            loaded,
+            "dry-run 模式未写入向量库" if dry_run else f"成功写入 {indexed} 篇到向量库",
+        )
+    finally:
+        if knowledge_service is not None:
+            with anyio.fail_after(5, shield=True):
+                await knowledge_service.close()
 
 
 def main() -> None:

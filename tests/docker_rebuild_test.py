@@ -5,9 +5,15 @@ Docker重建测试报告
 
 import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-def main():
-    test_report = {
+def main(output_file: Path | None = None):
+    """Render historical fixture data; this function does not execute Docker checks."""
+    output_file = Path(__file__).with_name("docker_rebuild_report.json") if output_file is None else Path(output_file)
+    test_report: dict[str, Any] = {
+        "report_kind": "historical_fixture",
+        "executed": False,
         "test_time": datetime.now().isoformat(),
         "test_type": "Docker Rebuild Test",
         "steps": [
@@ -85,7 +91,7 @@ def main():
     }
 
     print("\n" + "="*60)
-    print("Docker重建测试报告")
+    print("Docker重建历史示例报告（本次未执行容器测试）")
     print("="*60)
 
     print(f"\n测试时间: {test_report['test_time']}")
@@ -111,10 +117,10 @@ def main():
     print(f"\n总结: {test_report['summary']}")
 
     # 保存报告
-    with open('/data/temp33/Glyph/tests/docker_rebuild_report.json', 'w', encoding='utf-8') as f:
+    with output_file.open('w', encoding='utf-8') as f:
         json.dump(test_report, f, indent=2, ensure_ascii=False)
 
-    print("\n报告已保存至: tests/docker_rebuild_report.json")
+    print(f"\n报告已保存至: {output_file}")
 
 if __name__ == "__main__":
     main()

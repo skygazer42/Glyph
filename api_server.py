@@ -4,7 +4,7 @@ FastAPI 后端服务
 """
 
 import logging
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -37,10 +37,11 @@ logger = logging.getLogger(__name__)
 # 应用过滤器到 uvicorn 的 access logger
 logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
-# 导入 endpoint 路由
-from app.api.endpoints import agent, dsl, knowledge, uploads, knowledge_graph, db_connections
-from app.api.schemas import HealthResponse
-from app.api.deps import get_session_manager
+# Endpoints initialize clients after environment and logging setup.
+from app.api.endpoints import agent, dsl, knowledge, uploads, knowledge_graph, db_connections  # noqa: E402
+from app.api.schemas import HealthResponse  # noqa: E402
+from app.utils.lifecycle import close_with_timeout  # noqa: E402
+from app.api.deps import close_dependencies, get_session_manager  # noqa: E402
 
 
 # 生命周期管理
@@ -50,17 +51,14 @@ async def lifespan(app: FastAPI):
     # 启动时执行
     logger.info("🚀 应用启动中...")
 
-    # 启动会话管理器
-    session_manager = get_session_manager()
-    session_manager.start()
-    logger.info("✅ 会话管理器已启动")
-
-    yield
-
-    # 关闭时执行
-    logger.info("🔄 应用关闭中...")
-    await session_manager.stop()
-    logger.info("✅ 会话管理器已停止")
+    async with AsyncExitStack() as stack:
+        stack.push_async_callback(close_with_timeout, close_dependencies)
+        session_manager = get_session_manager()
+        stack.push_async_callback(close_with_timeout, session_manager.stop)
+        session_manager.start()
+        logger.info("✅ 会话管理器已启动")
+        yield
+    logger.info("✅ 会话管理器及应用客户端已关闭")
 
 
 # 创建 FastAPI 应用

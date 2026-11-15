@@ -3,13 +3,13 @@ Base models and data structures for the policy QA system.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from uuid import UUID, uuid4
-from pydantic_settings import BaseSettings
-from sqlalchemy.ext.declarative import as_declarative, declared_attr
-from sqlalchemy import Any
+from sqlalchemy.orm import DeclarativeBase, declared_attr
+
+
 class AgentType(str, Enum):
     """Agent type enumeration."""
     QUERY_ANALYZER = "query_analyzer"
@@ -20,6 +20,7 @@ class AgentType(str, Enum):
     FACT_CHECKER = "fact_checker"
     CONSISTENCY_CHECKER = "consistency_checker"
     COORDINATOR = "coordinator"
+    CHAT_AGENT = "chat_agent"
 
 
 class MessageType(str, Enum):
@@ -66,6 +67,9 @@ class QueryIntent(str, Enum):
     DEADLINE_QUERY = "deadline_query"  # 截止日期查询
     POLICY_COMPARISON = "policy_comparison"  # 政策比较
     GENERAL_INQUIRY = "general_inquiry"  # 一般咨询
+    DOCUMENT_REQUIREMENT = "document_requirement"
+    CONTACT_INFO = "contact_info"
+    STATUS_INQUIRY = "status_inquiry"
 
 
 class Attachment(BaseModel):
@@ -81,13 +85,13 @@ class Attachment(BaseModel):
 
     def is_image(self) -> bool:
         """Return True if the attachment looks like an image."""
-        mime = (self.mime_type or "").lower()
-        if mime.startswith("image/"):
+        if self.mime_type is not None and self.mime_type.lower().startswith("image/"):
             return True
+        image_extensions = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
         if self.path:
-            return any(self.path.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp"])
+            return self.path.lower().endswith(image_extensions)
         if self.url:
-            return any(self.url.lower().split("?")[0].endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp"])
+            return self.url.lower().split("?")[0].endswith(image_extensions)
         return False
 
 
@@ -96,27 +100,27 @@ class PolicyDocument(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     title: str = Field(..., description="政策标题")
     content: str = Field(..., description="政策内容")
-    summary: Optional[str] = Field(None, description="政策摘要")
+    summary: Optional[str] = Field(default=None, description="政策摘要")
     source: str = Field(..., description="发布机构")
     doc_type: PolicyType = Field(..., description="政策类型")
-    publish_date: Optional[datetime] = Field(None, description="发布日期")
-    effective_date: Optional[datetime] = Field(None, description="生效日期")
-    expiry_date: Optional[datetime] = Field(None, description="失效日期")
+    publish_date: Optional[datetime] = Field(default=None, description="发布日期")
+    effective_date: Optional[datetime] = Field(default=None, description="生效日期")
+    expiry_date: Optional[datetime] = Field(default=None, description="失效日期")
     relevant_departments: List[str] = Field(default_factory=list, description="相关部门")
     target_groups: List[str] = Field(default_factory=list, description="目标群体")
     regions: List[str] = Field(default_factory=list, description="适用地区")
     keywords: List[str] = Field(default_factory=list, description="关键词")
-    embedding: Optional[List[float]] = Field(None, description="向量嵌入")
+    embedding: Optional[List[float]] = Field(default=None, description="向量嵌入")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
     retrieval_origin: str = Field(default="knowledge_base", description="检索来源标记（knowledge_base/local_graph/web_search 等）")
 
     @model_validator(mode="after")
-    def validate_dates(cls, data: "PolicyDocument") -> "PolicyDocument":
-        effective = data.effective_date
-        expiry = data.expiry_date
-        if expiry and effective and expiry <= effective:
+    def validate_dates(self) -> "PolicyDocument":
+        effective = self.effective_date
+        expiry = self.expiry_date
+        if expiry is not None and effective is not None and expiry <= effective:
             raise ValueError("失效日期必须晚于生效日期")
-        return data
+        return self
 
 
 class UserQuery(BaseModel):
@@ -140,17 +144,17 @@ class QueryAnalysis(BaseModel):
     location_constraints: Optional[str] = Field(..., description="地点约束")
     target_groups: List[str] = Field(..., description="目标群体")
     confidence: float = Field(..., ge=0, le=1, description="置信度")
-    reasoning: Optional[str] = Field(None, description="推理过程")
+    reasoning: Optional[str] = Field(default=None, description="推理过程")
 
 
 class RetrievalRequest(BaseModel):
     """Retrieval request model."""
     query_id: UUID
-    query_embedding: Optional[List[float]] = Field(None, description="查询向量")
+    query_embedding: Optional[List[float]] = Field(default=None, description="查询向量")
     filters: Dict[str, Any] = Field(..., description="过滤条件")
-    method: RetrievalMethod = Field(RetrievalMethod.HYBRID_SEARCH)
-    top_k: int = Field(10, ge=1, le=100, description="返回数量")
-    threshold: float = Field(0.7, ge=0, le=1, description="相似度阈值")
+    method: RetrievalMethod = Field(default=RetrievalMethod.HYBRID_SEARCH)
+    top_k: int = Field(default=10, ge=1, le=100, description="返回数量")
+    threshold: float = Field(default=0.7, ge=0, le=1, description="相似度阈值")
 
 
 class RetrievalResult(BaseModel):
@@ -159,8 +163,8 @@ class RetrievalResult(BaseModel):
     documents: List[PolicyDocument] = Field(...)
     scores: List[float] = Field(...)
     method: RetrievalMethod
-    total_searched: int = Field(0, description="搜索总数")
-    search_time: float = Field(0, description="搜索耗时(秒)")
+    total_searched: int = Field(default=0, description="搜索总数")
+    search_time: float = Field(default=0, description="搜索耗时(秒)")
 
 
 class PolicyAnalysis(BaseModel):
@@ -169,7 +173,7 @@ class PolicyAnalysis(BaseModel):
     query_id: UUID
     relevance_score: float = Field(..., ge=0, le=1)
     eligibility_criteria: List[str] = Field(...,)
-    benefit_details: Optional[str] = Field(None, description="福利详情")
+    benefit_details: Optional[str] = Field(default=None, description="福利详情")
     application_steps: List[str] = Field(..., description="申请步骤")
     required_documents: List[str] = Field(..., description="所需文件")
     deadlines: List[str] = Field(..., description="截止日期")
@@ -189,7 +193,7 @@ class GeneratedAnswer(BaseModel):
     assumptions: List[str] = Field(..., description="假设列表")
     limitations: List[str] = Field(..., description="局限性")
     followup_questions: List[str] = Field(..., description="后续问题")
-    generation_time: float = Field(0, description="生成耗时(秒)")
+    generation_time: float = Field(default=0, description="生成耗时(秒)")
 
 
 class FactCheck(BaseModel):
@@ -206,7 +210,7 @@ class FactCheck(BaseModel):
 class ConsistencyCheck(BaseModel):
     """Consistency check result."""
     answer_id: UUID
-    sources_analyzed: int = Field(0)
+    sources_analyzed: int = Field(default=0)
     consistency_score: float = Field(..., ge=0, le=1)
     contradictions: List[str] = Field(..., description="矛盾点")
     missing_information: List[str] = Field(..., description="缺失信息")
@@ -220,11 +224,11 @@ class FinalAnswer(BaseModel):
     answer: str = Field(..., description="最终答案")
     sources: List[PolicyDocument] = Field(..., description="来源文档")
     confidence: float = Field(..., ge=0, le=1)
-    verification_passed: bool = Field(False, description="是否通过验证")
-    fact_check: Optional[FactCheck] = Field(None)
-    consistency_check: Optional[ConsistencyCheck] = Field(None)
+    verification_passed: bool = Field(default=False, description="是否通过验证")
+    fact_check: Optional[FactCheck] = Field(default=None)
+    consistency_check: Optional[ConsistencyCheck] = Field(default=None)
     metadata: Dict[str, Any] = Field(..., description="元数据")
-    total_processing_time: float = Field(0, description="总处理时间")
+    total_processing_time: float = Field(default=0, description="总处理时间")
 
 
 class AgentMessage(BaseModel):
@@ -232,20 +236,17 @@ class AgentMessage(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     type: MessageType = Field(..., description="消息类型")
     sender: AgentType = Field(..., description="发送者")
-    recipient: Optional[AgentType] = Field(None, description="接收者")
+    recipient: Optional[AgentType] = Field(default=None, description="接收者")
     content: Dict[str, Any] = Field(..., description="消息内容")
     timestamp: datetime = Field(default_factory=datetime.now)
-    correlation_id: Optional[UUID] = Field(None, description="关联ID")
-    requires_response: bool = Field(False, description="是否需要响应")
-    response_topic: Optional[str] = Field(None, description="响应主题")
+    correlation_id: Optional[UUID] = Field(default=None, description="关联ID")
+    requires_response: bool = Field(default=False, description="是否需要响应")
+    response_topic: Optional[str] = Field(default=None, description="响应主题")
 
 
-@as_declarative()
-class Base:
-    id: Any
-    __name__: str
+class Base(DeclarativeBase):
 
     # Generate __tablename__ automatically
-    @declared_attr
+    @declared_attr.directive
     def __tablename__(cls) -> str:
         return cls.__name__.lower()
