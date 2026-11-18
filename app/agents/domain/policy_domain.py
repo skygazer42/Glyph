@@ -54,8 +54,8 @@ class PolicyDomainContext:
         return {
             "region": self.region,
             "time_window": {
-                "start": self.time_window.start.isoformat() if self.time_window and self.time_window.start else None,
-                "end": self.time_window.end.isoformat() if self.time_window and self.time_window.end else None,
+                "start": self.time_window.start.isoformat() if self.time_window else None,
+                "end": self.time_window.end.isoformat() if self.time_window else None,
                 "phrase": self.time_window.phrase if self.time_window else None,
             },
             "keywords": self.keywords,

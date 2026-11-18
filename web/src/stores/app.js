@@ -19,6 +19,7 @@ export const useAppStore = defineStore('app', () => {
     generatedYAML: '',
     generatedRuleId: '',
     generatedInputs: [],
+    savedRule: null,
     dslList: [],
     generating: false,
     showExamples: false
@@ -65,6 +66,7 @@ export const useAppStore = defineStore('app', () => {
     dslState.value.generatedYAML = ''
     dslState.value.generatedRuleId = ''
     dslState.value.generatedInputs = []
+    dslState.value.savedRule = null
     dslState.value.generating = false
   }
 
@@ -72,6 +74,18 @@ export const useAppStore = defineStore('app', () => {
     kbState.value.searchQuery = ''
     kbState.value.searchResults = []
     kbState.value.selectedDoc = null
+  }
+
+  function resetPrivateState() {
+    resetDSLState()
+    dslState.value.dslList = []
+    dslState.value.showExamples = false
+    resetKBState()
+    kbState.value.documents = []
+    kbState.value.uploading = false
+    loading.value = false
+    clearTimeout(notificationTimer)
+    notification.value = { show: false, type: 'success', message: '' }
   }
 
   return {
@@ -90,6 +104,7 @@ export const useAppStore = defineStore('app', () => {
     setLoading,
     showNotification,
     resetDSLState,
-    resetKBState
+    resetKBState,
+    resetPrivateState
   }
 })

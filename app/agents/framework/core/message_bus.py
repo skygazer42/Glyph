@@ -280,7 +280,7 @@ class MessageBus:
         if subscribers:
             tasks = []
             for handler in subscribers:
-                task = asyncio.create_task(self._safe_call_handler(handler, message))
+                task = asyncio.create_task(self._invoke_handler(handler, message))
                 tasks.append(task)
 
             if tasks:
@@ -301,8 +301,8 @@ class MessageBus:
             self._stats["messages_failed"] += 1
             logger.warning(f"No subscribers for message {message.id}")
 
-    async def _safe_call_handler(self, handler: Callable, message: Message) -> None:
-        """安全调用处理函数"""
+    async def _invoke_handler(self, handler: Callable, message: Message) -> None:
+        """Invoke a registered handler and await its result when it is asynchronous."""
         result = handler(message)
         if inspect.isawaitable(result):
             await result

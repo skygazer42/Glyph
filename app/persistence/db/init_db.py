@@ -1,12 +1,11 @@
 import logging
 from sqlalchemy.orm import Session
 
-from app.persistence import crud
-from app.schemas.db_connection import DBConnectionCreate
-from app.persistence.db.base import Base
+from app.persistence.crud.db_connection import db_connection as db_connection_crud
+from app.schemas.database import DBConnectionCreate
+from app.persistence.db.registry import Base
 from app.persistence.db.session import engine
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -18,7 +17,7 @@ def init_db() -> None:
 
 def create_initial_data(db: Session) -> None:
     # Check if we already have connections
-    connection = crud.db_connection.get_by_name(db, name="Sample Database")
+    connection = db_connection_crud.get_by_name(db, name="Sample Database")
     if connection is None:
         connection_in = DBConnectionCreate(
             name="Sample Database",
@@ -29,13 +28,14 @@ def create_initial_data(db: Session) -> None:
             password="mysql",
             database_name="chat_db"
         )
-        connection = crud.db_connection.create(db=db, obj_in=connection_in)
+        connection = db_connection_crud.create(db=db, obj_in=connection_in)
         logger.info(f"Created sample connection: {connection.name}")
 
 
 if __name__ == "__main__":
     from app.persistence.db.session import SessionLocal
 
+    logging.basicConfig(level=logging.INFO)
     db = SessionLocal()
     try:
         init_db()

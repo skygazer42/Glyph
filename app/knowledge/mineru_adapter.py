@@ -6,23 +6,22 @@ MinerU 文档解析适配器
 2. 本地服务 API (http://localhost:30001)
 """
 
-import os
-import logging
-import json
 import asyncio
-import anyio
 import io
-import zipfile
+import json
+import logging
+import os
 import time
+import zipfile
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Literal
-import aiohttp
+from typing import Any, Dict, List, Literal, Optional
+
 import aiofiles
+import aiohttp
+import anyio
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.config.app_config import settings
-
-
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class MinerUApiResponse(BaseModel):
@@ -84,13 +83,16 @@ class MinerUAdapter:
                 - "local": 使用本地服务 API
                 - "auto": 自动检测（默认）
         """
-        self.config = config or {}
+        self.config = {} if config is None else config
         self.logger = logging.getLogger(__name__)
 
         # API配置 - 使用 settings.mineru
         self.enabled = self.config.get("enabled", settings.mineru.enabled)
         self.api_key = self.config.get("api_key", settings.mineru.api_key)
         self.timeout = self.config.get("timeout", settings.mineru.timeout)
+
+        if mode not in {"official", "local", "auto"}:
+            raise ValueError(f"Unsupported MinerU mode: {mode}")
 
         # 自动检测模式
         if mode == "auto":
@@ -519,12 +521,13 @@ class MinerUAdapter:
 
         # 添加参数
         data.add_field("lang_list", json.dumps(options.get("lang_list", [self.language])))
-        data.add_field("backend", options.get("backend", self.backend))
+        backend = options.get("backend", self.backend)
+        data.add_field("backend", backend)
         data.add_field("parse_method", options.get("parse_method", "auto"))
         data.add_field("return_md", "true")
 
         # vlm-http-client 需要 server_url
-        if options.get("backend") == "vlm-http-client" and options.get("server_url"):
+        if backend == "vlm-http-client" and options.get("server_url"):
             data.add_field("server_url", options["server_url"])
 
         session = await self._get_session()
@@ -555,7 +558,7 @@ class MinerUAdapter:
                 "success": True,
                 "content": content,
                 "metadata": {
-                    "backend": options.get("backend", self.backend),
+                    "backend": backend,
                     "file_name": os.path.basename(file_path)
                 }
             }

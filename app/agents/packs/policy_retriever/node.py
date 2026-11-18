@@ -17,7 +17,7 @@ from app.agents.framework.base.types import (
     QueryResult,
     RetrievalMethod
 )
-from app.models.base import PolicyDocument
+from app.models.policy import PolicyDocument
 
 
 class RetrievalRequest(BaseModel):
@@ -60,38 +60,16 @@ class PolicyRetriever:
         self.name = name
         self.llm_config = llm_config
         self.logger = logging.getLogger(f"{__name__}.{name}")
-        self.system_message = self._get_default_system_message()
         self._owns_model_client = model_client is None
         self.model_client = create_openai_client(llm_config=llm_config) if model_client is None else model_client
         self.vector_store = vector_store
         self.graph_db = graph_db
         self.top_k = top_k
         self.similarity_threshold = similarity_threshold
-    def _get_default_system_message(self) -> str:
-        """Get the default system message."""
-        return """您是政策检索专员，负责根据用户查询找到相关的政策文档。
-
-您的任务：
-1. 分析用户查询，理解他们需要的政策类型
-2. 使用向量相似度搜索查找相关文档
-3. 使用图遍历查找关联政策（如需要）
-4. 根据相关性对结果进行排序和筛选
-5. 返回最相关的前K个政策文档
-
-您必须考虑：
-- 政策类型（补贴、税收优惠、法规等）
-- 时间限制（生效日期、截止日期）
-- 地理限制（国家、省级、市级）
-- 目标群体（个人、企业、特定行业）
-- 政策关系（互补、冲突、层级）
-
-始终为检索结果提供来源和置信度评分。"""
 
     async def process_message(
         self,
         message: str | Dict[str, Any],
-        sender: Optional[Any] = None,
-        context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process retrieval request."""
         try:
@@ -206,7 +184,7 @@ class PolicyRetriever:
             raise ValueError("Retrieval results have mismatched documents and scores")
         ranked_docs = sorted(
             [(doc, all_scores[index]) for index, doc in enumerate(all_docs)],
-            key=lambda x: x[1],
+            key=lambda scored_document: scored_document[1],
             reverse=True
         )[:self.top_k]
 

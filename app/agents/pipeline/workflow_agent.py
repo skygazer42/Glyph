@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Annotated, Any, Awaitable, Callable, Dict, List, Optional
 from uuid import uuid4
 
 import anyio
@@ -14,13 +14,12 @@ from autogen_agentchat.conditions import SourceMatchTermination
 from autogen_agentchat.messages import BaseChatMessage, TextMessage
 from autogen_agentchat.teams import DiGraphBuilder, GraphFlow
 from autogen_core.tools import BaseTool, FunctionTool
-from typing_extensions import Annotated
 
 from app.agents.pipeline.knowledge_agent import KnowledgeAgent
 from app.agents.pipeline.rule_agent import RuleEngineAgent
 from app.agents.service.tools import VisionTool, UserProfileTool
 from app.core.llms import model_client
-from app.models.base import Attachment, FinalAnswer
+from app.models.policy import Attachment, FinalAnswer
 
 
 logger = logging.getLogger(__name__)
@@ -51,6 +50,7 @@ class WorkflowAgent:
         *,
         attachments: Optional[List[Attachment]] = None,
         intent: Optional[Dict[str, Any]] = None,
+        allow_user_profile: bool = True,
     ) -> FinalAnswer:
         attachments = attachments or []
         context: Dict[str, Any] = {
@@ -60,7 +60,7 @@ class WorkflowAgent:
             "user_profile": None,
         }
 
-        flow = self._build_flow(context, attachments, intent)
+        flow = self._build_flow(context, attachments, intent, allow_user_profile=allow_user_profile)
         last_message: Optional[BaseChatMessage] = None
 
         try:
@@ -108,6 +108,8 @@ class WorkflowAgent:
         context: Dict[str, Any],
         attachments: List[Attachment],
         intent: Optional[Dict[str, Any]],
+        *,
+        allow_user_profile: bool = True,
     ) -> GraphFlow:
         builder = DiGraphBuilder()
         participants: List[ChatAgent] = []
@@ -153,6 +155,8 @@ class WorkflowAgent:
         async def fetch_user_profile(
             user_id: Annotated[str, "需要查询的用户唯一ID"],
         ) -> str:
+            if not allow_user_profile:
+                raise PermissionError("公众咨询不能访问用户档案。")
             profile = await self.user_profile_tool.fetch(user_id.strip())
             context["user_profile"] = profile
             return self.user_profile_tool.format_profile(profile)
@@ -160,8 +164,11 @@ class WorkflowAgent:
         router_tools: List[BaseTool[Any, Any] | Callable[..., Any] | Callable[..., Awaitable[Any]]] = [
             FunctionTool(query_policy_knowledge, description="当需要检索政策或知识库信息时调用。"),
             FunctionTool(execute_rule_engine, description="当需要根据票据/参数计算优惠、折扣、补贴时调用。"),
-            FunctionTool(fetch_user_profile, description="查询指定用户ID的历史、等级与最近活动。"),
         ]
+        if allow_user_profile:
+            router_tools.append(
+                FunctionTool(fetch_user_profile, description="查询指定用户ID的历史、等级与最近活动。")
+            )
         router_agent = AssistantAgent(
             "task_router",
             model_client=self.model_client,
@@ -176,7 +183,6 @@ class WorkflowAgent:
         participants.append(router_agent)
         if previous_agent:
             builder.add_edge(previous_agent, router_agent)
-        previous_agent = router_agent
 
         answer_agent = AssistantAgent(
             "answer_composer",
@@ -187,8 +193,7 @@ class WorkflowAgent:
             ),
         )
         builder.add_node(answer_agent)
-        if previous_agent:
-            builder.add_edge(previous_agent, answer_agent)
+        builder.add_edge(router_agent, answer_agent)
         participants.append(answer_agent)
 
         graph = builder.build()

@@ -109,20 +109,21 @@ class DSLPipeline:
 
     def process_directory(self, directory: Optional[str] = None) -> List[Dict[str, Any]]:
         """Process all supported files in a directory."""
-        dir_path = Path(directory) if directory else self.data_dir
+        dir_path = self.data_dir if directory is None else Path(directory)
+        if not dir_path.is_dir():
+            raise NotADirectoryError(dir_path)
         results: List[Dict[str, Any]] = []
 
         logger.info("批量处理目录: %s", dir_path)
 
-        patterns = ["*.docx", "*.txt", "*.doc", "*.pdf"]
-
         file_count = 0
-        for pattern in patterns:
-            for file_path in dir_path.glob(pattern):
-                file_count += 1
-                logger.info("处理文件 [%s]: %s", file_count, file_path.name)
-                result = self.process_document(str(file_path))
-                results.append(result)
+        for file_path in sorted(dir_path.iterdir()):
+            if not file_path.is_file() or file_path.suffix.lower() not in self.parser.supported_formats:
+                continue
+            file_count += 1
+            logger.info("处理文件 [%s]: %s", file_count, file_path.name)
+            result = self.process_document(str(file_path))
+            results.append(result)
 
         logger.info("批量处理完成: 共处理 %s 个文件", file_count)
         success_count = sum(1 for r in results if r["status"] == "success")
@@ -210,9 +211,9 @@ class DSLPipeline:
 
         if input_type == "float":
             return 10000.0 if "price" in name else 100.0
-        if input_type == "int":
+        if input_type in {"int", "integer"}:
             return 1
-        if input_type == "boolean":
+        if input_type in {"bool", "boolean"}:
             return False
         return "test"
 
@@ -229,6 +230,6 @@ class DSLPipeline:
         if input_type == "float":
             threshold = tier.get("threshold")
             return 100.0 if threshold is None else threshold
-        if input_type == "int":
+        if input_type in {"int", "integer"}:
             return 1
         return DSLPipeline._default_input_value({"name": name, "type": input_type})

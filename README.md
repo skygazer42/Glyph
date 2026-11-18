@@ -24,6 +24,8 @@ Glyph 面向政务咨询、政策服务、消费补贴、以旧换新、消费�
 
 ## 系统架构
 
+Python 目录职责、命名、内部导入和脚本命令迁移见 [Python 代码与目录约定](docs/PYTHON_STRUCTURE.md)。
+
 <div align="center">
   <img src="docs/images/glyph-architecture.png" alt="Glyph 政策智能问答系统架构图" width="100%" />
 </div>
@@ -155,11 +157,11 @@ Glyph 面向政务咨询、政策服务、消费补贴、以旧换新、消费�
 |-------|------|------|
 | **RewriteAgent** | 查询标准化与改写 | 结构化查询 |
 | **IntentRouter** | 意图识别与路由决策 | 路由目标+置信度 |
-| **DialogueAgent** | 闲聊、问候等对话交互 | 对话回复 |
+| **respond_to_dialogue** | 闲聊、问候等对话交互 | 对话回复 |
 | **KnowledgeAgent** | 向量检索+重排+政策分析 | 结构化政策信息 |
 | **GraphAgent** | LightRAG图谱推理 | 实体关系网络 |
 | **RuleEngine** | YAML DSL规则计算 | 补贴金额/资格判断 |
-| **Text2SQLAgent** | 自然语言→SQL→执行 | 数据库查询结果 |
+| **answer_text2sql_query** | 自然语言→SQL→执行 | 数据库查询结果 |
 | **WorkflowAgent** | 多Agent并行协调 | 融合多源结果 |
 | **PolicyAnalyzer** | 政策要素提取 | 资格/流程/金额/时间 |
 | **PolicyComparator** | 多政策对比分析 | 对比表格 |
@@ -217,11 +219,11 @@ Glyph 面向政务咨询、政策服务、消费补贴、以旧换新、消费�
      ```bash
      docker compose exec api bash -c "\
        rm -f /app/.initialized && \
-       python scripts/1_create_tables.py && \
-       python scripts/2_seed_mysql_text2sql.py && \
-       python scripts/7_sync_text2sql_schema.py && \
-       python scripts/5_embed_process_documents.py --input-dir resources/data/process && \
-       python scripts/6_seed_lightrag.py --input-dir resources/data/process"
+       python -m scripts.create_tables && \
+       python -m scripts.seed_mysql_text2sql && \
+       python -m scripts.sync_text2sql_schema && \
+       python -m scripts.embed_process_documents --input-dir resources/data/process && \
+       python -m scripts.seed_lightrag --input-dir resources/data/process"
      ```
 
 ### 方式二：本地开发
@@ -277,12 +279,14 @@ Glyph 面向政务咨询、政策服务、消费补贴、以旧换新、消费�
    ```bash
    bash scripts/init_data.sh
    ```
-   该脚本会完成建表、Text2SQL 数据准备、schema 同步、Milvus 文档嵌入，以及 LightRAG 种子导入。
+   该脚本会完成建表、Text2SQL 数据准备、schema 同步、Milvus 文档嵌入，以及 LightRAG 种子导入。默认保留已有记录；仅主动重置演示库时才使用 `python -m scripts.seed_mysql_text2sql --truncate`。清空操作不能由后续插入回滚恢复。
 
 6. **启动后端 API**
    ```bash
    python -m uvicorn api_server:app --reload --env-file .env
    ```
+
+   工作人员后台需要先按 [认证配置说明](docs/AUTHENTICATION.md) 设置账号、密码与签名密钥。项目不提供默认登录账号；公众咨询免登录，但会话签发同样需要签名密钥。
 
 7. **启动前端（可选）**
    ```bash
@@ -311,7 +315,7 @@ Glyph 面向政务咨询、政策服务、消费补贴、以旧换新、消费�
 
 4. **CLI 快速验证**
    ```bash
-   python scripts/unified_cli.py --interactive
+   python -m scripts.unified_cli --interactive
    ```
 
 5. **自动化测试**
@@ -394,7 +398,7 @@ ANALYZER_CONCURRENCY=3  # 政策分析并发数
 ```python
 # app/agents/packs/my_agent/node.py
 from app.agents.framework.base.base_agent import PolicyAgentBase
-from app.models.base import AgentType, MessageType
+from app.models.policy import AgentType, MessageType
 
 class MyCustomAgent(PolicyAgentBase):
     def __init__(self):
@@ -438,7 +442,7 @@ def _resolve_route(self, intent_result, ...):
 ### 添加新的意图
 
 ```python
-# app/models/base.py
+# app/models/policy.py
 class QueryIntent(str, Enum):
     # 现有意图...
     MY_CUSTOM_INTENT = "my_custom_intent"

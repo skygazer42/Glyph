@@ -196,13 +196,14 @@ domains:
         "end": "YYYY-MM-DD HH:MM:SS"
       },
 
-      "coupon_types": ["retail", "dining"],
+      "coupon_types": ["AMOUNT", "PERCENT"],
 
       "tiers": [
         {
-          "type": "retail/dining",
+          "type": "AMOUNT/PERCENT",
           "threshold": 满减门槛(元),
-          "discount": 减免金额(元),
+          "discount": "AMOUNT 为减免金额(元)，PERCENT 为优惠比例(0~1)",
+          "cap": "PERCENT 可选封顶金额(元)，无封顶时为 null",
           "name": "券面名称"
         }
       ],
@@ -222,7 +223,7 @@ domains:
 
       "usage_limits": {
         "valid_days": 有效天数,
-        "merchant_scope": "适用商户范围",
+        "merchant_scope": "实际适用商户范围（零售、餐饮等场景不作为券种类型）",
         "product_scope": "适用商品范围",
         "time_restrictions": "使用时间限制",
         "stacking": {

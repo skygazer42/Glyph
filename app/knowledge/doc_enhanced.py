@@ -2,23 +2,22 @@
 增强文档处理器 - 使用MinerU2.6（在线上传）和 Docling/LlamaIndex
 """
 
+import asyncio
 import io
+import logging
 import time
 import zipfile
-import logging
-import asyncio
-from typing import List, Dict, Any, Optional, Union
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
+
+from llama_index.readers.file import DocxReader, PDFReader
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 import requests
 from requests.exceptions import RequestException
-# LlamaIndex
-from llama_index.readers.file import PDFReader, DocxReader
+
 from app.config.app_config import settings
-
-
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class MinerUEnvelope(BaseModel):
@@ -64,7 +63,7 @@ class EnhancedDocumentProcessor:
     """增强文档处理器 - 支持多种文档解析引擎"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
+        self.config = {} if config is None else config
         self.logger = logging.getLogger(__name__)
 
         # 初始化MinerU客户端
@@ -82,7 +81,6 @@ class EnhancedDocumentProcessor:
             self.llamaindex_readers = {
                 ".pdf": PDFReader(),
                 ".docx": DocxReader(),
-                ".doc": DocxReader(),
                 # .txt 和 .md 使用原生 Python 读取
             }
             self.logger.info("LlamaIndex readers initialized")
@@ -98,7 +96,7 @@ class EnhancedDocumentProcessor:
 
         if suffix == ".pdf":
             return await self._extract_from_pdf(file_path)
-        if suffix in [".docx", ".doc"]:
+        if suffix == ".docx":
             return await self._extract_from_docx(file_path)
         if suffix in [".txt", ".md"]:
             return await self._extract_from_text(file_path)
@@ -134,19 +132,12 @@ class EnhancedDocumentProcessor:
 
     async def _extract_with_llamaindex(self, file_path: Path) -> Optional[str]:
         """使用LlamaIndex提取文档"""
-        # LlamaIndex是同步的，使用线程池执行
-        loop = asyncio.get_event_loop()
+        def read_documents() -> Optional[str]:
+            reader = self.llamaindex_readers[file_path.suffix.lower()]
+            documents = reader.load_data(str(file_path))
+            return "\n\n".join(doc.text for doc in documents) if documents else None
 
-        def _process_with_llamaindex():
-            reader = self.llamaindex_readers.get(file_path.suffix.lower())
-            if reader:
-                documents = reader.load_data(str(file_path))
-                if documents:
-                    # 合并所有文档的文本
-                    return "\n\n".join(doc.text for doc in documents)
-            return None
-
-        return await loop.run_in_executor(None, _process_with_llamaindex)
+        return await asyncio.to_thread(read_documents)
 
     def _mineru_headers(self) -> Dict[str, str]:
         return {
@@ -183,7 +174,7 @@ class EnhancedDocumentProcessor:
             with requests.put(upload_url, data=fp, timeout=self.mineru_timeout) as response:
                 response.raise_for_status()
 
-    def _mineru_poll_batch_result(self, batch_id: str, data_id: str) -> Dict[str, Any]:
+    def _mineru_poll_batch_result(self, batch_id: str, data_id: str) -> MinerUExtractedFile:
         """轮询 MinerU 批量任务结果，直到找到对应 data_id。"""
         deadline = time.monotonic() + self.mineru_poll_timeout
         while time.monotonic() < deadline:
@@ -200,33 +191,20 @@ class EnhancedDocumentProcessor:
             for entry in batch.extract_result:
                 if entry.data_id == data_id:
                     if entry.state in {"done", "success"}:
-                        return entry.model_dump(exclude_none=True)
+                        return entry
                     if entry.state in {"failed", "error"}:
                         raise RuntimeError(f"MinerU task failed: {entry.err_msg}")
             time.sleep(self.mineru_poll_interval)
         raise TimeoutError(f"MinerU batch {batch_id} timeout for data_id={data_id}")
 
-    def _mineru_extract_markdown(self, payload: Dict[str, Any]) -> Optional[str]:
-        """从 MinerU extract_result 项或直接 payload 中提取 Markdown。"""
-        if not payload:
-            return None
-
-        # 优先检查直接返回的 markdown 字段
-        for key in ("markdown", "full_markdown", "md"):
-            text = payload.get(key)
-            if text:
-                return text
-
-        content = payload.get("content")
-        if isinstance(content, dict):
-            for key in ("markdown", "md", "text", "raw_text"):
-                text = content.get(key)
-                if text:
-                    return text
-
-        zip_url = payload.get("full_zip_url") or payload.get("zip_url")
-        if zip_url:
-            return self._mineru_download_md_from_zip(zip_url)
+    def _mineru_extract_markdown(self, payload: MinerUExtractedFile) -> Optional[str]:
+        """Read the canonical fields already validated at the API boundary."""
+        if payload.markdown:
+            return payload.markdown
+        if payload.content is not None and payload.content.markdown:
+            return payload.content.markdown
+        if payload.full_zip_url:
+            return self._mineru_download_md_from_zip(payload.full_zip_url)
         return None
 
     def _mineru_download_md_from_zip(self, zip_url: str) -> Optional[str]:
@@ -236,16 +214,13 @@ class EnhancedDocumentProcessor:
             zip_content = response.content
         with zipfile.ZipFile(io.BytesIO(zip_content)) as archive:
             names = archive.namelist()
-            target = "full.md" if "full.md" in names else None
-            if not target:
-                for candidate in names:
-                    if candidate.lower().endswith(".md"):
-                        target = candidate
-                        break
-            if not target:
+            target = next((name for name in names if Path(name).name == "full.md"), None)
+            if target is None:
+                target = next((name for name in names if name.lower().endswith(".md")), None)
+            if target is None:
                 return None
             data = archive.read(target)
-            return data.decode("utf-8", errors="ignore")
+            return data.decode("utf-8")
 
     async def _extract_from_docx(self, file_path: Path) -> Optional[str]:
         """从DOCX提取文本"""
@@ -254,7 +229,8 @@ class EnhancedDocumentProcessor:
             raise RuntimeError("DOCX extraction requires the LlamaIndex parser")
         return await self._extract_with_llamaindex(file_path)
 
-    async def _extract_from_text(self, file_path: Path) -> str:
+    @staticmethod
+    async def _extract_from_text(file_path: Path) -> str:
         """从TXT/MD提取文本"""
         for encoding in ("utf-8", "gbk", "gb2312"):
             try:
@@ -316,7 +292,7 @@ class EnhancedDocumentProcessor:
             if self.mineru_enabled:
                 return "MinerU2.6 (api)"
             return "LlamaIndex"
-        elif file_type in [".docx", ".doc"]:
+        elif file_type == ".docx":
             return "LlamaIndex"
         else:
             return "direct"
@@ -325,11 +301,11 @@ class EnhancedDocumentProcessor:
         """获取支持的文件格式"""
         formats = [".txt", ".md"]
 
-        if self.mineru_enabled or self.llamaindex_enabled :
+        if self.mineru_enabled or self.llamaindex_enabled:
             formats.append(".pdf")
 
         if self.llamaindex_enabled:
-            formats.extend([".docx", ".doc"])
+            formats.append(".docx")
 
         return formats
 

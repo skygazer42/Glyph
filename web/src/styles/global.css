@@ -196,8 +196,25 @@ body {
 /* 消息提示 */
 .el-message {
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-sm);
   min-width: 300px;
+  max-width: calc(100vw - 32px);
+  font-family: var(--wb-font);
+}
+.el-message--success {
+  --el-message-text-color: var(--wb-success);
+  --el-message-bg-color: var(--wb-surface);
+  --el-message-border-color: var(--wb-line);
+}
+.el-message--error {
+  --el-message-text-color: var(--wb-error);
+  --el-message-bg-color: var(--wb-surface);
+  --el-message-border-color: var(--wb-line);
+}
+.el-message--warning {
+  --el-message-text-color: var(--wb-warning);
+  --el-message-bg-color: var(--wb-surface);
+  --el-message-border-color: var(--wb-line);
 }
 
 /* 分页 */

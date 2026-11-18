@@ -10,7 +10,7 @@ from uuid import UUID
 from autogen_core import MessageContext
 
 from app.agents.framework.base.base_agent import PolicyAgentBase
-from app.models.base import (
+from app.models.policy import (
     AgentType,
     PolicyDocument,
 )
@@ -88,7 +88,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
                 raise ValueError("需要至少2个文档进行比较")
 
             # 执行比较分析
-            comparison_result = await self._compare_policies(
+            comparison_result = self._compare_policies(
                 documents, query_id, comparison_type
             )
 
@@ -105,7 +105,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
             self.metrics["errors"] += 1
             raise
 
-    async def _compare_policies(
+    def _compare_policies(
         self,
         documents: List[PolicyDocument],
         query_id: UUID,
@@ -132,7 +132,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
         # 对每个维度进行比较
         for dimension in dimensions:
             dim_config = self.comparison_dimensions[dimension]
-            similarities, differences, table_data = await self._compare_dimension(
+            similarities, differences, table_data = self._compare_dimension(
                 documents, dimension, dim_config
             )
 
@@ -141,7 +141,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
             comparison_table[dim_config["name"]] = table_data
 
         # 生成比较摘要
-        summary = await self._generate_comparison_summary(
+        summary = self._generate_comparison_summary(
             documents, all_similarities, all_differences
         )
 
@@ -158,7 +158,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         return comparison_result
 
-    async def _compare_dimension(
+    def _compare_dimension(
         self,
         documents: List[PolicyDocument],
         dimension: str,
@@ -172,7 +172,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
         # 提取每个文档在该维度的信息
         dimension_info: List[Dict[str, Any]] = []
         for doc in documents:
-            info = await self._extract_dimension_info(doc, dimension)
+            info = self._extract_dimension_info(doc, dimension)
             dimension_info.append({
                 "doc_id": doc.id,
                 "doc_title": doc.title,
@@ -213,7 +213,7 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         return similarities, differences, table_data
 
-    async def _extract_dimension_info(
+    def _extract_dimension_info(
         self,
         document: PolicyDocument,
         dimension: str
@@ -224,23 +224,24 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         if dimension == "eligibility":
             # 提取申请条件
-            info = await self._extract_eligibility_info(content)
+            info = self._extract_eligibility_info(content)
         elif dimension == "benefits":
             # 提取补贴标准
-            info = await self._extract_benefit_info(content)
+            info = self._extract_benefit_info(content)
         elif dimension == "process":
             # 提取申请流程
-            info = await self._extract_process_info(content)
+            info = self._extract_process_info(content)
         elif dimension == "documents":
             # 提取所需材料
-            info = await self._extract_document_info(content)
+            info = self._extract_document_info(content)
         elif dimension == "deadlines":
             # 提取时间节点
-            info = await self._extract_deadline_info(content)
+            info = self._extract_deadline_info(content)
 
         return info
 
-    async def _extract_eligibility_info(self, content: str) -> Dict[str, Any]:
+    @staticmethod
+    def _extract_eligibility_info(content: str) -> Dict[str, Any]:
         """提取申请条件信息"""
         # 这里应该使用NLP技术提取，简化处理
         eligibility_info = {}
@@ -261,7 +262,8 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         return eligibility_info
 
-    async def _extract_benefit_info(self, content: str) -> Dict[str, Any]:
+    @staticmethod
+    def _extract_benefit_info(content: str) -> Dict[str, Any]:
         """提取补贴标准信息"""
         benefit_info = {}
 
@@ -281,7 +283,8 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         return benefit_info
 
-    async def _extract_process_info(self, content: str) -> Dict[str, Any]:
+    @staticmethod
+    def _extract_process_info(content: str) -> Dict[str, Any]:
         """提取申请流程信息"""
         process_info = {}
 
@@ -295,7 +298,8 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         return process_info
 
-    async def _extract_document_info(self, content: str) -> Dict[str, Any]:
+    @staticmethod
+    def _extract_document_info(content: str) -> Dict[str, Any]:
         """提取所需材料信息"""
         document_info = {}
 
@@ -314,7 +318,8 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         return document_info
 
-    async def _extract_deadline_info(self, content: str) -> Dict[str, Any]:
+    @staticmethod
+    def _extract_deadline_info(content: str) -> Dict[str, Any]:
         """提取时间节点信息"""
         deadline_info = {}
 
@@ -379,8 +384,8 @@ class PolicyComparatorAgent(PolicyAgentBase):
 
         return unique_elements
 
-    async def _generate_comparison_summary(
-        self,
+    @staticmethod
+    def _generate_comparison_summary(
         documents: List[PolicyDocument],
         similarities: List[str],
         differences: List[Dict]

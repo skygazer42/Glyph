@@ -25,12 +25,12 @@ from tavily import TavilyClient
 
 from app.agents.packs.intent_router.utils import LLMIntentClassifier
 from app.knowledge.service import KnowledgeService
-from app.models.base import Attachment, PolicyDocument, PolicyType
+from app.models.policy import Attachment, PolicyDocument, PolicyType
 from app.utils.lifecycle import close_with_timeout
 
 
 class _WebSearchHit(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", allow_inf_nan=False)
 
     title: str
     content: str
@@ -45,7 +45,7 @@ class _WebSearchResponse(BaseModel):
 
 
 class _DifySearchHit(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", allow_inf_nan=False)
 
     content: str = Field(validation_alias=AliasChoices("content", "text"))
     score: float = Field(validation_alias=AliasChoices("score", "similarity"))
@@ -120,7 +120,9 @@ class KnowledgeTool:
 
     async def ingest(self, documents: List[PolicyDocument]) -> int:
         service = await self.get_service()
-        return await service.index_documents(documents)
+        # 分批追加向量；完整分级快照由 embed_documents 独立构建，避免覆盖既有语料。
+        await run_sync(service.vector_store.add_documents, documents)
+        return len(documents)
 
     async def search(
         self,
@@ -135,11 +137,14 @@ class KnowledgeTool:
             raise ValueError("top_k must not be negative")
         if top_k == 0:
             return [], []
-        # 优先使用 Dify 知识库（若启用）
-        if self._dify.enabled:
+        if not 0 <= threshold <= 1:
+            raise ValueError("threshold must be between zero and one")
+        # Dify 没有本地元数据过滤接口，有过滤要求时交给支持它的知识库。
+        if self._dify.enabled and not filters:
             docs, scores = await self._dify.search(query, top_k=top_k)
-            if docs:
-                return docs, scores
+            matches = [(doc, score) for doc, score in zip(docs, scores, strict=True) if score >= threshold]
+            if matches:
+                return [doc for doc, _ in matches], [score for _, score in matches]
         service = await self.get_service()
         result = await service.search(
             query, top_k=top_k, threshold=threshold, filters=filters
@@ -215,7 +220,8 @@ class WebSearchTool:
             )
         return formatted
 
-    def format_results(self, results: List[Dict[str, Any]]) -> str:
+    @staticmethod
+    def format_results(results: List[Dict[str, Any]]) -> str:
         if not results:
             return "暂无可用的网络检索结果。"
         lines = ["以下为网络检索的关键信息："]
@@ -306,7 +312,10 @@ class VisionTool:
 
     def _resolve_image_url(self, attachment: Attachment) -> Optional[str]:
         if attachment.url:
-            return attachment.url
+            if attachment.url.lower().startswith(("http://", "https://", "data:image/")):
+                return attachment.url
+            if not attachment.path:
+                raise ValueError("Image URL must be absolute or accompanied by an uploaded path")
         path = self._resolve_local_image_path(attachment)
         if not path:
             return None
@@ -524,7 +533,8 @@ class UserProfileTool:
             "message": "系统中未找到该用户的历史记录。",
         }
 
-    def format_profile(self, profile: Dict[str, Any]) -> str:
+    @staticmethod
+    def format_profile(profile: Dict[str, Any]) -> str:
         if not profile["found"]:
             return profile["message"]
         history = profile.get("history") or []

@@ -18,12 +18,11 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import fitz  # PyMuPDF
 import numpy as np
 from PIL import Image
-
 from rapidocr_onnxruntime import RapidOCR
 
 
@@ -52,7 +51,7 @@ class RapidOCRProcessor:
             det_box_thresh: 检测框阈值 (0-1)
             model_dir: 模型目录路径，默认从环境变量读取
         """
-        self.ocr: Any = None
+        self.ocr: Optional[RapidOCR] = None
         self.det_box_thresh = det_box_thresh
 
         # 模型目录配置
@@ -63,11 +62,13 @@ class RapidOCRProcessor:
             if os.getenv("RUNNING_IN_DOCKER"):
                 self.model_dir_root = os.getenv("MODEL_DIR_IN_DOCKER", "/models")
 
-    def get_service_name(self) -> str:
+    @staticmethod
+    def get_service_name() -> str:
         """获取服务名称"""
         return "rapid_ocr"
 
-    def get_supported_extensions(self) -> List[str]:
+    @staticmethod
+    def get_supported_extensions() -> List[str]:
         """获取支持的文件扩展名"""
         return [".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"]
 
@@ -379,9 +380,3 @@ class RapidOCRProcessor:
     def supports_file_type(self, file_ext: str) -> bool:
         """检查是否支持指定的文件类型"""
         return file_ext.lower() in self.get_supported_extensions()
-
-
-# 便捷函数
-def create_processor(**kwargs) -> RapidOCRProcessor:
-    """创建 RapidOCR 处理器"""
-    return RapidOCRProcessor(**kwargs)

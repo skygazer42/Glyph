@@ -6,16 +6,16 @@ Supports backends:
 - dashscope: Alibaba Cloud text embeddings
 """
 
-import os
 import json
 import logging
+import os
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
+
 import numpy as np
 import requests
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
-from app.config.app_config import settings
-from typing import List, Dict, Any, Tuple, Optional
 
 from pymilvus import (
     connections,
@@ -26,7 +26,8 @@ from pymilvus import (
     utility
 )
 
-from app.models.base import PolicyDocument, PolicyType
+from app.config.app_config import settings
+from app.models.policy import PolicyDocument, PolicyType
 
 
 class DashScopeEmbedding(BaseModel):
@@ -70,17 +71,19 @@ class MilvusStore:
         """Initialize the Milvus store."""
 
         # Embedding config - 优先使用 settings.embedding
-        self.backend = backend or settings.embedding.backend
-        self.model_name = model_name or self._get_model_name_from_backend(settings)
+        self.backend = settings.embedding.backend if backend is None else backend
+        self.model_name = self._get_model_name_from_backend(settings) if model_name is None else model_name
+        if not self.model_name.strip():
+            raise ValueError("Embedding model name must not be empty")
         self.embedding_dim = self._infer_dim()
 
         # Milvus config - 使用 settings.database.milvus_*
-        self.host = host or settings.database.milvus_host
+        self.host = settings.database.milvus_host if host is None else host
         self.port = settings.database.milvus_port if port is None else port
         self.user = settings.database.milvus_user if user is None else user
         self.password = settings.database.milvus_password if password is None else password
-        self.db_name = db_name or settings.database.milvus_db_name
-        self.collection_name = collection_name or settings.database.milvus_collection_name
+        self.db_name = settings.database.milvus_db_name if db_name is None else db_name
+        self.collection_name = settings.database.milvus_collection_name if collection_name is None else collection_name
 
         # Connect and initialize
         self.collection: Optional[Collection] = None
@@ -111,7 +114,7 @@ class MilvusStore:
                         existing_dim = field.params.get("dim")
                         break
 
-                if existing_dim and existing_dim != self.embedding_dim:
+                if existing_dim != self.embedding_dim:
                     raise ValueError(
                         f"Collection '{self.collection_name}' already exists with dimension {existing_dim}, "
                         f"but current embedding model requires dimension {self.embedding_dim}. "
@@ -230,7 +233,8 @@ class MilvusStore:
                     scores.append(float(hit.score))
         return documents, scores
 
-    def _build_filter(self, filters: Dict[str, Any]) -> Optional[str]:
+    @staticmethod
+    def _build_filter(filters: Dict[str, Any]) -> Optional[str]:
         """Build Milvus filter expression."""
         expressions = []
 
@@ -335,13 +339,10 @@ class MilvusStore:
         dimension: int
         if self.backend == "openai":
             # OpenAI embedding dimensions
-            if self.model_name:
-                if "3-large" in self.model_name or "text-embedding-3-large" in self.model_name:
-                    return 3072
-                elif "3-small" in self.model_name or "text-embedding-3-small" in self.model_name:
-                    return 1536
-                elif "ada-002" in self.model_name:
-                    return 1536
+            if "3-large" in self.model_name:
+                return 3072
+            if "3-small" in self.model_name or "ada-002" in self.model_name:
+                return 1536
             dimension = settings.embedding.dimension
 
         elif self.backend == "dashscope":

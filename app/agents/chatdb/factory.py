@@ -8,7 +8,7 @@ from autogen_core import SingleThreadedAgentRuntime, ClosureAgent, TypeSubscript
 
 from app.config.app_config import settings
 from app.core.llms import model_client
-from app.persistence.db.dbaccess import DBAccess
+from app.persistence.db.access import DBAccess
 from .base import StreamResponseCollector
 from .types import TopicTypes
 from .schema_retriever import SchemaRetrieverAgent

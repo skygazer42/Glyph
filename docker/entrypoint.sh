@@ -32,13 +32,13 @@ done
 
 if [ ! -f "$INIT_FLAG" ]; then
   echo "==> Running initial data import"
-  set +e
-  python scripts/1_create_tables.py
-  python scripts/2_seed_mysql_text2sql.py
-  python scripts/7_sync_text2sql_schema.py
-  python scripts/5_embed_process_documents.py --input-dir resources/data/process
-  python scripts/6_seed_lightrag.py --input-dir resources/data/process
-  set -e
+  python -m scripts.create_tables
+  python -m scripts.seed_mysql_text2sql
+  python -m scripts.sync_text2sql_schema
+  python -m scripts.embed_process_documents --input-dir resources/data/process
+  if ! python -m scripts.seed_lightrag --input-dir resources/data/process; then
+    echo "LightRAG seed failed; required imports completed, graph setup remains pending."
+  fi
   touch "$INIT_FLAG"
   echo "==> Data import finished"
 else

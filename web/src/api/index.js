@@ -4,7 +4,7 @@ import request from './request'
 export const dslApi = {
   // 从文本生成DSL
   generateFromText(text, metadata = {}) {
-    return request.post('/dsl/generate', { text, ...metadata })
+    return request.post('/dsl/generate', { text, ...metadata }, { silentError: true })
   },
 
   // 保存DSL到文件
@@ -13,22 +13,26 @@ export const dslApi = {
       rule_id,
       yaml_content,
       filename
-    })
+    }, { silentError: true })
   },
 
   // 获取DSL列表
   listDSL(params = {}) {
-    return request.get('/dsl/list', { params })
+    return request.get('/dsl/list', { params, silentError: true })
   },
 
   // 测试DSL规则
   testDSL(ruleId, inputs) {
-    return request.post('/dsl/test', { rule_id: ruleId, inputs })
+    return request.post('/dsl/test', { rule_id: ruleId, inputs }, { silentError: true })
+  },
+
+  previewDSL(yamlContent, inputs) {
+    return request.post('/dsl/preview', { yaml_content: yamlContent, inputs }, { silentError: true })
   },
 
   // 获取DSL详情
   getDSL(ruleId) {
-    return request.get(`/dsl/${ruleId}`)
+    return request.get(`/dsl/${ruleId}`, { silentError: true })
   }
 }
 
@@ -145,11 +149,12 @@ export const agentApi = {
     attachments = null,
     options = {}
   ) {
+    const { staffRequest = false, ...chatOptions } = options
     const payload = {
       message,
       session_id: sessionId,
       connection_id: connectionId,
-      ...options
+      ...chatOptions
     }
 
     if (userId !== null && userId.length > 0) {
@@ -160,7 +165,10 @@ export const agentApi = {
       payload.attachments = attachments
     }
 
-    return request.post('/agent/chat', payload)
+    return request.post('/agent/chat', payload, {
+      staffRequest,
+      headers: { 'X-Client-Audience': staffRequest ? 'staff' : 'public' }
+    })
   },
 
   // 发送消息（流式）- 通过POST发送，使用SSE接收
@@ -169,28 +177,35 @@ export const agentApi = {
 
   // 获取会话信息
   getSession(sessionId) {
-    return request.get(`/agent/sessions/${sessionId}`)
+    return request.get(`/agent/sessions/${encodeURIComponent(sessionId)}`, { staffRequest: true })
   },
 
   // 获取所有会话列表
   listSessions() {
-    return request.get('/agent/sessions')
+    return request.get('/agent/sessions', { staffRequest: true })
   },
 
   // 删除会话
   deleteSession(sessionId) {
-    return request.delete(`/agent/sessions/${sessionId}`)
+    return request.delete(`/agent/sessions/${encodeURIComponent(sessionId)}`, { staffRequest: true })
   },
 
   // 获取会话消息历史
   getSessionMessages(sessionId, limit = null) {
     const params = limit !== null && limit !== 0 ? { limit } : {}
-    return request.get(`/agent/sessions/${sessionId}/messages`, { params })
+    return request.get(`/agent/sessions/${encodeURIComponent(sessionId)}/messages`, { params, staffRequest: true })
   }
 }
 
 // 知识图谱相关API
 export const graphApi = {
+  getSubgraph(params = {}, options = {}) {
+    return request.get('/knowledge-graph/subgraph', { params, silentError: true, ...options })
+  },
+
+  searchEntities(query, options = {}) {
+    return request.get('/knowledge-graph/search', { params: { q: query, limit: 12 }, silentError: true, ...options })
+  },
   // 获取知识图谱数据
   getGraphData() {
     return request.get('/knowledge-graph/graph')

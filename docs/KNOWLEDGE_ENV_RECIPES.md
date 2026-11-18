@@ -34,7 +34,7 @@ LLAMAINDEX_STORAGE_DIR=resources/storage/hierarchical
 
 - 说明：
   - 检索时会先用 LlamaIndex 的“文档/章节/chunk 多级索引”召回，再用 Milvus 向量检索兜底。
-  - 要求 `LLAMAINDEX_STORAGE_DIR` 下已经用脚本（如 `scripts/4_embed_documents.py`）构建好了索引。
+  - 要求 `LLAMAINDEX_STORAGE_DIR` 下已经用脚本（如 `scripts/embed_documents.py`）构建好了索引。
 - 适合场景：
   - 文档比较长、结构清晰（例如成套政策细则）；
   - 希望召回“哪一章哪一条”的相关内容，而不是散乱的句子。
@@ -96,7 +96,7 @@ LLAMAINDEX_CHUNK_SIZE=1000
 LLAMAINDEX_CHUNK_OVERLAP=200
 ```
 
-> 注意：改完这三个变量后，需要重新跑一次分级索引构建脚本（例如 `scripts/4_embed_documents.py`），新的切片策略才会生效。
+> 注意：改完这三个变量后，需要重新跑一次分级索引构建脚本（例如 `scripts/embed_documents.py`），新的切片策略才会生效。
 
 ---
 

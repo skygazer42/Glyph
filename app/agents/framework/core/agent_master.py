@@ -237,7 +237,7 @@ class AgentMasterController:
         context = router_result.content.get("context", {})
 
         # 选择合适的工作流
-        workflow_name = self._select_workflow(intent, context)
+        workflow_name = self._select_workflow(intent)
 
         if workflow_name:
             result = await self.orchestrator.execute_workflow(
@@ -257,7 +257,7 @@ class AgentMasterController:
 
         return None
 
-    def _select_workflow(self, intent: QueryIntent, context: Dict[str, Any]) -> Optional[str]:
+    def _select_workflow(self, intent: QueryIntent) -> Optional[str]:
         """根据意图选择工作流"""
         workflow_mapping = {
             QueryIntent.ELIGIBILITY_CHECK: "eligibility_workflow",

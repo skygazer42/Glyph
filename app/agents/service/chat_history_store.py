@@ -8,13 +8,13 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.chat_history import ChatMessage, ChatSession
-from app.persistence.db.session import SessionLocal
-from app.persistence.crud.crud_chat_history import (
+from app.persistence.crud.chat_history import (
     chat_session as chat_session_crud,
     chat_message as chat_message_crud,
     chat_history_snapshot as snapshot_crud,
 )
-from app.persistence.crud.crud_db_connection import db_connection as db_connection_crud
+from app.persistence.crud.db_connection import db_connection as db_connection_crud
+from app.persistence.db.session import SessionLocal
 from app.schemas.chat_history import (
     ChatSessionCreate,
     ChatMessageCreate,
@@ -111,7 +111,7 @@ class ChatHistoryStore:
     def list_sessions(self, *, limit: int = 100, connection_id: Optional[int] = None) -> List[Dict[str, Any]]:
         db = self._session_factory()
         try:
-            records = chat_session_crud.get_by_user_sessions(
+            records = chat_session_crud.list_active(
                 db, limit=limit, connection_id=connection_id
             )
             results: List[Dict[str, Any]] = []
@@ -154,7 +154,7 @@ class ChatHistoryStore:
             raise ValueError("limit must not be negative")
         db = self._session_factory()
         try:
-            records = chat_message_crud.get_by_session(db, session_id=session_id)
+            records = chat_message_crud.get_by_session(db, session_id=session_id, limit=None)
             if limit is not None:
                 records = records[-limit:] if limit > 0 else []
             return [

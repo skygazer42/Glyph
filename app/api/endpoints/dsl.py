@@ -5,6 +5,7 @@ DSL 相关端点
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException
+import yaml
 
 from app.api.schemas import (
     GenerateDSLRequest,
@@ -26,8 +27,10 @@ from app.agents.dsl_generator.dsl_generator import DSLGenerator
 from app.agents.dsl_generator.dsl_extractor import DSLExtractor
 from app.agents.dsl_generator.document_parser import DocumentParser
 from app.agents.dsl_generator.rule_engine import PolicyEngine
+from app.api.endpoints import rule_preview
 
 router = APIRouter()
+router.include_router(rule_preview.router)
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +73,7 @@ def generate_dsl(
 
         return GenerateDSLResponse(
             success=True,
-            dsl_data=dsl_data,
+            dsl_data=yaml.safe_load(yaml_content),
             yaml_content=yaml_content
         )
 

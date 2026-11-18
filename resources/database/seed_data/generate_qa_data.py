@@ -6,7 +6,7 @@
 import json
 
 # 初始QA数据
-qa_data = {
+QA_DATA = {
     "metadata": {
         "name": "济南市政务智能问答初始QA数据",
         "version": "1.0.0",
@@ -110,9 +110,9 @@ qa_data = {
 def main() -> None:
     """Export the sample dataset when explicitly run as a script."""
     with open("policy_qa_初始数据.json", "w", encoding="utf-8") as output:
-        json.dump(qa_data, output, ensure_ascii=False, indent=2)
+        json.dump(QA_DATA, output, ensure_ascii=False, indent=2)
 
-    print(f"已生成 {len(qa_data['qa_pairs'])} 个QA对")
+    print(f"已生成 {len(QA_DATA['qa_pairs'])} 个QA对")
     print("文件：policy_qa_初始数据.json")
 
 

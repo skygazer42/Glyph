@@ -8,7 +8,7 @@ import re
 import jieba
 from autogen_core import MessageContext
 from app.agents.framework.base.base_agent import PolicyAgentBase
-from app.models.base import (
+from app.models.policy import (
     AgentType,
     UserQuery,
     QueryAnalysis,
@@ -154,7 +154,6 @@ class QueryAnalyzerAgent(PolicyAgentBase):
         """文本预处理"""
         # 去除多余空格和特殊字符
         text = re.sub(r'\s+', ' ', text.strip())
-        # 转换为小写（保留中文）
         return text
 
     def _identify_intent(self, text: str) -> QueryIntent:

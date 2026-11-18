@@ -190,29 +190,14 @@ Always deliver portfolio recommendations with clear risk-return profiles and ali
 }
 
 
-class EnterpriseAutoGenConfig:
+def create_enterprise_agents(model_client: ChatCompletionClient) -> dict[str, AssistantAgent]:
     """Create independent role agents that borrow the caller's model client."""
-
-    def __init__(self, model_client: ChatCompletionClient) -> None:
-        self._model_client = model_client
-
-    def create_enterprise_agents(self) -> dict[str, AssistantAgent]:
-        return {
-            name: AssistantAgent(
-                name=name,
-                model_client=self._model_client,
-                system_message=message,
-                description=name.replace("_", " "),
-            )
-            for name, message in ENTERPRISE_SYSTEM_MESSAGES.items()
-        }
-
-    def get_agent_system_messages(self) -> dict[str, str]:
-        return ENTERPRISE_SYSTEM_MESSAGES.copy()
-
-    def validate_agent_configuration(self) -> dict[str, bool]:
-        agents = self.create_enterprise_agents()
-        return {
-            name: agent.name == name and len(ENTERPRISE_SYSTEM_MESSAGES[name]) > 100
-            for name, agent in agents.items()
-        }
+    return {
+        name: AssistantAgent(
+            name=name,
+            model_client=model_client,
+            system_message=message,
+            description=name.replace("_", " "),
+        )
+        for name, message in ENTERPRISE_SYSTEM_MESSAGES.items()
+    }

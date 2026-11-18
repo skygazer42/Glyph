@@ -35,17 +35,14 @@ class VisualizationRecommenderAgent(BaseAgent):
             db_type: 数据库类型
         """
         super().__init__(
-            agent_id="visualization_recommender_agent",
+            description="visualization_recommender_agent",
             agent_name=AGENT_NAMES[AgentTypes.VISUALIZATION_RECOMMENDER.value],
             model_client_instance=model_client_instance,
             db_type=db_type
         )
-        self._prompt = self._build_prompt()
+        self._prompt = self.SYSTEM_PROMPT
 
-    @staticmethod
-    def _build_prompt() -> str:
-        """构建提示模板"""
-        return """
+    SYSTEM_PROMPT = """
         你是一名专业的数据可视化专家，负责根据提供的用户指令、SQL查询及其结果数据，推荐最合适的数据可视化方式，并给出详细的配置建议。
 
         ## 规则

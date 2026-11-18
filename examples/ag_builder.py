@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
 import logging
 
-from app.models.base import AgentType
+from app.models.policy import AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -191,12 +191,12 @@ class PolicyRetriever(AGModule):
         super().__init__("policy_retriever", AgentType.POLICY_RETRIEVER)
         # 模拟政策数据库
         self.policies = {
-            "企业补贴": {
+            "企业": {
                 "title": "小微企业创业补贴政策",
                 "content": "符合条件的小微企业可申请最高10万元创业补贴",
                 "conditions": ["注册时间满1年", "员工人数少于50人", "年营业额低于500万"]
             },
-            "个人补贴": {
+            "个人": {
                 "title": "个人技能提升补贴",
                 "content": "个人参加职业技能培训可申请最高3000元补贴",
                 "conditions": ["持有本地户口", "取得相关证书", "未享受过同类补贴"]
@@ -261,7 +261,7 @@ class AnswerGenerator(AGModule):
 
 
 # 使用示例
-async def main():
+async def main() -> None:
     """主函数 - 演示如何使用"""
     # 创建Agent中心
     hub = AGBuilder()
@@ -288,21 +288,19 @@ async def main():
         {"query": "申请创业补贴需要什么条件？"}
     ]
 
-    for query_data in test_queries:
-        print(f"\n{'='*50}")
-        print(f"用户查询：{query_data['query']}")
-        print(f"{'='*50}")
+    try:
+        for query_data in test_queries:
+            print(f"\n{'='*50}")
+            print(f"用户查询：{query_data['query']}")
+            print(f"{'='*50}")
 
-        # 运行工作流
-        result = await hub.run_workflow("policy_qa", query_data)
+            result = await hub.run_workflow("policy_qa", query_data)
 
-        # 输出答案
-        print("\n回答：")
-        print(result.get("answer", "抱歉，无法生成答案"))
-        print(f"\n处理时间：{result.get('generated_at', 'N/A')}")
-
-    # 停止Agent中心
-    await hub.stop()
+            print("\n回答：")
+            print(result["answer"])
+            print(f"\n处理时间：{result['generated_at']}")
+    finally:
+        await hub.stop()
 
 
 if __name__ == "__main__":

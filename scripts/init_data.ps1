@@ -43,12 +43,12 @@ if (!(Test-Path ".env")) {
 
 # 定义初始化步骤
 $steps = @(
-    @{Name="创建数据库表"; Script="python scripts\1_create_tables.py"; Critical=$true},
-    @{Name="初始化MySQL数据"; Script="python scripts\2_seed_mysql_text2sql.py"; Critical=$false},
-    @{Name="同步Text2SQL模式"; Script="python scripts\7_sync_text2sql_schema.py"; Critical=$false},
-    @{Name="初始化Milvus集合"; Script="python scripts\3_init_milvus.py"; Critical=$true},
-    @{Name="嵌入文档到Milvus"; Script="python scripts\5_embed_process_documents.py --input-dir resources\data\process"; Critical=$false},
-    @{Name="初始化LightRAG"; Script="python scripts\6_seed_lightrag.py --input-dir resources\data\process"; Critical=$false}
+    @{Name="创建数据库表"; Script="python -m scripts.create_tables"; Critical=$true},
+    @{Name="初始化MySQL数据"; Script="python -m scripts.seed_mysql_text2sql"; Critical=$false},
+    @{Name="同步Text2SQL模式"; Script="python -m scripts.sync_text2sql_schema"; Critical=$false},
+    @{Name="初始化Milvus集合"; Script="python -m scripts.init_milvus"; Critical=$true},
+    @{Name="嵌入文档到Milvus"; Script="python -m scripts.embed_process_documents --input-dir resources\data\process"; Critical=$false},
+    @{Name="初始化LightRAG"; Script="python -m scripts.seed_lightrag --input-dir resources\data\process"; Critical=$false}
 )
 
 # 执行步骤
@@ -78,20 +78,20 @@ for ($i = 0; $i -lt $steps.Count; $i++) {
 
 # 检查LlamaIndex
 $hybridEnabled = python -c "
-import sys
-sys.path.append('.')
-try:
-    from app.config import settings
-    hybrid_enabled = getattr(getattr(settings, 'system', settings), 'hybrid_retrieval_enabled', False)
-    print(hybrid_enabled)
-except:
-    print(False)
-" 2>$null
+from app.config.app_config import settings
+print(settings.system.hybrid_retrieval_enabled)
+"
+if ($LASTEXITCODE -ne 0) {
+    throw "读取混合检索配置失败"
+}
 
 if ($hybridEnabled -eq "True") {
     Write-Host "[构建LlamaIndex索引..." -ForegroundColor Blue
     try {
-        python scripts\4_embed_documents.py --data-dir resources\data\process --storage-dir resources\storage\hierarchical --no-llm
+        python -m scripts.embed_documents --data-dir resources\data\process --storage-dir resources\storage\hierarchical --no-llm
+        if ($LASTEXITCODE -ne 0) {
+            throw "LlamaIndex 构建命令失败，退出码：$LASTEXITCODE"
+        }
         Write-Host "✅ LlamaIndex构建完成" -ForegroundColor Green
     } catch {
         Write-Host "⚠️  LlamaIndex构建失败" -ForegroundColor Yellow

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import time
 import asyncio
+import time
 from contextvars import ContextVar
 from typing import Any, Dict, List, Optional, Tuple
 
-from loguru import logger
 import anyio
+from loguru import logger
 
 from app.config.app_config import settings
 from app.knowledge.milvus import MilvusStore
 from app.knowledge.llamaindex_integration import LlamaIndexIntegration
-from app.models.base import PolicyDocument
+from app.models.policy import PolicyDocument
 
 
 class KnowledgeService:
@@ -90,7 +90,9 @@ class KnowledgeService:
                 combined[doc_id] = (doc.model_copy(update={"retrieval_origin": origin}), float(score))
 
         # 1. 尝试使用分级索引
-        if self.hierarchical_store and self.hierarchical_store.has_index:
+        has_vector_filters = bool(filters and {"doc_type", "source"}.intersection(filters))
+        # Hierarchical nodes do not retain the fields needed for Milvus filters.
+        if self.hierarchical_store and self.hierarchical_store.has_index and not has_vector_filters:
             t_h = time.perf_counter()
             h_docs, h_scores = await self.hierarchical_store.search(
                 query, top_k=top_k * 2, threshold=threshold

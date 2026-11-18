@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.agents.framework.base.base_agent import PolicyAgentBase
 from .utils import LLMIntentClassifier
-from app.models.base import (
+from app.models.policy import (
     AgentType,
     UserQuery,
 )
@@ -158,14 +158,14 @@ class IntentRouterAgent(PolicyAgentBase):
             classification = await self._classify_intent_llm_first(cleaned_text)
 
             # 3. 实体提取
-            entities = await self._extract_entities(cleaned_text)
+            entities = self._extract_entities(cleaned_text)
 
             # 4. 确定处理链
-            processing_chain = await self._determine_processing_chain(classification, entities)
+            processing_chain = self._determine_processing_chain(classification, entities)
 
             # 5. 优化路由决策
-            processing_chain = await self._optimize_routing_decision(
-                classification, entities, processing_chain
+            processing_chain = self._optimize_routing_decision(
+                classification, processing_chain
             )
 
             # 构建路由结果
@@ -270,7 +270,7 @@ class IntentRouterAgent(PolicyAgentBase):
                     return sub_intent
         return None
 
-    async def _extract_entities(self, text: str) -> Dict[str, Any]:
+    def _extract_entities(self, text: str) -> Dict[str, Any]:
         """提取实体"""
         entities = {}
 
@@ -372,7 +372,7 @@ class IntentRouterAgent(PolicyAgentBase):
                 groups.append(keyword)
         return list(set(groups))
 
-    async def _determine_processing_chain(
+    def _determine_processing_chain(
         self,
         classification: Dict[str, Any],
         entities: Dict[str, Any]
@@ -404,12 +404,12 @@ class IntentRouterAgent(PolicyAgentBase):
 
         # 政策查询类需要智能选择
         if intent_type == "policy_inquiry":
-            return await self._select_policy_chain(classification, entities)
+            return self._select_policy_chain(classification, entities)
 
         # 默认使用知识库链
         return {"chain": ["kb_chain"], "parallel": False}
 
-    async def _select_policy_chain(
+    def _select_policy_chain(
         self,
         classification: Dict[str, Any],
         entities: Dict[str, Any]
@@ -457,10 +457,9 @@ class IntentRouterAgent(PolicyAgentBase):
             "scores": chain_scores
         }
 
-    async def _optimize_routing_decision(
-        self,
+    @staticmethod
+    def _optimize_routing_decision(
         classification: Dict[str, Any],
-        entities: Dict[str, Any],
         processing_chain: Dict[str, Any]
     ) -> Dict[str, Any]:
         """优化路由决策"""

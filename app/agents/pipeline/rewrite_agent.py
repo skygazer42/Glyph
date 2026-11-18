@@ -56,6 +56,8 @@ class RewriteAgent:
     ]
 
     def __init__(self, max_length: int = 256) -> None:
+        if max_length <= 0:
+            raise ValueError("max_length must be greater than zero")
         self.logger = logging.getLogger(__name__)
         self.max_length = max_length
         self._domain_builder = PolicyDomainContextBuilder()
@@ -113,17 +115,13 @@ class RewriteAgent:
                 raise ValueError("Rewrite model returned no text")
             text = response.content.strip()
             if not text:
-                result = self._compose_standalone(normalized, context_hints)[: self.max_length]
-                self._remember(key, result)
-                return result
-            result = self._compose_standalone(text, context_hints)[: self.max_length]
-            self._remember(key, result)
-            return result
+                raise ValueError("Rewrite model returned empty text")
         except Exception as exc:  # pragma: no cover - best effort
             self.logger.warning("Rewrite agent failed: %s", exc, exc_info=True)
-            result = self._compose_standalone(normalized, context_hints)[: self.max_length]
-            self._remember(key, result)
-            return result
+            text = normalized
+        result = self._compose_standalone(text, context_hints)[: self.max_length]
+        self._remember(key, result)
+        return result
 
     def _build_context_hints(self, context: dict | None, query: str) -> ContextHints:
         hints = ContextHints()
@@ -132,7 +130,7 @@ class RewriteAgent:
             if topic:
                 hints.topic = topic[:80]
             history = context.get("history", [])
-            for message in history:
+            for message in reversed(history):
                 if not message.startswith("用户:"):
                     continue
                 text = message.removeprefix("用户:").strip()
@@ -144,9 +142,9 @@ class RewriteAgent:
                 hints.price = hints.price or slots.get("price", "")
 
         current_slots = self._extract_slots(query)
-        hints.product = hints.product or current_slots.get("product", "")
-        hints.energy = hints.energy or current_slots.get("energy", "")
-        hints.price = hints.price or current_slots.get("price", "")
+        hints.product = current_slots.get("product", hints.product)
+        hints.energy = current_slots.get("energy", hints.energy)
+        hints.price = current_slots.get("price", hints.price)
         hints.intent = self._infer_intent(query)
         return hints
 
@@ -166,7 +164,8 @@ class RewriteAgent:
             result["price"] = price_match.group(1)
         return result
 
-    def _infer_intent(self, text: str) -> str:
+    @staticmethod
+    def _infer_intent(text: str) -> str:
         if not text:
             return "inquiry"
         if any(kw in text for kw in ["补贴多少", "能补贴", "怎么算", "金额", "折算"]):
@@ -177,7 +176,8 @@ class RewriteAgent:
             return "process"
         return "inquiry"
 
-    def _build_domain_hint(self, ctx: PolicyDomainContext) -> str:
+    @staticmethod
+    def _build_domain_hint(ctx: PolicyDomainContext) -> str:
         req_tokens = []
         if ctx.region:
             req_tokens.append(f"地区={ctx.region}")
@@ -189,7 +189,8 @@ class RewriteAgent:
             req_tokens.append("参考表达=" + ctx.search_variants[0])
         return "；".join(req_tokens) if req_tokens else "无"
 
-    def _format_context_summary(self, hints: ContextHints) -> str:
+    @staticmethod
+    def _format_context_summary(hints: ContextHints) -> str:
         lines: list[str] = []
         if hints.topic:
             lines.append(f"- 主题: {hints.topic}")
@@ -206,7 +207,8 @@ class RewriteAgent:
             lines.append("- 待补信息: " + "、".join(missing))
         return "\n".join(lines) if lines else "- (无额外上下文)"
 
-    def _compose_standalone(self, question: str, hints: ContextHints) -> str:
+    @staticmethod
+    def _compose_standalone(question: str, hints: ContextHints) -> str:
         q = question.strip()
         supplements: list[str] = []
         if hints.topic and hints.topic not in q:
@@ -230,7 +232,8 @@ class RewriteAgent:
         if len(self._cache) > self._cache_max:
             self._cache.popitem(last=False)
 
-    def _topic_hint_from_history(self, context: dict | None) -> str:
+    @staticmethod
+    def _topic_hint_from_history(context: dict | None) -> str:
         if not context:
             return ""
         history = context.get("history", [])

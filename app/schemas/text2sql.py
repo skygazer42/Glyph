@@ -44,6 +44,15 @@ class SqlResultMessage(SqlExplanationMessage):
     error: Optional[str] = None
 
 
+class SQLQueryResult(BaseModel):
+    """Result of the service query, including an explicit execution error."""
+
+    sql: str = ""
+    results: Optional[List[Dict[str, Any]]] = None
+    error: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+
+
 class Text2SQLResponse(BaseModel):
     sql: str
     explanation: Optional[str] = None
@@ -60,5 +69,6 @@ __all__ = [
     "SqlMessage",
     "SqlExplanationMessage",
     "SqlResultMessage",
+    "SQLQueryResult",
     "Text2SQLResponse",
 ]

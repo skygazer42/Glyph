@@ -1,17 +1,18 @@
+"""Persistent chat sessions, messages, and response snapshots."""
+
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Integer, String, Text, DateTime, JSON, ForeignKey, Boolean, Index
-from sqlalchemy.sql import func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
 from app.models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.db_connection import DBConnection
-
-
+    from app.models.database import DBConnection
 
 
 class ChatSession(Base):
@@ -31,6 +32,9 @@ class ChatSession(Base):
     # 关系
     connection: Mapped[DBConnection | None] = relationship("DBConnection", back_populates="chat_sessions")
     messages: Mapped[list[ChatMessage]] = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+    snapshots: Mapped[list[ChatHistorySnapshot]] = relationship(
+        "ChatHistorySnapshot", back_populates="session", cascade="all, delete-orphan"
+    )
 
 
 class ChatMessage(Base):
@@ -60,4 +64,4 @@ class ChatHistorySnapshot(Base):
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # 关系
-    session: Mapped[ChatSession] = relationship("ChatSession")
+    session: Mapped[ChatSession] = relationship("ChatSession", back_populates="snapshots")

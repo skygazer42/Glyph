@@ -10,7 +10,7 @@ from autogen_agentchat.messages import TextMessage
 from autogen_core import CancellationToken
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
-from .prompt import intent_system_instruction, intent_user_prompt
+from .prompt import INTENT_SYSTEM_INSTRUCTION, build_intent_user_prompt
 from app.core.llms import model_client as GLOBAL_MODEL_CLIENT
 from app.core.logging_manager import logging_manager
 
@@ -42,7 +42,7 @@ class LLMIntentClassifier:
             self._assistant = AssistantAgent(
                 name="intent_router",
                 description="Classifies user intent for routing decisions.",
-                system_message=intent_system_instruction(),
+                system_message=INTENT_SYSTEM_INSTRUCTION,
                 model_client=self._client,
             )
         return self._assistant
@@ -53,9 +53,9 @@ class LLMIntentClassifier:
 
     async def _classify(self, query: str) -> IntentPrediction:
         assistant = self._get_assistant()
-        user = intent_user_prompt(query)
+        user = build_intent_user_prompt(query)
         messages = [
-            {"role": "system", "content": intent_system_instruction()},
+            {"role": "system", "content": INTENT_SYSTEM_INSTRUCTION},
             {"role": "user", "content": user},
         ]
         logging_manager.log_llm_stream_start(messages=messages)

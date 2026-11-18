@@ -3,18 +3,18 @@
 无需 PyTorch 和图像模型，基于文本上下文实现
 """
 
+import hashlib
+import json
 import logging
 import os
 import re
-import hashlib
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
-from dataclasses import dataclass
-import json
+from typing import Dict, List, Optional, Tuple
 
+from llama_index.core.schema import TextNode
 from PIL import Image
 from pyzbar.pyzbar import decode
-from llama_index.core.schema import TextNode
 
 
 @dataclass
@@ -146,7 +146,7 @@ class ImageExtractor:
                 break
 
             # 如果遇到新段落或新图片，停止查找
-            if line.startswith('#') or line.startswith('![]'):
+            if line.startswith('#') or line.startswith('!['):
                 break
 
             # 如果是紧跟的文本，也可能是说明
@@ -154,7 +154,8 @@ class ImageExtractor:
                 # 可能整行都是说明
                 image_info.caption = line[:200]  # 限制长度
 
-    def _get_image_metadata(self, image_info: ImageInfo):
+    @staticmethod
+    def _get_image_metadata(image_info: ImageInfo) -> None:
         """获取图片文件的元数据"""
         try:
             file_path = Path(image_info.file_path)
@@ -176,7 +177,8 @@ class ImageExtractor:
         except Exception as e:
             logging.getLogger(__name__).warning("Image metadata failed for %s: %s", image_info.file_path, e, exc_info=True)
 
-    def _detect_qrcode(self, image_info: ImageInfo):
+    @staticmethod
+    def _detect_qrcode(image_info: ImageInfo) -> None:
         """检测图片是否包含二维码"""
         try:
             file_path = Path(image_info.file_path)
@@ -199,7 +201,8 @@ class ImageExtractor:
         except Exception as e:
             logging.getLogger(__name__).warning("QR decode failed for %s: %s", image_info.file_path, e, exc_info=True)
 
-    def _generate_embedding_text(self, image_info: ImageInfo) -> str:
+    @staticmethod
+    def _generate_embedding_text(image_info: ImageInfo) -> str:
         """生成用于向量化的文本"""
         parts = []
 
@@ -233,7 +236,7 @@ class ImageIndexer:
 
     def __init__(self):
         self.extractor = ImageExtractor()
-        self.image_store = {}  # image_id -> ImageInfo
+        self.image_store: Dict[str, ImageInfo] = {}
 
     def process_markdown_with_images(self, md_path: str, md_content: str) -> Tuple[List[ImageInfo], List[Dict]]:
         """处理 Markdown 文档，提取图片并创建图片节点"""
@@ -278,13 +281,14 @@ class ImageIndexer:
             # 检查是否是图片节点
             metadata = node.metadata
             if metadata.get('content_type') == 'image':
-                image_id = metadata.get('image_id')
-                if image_id and image_id in self.image_store:
+                image_id = metadata['image_id']
+                if image_id in self.image_store:
                     image_results.append(self.image_store[image_id])
 
         return image_results
 
-    def format_image_results(self, images: List[ImageInfo]) -> str:
+    @staticmethod
+    def format_image_results(images: List[ImageInfo]) -> str:
         """格式化图片搜索结果"""
         if not images:
             return "未找到相关图片"
@@ -313,19 +317,7 @@ class ImageIndexer:
     def save_index(self, save_path: str):
         """保存图片索引到文件"""
         data = {
-            'images': [
-                {
-                    'image_id': img.image_id,
-                    'file_path': img.file_path,
-                    'relative_path': img.relative_path,
-                    'doc_id': img.doc_id,
-                    'caption': img.caption,
-                    'is_qrcode': img.is_qrcode,
-                    'qr_content': img.qr_content,
-                    'embedding_text': img.embedding_text
-                }
-                for img in self.image_store.values()
-            ]
+            'images': [asdict(img) for img in self.image_store.values()]
         }
 
         with open(save_path, 'w', encoding='utf-8') as f:
@@ -336,20 +328,12 @@ class ImageIndexer:
         with open(load_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        self.image_store = {}
+        image_store = {}
         for item in data['images']:
-            img = ImageInfo(
-                image_id=item['image_id'],
-                file_path=item['file_path'],
-                relative_path=item['relative_path'],
-                doc_id=item['doc_id'],
-                section_id="",
-                caption=item.get('caption', ''),
-                is_qrcode=item.get('is_qrcode', False),
-                qr_content=item.get('qr_content'),
-                embedding_text=item.get('embedding_text', '')
-            )
-            self.image_store[img.image_id] = img
+            # Older saved indexes omitted section_id and the other defaulted fields.
+            img = ImageInfo(**{"section_id": "", **item})
+            image_store[img.image_id] = img
+        self.image_store = image_store
 
 
 # 使用示例

@@ -61,11 +61,11 @@ class AutoSubsidySchema(BaseModel):
 
 class ApplianceCategory(str, Enum):
     """家电类别"""
-    空调 = "空调"
-    冰箱 = "冰箱"
-    洗衣机 = "洗衣机"
-    热水器 = "热水器"
-    电视 = "电视"
+    AIR_CONDITIONER = "空调"
+    REFRIGERATOR = "冰箱"
+    WASHING_MACHINE = "洗衣机"
+    WATER_HEATER = "热水器"
+    TELEVISION = "电视"
 
 class ApplianceSubsidySchema(BaseModel):
     """家电补贴政策Schema"""
@@ -95,16 +95,18 @@ class ApplianceSubsidySchema(BaseModel):
 
 # ==================== 消费券 Schema ====================
 
-class CouponType(str, Enum):
-    """消费券类型"""
-    零售 = "retail"
-    餐饮 = "dining"
+class CouponDiscountType(str, Enum):
+    """执行器支持的消费券优惠方式；商户场景由 usage_limits 单独表达。"""
+    AMOUNT = "AMOUNT"
+    PERCENT = "PERCENT"
 
 class CouponTier(BaseModel):
     """消费券满减档位"""
     threshold: float = Field(description="满足金额(元)")
     discount: float = Field(description="减免金额(元)")
-    type: CouponType
+    type: CouponDiscountType
+    cap: float | None = Field(default=None, description="比例券封顶金额，None 表示无封顶")
+    name: str | None = Field(default=None, description="档位名称")
 
 class ConsumerCouponSchema(BaseModel):
     """消费券政策Schema"""
@@ -116,7 +118,7 @@ class ConsumerCouponSchema(BaseModel):
     valid_period: Dict[str, Any]
 
     # 券种配置
-    coupon_types: List[CouponType]
+    coupon_types: List[CouponDiscountType]
 
     # 满减档位
     tiers: List[CouponTier]
@@ -195,6 +197,6 @@ SCHEMA_REGISTRY = {
     "保险补贴": InsuranceSubsidySchema,
 }
 
-def get_schema_for_domain(domain: str):
+def get_schema_for_domain(domain: str) -> type[BaseModel] | None:
     """根据领域获取对应的Schema"""
     return SCHEMA_REGISTRY.get(domain)

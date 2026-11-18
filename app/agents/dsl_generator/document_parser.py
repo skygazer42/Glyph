@@ -6,6 +6,7 @@
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
 from docx import Document
 from PyPDF2 import PdfReader
 from llama_index.core import SimpleDirectoryReader
@@ -19,9 +20,11 @@ class DocumentParser:
         use_llama_index: bool = False,
         llama_reader_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        self.supported_formats = ['.docx', '.txt', '.doc', '.pdf']
+        self.supported_formats = ['.docx', '.txt', '.pdf']
         self.use_llama_index = use_llama_index
-        self.llama_reader_kwargs = llama_reader_kwargs or {}
+        self.llama_reader_kwargs = {} if llama_reader_kwargs is None else llama_reader_kwargs
+        if use_llama_index:
+            self.supported_formats.append('.doc')
 
     def parse(self, file_path: str) -> str:
         """
@@ -46,19 +49,21 @@ class DocumentParser:
 
         if suffix == '.txt':
             return self._parse_txt(path)
-        elif suffix in ['.docx', '.doc']:
+        elif suffix == '.docx':
             return self._parse_docx(path)
         elif suffix == '.pdf':
             return self._parse_pdf(path)
         else:
             raise ValueError(f"暂不支持的文件格式: {suffix}")
 
-    def _parse_txt(self, path: Path) -> str:
+    @staticmethod
+    def _parse_txt(path: Path) -> str:
         """解析纯文本文件"""
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
 
-    def _parse_docx(self, path: Path) -> str:
+    @staticmethod
+    def _parse_docx(path: Path) -> str:
         """解析 Word 文档"""
         doc = Document(str(path))
         text_parts = []
@@ -80,7 +85,8 @@ class DocumentParser:
 
         return "\n".join(text_parts)
 
-    def _parse_pdf(self, path: Path) -> str:
+    @staticmethod
+    def _parse_pdf(path: Path) -> str:
         """解析 PDF 文档"""
         text_parts = []
         with open(path, 'rb') as f:
@@ -155,7 +161,8 @@ class DocumentParser:
 
         return processed
 
-    def _split_sections(self, text: str) -> List[Dict[str, str]]:
+    @staticmethod
+    def _split_sections(text: str) -> List[Dict[str, str]]:
         """
         将文本分割成章节
 
@@ -201,7 +208,8 @@ class DocumentParser:
 
         return sections
 
-    def extract_tables(self, text: str) -> List[List[List[str]]]:
+    @staticmethod
+    def extract_tables(text: str) -> List[List[List[str]]]:
         """
         提取文本中的表格数据
 
@@ -221,8 +229,10 @@ class DocumentParser:
             if '|' in line:
                 # 分割单元格
                 cells = [cell.strip() for cell in line.split('|')]
-                # 过滤空单元格
-                cells = [cell for cell in cells if cell]
+                if not cells[0]:
+                    cells = cells[1:]
+                if cells and not cells[-1]:
+                    cells = cells[:-1]
                 if cells:
                     current_table.append(cells)
             else:
@@ -237,7 +247,8 @@ class DocumentParser:
 
         return tables
 
-    def extract_rules(self, text: str) -> List[Dict[str, Any]]:
+    @staticmethod
+    def extract_rules(text: str) -> List[Dict[str, Any]]:
         """
         提取文本中的规则信息
 

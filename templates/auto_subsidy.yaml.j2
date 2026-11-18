@@ -1,6 +1,6 @@
-rule_id: {{ rule_id }}
-name: {{ name }}
-version: {{ version }}
+rule_id: {{ rule_id | tojson }}
+name: {{ name | tojson }}
+version: {{ version | tojson }}
 
 policy_source:
   doc_id: {{ policy_source.doc_id | default(none) | tojson }}

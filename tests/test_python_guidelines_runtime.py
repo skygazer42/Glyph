@@ -42,20 +42,17 @@ def load_module(monkeypatch):
     for name in ("app", "app.core", "app.models", "app.agents", "app.agents.framework", "app.agents.framework.common"):
         stub(name)
 
-    class ModuleLoader:
-        def __call__(self, path, *, name=None):
-            module_name = name or "_runtime_audit_" + path.replace("/", "_").replace(".", "_")
-            spec = importlib.util.spec_from_file_location(module_name, ROOT / path)
-            assert spec is not None and spec.loader is not None
-            module = importlib.util.module_from_spec(spec)
-            monkeypatch.setitem(sys.modules, module_name, module)
-            spec.loader.exec_module(module)
-            return module
+    def load(path, *, name=None):
+        module_name = name or "_runtime_audit_" + path.replace("/", "_").replace(".", "_")
+        spec = importlib.util.spec_from_file_location(module_name, ROOT / path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, module_name, module)
+        spec.loader.exec_module(module)
+        return module
 
-        def stub(self, name, **attributes):
-            return stub(name, **attributes)
-
-    return ModuleLoader()
+    load.stub = stub
+    return load
 
 
 def test_llm_config_maps_first_entry_and_preserves_zero(load_module, monkeypatch):
@@ -118,10 +115,29 @@ def test_session_zero_limit_and_context_snapshot(load_module):
     assert manager.get_context("one")["nested"]["answer"] == 1
 
 
+def test_session_expiry_preserves_persisted_history_until_explicit_delete(load_module):
+    import asyncio
+
+    module = load_module("app/agents/framework/common/session_manager.py")
+    store = Mock()
+    manager = module.SessionManager(timeout=1, history_store=store)
+    session = manager.create_session("one")
+    manager.create_message_queue("one")
+    session.last_active = module.time.time() - 2
+
+    asyncio.run(manager.cleanup_expired_sessions())
+
+    assert "one" not in manager.sessions
+    assert manager.get_message_queue("one") is None
+    store.delete_session.assert_not_called()
+    manager.delete_session("one")
+    store.delete_session.assert_called_once_with("one")
+
+
 def test_policy_agent_uses_actual_runtime_and_memory_contract(load_module):
     import asyncio
     from autogen_core import AgentId, AgentInstantiationContext, SingleThreadedAgentRuntime
-    models = load_module("app/models/base.py", name="app.models.base")
+    models = load_module("app/models/policy.py", name="app.models.policy")
     module = load_module("app/agents/framework/base/base_agent.py")
     policy_base: Any = module.PolicyAgentBase
     class Agent(policy_base):
@@ -151,8 +167,7 @@ def test_policy_agent_uses_actual_runtime_and_memory_contract(load_module):
 def test_session_context_independent_mutable_defaults(load_module):
     load_module.stub("app.agents.framework.coordination")
     load_module.stub("app.agents.framework.base.base_agent", PolicyAgentBase=object)
-    models = load_module("app/models/base.py")
-    load_module.stub("app.agents.models.base", **{name: getattr(models, name) for name in ("AgentType", "UserQuery", "FinalAnswer", "BaseModel", "Field")})
+    models = load_module("app/models/policy.py")
     module = load_module("app/agents/framework/coordination/session_manager.py", name="app.agents.framework.coordination.session_manager")
     first = module.SessionContext(session_id="first")
     second = module.SessionContext(session_id="second")
@@ -172,7 +187,7 @@ def test_session_action_missing_required_field_is_visible(load_module, payload):
 
     load_module.stub("app.agents.framework.coordination")
     load_module.stub("app.agents.framework.base.base_agent", PolicyAgentBase=object)
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     module = load_module("app/agents/framework/coordination/session_manager.py", name="app.agents.framework.coordination.session_manager")
     agent = module.SessionManagerAgent.__new__(module.SessionManagerAgent)
     agent.sessions = {}
@@ -187,8 +202,7 @@ def test_session_action_missing_required_field_is_visible(load_module, payload):
 
 def test_session_store_one_turn_and_zero_history(load_module, monkeypatch):
     from types import SimpleNamespace
-    models = load_module("app/models/base.py")
-    load_module.stub("app.agents.models.base", UserQuery=models.UserQuery, FinalAnswer=models.FinalAnswer)
+    models = load_module("app/models/policy.py")
     module = load_module("app/agents/framework/common/session_store.py", name="app.agents.framework.common.session_store")
     monkeypatch.setattr(module, "MAX_TURNS", 1)
     monkeypatch.setattr(module, "HISTORY_WINDOW", 0)
@@ -201,8 +215,7 @@ def test_session_store_one_turn_and_zero_history(load_module, monkeypatch):
 
 @pytest.mark.parametrize("write_method", ["add_query", "add_answer"])
 def test_session_write_requires_existing_session(load_module, write_method):
-    models = load_module("app/models/base.py", name="app.models.base")
-    load_module.stub("app.agents.models.base", UserQuery=models.UserQuery, FinalAnswer=models.FinalAnswer)
+    models = load_module("app/models/policy.py", name="app.models.policy")
     store = load_module("app/agents/framework/common/session_store.py", name="app.agents.framework.common.session_store")
     with pytest.raises(KeyError, match="missing"):
         getattr(store, write_method)("missing", Mock())
@@ -212,7 +225,8 @@ def test_llm_setup_preserves_proxy_environment(load_module, monkeypatch):
     from types import SimpleNamespace
     monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:8080")
     load_module.stub("app.config.app_config", settings=SimpleNamespace(model=SimpleNamespace(
-        llm_model_name="gpt-4o", llm_api_key="not-real", llm_temperature=0, llm_base_url=None)))
+        llm_model_name="gpt-4o", llm_api_key="not-real", llm_temperature=0, llm_base_url=None,
+        llm_max_tokens=None, llm_timeout=None)))
     module = load_module("app/core/llms.py")
     import os
     assert os.environ["HTTPS_PROXY"] == "http://proxy.invalid:8080"
@@ -225,7 +239,7 @@ def test_coordinator_request_state_isolated_and_serializes_models(load_module):
     import json
     from datetime import datetime
     from types import SimpleNamespace
-    models = load_module("app/models/base.py", name="app.models.base")
+    models = load_module("app/models/policy.py", name="app.models.policy")
     types_module = load_module("app/agents/framework/base/types.py", name="app.agents.framework.base.types")
     # The coordinator is a business workflow; it must not require a Core runtime.
     load_module.stub("app.agents.framework.base.base_agent", BaseAgent=object)
@@ -263,7 +277,7 @@ def test_coordinator_request_state_isolated_and_serializes_models(load_module):
     asyncio.run(check())
 
 
-def core_modules(load_module):
+def _load_core_modules(load_module):
     load_module.stub("app.agents.framework.core")
     load_module.stub("app.agents.framework.models")
     models = load_module("app/agents/framework/models/base.py", name="app.agents.framework.models.base")
@@ -275,7 +289,7 @@ def core_modules(load_module):
 
 def test_registry_uses_ids_and_waits_for_dependency_creation(load_module):
     import asyncio
-    models, _, base, module = core_modules(load_module)
+    models, _, base, module = _load_core_modules(load_module)
     agent_base: Any = base.AgentBase
     class Agent(agent_base):
         async def process(self, message):
@@ -297,7 +311,7 @@ def test_registry_uses_ids_and_waits_for_dependency_creation(load_module):
 
 def test_bus_delivers_directed_messages_once_and_tracks_failure(load_module):
     import asyncio
-    models, module, _, _ = core_modules(load_module)
+    models, module, _, _ = _load_core_modules(load_module)
     async def check():
         bus = module.MessageBus()
         first, second = Mock(), Mock()
@@ -335,7 +349,7 @@ def test_factory_uses_json_config_and_requires_compatible_answer_agent(load_modu
     import json
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     load_module("app/agents/framework/base/types.py", name="app.agents.framework.base.types")
     owned = []
     for name, class_name in [("policy_retriever", "PolicyRetriever"), ("question_builder", "QuestionUnderstander"), ("policy_review", "PolicyReviewAgent")]:
@@ -388,7 +402,7 @@ def test_router_stream_uses_terminal_answer_without_replaying_tools(load_module)
     from autogen_agentchat.base import TaskResult
     from autogen_agentchat.messages import TextMessage
     load_module.stub("app.agents.framework.common.autogen_memory_store")
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     module = load_module("app/agents/service/agentchat_router.py")
     class Assistant:
         name = "router_one"
@@ -413,18 +427,20 @@ def test_router_stream_uses_terminal_answer_without_replaying_tools(load_module)
     asyncio.run(check())
 
 
-def service_module(load_module):
+def _load_service_module(load_module):
     import logging
     from types import SimpleNamespace
-    models = load_module("app/models/base.py", name="app.models.base")
+    from unittest.mock import AsyncMock
+    models = load_module("app/models/policy.py", name="app.models.policy")
     load_module.stub("app.agents.framework.base.types", PolicyDocument=models.PolicyDocument)
-    load_module.stub("app.agents.pipeline.dialog_agent", ClarifierAgent=Mock(), DialogueAgent=Mock())
+    load_module.stub("app.agents.pipeline.dialog_agent", ask_for_clarification=Mock(), respond_to_dialogue=Mock())
     for module, name in (
         ("graph_agent", "GraphAgent"), ("knowledge_agent", "KnowledgeAgent"),
         ("rewrite_agent", "RewriteAgent"), ("rule_agent", "RuleEngineAgent"),
-        ("text2sql_agent", "Text2SQLAgent"), ("workflow_agent", "WorkflowAgent"),
+        ("workflow_agent", "WorkflowAgent"),
     ):
         load_module.stub(f"app.agents.pipeline.{module}", **{name: Mock()})
+    load_module.stub("app.agents.pipeline.text2sql_agent", answer_text2sql_query=AsyncMock())
     load_module.stub("app.agents.framework.common.session_store", add_answer=Mock())
     load_module.stub("app.agents.framework.common.autogen_memory_store")
     load_module.stub("app.agents.service.agentchat_router", AgentChatRouter=Mock(), agentchat_enabled=lambda: False)
@@ -433,12 +449,12 @@ def service_module(load_module):
     load_module.stub("app.agents.domain.policy_domain", PolicyDomainContextBuilder=Mock())
     load_module.stub("app.core.logging_manager", UTF8JsonFormatter=logging.Formatter, logging_manager=Mock())
     load_module.stub("app.config.app_config", settings=SimpleNamespace())
-    load_module.stub("app.utils.config", Config=Mock())
+    load_module.stub("app.config.agent_config", AgentServiceConfig=Mock())
     load_module.stub("app.knowledge.document_loader", DocumentLoader=Mock())
     load_module.stub("app.knowledge.service", KnowledgeService=Mock())
     load_module.stub("app.knowledge.faq_responder", FAQResponder=Mock())
     load_module.stub("app.persistence.db.session", SessionLocal=Mock())
-    load_module.stub("app.persistence", crud=Mock())
+    load_module.stub("app.persistence.crud.db_connection", db_connection=Mock())
     load_module.stub("app.core.llms", model_client=Mock())
     return load_module("app/agents/service/agent_service.py", name="app.agents.service.agent_service"), models
 
@@ -450,7 +466,7 @@ def test_answer_finalization_accepts_optional_agentchat_metadata(load_module, ag
     from contextvars import ContextVar
     from unittest.mock import AsyncMock
 
-    module, models = service_module(load_module)
+    module, models = _load_service_module(load_module)
     service = module.AgentService.__new__(module.AgentService)
     service._request_state = ContextVar("finalization_state")
     service.config = types.SimpleNamespace(answer_plain_output=False)
@@ -481,7 +497,7 @@ def test_answer_finalization_accepts_optional_agentchat_metadata(load_module, ag
 def test_service_request_attachments_are_isolated(load_module, monkeypatch):
     import asyncio
     from types import SimpleNamespace
-    module, models = service_module(load_module)
+    module, models = _load_service_module(load_module)
     monkeypatch.setattr(module, "_configure_logging_once", lambda: None)
     config = SimpleNamespace(web_search=SimpleNamespace(tavily_api_key=None, max_results=3, search_depth="basic", enabled=False, site_filter=""),
         vision=SimpleNamespace(enabled=False, model="gpt-4o", api_key=None, base_url=None, prompt_template="", max_images=1, max_output_tokens=20),
@@ -499,7 +515,7 @@ def test_service_request_attachments_are_isolated(load_module, monkeypatch):
     service._prepare_conversation_context = prepare
     async def finalize(**kwargs): return kwargs["final"]
     service._finalize_answer = finalize
-    async def workflow(query, *, attachments, intent):
+    async def workflow(query, *, attachments, intent, allow_user_profile=True):
         return SimpleNamespace(answer=attachments[0].path, sources=[])
     service.workflow_agent.answer = workflow
     entered = 0
@@ -519,8 +535,8 @@ def test_service_request_attachments_are_isolated(load_module, monkeypatch):
     asyncio.run(check())
 
 
-def tools_module(load_module):
-    models = load_module("app/models/base.py", name="app.models.base")
+def _load_tools_module(load_module):
+    models = load_module("app/models/policy.py", name="app.models.policy")
     load_module.stub("app.agents.framework.base.types", PolicyDocument=models.PolicyDocument)
     load_module.stub("app.agents.packs.intent_router.utils", LLMIntentClassifier=Mock())
     load_module.stub("app.knowledge.service", KnowledgeService=Mock())
@@ -529,7 +545,7 @@ def tools_module(load_module):
 
 def test_dify_response_closes_and_preserves_zero_score(load_module, monkeypatch):
     import requests
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     response = Mock()
     response.json.return_value = {"hits": [{"content": "answer", "score": 0, "similarity": 0.9}]}
     monkeypatch.setattr(requests, "post", Mock(return_value=response))
@@ -541,7 +557,7 @@ def test_dify_response_closes_and_preserves_zero_score(load_module, monkeypatch)
 
 
 def test_preset_user_profile_does_not_load_disk_or_lose_empty_record(load_module, tmp_path):
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     path = tmp_path / "profiles.json"
     path.write_text('{"disk": {"name": "unexpected"}}')
     tool = module.UserProfileTool(db_path=str(path), preset_db={"empty": {}})
@@ -554,7 +570,7 @@ def test_preset_user_profile_does_not_load_disk_or_lose_empty_record(load_module
 def test_vision_owned_client_closes_once(load_module):
     import asyncio
     from unittest.mock import AsyncMock
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     tool = module.VisionTool()
     client = AsyncMock()
     tool._client = client
@@ -565,8 +581,134 @@ def test_vision_owned_client_closes_once(load_module):
     client.close.assert_awaited_once()
 
 
-def orchestrator_module(load_module):
-    models, bus, _, _ = core_modules(load_module)
+def test_knowledge_ingest_appends_vectors_off_loop_without_rebuilding_snapshot(load_module, monkeypatch):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setenv("DIFY_KB_ENABLED", "false")
+    module = _load_tools_module(load_module)
+    writes = []
+
+    def add_documents(documents):
+        writes.append((documents, threading.get_ident()))
+
+    service = SimpleNamespace(vector_store=SimpleNamespace(add_documents=add_documents),
+                              index_documents=AsyncMock(side_effect=AssertionError("must preserve full snapshot")))
+    tool = module.KnowledgeTool(service=service)
+    documents = [object(), object()]
+    assert asyncio.run(tool.ingest(documents)) == 2
+    assert writes[0][0] is documents and writes[0][1] != threading.get_ident()
+    service.index_documents.assert_not_awaited()
+
+
+@pytest.mark.parametrize("filters,threshold,uses_dify", [(None, 0.6, True), ({"source": "allowed"}, 0.6, False), (None, 1, False)])
+def test_knowledge_search_respects_filters_and_dify_threshold(load_module, monkeypatch, filters, threshold, uses_dify):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setenv("DIFY_KB_ENABLED", "false")
+    module = _load_tools_module(load_module)
+    low, high, local = object(), object(), object()
+    service = SimpleNamespace(search=AsyncMock(return_value=([local], [1])), last_timings={})
+    tool = module.KnowledgeTool(service=service)
+    tool._dify = SimpleNamespace(enabled=True, search=AsyncMock(return_value=([low, high], [0.2, 0.9])))
+    result = asyncio.run(tool.search("policy", threshold=threshold, filters=filters))
+    if uses_dify:
+        assert result == ([high], [0.9])
+        service.search.assert_not_awaited()
+    else:
+        assert result == ([local], [1])
+        service.search.assert_awaited_once_with("policy", top_k=5, threshold=threshold, filters=filters)
+    if filters:
+        tool._dify.search.assert_not_awaited()
+    else:
+        tool._dify.search.assert_awaited_once_with("policy", top_k=5)
+
+
+@pytest.mark.parametrize("threshold", [-0.1, 1.1, float("nan"), float("inf")])
+def test_knowledge_search_rejects_invalid_threshold_before_storage(load_module, monkeypatch, threshold):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setenv("DIFY_KB_ENABLED", "false")
+    module = _load_tools_module(load_module)
+    service = SimpleNamespace(search=AsyncMock())
+    tool = module.KnowledgeTool(service=service)
+    with pytest.raises(ValueError, match="threshold"):
+        asyncio.run(tool.search("policy", threshold=threshold))
+    service.search.assert_not_awaited()
+
+
+@pytest.mark.parametrize("model_name,payload", [
+    ("_WebSearchHit", {"title": "Policy", "content": "Text", "url": "https://example.test"}),
+    ("_DifySearchHit", {"content": "Text"}),
+])
+@pytest.mark.parametrize("score", [float("nan"), float("inf"), float("-inf")])
+def test_external_search_scores_reject_nonfinite_values(load_module, model_name, payload, score):
+    module = _load_tools_module(load_module)
+    with pytest.raises(ValueError):
+        getattr(module, model_name).model_validate({**payload, "score": score})
+
+
+@pytest.mark.parametrize("url,has_path,expected", [
+    ("https://example.test/image.png", False, "remote"),
+    ("data:image/png;base64,cG5n", False, "remote"),
+    ("/attachments/image.png", True, "local"),
+    ("/attachments/image.png", False, "error"),
+    ("file:///outside.png", False, "error"),
+])
+def test_openai_vision_uses_absolute_urls_or_local_uploaded_bytes(load_module, tmp_path, url, has_path, expected):
+    module = _load_tools_module(load_module)
+    path = tmp_path / "image.png"
+    path.write_bytes(b"png")
+    attachment = module.Attachment(url=url, path=str(path) if has_path else None, mime_type="image/png")
+    tool = module.VisionTool()
+    if expected == "error":
+        with pytest.raises(ValueError, match="absolute"):
+            tool._resolve_image_url(attachment)
+    else:
+        assert tool._resolve_image_url(attachment) == (url if expected == "remote" else "data:image/png;base64,cG5n")
+
+
+@pytest.mark.parametrize("backend,expected_route", [("team", "agentchat_team_error"), ("router", "agentchat_router_error")])
+def test_agentchat_without_fallback_keeps_structured_backend_error(load_module, backend, expected_route):
+    import asyncio
+    from contextvars import ContextVar
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    module, _ = _load_service_module(load_module)
+    service = object.__new__(module.AgentService)
+    service._request_state = ContextVar("backend_error")
+    service._trace_latency, service._slow_log_ms = False, 100
+    service.initialize = AsyncMock()
+    service._resolve_connection_id = Mock(return_value=None)
+    service._prepare_conversation_context = AsyncMock(return_value=(
+        "session", "policy", {"history": [], "is_new_session": False}, False,
+    ))
+    service._resolve_session_attachments = Mock(return_value=[])
+    service.faq_responder = SimpleNamespace(maybe_answer=Mock(return_value=None))
+    service._agentchat_enabled, service._agentchat_team_enabled = backend == "router", backend == "team"
+    service._agentchat_no_fallback = True
+    runner = SimpleNamespace(run=AsyncMock(return_value=(None, {"error": "backend unavailable"})))
+    service._agentchat_team = runner if backend == "team" else None
+    service._agentchat_router = runner if backend == "router" else None
+    service._finalize_answer = AsyncMock(side_effect=lambda **kwargs: kwargs["final"])
+
+    answer = asyncio.run(service.process_query("政策补贴条件", session_id="session"))
+
+    assert answer.verification_passed is False
+    assert answer.metadata["route"] == expected_route
+    assert answer.metadata["agentchat_meta"]["error"] == "backend unavailable"
+    assert service._finalize_answer.call_args.kwargs["route"] == expected_route
+
+
+def _load_orchestrator_module(load_module):
+    models, bus, _, _ = _load_core_modules(load_module)
     module = load_module("app/agents/framework/core/orchestrator.py", name="app.agents.framework.core.orchestrator")
     return module, models, bus
 
@@ -574,7 +716,7 @@ def orchestrator_module(load_module):
 def test_workflow_success_uses_seconds_and_default_branch(load_module):
     import asyncio
     from unittest.mock import AsyncMock
-    module, models, bus = orchestrator_module(load_module)
+    module, models, bus = _load_orchestrator_module(load_module)
     calls = []
     async def handle(message):
         calls.append(message.content["number"])
@@ -591,7 +733,7 @@ def test_workflow_success_uses_seconds_and_default_branch(load_module):
 def test_parallel_workflow_executes_dependency_waves_and_rejects_cycles(load_module):
     import asyncio
     from unittest.mock import AsyncMock
-    module, models, bus = orchestrator_module(load_module)
+    module, models, bus = _load_orchestrator_module(load_module)
     calls = []
     def agent(name):
         async def handle(message):
@@ -619,7 +761,7 @@ def test_parallel_workflow_executes_dependency_waves_and_rejects_cycles(load_mod
 def test_missing_or_failed_required_workflow_step_is_failed(load_module):
     import asyncio
     from unittest.mock import AsyncMock
-    module, models, bus = orchestrator_module(load_module)
+    module, models, bus = _load_orchestrator_module(load_module)
     registry = types.SimpleNamespace(get_instance=AsyncMock(return_value=None))
     orchestrator = module.AgentOrchestrator(registry, None)
     orchestrator.create_simple_workflow("missing", ["missing"])
@@ -630,7 +772,7 @@ def test_missing_or_failed_required_workflow_step_is_failed(load_module):
 def test_controller_uses_supported_intents_and_cleans_partial_start(load_module):
     import asyncio
     from unittest.mock import AsyncMock
-    _, models, _ = orchestrator_module(load_module)
+    _, models, _ = _load_orchestrator_module(load_module)
     module = load_module("app/agents/framework/core/agent_master.py", name="app.agents.framework.core.agent_master")
     controller = module.AgentMasterController()
     assert controller._route_to_agent(models.QueryIntent.BENEFIT_CALCULATION) == "calculation_agent"
@@ -648,7 +790,7 @@ def test_controller_uses_supported_intents_and_cleans_partial_start(load_module)
 
 def test_controller_preserves_explicit_core_registration(load_module):
     import asyncio
-    _, models, _ = orchestrator_module(load_module)
+    _, models, _ = _load_orchestrator_module(load_module)
     base = sys.modules["app.agents.framework.core.agent_base"]
     module = load_module("app/agents/framework/core/agent_master.py", name="app.agents.framework.core.agent_master")
     agent_base: Any = base.AgentBase
@@ -674,7 +816,7 @@ def test_controller_preserves_explicit_core_registration(load_module):
 def test_controller_rejects_incomplete_workflow_config(load_module, config, error):
     import asyncio
 
-    orchestrator_module(load_module)
+    _load_orchestrator_module(load_module)
     module = load_module("app/agents/framework/core/agent_master.py", name="app.agents.framework.core.agent_master")
     controller = module.AgentMasterController()
     with pytest.raises(error):
@@ -686,7 +828,7 @@ def test_explicit_unknown_workflow_does_not_run_default(load_module):
     import asyncio
     from unittest.mock import AsyncMock
 
-    orchestrator_module(load_module)
+    _load_orchestrator_module(load_module)
     module = load_module("app/agents/framework/core/agent_master.py", name="app.agents.framework.core.agent_master")
     controller = module.AgentMasterController()
     controller._default_process = AsyncMock()
@@ -697,7 +839,7 @@ def test_explicit_unknown_workflow_does_not_run_default(load_module):
 def test_parallel_failure_cancels_owned_sibling(load_module):
     import asyncio
     from unittest.mock import AsyncMock
-    module, models, bus = orchestrator_module(load_module)
+    module, models, bus = _load_orchestrator_module(load_module)
     async def check():
         entered = asyncio.Event()
         closed = asyncio.Event()
@@ -725,28 +867,37 @@ def test_parallel_failure_cancels_owned_sibling(load_module):
 def test_chat_history_zero_limit_and_delete_failure_closes_session(load_module):
     load_module.stub("app.persistence.db.session", SessionLocal=Mock())
     load_module.stub("app.models.chat_history", ChatMessage=Mock(), ChatSession=Mock())
-    crud = load_module.stub("app.persistence.crud.crud_chat_history", **{name: Mock() for name in ("chat_session", "chat_message", "chat_history_snapshot")})
-    load_module.stub("app.persistence.crud.crud_db_connection", db_connection=Mock())
+    crud = load_module.stub("app.persistence.crud.chat_history", **{name: Mock() for name in ("chat_session", "chat_message", "chat_history_snapshot")})
+    load_module.stub("app.persistence.crud.db_connection", db_connection=Mock())
     schemas = load_module("app/schemas/chat_history.py", name="app.schemas.chat_history")
     assert schemas.ChatSessionCreate
     module = load_module("app/agents/service/chat_history_store.py")
     db = Mock()
-    crud.chat_message.get_by_session.return_value = [types.SimpleNamespace(session_id="one", message_type="user_query", content="message", region=None, message_metadata={}, order_index=0, created_at=None)]
+    messages = [types.SimpleNamespace(session_id="one", message_type="user_query", content=f"message-{index}",
+                region=None, message_metadata={}, order_index=index, created_at=None) for index in range(105)]
+
+    def get_messages(db, *, session_id, limit=100):
+        return messages if limit is None else messages[:limit]
+
+    crud.chat_message.get_by_session.side_effect = get_messages
     store = module.ChatHistoryStore(session_factory=lambda: db)
     assert store.list_messages("one", limit=0) == []
     db.close.assert_called_once()
+    recent = store.list_messages("one", limit=2)
+    assert [message["content"] for message in recent] == ["message-103", "message-104"]
+    assert len(store.list_messages("one")) == 105
     db.commit.side_effect = RuntimeError("commit failed")
     with pytest.raises(RuntimeError, match="commit failed"):
         store.delete_session("one")
     db.rollback.assert_called_once()
-    assert db.close.call_count == 2
+    assert db.close.call_count == 4
 
 
 def test_scheduled_coroutine_closes_when_cancelled_before_first_step(load_module):
     import asyncio
     import inspect
     from autogen_core import AgentId, AgentInstantiationContext, SingleThreadedAgentRuntime
-    models = load_module("app/models/base.py", name="app.models.base")
+    models = load_module("app/models/policy.py", name="app.models.policy")
     module = load_module("app/agents/framework/base/base_agent.py")
     proactive_base: Any = module.ProactiveAgent
     class Agent(proactive_base):
@@ -773,7 +924,7 @@ def test_service_loads_entire_document_batch_outside_event_loop(load_module, tmp
     import asyncio
     import threading
     from unittest.mock import AsyncMock
-    module, _ = service_module(load_module)
+    module, _ = _load_service_module(load_module)
     owner_thread = threading.get_ident()
     def documents(path):
         assert threading.get_ident() != owner_thread
@@ -793,7 +944,7 @@ def test_agentchat_memory_failure_is_visible(load_module, filename):
     from unittest.mock import AsyncMock
     load_module.stub("app.agents.framework.common.autogen_memory_store",
                      build_buffered_context=AsyncMock(side_effect=RuntimeError("corrupt memory")))
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     module = load_module(f"app/agents/service/{filename}.py")
     cls = module.AgentChatRouter if filename == "agentchat_router" else module.AgentChatTeam
     router = cls(model_client=None, knowledge_tool=Mock(), graph_tool=Mock(),
@@ -809,7 +960,7 @@ def test_agentchat_empty_reply_is_failure(load_module, filename):
     from autogen_agentchat.messages import TextMessage
     from unittest.mock import AsyncMock
     load_module.stub("app.agents.framework.common.autogen_memory_store")
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     module = load_module(f"app/agents/service/{filename}.py")
     cls = module.AgentChatRouter if filename == "agentchat_router" else module.AgentChatTeam
     router = cls(model_client=None, knowledge_tool=Mock(), graph_tool=Mock(),
@@ -828,9 +979,8 @@ def test_agentchat_empty_reply_is_failure(load_module, filename):
 def test_conversation_history_excludes_current_query_and_counts_turns(load_module, monkeypatch):
     import asyncio
     from unittest.mock import AsyncMock
-    module, _ = service_module(load_module)
-    models = sys.modules["app.models.base"]
-    load_module.stub("app.agents.models.base", UserQuery=models.UserQuery, FinalAnswer=models.FinalAnswer)
+    module, _ = _load_service_module(load_module)
+    models = sys.modules["app.models.policy"]
     store = load_module("app/agents/framework/common/session_store.py", name="app.agents.framework.common.session_store")
     memory = load_module("app/agents/framework/common/autogen_memory_store.py")
     monkeypatch.setattr(module, "session_store", store)
@@ -857,7 +1007,7 @@ def test_service_stream_closes_in_same_request_context_and_records_final(load_mo
     import asyncio
     from contextvars import ContextVar
     from unittest.mock import AsyncMock
-    module, models = service_module(load_module)
+    module, models = _load_service_module(load_module)
     service = module.AgentService.__new__(module.AgentService)
     service._request_state = ContextVar("stream_state")
     service._session_attachments_store = {}
@@ -898,7 +1048,7 @@ def test_service_stream_closes_in_same_request_context_and_records_final(load_mo
 
 def test_core_agent_serializes_shared_state_and_releases_on_cancel(load_module, monkeypatch):
     import asyncio
-    models, bus, base, _ = core_modules(load_module)
+    models, bus, base, _ = _load_core_modules(load_module)
     agent_base: Any = base.AgentBase
     class Agent(agent_base):
         async def process(self, message):
@@ -930,7 +1080,7 @@ def test_core_agent_serializes_shared_state_and_releases_on_cancel(load_module, 
 
 def test_profile_corruption_is_visible_and_caller_metadata_is_owned(load_module, tmp_path):
     import asyncio
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     path = tmp_path / "profiles.json"
     path.write_text('{"broken":', encoding="utf-8")
     with pytest.raises(ValueError):
@@ -951,7 +1101,7 @@ def test_memory_negative_limit_rejected_even_without_session(load_module):
 
 def test_handler_cancellation_not_counted_as_delivery(load_module):
     import asyncio
-    models, module, _, _ = core_modules(load_module)
+    models, module, _, _ = _load_core_modules(load_module)
     async def cancelled(message):
         raise asyncio.CancelledError()
     async def check():
@@ -966,7 +1116,7 @@ def test_handler_cancellation_not_counted_as_delivery(load_module):
 def test_knowledge_initialization_off_loop_and_shared_once(load_module, monkeypatch):
     import asyncio
     import threading
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     owner_thread = threading.get_ident()
     service = Mock()
     def build():
@@ -985,7 +1135,7 @@ def test_knowledge_initialization_off_loop_and_shared_once(load_module, monkeypa
 def test_web_and_vision_failures_are_visible(load_module):
     import asyncio
     from unittest.mock import AsyncMock
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     web = module.WebSearchTool(enabled=False)
     web._client = Mock(search=Mock(side_effect=RuntimeError("network unavailable")))
     with pytest.raises(RuntimeError, match="network unavailable"):
@@ -1001,7 +1151,7 @@ def test_web_and_vision_failures_are_visible(load_module):
 def test_missing_required_search_dependency_fails_at_import(load_module, monkeypatch):
     import builtins
 
-    tools_module(load_module)
+    _load_tools_module(load_module)
     original_import = builtins.__import__
 
     def import_without_tavily(name, *args, **kwargs):
@@ -1015,7 +1165,7 @@ def test_missing_required_search_dependency_fails_at_import(load_module, monkeyp
 
 
 def test_explicit_search_enable_requires_credentials(load_module, monkeypatch):
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     with pytest.raises(ValueError, match="TAVILY_API_KEY"):
         module.WebSearchTool(enabled=True)
@@ -1025,7 +1175,7 @@ def test_explicit_search_enable_requires_credentials(load_module, monkeypatch):
 
 @pytest.mark.parametrize("missing_field", ["title", "score"])
 def test_search_result_missing_required_field_is_not_fabricated(load_module, monkeypatch, missing_field):
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     result = {"title": "Policy", "content": "Details", "url": "https://example.test", "score": 0}
     del result[missing_field]
     monkeypatch.setattr(module, "TavilyClient", Mock(return_value=Mock(search=Mock(return_value={"results": [result]}))))
@@ -1037,7 +1187,7 @@ def test_search_result_missing_required_field_is_not_fabricated(load_module, mon
 def test_dify_missing_score_is_not_zero_relevance(load_module, monkeypatch):
     import requests
 
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     response = Mock()
     response.json.return_value = {"hits": [{"content": "answer"}]}
     monkeypatch.setattr(requests, "post", Mock(return_value=response))
@@ -1051,7 +1201,7 @@ def test_dify_fallback_only_handles_transport_failure(load_module, monkeypatch):
 
     import requests
 
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     monkeypatch.setenv("DIFY_KB_ENABLED", "true")
     monkeypatch.setenv("DIFY_KB_BASE_URL", "https://dify.example.test")
     monkeypatch.setenv("DIFY_KB_API_KEY", "test-key")
@@ -1071,7 +1221,7 @@ def test_dify_invalid_json_response_propagates(load_module, monkeypatch):
 
     import requests
 
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     monkeypatch.setenv("DIFY_KB_ENABLED", "true")
     monkeypatch.setenv("DIFY_KB_BASE_URL", "https://dify.example.test")
     monkeypatch.setenv("DIFY_KB_API_KEY", "test-key")
@@ -1087,21 +1237,25 @@ def test_dify_invalid_json_response_propagates(load_module, monkeypatch):
     response.close.assert_called_once()
 
 
-@pytest.mark.parametrize("tool_name,agent_name", [
+@pytest.mark.parametrize("tool_name,dependency_name", [
     ("knowledge", "knowledge_agent"), ("graph", "graph_agent"),
-    ("text2sql", "text2sql_agent"), ("workflow", "workflow_agent"),
+    ("text2sql", "answer_text2sql_query"), ("workflow", "workflow_agent"),
 ])
-def test_agentchat_tool_failure_is_reported_as_error(load_module, tool_name, agent_name):
+def test_agentchat_tool_failure_is_reported_as_error(load_module, monkeypatch, tool_name, dependency_name):
     import asyncio
     from contextvars import ContextVar
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
-    module, _ = service_module(load_module)
+    module, _ = _load_service_module(load_module)
     service = module.AgentService.__new__(module.AgentService)
     service._request_state = ContextVar("tool_error_state")
     service._resolve_connection_id = lambda connection_id: 1
-    setattr(service, agent_name, SimpleNamespace(answer=AsyncMock(side_effect=RuntimeError("upstream failed"))))
+    fail = AsyncMock(side_effect=RuntimeError("upstream failed"))
+    if tool_name == "text2sql":
+        monkeypatch.setattr(module, dependency_name, fail)
+    else:
+        setattr(service, dependency_name, SimpleNamespace(answer=fail))
 
     async def check():
         token = service._request_state.set(module._RequestState())
@@ -1117,7 +1271,7 @@ def test_agentchat_tool_failure_is_reported_as_error(load_module, tool_name, age
 
 @pytest.mark.parametrize("metadata", [None, {}])
 def test_dify_optional_metadata_without_title(load_module, monkeypatch, metadata):
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     response = Mock()
     response.json.return_value = {"data": [{"content": "policy", "score": 0, "metadata": metadata}]}
     monkeypatch.setattr(module.requests, "post", Mock(return_value=response))
@@ -1129,7 +1283,7 @@ def test_dify_optional_metadata_without_title(load_module, monkeypatch, metadata
 
 
 def test_explicit_vision_enable_requires_credentials(load_module, monkeypatch):
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     monkeypatch.delenv("VISION_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="API key"):
@@ -1137,7 +1291,7 @@ def test_explicit_vision_enable_requires_credentials(load_module, monkeypatch):
 
 
 def test_explicit_dify_enable_requires_configuration(load_module, monkeypatch):
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     monkeypatch.setenv("DIFY_KB_ENABLED", "true")
     monkeypatch.delenv("DIFY_KB_BASE_URL", raising=False)
     monkeypatch.delenv("DIFY_KB_API_KEY", raising=False)
@@ -1151,7 +1305,7 @@ def test_explicit_dify_enable_requires_configuration(load_module, monkeypatch):
 @pytest.mark.parametrize("invalid_iterations", ["", "0", "-1"])
 def test_invalid_agentchat_tool_budget_is_not_replaced(load_module, monkeypatch, filename, invalid_iterations):
     load_module.stub("app.agents.framework.common.autogen_memory_store")
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     module = load_module(f"app/agents/service/{filename}.py")
     agent_class = module.AgentChatRouter if filename == "agentchat_router" else module.AgentChatTeam
     monkeypatch.setenv("AGENTCHAT_MAX_TOOL_ITERATIONS", invalid_iterations)
@@ -1162,7 +1316,7 @@ def test_invalid_agentchat_tool_budget_is_not_replaced(load_module, monkeypatch,
 
 def test_registry_unregister_without_loop_preserves_registration(load_module):
     import asyncio
-    models, _, base, registry_module = core_modules(load_module)
+    models, _, base, registry_module = _load_core_modules(load_module)
     agent_base: Any = base.AgentBase
     class Agent(agent_base):
         async def process(self, message):
@@ -1184,7 +1338,7 @@ def test_agentchat_stream_closes_under_parent_cancellation(load_module, filename
     from autogen_agentchat.messages import ModelClientStreamingChunkEvent
     from unittest.mock import AsyncMock
     load_module.stub("app.agents.framework.common.autogen_memory_store")
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     module = load_module(f"app/agents/service/{filename}.py")
     cls = module.AgentChatRouter if filename == "agentchat_router" else module.AgentChatTeam
     router = cls(model_client=None, knowledge_tool=Mock(), graph_tool=Mock(), rule_tool=Mock(),
@@ -1212,7 +1366,7 @@ def test_agentchat_stream_closes_under_parent_cancellation(load_module, filename
 
 def test_failed_document_read_is_not_successful_empty_ingest(load_module, tmp_path):
     import asyncio
-    module, _ = service_module(load_module)
+    module, _ = _load_service_module(load_module)
     service = module.AgentService.__new__(module.AgentService)
     service._loader = Mock()
     service._loader.load_single_file.side_effect = OSError("unreadable document")
@@ -1237,7 +1391,7 @@ def test_cancelled_knowledge_initialization_remains_owned(load_module, monkeypat
     import asyncio
     import threading
     from unittest.mock import AsyncMock
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     entered = threading.Event()
     release = threading.Event()
     built = threading.Event()
@@ -1268,7 +1422,7 @@ def test_knowledge_shutdown_does_not_publish_closed_pending_service(load_module,
     import asyncio
     import threading
     from unittest.mock import AsyncMock
-    module = tools_module(load_module)
+    module = _load_tools_module(load_module)
     entered = threading.Event()
     release = threading.Event()
     service = Mock(close=AsyncMock())
@@ -1302,7 +1456,7 @@ def test_registry_shutdown_cleans_instances_in_cancelled_parent_scope(load_modul
     import asyncio
     import anyio
     from unittest.mock import AsyncMock
-    _, _, _, module = core_modules(load_module)
+    _, _, _, module = _load_core_modules(load_module)
     closed = []
     async def shutdown():
         await anyio.lowlevel.checkpoint()
@@ -1315,6 +1469,48 @@ def test_registry_shutdown_cleans_instances_in_cancelled_parent_scope(load_modul
             await registry.shutdown_all()
         assert closed == ["closed"]
     asyncio.run(check())
+
+
+@pytest.mark.parametrize("query,expected", [
+    ("补贴", False), ("政策", False), ("汽车", False), ("你好", True), ("hi!", True),
+])
+def test_short_business_queries_are_not_misrouted_as_greetings(load_module, query, expected):
+    module, _ = _load_service_module(load_module)
+    service = object.__new__(module.AgentService)
+    assert service._looks_like_greeting(query) is expected
+
+
+@pytest.mark.parametrize("router,team,expected", [(True, False, True), (False, True, True), (False, False, False)])
+def test_agentchat_streaming_capability_supports_each_backend(load_module, router, team, expected):
+    module, _ = _load_service_module(load_module)
+    service = object.__new__(module.AgentService)
+    service._agentchat_enabled, service._agentchat_team_enabled = router, team
+    assert service.agentchat_streaming_enabled is expected
+
+
+def test_text2sql_tool_uses_the_connection_selected_by_its_request(load_module, monkeypatch):
+    import asyncio
+    from contextvars import ContextVar
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    module, _ = _load_service_module(load_module)
+    service = object.__new__(module.AgentService)
+    service._request_state = ContextVar("selected_connection")
+    service._resolve_connection_id = Mock(side_effect=AssertionError("selected connection must stay on the request"))
+    answer_query = AsyncMock(return_value=SimpleNamespace(answer="selected connection", sources=[]))
+    monkeypatch.setattr(module, "answer_text2sql_query", answer_query)
+
+    async def run():
+        token = service._request_state.set(module._RequestState(connection_id=7))
+        try:
+            return await service._tool_agentchat_text2sql("policy count")
+        finally:
+            service._request_state.reset(token)
+
+    assert asyncio.run(run()) == "selected connection"
+    answer_query.assert_awaited_once_with("policy count", connection_id=7)
+    service._resolve_connection_id.assert_not_called()
 
 
 @pytest.mark.parametrize("cancel_caller", [False, True])

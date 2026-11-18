@@ -1,0 +1,482 @@
+{
+  "review_date": "2026-11-17",
+  "source_only": true,
+  "files": [
+    {
+      "path": ".oil-ui/glyph-modern-implementation/qa_api.py",
+      "summary": "完整逐个审查被Git忽略但仍位于项目内的视觉验证夹具。HTTP回调使用动作名/实际类型，范围/页码/规则缺失与数值非法明确报错；全局字典仅模拟内存状态，不作为生产接口或真实模型/规则核验结果。所有文件和PDF/ZIP资源均由with关闭。",
+      "details": {}
+    },
+    {
+      "path": "api_server.py",
+      "summary": "独立现有Web装配入口；Filter遵循日志框架bool协议，lifespan以退出栈负责所有已创建客户端，会话启动失败也清理，健康路由契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/chatdb/text2sql_service.py",
+      "summary": "完整读取全部函数；保留按线程持有 Session 的上下文读取、模型生成和显式错误结果；删除无实际调用的转发类，文档迁到真实函数。",
+      "details": {
+        "construct_prompt": "NAM/FUN：表结构、值映射、时间与意图顺序组织；limit 用 is not None 区分零值。",
+        "generate_sql_with_model": "模型响应边界显式要求文本，客户端为应用持有借用资源。",
+        "_load_text2sql_context": "同一工作线程创建、读取、关闭 Session；未命中为显式错误。",
+        "retrieve_schema_for_connection": "独立的相关表选择阶段，返回选定列的映射及不可变连接快照。",
+        "process_text2sql_query_for_connection_async": "按归一化、检索、提示、模型、SQL验证、执行顺序；业务错误模型是既有对外契约，取消不吞。"
+      }
+    },
+    {
+      "path": "app/agents/domain/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/domain/policy_domain.py",
+      "summary": "逐个核对上下文dataclass、配置词典构造器、归一化/地区/检索变体与元数据方法；词典是实际共享状态，TimeWindow内部必填日期直接读取。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/pipeline/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/pipeline/dialog_agent.py",
+      "summary": "无状态对话/澄清类改为直接模块函数，原模板与metadata协议保留；逐个核对领域、槽位、提示构造参数，清除残留self。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/pipeline/graph_agent.py",
+      "summary": "类拥有真实LightRAG资源、知识回退与摘要阈值；所有异步操作保留实际I/O，纯消息上下文/标题清理用staticmethod，图空结果与失败区分。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/pipeline/knowledge_agent.py",
+      "summary": "知识/网页模式为真实依赖和产品路径，所有方法与回调完整审阅；查无资料、检索失败及模型失败区分；去掉无效地区过滤，地区仍在真实查询中。",
+      "details": {
+        "KnowledgeAgent._domain_aware_search": "当前索引没有地区字段，不能传假region过滤；保留含地区的文本查询并记录能力限制。"
+      }
+    },
+    {
+      "path": "app/agents/pipeline/rewrite_agent.py",
+      "summary": "类保留实际词典、缓存和长度配置；当前问题优先于最近历史，避免旧价格/能效覆盖新输入；可恢复改写失败记录后统一合流，纯转换方法明确static。",
+      "details": {
+        "RewriteAgent._build_context_hints": "DAT-001/FUN-002：最新问题覆盖历史已有槽位，历史按最近优先填补缺失字段。",
+        "RewriteAgent.rewrite": "按归一化/上下文/快速规则/模型/保存结果顺序；可选模型改写故障不伪造新内容，回到已知原文并记录。"
+      }
+    },
+    {
+      "path": "app/agents/pipeline/rule_agent.py",
+      "summary": "类拥有规则缓存和模型规划职责；执行计划由Pydantic校验，未知规则与错误保持显式；禁止转换阶段把bool或小数伪装成合法数值，纯转换/格式化改static。",
+      "details": {
+        "RuleEngineAgent.compute": "intent实际写入最终metadata，保留；rule_id匹配后才读取输入和执行，正常不符合条件不是程序错误。",
+        "RuleEngineAgent._format_result": "删除无使用的rule_id参数；仅按明确状态、结果、输入生成文案，不查询资源。",
+        "RuleEngineAgent._coerce_inputs": "保留供执行器报告的非法bool/非整数浮点，不截断；支持已有JSON数值字符串，0/False/None语义分别处理。"
+      }
+    },
+    {
+      "path": "app/agents/pipeline/text2sql_agent.py",
+      "summary": "去掉无状态转发类与仅转发的异步私有方法；独立执行入口直接调用连接所有者，纯结果格式化只接收实际使用的数据。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/pipeline/workflow_agent.py",
+      "summary": "GraphFlow类保留真实工具与模型引用；每次请求的context/闭包局部创建，框架FunctionTool签名和协程协议保留；确定节点直接连边。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/service/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/service/agent_service.py",
+      "summary": "完整逐定义审阅服务、请求状态、计时器、所有路由/工具/流式/文案方法及嵌套回调；保留真实多模式编排，删去不可达第二次调度和重复日志配置；请求连接保存在ContextVar，错误路由明确赋值。",
+      "details": {
+        "AgentService.process_query": "FUN-002/CLS-003：问候、FAQ、AgentChat、旧处理链各有真实分支；不可达重复调度清理，finally恢复请求上下文。",
+        "AgentService.process_query_stream": "ASY-005/RES-005：上下文覆盖真实消费阶段，借用后端流在finally有界关闭，取消继续传播。",
+        "AgentService._request": "CLS-007：只读当前ContextVar，不用共享current_request或猜测默认请求。",
+        "AgentService._tool_agentchat_text2sql": "DB-002/CLS-003：优先当前请求的连接ID，缺省时才解析默认连接，避免工具忽略用户选库。",
+        "AgentService._looks_like_greeting": "仅明确问候模式；短业务词不再被误当问候。",
+        "_configure_logging_once": "仅通过真实日志资源所有者配置，避免紧接着清空同一个logger而丢文件句柄/文件日志。"
+      }
+    },
+    {
+      "path": "app/agents/service/agentchat_router.py",
+      "summary": "逐个审查客户端借用、每会话助手与锁、结构化运行结果、事件提取及生成器；失败元数据不清空，流消费finally关闭；补全真实模型/流类型，纯事件提取static。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/service/agentchat_team.py",
+      "summary": "逐个审查真实Team/UserProxy/Router组装、每会话缓存和锁；保留团队与单助手的不同协议，流/错误所有权明确，类型及纯事件提取方法已收敛。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/service/chat_history_store.py",
+      "summary": "所有存储方法逐一审阅；Session由取得方关闭，消息与活跃时间一笔事务；历史读取取消隐含100条截断以取得真正最新记录，快照归属与显式删除同步。 读取全量后取末尾，保持超过100条记录的最新历史；客户端会话删除连带移除拥有的快照。",
+      "details": {}
+    },
+    {
+      "path": "app/agents/service/tools.py",
+      "summary": "所有工具、外部响应模型、同步/异步方法及lambda均逐项审阅；依赖创建/借用/关闭、可选后端与JSON边界明确；追加向量不重建分级快照，Dify遵守阈值和过滤，相对上传URL正确读本地路径。",
+      "details": {
+        "KnowledgeTool.ingest": "DB/DES：此接口为批次追加，使用已有向量追加操作；完整分级快照仍由专用构建入口拥有，不用最后一批覆盖全语料。",
+        "KnowledgeTool.get_service": "ASY-006：共享初始化任务有明确等待者、取消屏蔽及关闭处理；并发不重复创建。",
+        "VisionTool._resolve_image_url": "本地上传返回相对URL不能交给远端模型；合法绝对URL/data URI与本地文件路径分开处理。",
+        "UserProfileTool.fetch": "FUN-005/ASY-002：保留实际异步FunctionTool消费协议，内存查找无阻塞I/O；不存在与加载失败区分。"
+      }
+    },
+    {
+      "path": "app/api/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/api/deps.py",
+      "summary": "依赖函数有FastAPI真实调用方，锁分别服务同步构造与异步初始化；清理只关闭初始化的拥有资源，移除无人使用的模型客户端转发。",
+      "details": {}
+    },
+    {
+      "path": "app/api/endpoints/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/api/endpoints/agent.py",
+      "summary": "完整审查非流式、流式和嵌套事件生成器及会话路由；会话数据库工作放线程池，SSE消费finally关闭流，取消不吞，查询limit=0合法。 两个入口在记录历史/启动SSE前在线程池验证上传路径归属，防止API让模型读取任意本地文件。",
+      "details": {}
+    },
+    {
+      "path": "app/api/endpoints/db_connections.py",
+      "summary": "两个同步路由范围及404清楚；每次会话try/finally关闭，只输出可展示字段，凭据不进入response模型。",
+      "details": {}
+    },
+    {
+      "path": "app/api/endpoints/dsl.py",
+      "summary": "五个同步路由承载阻塞模型/文件操作，保持线程池执行和明确response_model；404单独传播，业务结果status与HTTP成功是既有双层契约。",
+      "details": {}
+    },
+    {
+      "path": "app/api/endpoints/knowledge.py",
+      "summary": "完整审查26个定义，保留文档版本/CAS/上传归属回滚和解析/嵌入分离；删除无职责id转发，目录改为写入方创建，所有阻塞步骤在同步路由或线程池。",
+      "details": {}
+    },
+    {
+      "path": "app/api/endpoints/knowledge_graph.py",
+      "summary": "GraphML生成方的可选文本可为空，id/source/target是必填；weight零值保留，转换错误不当作空图；所有框架模型和路由职责已逐个核对。",
+      "details": {}
+    },
+    {
+      "path": "app/api/endpoints/uploads.py",
+      "summary": "上传创建、复制、关闭与响应职责清楚；目录创建移动到写入所有者，下载不修改磁盘，补充实际返回类型。",
+      "details": {}
+    },
+    {
+      "path": "app/api/schemas.py",
+      "summary": "逐个核对DSL、问答、会话及通用外部模型，动态业务payload保持dict，固定消息字段与可选附件由Pydantic表达。",
+      "details": {}
+    },
+    {
+      "path": "app/config/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/config/agent_config.py",
+      "summary": "逐个核对Settings类和模型方法；保留真实环境别名与可选工具模式，history_window允许0；删除无业务调用的手动to_dict副本。",
+      "details": {
+        "VisionConfig.empty_setting_is_unconfigured": "PYD-004/FUN-005：框架before校验器需cls参数，空.env值在可选工具配置边界归一化。",
+        "WebSearchConfig.empty_api_key_is_unconfigured": "同上，保留可选搜索禁用模式，不要求所有配置必填。",
+        "AgentServiceConfig.from_file": "配置文件读取边界，with释放文件，YAML错误/非法数据不转换默认配置。"
+      }
+    },
+    {
+      "path": "app/config/app_config.py",
+      "summary": "逐个核对Settings类、环境派生属性和MinerU选择方法；模式限定既有三值，URL选择复用同一模式解析，导入配置不再创建目录，移除不起作用的归一化选项。 CLI模型字段在首次创建客户端前应用；真实可选max_tokens/timeout的默认None保留SDK默认，无无效占位配置。",
+      "details": {}
+    },
+    {
+      "path": "app/core/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/core/auth.py",
+      "summary": "逐个核对认证、JWT和FastAPI依赖；未登录、禁用用户与显式关闭认证三类行为区分，零有效期不替换。",
+      "details": {}
+    },
+    {
+      "path": "app/core/llms.py",
+      "summary": "默认模型工厂有明确创建动作与返回类型；拒绝未配置/空密钥，真实token和超时参数仅在提供时传递，SDK配置字段已核对官方最低版本源码。",
+      "details": {}
+    },
+    {
+      "path": "app/core/logging_manager.py",
+      "summary": "逐个审查Formatter、日志管理器和所有事件方法；方法各自构建真实AutoGen事件，持有logger和handler所有权；替换handler时关闭自有资源，保留借用handler。",
+      "details": {
+        "UTF8JsonFormatter.format": "LOG-001/FUN-005：Formatter返回str；非JSON日志原样返回是展示契约，不吞业务错误。",
+        "LoggingManager._serialize_event": "CLS-006：已有有状态日志类内的纯事件转换可保留staticmethod。",
+        "LoggingManager.logger": "CLS-007：廉价只读状态属性，不做I/O。"
+      }
+    },
+    {
+      "path": "app/core/security.py",
+      "summary": "三个密码摘要方法明确分离格式读取、生成、校验；固定散列格式保留，说明改为真实API账号用途。",
+      "details": {}
+    },
+    {
+      "path": "app/domains/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/domains/manager.py",
+      "summary": "领域配置字典、匹配与文件生命周期是类的真实状态；逐个方法按查询、归一化、模板、持久化职责审查，补齐变更/加载/保存返回None类型。",
+      "details": {}
+    },
+    {
+      "path": "app/domains/prompt_catalog.py",
+      "summary": "可选领域提示词目录有真实缺省语义；加载边界拒绝非映射，缓存属于目录资源，公开查找/列表职责清楚。",
+      "details": {}
+    },
+    {
+      "path": "app/domains/schemas.py",
+      "summary": "逐类检查领域枚举与Pydantic契约；成员用明确名称，消费券优惠方式与执行器的AMOUNT/PERCENT一致，商户场景保留在usage_limits；cap/name显式建模避免校验丢失。",
+      "details": {}
+    },
+    {
+      "path": "app/main.py",
+      "summary": "分别审查工厂、嵌套生命周期/路由和所有请求响应类；认证依赖与限流注册参数虽未在函数体引用仍必须保留，协议不同不强行合并另一入口。",
+      "details": {}
+    },
+    {
+      "path": "app/models/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/models/base.py",
+      "summary": "SQLAlchemy DeclarativeBase 与 __tablename__ 指令服务于真实映射协议，保留框架要求的 cls 参数。",
+      "details": {
+        "Base.__tablename__": "FUN-005/CLS-005：SQLAlchemy声明指令，返回稳定的原有表名。",
+        "ChunkingConfig.require_overlap_smaller_than_size": "PYD-004：模型内保证 overlap<size，不访问外部资源。"
+      }
+    },
+    {
+      "path": "app/models/chat_history.py",
+      "summary": "三个ORM实体分别表达会话、消息、快照；补齐快照归属的back_populates及显式删除级联，列、索引、外键与表名不变。",
+      "details": {
+        "Base.__tablename__": "FUN-005/CLS-005：SQLAlchemy声明指令，返回稳定的原有表名。",
+        "ChunkingConfig.require_overlap_smaller_than_size": "PYD-004：模型内保证 overlap<size，不访问外部资源。"
+      }
+    },
+    {
+      "path": "app/models/database.py",
+      "summary": "五个共同维护的连接与元数据实体，Mapped/relationship 为真实框架协议；单文件内聚，数据库字段名属于存储契约。",
+      "details": {
+        "Base.__tablename__": "FUN-005/CLS-005：SQLAlchemy声明指令，返回稳定的原有表名。",
+        "ChunkingConfig.require_overlap_smaller_than_size": "PYD-004：模型内保证 overlap<size，不访问外部资源。"
+      }
+    },
+    {
+      "path": "app/models/policy.py",
+      "summary": "逐个检查枚举与政策/问答数据模型；保留独立契约、必填且可空字段和按实例容器，两个方法使用真实字段且无I/O。",
+      "details": {
+        "Attachment.is_image": "根据可选MIME、路径、URL推导只读布尔；不为缺失资源联网探测。",
+        "PolicyDocument.validate_dates": "校验生效/失效字段相对顺序，保留真实可空来源与模型返回协议。"
+      }
+    },
+    {
+      "path": "app/persistence/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/crud/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/crud/base.py",
+      "summary": "逐个检查通用操作；模型状态由构造确定，PATCH区分未提供，提交失败由本层回滚；CRUD是多个真实实体复用的现有抽象。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/crud/chat_history.py",
+      "summary": "逐个检查活跃会话、消息顺序、快照查询与批量提交；类拥有具体实体和共有持久化行为，不是静态工具容器。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/crud/db_connection.py",
+      "summary": "逐个检查连接创建、更新、查询、关联删除；密码空值语义和依赖删除顺序保留，Neo4j旁路失败明确记录。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/crud/schema_metadata.py",
+      "summary": "逐个检查按连接/表/列范围查询，未命中允许空结果；继承通用CRUD有真实复用，方法命名准确。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/db/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/db/access.py",
+      "summary": "完整审查各实际数据库适配器、内部查询闭包和序列化装饰器；连接/游标/关闭有明确所有者，保留可选驱动局部导入及真实环境配置模式，删除无人读取的重复状态flag。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/db/init_db.py",
+      "summary": "建表和示例种子各有独立命令职责；会话关闭在执行入口，未命中才创建。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/db/registry.py",
+      "summary": "显式登记双方ORM关系，保留真实装配职责，不是业务转发。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/db/schema_introspector.py",
+      "summary": "完整审查元数据三类读取和刷新事务；值均驱动参数绑定，读取后关闭原连接，再按外键顺序替换ORM元数据，回滚异常不吞。",
+      "details": {}
+    },
+    {
+      "path": "app/persistence/db/session.py",
+      "summary": "引擎与工厂是进程资源，get_db生成器遵守FastAPI yield/finally协议，不能内联为返回裸会话。",
+      "details": {}
+    },
+    {
+      "path": "app/schemas/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/schemas/chat_history.py",
+      "summary": "创建、局部更新、快照模型各自表达真实持久化输入；None和未提供由model_dump(exclude_unset=True)区分。",
+      "details": {}
+    },
+    {
+      "path": "app/schemas/database.py",
+      "summary": "逐个核对创建/更新模型；创建与PATCH语义不同，空创建子类保留公开契约，None不等同未提供。",
+      "details": {
+        "Base.__tablename__": "FUN-005/CLS-005：SQLAlchemy声明指令，返回稳定的原有表名。",
+        "ChunkingConfig.require_overlap_smaller_than_size": "PYD-004：模型内保证 overlap<size，不访问外部资源。"
+      }
+    },
+    {
+      "path": "app/schemas/knowledge.py",
+      "summary": "逐个核对文档、解析、切块、索引和搜索契约；字段默认集中于模型，切块交叉约束校验器无I/O。",
+      "details": {
+        "Base.__tablename__": "FUN-005/CLS-005：SQLAlchemy声明指令，返回稳定的原有表名。",
+        "ChunkingConfig.require_overlap_smaller_than_size": "PYD-004：模型内保证 overlap<size，不访问外部资源。"
+      }
+    },
+    {
+      "path": "app/schemas/text2sql.py",
+      "summary": "流水线消息和SQL结果各有不同契约，保留继承复用及每实例容器工厂，不合并成万能响应。",
+      "details": {
+        "Base.__tablename__": "FUN-005/CLS-005：SQLAlchemy声明指令，返回稳定的原有表名。",
+        "ChunkingConfig.require_overlap_smaller_than_size": "PYD-004：模型内保证 overlap<size，不访问外部资源。"
+      }
+    },
+    {
+      "path": "app/utils/__init__.py",
+      "summary": "已核对包入口职责与显式导出；应用装配留在入口，数据或领域的实际公共契约保留。",
+      "details": {}
+    },
+    {
+      "path": "app/utils/lifecycle.py",
+      "summary": "唯一泛型清理函数有真实资源复用；有限超时及取消屏蔽是既有退出契约，不删除。",
+      "details": {}
+    }
+  ],
+  "removed_or_renamed": [
+    {
+      "path": "app/agents/dsl_generator/dsl_runtime_helpers.py",
+      "reason": "CLS-001/CLS-006：无实例状态的工具容器改为 subsidy_calculations 模块函数，DSL 语言命名空间保留。"
+    },
+    {
+      "path": "app/agents/chatdb/text2sql_service.py",
+      "names": [
+        "Text2SQLService",
+        "Text2SQLService.run_async",
+        "Text2SQLService.run"
+      ],
+      "reason": "CLS-001/DES-001：未注册、无实际调用的两层转发；文档中的 query() 亦非真实实现，改为说明现有函数入口。"
+    },
+    {
+      "path": "app/agents/pipeline/dialog_agent.py",
+      "names": [
+        "DialogueAgent",
+        "ClarifierAgent"
+      ],
+      "replacement": "respond_to_dialogue / ask_for_clarification 与私有模块函数",
+      "reason": "CLS-001：没有实例状态；保留常量词典与实际职责，不保留纯工具类。"
+    },
+    {
+      "path": "app/agents/pipeline/text2sql_agent.py",
+      "names": [
+        "Text2SQLAgent",
+        "Text2SQLAgent._run_query_async"
+      ],
+      "replacement": "answer_text2sql_query / _build_text2sql_answer",
+      "reason": "CLS-001/DES-001：去掉无状态类和仅转发的私有异步方法。"
+    },
+    {
+      "path": "app/api/deps.py",
+      "names": [
+        "get_model_client"
+      ],
+      "reason": "无真实框架注册或调用方的全局对象转发。"
+    },
+    {
+      "path": "app/api/endpoints/knowledge.py",
+      "names": [
+        "_safe_doc_id"
+      ],
+      "replacement": "safe_document_id",
+      "reason": "直接导入真正所有者，移除单次无职责转发。"
+    },
+    {
+      "path": "app/config/agent_config.py",
+      "names": [
+        "AgentServiceConfig.to_dict"
+      ],
+      "replacement": "BaseModel.model_dump",
+      "reason": "没有业务调用的手工序列化副本，与Pydantic实际能力重复。"
+    },
+    {
+      "path": "app/core/llms.py",
+      "names": [
+        "_setup_model_client"
+      ],
+      "replacement": "_create_model_client",
+      "reason": "NAM-001/FUN-004：明确创建动作、真实返回值与实际配置。"
+    },
+    {
+      "path": "app/domains/schemas.py",
+      "names": [
+        "CouponType"
+      ],
+      "replacement": "CouponDiscountType",
+      "reason": "NAM/DAT：优惠方式不是商户场景；与实际执行器合同对齐。"
+    },
+    {
+      "path": "app/agents/service/agent_service.py",
+      "names": [
+        "AgentService._looks_like_multimodal_invoice_question"
+      ],
+      "replacement": "直接判断attachments",
+      "reason": "FUN-003/DES-001：两个查询参数无使用，唯一实际逻辑是bool(attachments)。"
+    }
+  ]
+}

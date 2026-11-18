@@ -1,0 +1,2081 @@
+{
+  "files": [
+    {
+      "path": "app/agents/chatdb/__init__.py",
+      "summary": "Read the complete documentation-only package initializer; it contains no definitions, wildcard imports, resource creation or compatibility export layer.",
+      "definitions": [],
+      "changes": [],
+      "limitations": []
+    },
+    {
+      "path": "app/agents/chatdb/base.py",
+      "summary": "Reviewed both real stateful/runtime classes and every method; corrected the framework description parameter, removed an unused alternate schema formatter and preserved async response/collector protocols.",
+      "definitions": [
+        {
+          "name": "BaseAgent",
+          "kind": "class",
+          "line": 21,
+          "column": 0,
+          "end": 161,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "所有智能体的基类，提供共享功能",
+          "bases": [
+            "RoutedAgent",
+            "ABC"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: RoutedAgent base owns actual model/dialect/display-name/schema state and shared response/memory adapters used by seven concrete registered agents."
+          ]
+        },
+        {
+          "name": "BaseAgent.__init__",
+          "kind": "function",
+          "line": 24,
+          "column": 4,
+          "end": 37,
+          "parameters": [
+            "self",
+            "description",
+            "agent_name",
+            "model_client_instance",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化基础智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "NAM-001/CLS-002: The former agent_id value is actually AutoGen's description; renamed it to description and passed it by that keyword, preserving all existing string values and runtime-assigned identities."
+          ]
+        },
+        {
+          "name": "BaseAgent.final_text",
+          "kind": "function",
+          "line": 40,
+          "column": 4,
+          "end": 47,
+          "parameters": [
+            "result"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "SQL/prompts require a final text message, not a tool or runtime event.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/CLS-004: Private-to-capability static SDK-result adapter requires a final TextMessage with nonempty content; tool/runtime events cannot silently become SQL or explanation text."
+          ]
+        },
+        {
+          "name": "BaseAgent.send_response",
+          "kind": "async_function",
+          "line": 49,
+          "column": 4,
+          "end": 65,
+          "parameters": [
+            "self",
+            "content",
+            "is_final",
+            "result"
+          ],
+          "decorators": [],
+          "declared_role": "发送响应消息到流输出主题",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Async runtime publication preserves ResponseMessage source/content/final/result fields and the current stream topic/source identity."
+          ]
+        },
+        {
+          "name": "BaseAgent.send_error",
+          "kind": "async_function",
+          "line": 67,
+          "column": 4,
+          "end": 74,
+          "parameters": [
+            "self",
+            "error_message"
+          ],
+          "decorators": [],
+          "declared_role": "发送错误消息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Shared async failure action logs the concrete agent error and publishes an explicit final error response."
+          ]
+        },
+        {
+          "name": "BaseAgent.handle_exception",
+          "kind": "async_function",
+          "line": 76,
+          "column": 4,
+          "end": 86,
+          "parameters": [
+            "self",
+            "func_name",
+            "exception"
+          ],
+          "decorators": [],
+          "declared_role": "处理异常并发送错误消息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-003/FUN-005: Preserves the original exception traceback in logging and emits the existing error message through the actual response protocol."
+          ]
+        },
+        {
+          "name": "BaseAgent.format_schema_context",
+          "kind": "function",
+          "line": 89,
+          "column": 4,
+          "end": 121,
+          "parameters": [
+            "schema_context"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "将表结构信息格式化为SQL DDL字符串",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-001: Actual query-analysis/explanation callers use this DDL-style schema representation; it retains the supported empty-schema mode and required populated metadata fields."
+          ]
+        },
+        {
+          "name": "BaseAgent.rebuild_memory_from_content",
+          "kind": "function",
+          "line": 124,
+          "column": 4,
+          "end": 142,
+          "parameters": [
+            "memory_content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "从序列化的内容重建ListMemory对象",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Reconstructs actual AutoGen ListMemory/MemoryContent values from the serialized analysis history used by both SQL generators; optional metadata remains explicitly optional."
+          ]
+        },
+        {
+          "name": "BaseAgent.serialize_memory_content",
+          "kind": "function",
+          "line": 145,
+          "column": 4,
+          "end": 161,
+          "parameters": [
+            "memory"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "将ListMemory序列化为可传输的格式",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Serializes the actual ListMemory contents and MIME/metadata fields consumed by the downstream generator's inverse adapter."
+          ]
+        },
+        {
+          "name": "StreamResponseCollector",
+          "kind": "class",
+          "line": 164,
+          "column": 0,
+          "end": 251,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "流式响应收集器，用于收集智能体产生的流式输出",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Owns async UI callbacks, optional feedback callback and per-source buffers/timestamps; the class has real mutable stream state."
+          ]
+        },
+        {
+          "name": "StreamResponseCollector.__init__",
+          "kind": "function",
+          "line": 167,
+          "column": 4,
+          "end": 173,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "初始化流式响应收集器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: Creates independent callback/buffer/timestamp state; the optional callback is later required by the runtime registration boundary."
+          ]
+        },
+        {
+          "name": "StreamResponseCollector.set_callback",
+          "kind": "function",
+          "line": 175,
+          "column": 4,
+          "end": 181,
+          "parameters": [
+            "self",
+            "callback"
+          ],
+          "decorators": [],
+          "declared_role": "设置回调函数",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Installs the concrete async ClosureAgent response callback without changing the framework's context/message argument protocol."
+          ]
+        },
+        {
+          "name": "StreamResponseCollector.set_user_input",
+          "kind": "function",
+          "line": 183,
+          "column": 4,
+          "end": 189,
+          "parameters": [
+            "self",
+            "user_input"
+          ],
+          "decorators": [],
+          "declared_role": "设置用户输入函数",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Installs the concrete optional interactive UserProxyAgent input callback used only when user feedback is enabled."
+          ]
+        },
+        {
+          "name": "StreamResponseCollector.buffer_message",
+          "kind": "async_function",
+          "line": 191,
+          "column": 4,
+          "end": 235,
+          "parameters": [
+            "self",
+            "ctx",
+            "source",
+            "content",
+            "is_final",
+            "result"
+          ],
+          "decorators": [],
+          "declared_role": "缓冲消息并在达到一定条件时发送",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/ASY-001: Buffers source-specific text, detaches prior buffered content before callback awaits, flushes final/result-bearing messages and awaits each actual callback."
+          ]
+        },
+        {
+          "name": "StreamResponseCollector.flush_all_buffers",
+          "kind": "async_function",
+          "line": 237,
+          "column": 4,
+          "end": 251,
+          "parameters": [
+            "self",
+            "ctx"
+          ],
+          "decorators": [],
+          "declared_role": "刷新所有消息缓冲区",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/FUN-005: Detaches current buffers before asynchronous delivery, preserving messages added by callbacks during a flush and the existing explicit no-callback mode."
+          ]
+        }
+      ],
+      "changes": [
+        "Renamed BaseAgent constructor agent_id parameter to description and updated all seven concrete subclasses; actual framework descriptions are unchanged.",
+        "Removed unused format_schema_as_markdown after checking source, tests, examples, scripts and docs; DDL and service prompt formatting remain at their actual callers."
+      ],
+      "limitations": [],
+      "removed_definitions": [
+        {
+          "name": "BaseAgent.format_schema_as_markdown",
+          "replacement": "Removed unused alternate representation",
+          "reason": "DES-001: No registered callback, direct caller, test or documentation reference consumed this duplicate formatter.",
+          "review": "reviewed",
+          "notes": [
+            "DES-001: No registered callback, direct caller, test or documentation reference consumed this duplicate formatter."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/db_service.py",
+      "summary": "Reviewed the detached connection value object, supported provider assembly and query resource owner; no connection lifecycle or public serialization fields were changed.",
+      "definitions": [
+        {
+          "name": "ConnectionSettings",
+          "kind": "class",
+          "line": 13,
+          "column": 0,
+          "end": 27,
+          "parameters": [],
+          "decorators": [
+            "dataclass(frozen=True)"
+          ],
+          "declared_role": "Plain connection values that can safely leave an ORM Session's thread.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/ASY-007: Frozen plain-value dataclass is the actual boundary for moving connection configuration out of an ORM Session's worker thread; it preserves all existing fields."
+          ]
+        },
+        {
+          "name": "ConnectionSettings.from_connection",
+          "kind": "function",
+          "line": 24,
+          "column": 4,
+          "end": 27,
+          "parameters": [
+            "cls",
+            "connection"
+          ],
+          "decorators": [
+            "classmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: Classmethod copies explicit DBConnection fields while the caller still owns the ORM Session, and constructs via cls without dynamic attribute fallbacks."
+          ]
+        },
+        {
+          "name": "_build_db_access",
+          "kind": "function",
+          "line": 30,
+          "column": 0,
+          "end": 56,
+          "parameters": [
+            "connection"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: Creates a fresh DBAccess and connects only the actual mysql/postgres/postgresql service branches; unsupported Snowflake/other types fail explicitly instead of inventing adapters."
+          ]
+        },
+        {
+          "name": "execute_query",
+          "kind": "function",
+          "line": 59,
+          "column": 0,
+          "end": 65,
+          "parameters": [
+            "connection",
+            "sql"
+          ],
+          "decorators": [],
+          "declared_role": "Execute ``sql`` against the provided ``connection`` and return dictionaries.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: Owns the freshly connected DBAccess through full dataframe conversion and always closes it in finally; its service caller validates generated SQL before execution."
+          ]
+        }
+      ],
+      "changes": [],
+      "limitations": [
+        "Actual service connection names are mysql, postgres and postgresql (case-insensitive). General DBAccess adapters for other engines are not advertised as supported by this service."
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/domain_zh_gov.py",
+      "summary": "Reviewed all domain constants, date/value objects and normalization/override functions; implemented the already documented current-quarter window and corrected an unsupported example.",
+      "definitions": [
+        {
+          "name": "TimeWindow",
+          "kind": "class",
+          "line": 90,
+          "column": 0,
+          "end": 93,
+          "parameters": [],
+          "decorators": [
+            "dataclass"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005: Internal dataclass represents concrete date bounds and the parsed source phrase; it is shared with actual policy-domain and Text2SQL prompt callers."
+          ]
+        },
+        {
+          "name": "_add_months",
+          "kind": "function",
+          "line": 96,
+          "column": 0,
+          "end": 100,
+          "parameters": [
+            "base",
+            "months"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Pure month arithmetic clamps the day to the real target month and correctly handles zero/negative month offsets without fallback dates."
+          ]
+        },
+        {
+          "name": "parse_time_window",
+          "kind": "function",
+          "line": 103,
+          "column": 0,
+          "end": 158,
+          "parameters": [
+            "query",
+            "today"
+          ],
+          "decorators": [],
+          "declared_role": "Parse Chinese time phrases to a [start, end] window.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Parses the declared numeric relative and calendar windows, preserving zero offsets and last-month end dates; now implements the already documented 本季度 branch with its actual quarter start."
+          ]
+        },
+        {
+          "name": "infer_intent",
+          "kind": "function",
+          "line": 165,
+          "column": 0,
+          "end": 185,
+          "parameters": [
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Returns actual count/sum/average/time-order/top-limit hints from the required query and preserves explicit top-N text rather than adding an inference framework."
+          ]
+        },
+        {
+          "name": "normalize_terms",
+          "kind": "function",
+          "line": 188,
+          "column": 0,
+          "end": 198,
+          "parameters": [
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "Normalize common NL synonyms to their canonical values in-place within the NL query.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Applies concrete region aliases and returns both the normalized text and actual applied replacements for downstream context."
+          ]
+        },
+        {
+          "name": "candidate_tables_from_query",
+          "kind": "function",
+          "line": 201,
+          "column": 0,
+          "end": 214,
+          "parameters": [
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "Return a flat list of candidate table names hinted by NL keywords.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Matches the real domain table hints, de-duplicates names while retaining first occurrence and does not fabricate unavailable table metadata."
+          ]
+        },
+        {
+          "name": "domain_value_mappings_for_schema",
+          "kind": "function",
+          "line": 217,
+          "column": 0,
+          "end": 235,
+          "parameters": [
+            "schema_context"
+          ],
+          "decorators": [],
+          "declared_role": "Build additional value-mappings based on generic synonyms and the actual columns in schema_context.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Adds generic synonyms only for columns actually present in the supplied schema and merges explicit fully qualified overrides."
+          ]
+        },
+        {
+          "name": "_apply_overrides",
+          "kind": "function",
+          "line": 248,
+          "column": 0,
+          "end": 269,
+          "parameters": [
+            "payload"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Applies the existing configured region/table/column override schema to its actual owning maps, preserving fully qualified versus generic column semantics."
+          ]
+        },
+        {
+          "name": "load_overrides",
+          "kind": "function",
+          "line": 272,
+          "column": 0,
+          "end": 281,
+          "parameters": [
+            "paths"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-004: Optional override-file mode reads through Path resource ownership and logs individual file failures under the existing best-effort configuration contract."
+          ]
+        }
+      ],
+      "changes": [
+        "Implemented the documented 本季度 date-window mode using the current quarter's first month/day.",
+        "Corrected the module example 近三个月 to the actual supported numeric syntax 近3个月; no new Chinese numeral parser was introduced."
+      ],
+      "limitations": [
+        "Optional override loading retains its existing logged best-effort behavior; no external configuration/schema migration was performed."
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/factory.py",
+      "summary": "Reviewed all runtime registration methods and all eight constructor/subscription lambdas; retained the factory because these callbacks are required by actual AutoGen registration and configured execution modes.",
+      "definitions": [
+        {
+          "name": "AgentFactory",
+          "kind": "class",
+          "line": 22,
+          "column": 0,
+          "end": 162,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "智能体工厂，负责创建和注册所有智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Owns the borrowed configured DBAccess/dialect used by concrete AutoGen agent registrations; registration callbacks are real framework factories rather than pointless wrappers."
+          ]
+        },
+        {
+          "name": "AgentFactory.__init__",
+          "kind": "function",
+          "line": 25,
+          "column": 4,
+          "end": 33,
+          "parameters": [
+            "self",
+            "db_access",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化智能体工厂",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: Requires an already connected DBAccess and preserves its caller-owned lifetime; db_type remains the actual supported optional runtime default."
+          ]
+        },
+        {
+          "name": "AgentFactory.register_all_agents",
+          "kind": "async_function",
+          "line": 35,
+          "column": 4,
+          "end": 63,
+          "parameters": [
+            "self",
+            "runtime",
+            "collector",
+            "user_feedback_enabled"
+          ],
+          "decorators": [],
+          "declared_role": "注册所有智能体到运行时",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/FUN-005: Registers schema, analysis, selected generator, explanation, execution, visualization and collector stages in visible pipeline order."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_schema_retriever",
+          "kind": "async_function",
+          "line": 65,
+          "column": 4,
+          "end": 74,
+          "parameters": [
+            "self",
+            "runtime"
+          ],
+          "decorators": [],
+          "declared_role": "注册表结构检索智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Registers the real schema topic/type and constructs its agent inside AutoGen's runtime factory context."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_schema_retriever.<lambda>@70:12",
+          "kind": "lambda",
+          "line": 70,
+          "column": 12,
+          "end": 73,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required AutoGen constructor callback creates SchemaRetrieverAgent with the actual shared model/dialect inside registration context."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_query_analyzer",
+          "kind": "async_function",
+          "line": 76,
+          "column": 4,
+          "end": 87,
+          "parameters": [
+            "self",
+            "runtime",
+            "collector",
+            "user_feedback_enabled"
+          ],
+          "decorators": [],
+          "declared_role": "注册查询分析智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Registers the actual analyzer with optional interactive feedback from the collector only when the configured mode enables it."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_query_analyzer.<lambda>@82:12",
+          "kind": "lambda",
+          "line": 82,
+          "column": 12,
+          "end": 86,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required constructor closure binds the actual collector input callback and configured user-feedback mode rather than probing unknown input shapes."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_sql_generator",
+          "kind": "async_function",
+          "line": 89,
+          "column": 4,
+          "end": 111,
+          "parameters": [
+            "self",
+            "runtime"
+          ],
+          "decorators": [],
+          "declared_role": "注册SQL生成智能体（根据配置选择）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DES-004: Preserves the actual configured standard versus hybrid entry modes; hybrid import stays local to its selected optional registration branch."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_sql_generator.<lambda>@97:16",
+          "kind": "lambda",
+          "line": 97,
+          "column": 16,
+          "end": 100,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required runtime constructor callback creates the configured hybrid generator under the existing SQL generation topic."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_sql_generator.<lambda>@107:16",
+          "kind": "lambda",
+          "line": 107,
+          "column": 16,
+          "end": 110,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required runtime constructor callback creates the standard SQL generator when hybrid mode is disabled."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_sql_explainer",
+          "kind": "async_function",
+          "line": 113,
+          "column": 4,
+          "end": 122,
+          "parameters": [
+            "self",
+            "runtime"
+          ],
+          "decorators": [],
+          "declared_role": "注册SQL解释智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Registers the actual SQL explanation topic/agent and borrowed shared model without taking client ownership."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_sql_explainer.<lambda>@118:12",
+          "kind": "lambda",
+          "line": 118,
+          "column": 12,
+          "end": 121,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required AutoGen constructor callback creates the concrete SQL explainer with the actual model/dialect configuration."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_sql_executor",
+          "kind": "async_function",
+          "line": 124,
+          "column": 4,
+          "end": 134,
+          "parameters": [
+            "self",
+            "runtime"
+          ],
+          "decorators": [],
+          "declared_role": "注册SQL执行智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-001: Registers the concrete executor with the required borrowed DBAccess; the factory does not fabricate or close a caller-owned connection."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_sql_executor.<lambda>@129:12",
+          "kind": "lambda",
+          "line": 129,
+          "column": 12,
+          "end": 133,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required constructor closure passes the exact connected DBAccess to SqlExecutorAgent rather than discovering a global connection."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_visualization_recommender",
+          "kind": "async_function",
+          "line": 136,
+          "column": 4,
+          "end": 145,
+          "parameters": [
+            "self",
+            "runtime"
+          ],
+          "decorators": [],
+          "declared_role": "注册可视化推荐智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Registers the actual visualization message stage under its declared topic."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_visualization_recommender.<lambda>@141:12",
+          "kind": "lambda",
+          "line": 141,
+          "column": 12,
+          "end": 144,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required runtime constructor callback creates the concrete visualization agent with actual shared model/dialect state."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_stream_collector",
+          "kind": "async_function",
+          "line": 147,
+          "column": 4,
+          "end": 162,
+          "parameters": [
+            "self",
+            "runtime",
+            "collector"
+          ],
+          "decorators": [],
+          "declared_role": "注册消息收集器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Requires a real collector callback before registering ClosureAgent and its explicit stream-output subscription."
+          ]
+        },
+        {
+          "name": "AgentFactory._register_stream_collector.<lambda>@156:26",
+          "kind": "lambda",
+          "line": 156,
+          "column": 26,
+          "end": 161,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Subscription factory returns the actual stream topic/collector agent TypeSubscription required by ClosureAgent registration."
+          ]
+        }
+      ],
+      "changes": [],
+      "limitations": []
+    },
+    {
+      "path": "app/agents/chatdb/hybrid_sql_generator.py",
+      "summary": "Reviewed the configured hybrid entry and callback; removed its duplicate fixed prompt implementation while keeping the actual runtime/banner/result behavior.",
+      "definitions": [
+        {
+          "name": "HybridSqlGeneratorAgent",
+          "kind": "class",
+          "line": 16,
+          "column": 0,
+          "end": 84,
+          "parameters": [],
+          "decorators": [
+            "type_subscription(topic_type=TopicTypes.SQL_GENERATOR.value)"
+          ],
+          "declared_role": "混合模式的SQL生成入口，当前尚未装配检索引擎。",
+          "bases": [
+            "BaseAgent"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/CLS-001: Existing configured runtime entry has distinct user-visible standard-mode disclosure and examples_used result data; its routed class/callback are retained."
+          ]
+        },
+        {
+          "name": "HybridSqlGeneratorAgent.__init__",
+          "kind": "function",
+          "line": 19,
+          "column": 4,
+          "end": 34,
+          "parameters": [
+            "self",
+            "model_client_instance",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化混合SQL生成智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/DES-001: Initializes the actual runtime description/display/model/dialect and borrows SqlGeneratorAgent.PROMPT_TEMPLATE instead of maintaining a duplicate prompt-return function."
+          ]
+        },
+        {
+          "name": "HybridSqlGeneratorAgent.handle_analysis_message",
+          "kind": "async_function",
+          "line": 37,
+          "column": 4,
+          "end": 84,
+          "parameters": [
+            "self",
+            "message",
+            "ctx"
+          ],
+          "decorators": [
+            "message_handler"
+          ],
+          "declared_role": "处理AnalysisMessage类型的消息，使用混合检索生成SQL",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/ASY-001: Required routed async callback preserves the explicit missing-hybrid-engine notice, reconstructs real analysis memory, awaits actual SQL generation and publishes unchanged SqlMessage/result fields."
+          ]
+        }
+      ],
+      "changes": [
+        "Removed duplicate _build_prompt_template and reused SqlGeneratorAgent.PROMPT_TEMPLATE.",
+        "Constructor keyword now correctly names AutoGen description."
+      ],
+      "limitations": [
+        "The existing hybrid entry still explicitly discloses that its retrieval engine is unconfigured and uses standard generation; no fake hybrid provider was added."
+      ],
+      "removed_definitions": [
+        {
+          "name": "HybridSqlGeneratorAgent._build_prompt_template",
+          "replacement": "SqlGeneratorAgent.PROMPT_TEMPLATE",
+          "reason": "DES-001/NAM-006: Fixed SQL prompt content duplicated the standard generator; actual configured hybrid callback remains.",
+          "review": "reviewed",
+          "notes": [
+            "DES-001/NAM-006: Fixed SQL prompt content duplicated the standard generator; actual configured hybrid callback remains."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/query_analyzer.py",
+      "summary": "Reviewed the full query-analysis prompt/feedback/stream/memory flow; literal prompt getters are constants and all actual framework/streaming callbacks remain intact.",
+      "definitions": [
+        {
+          "name": "QueryAnalyzerAgent",
+          "kind": "class",
+          "line": 22,
+          "column": 0,
+          "end": 229,
+          "parameters": [],
+          "decorators": [
+            "type_subscription(topic_type=TopicTypes.QUERY_ANALYZER.value)"
+          ],
+          "declared_role": "查询分析智能体，负责分析用户查询和表结构的关系",
+          "bases": [
+            "BaseAgent"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Owns actual model/dialect/feedback/prompt state and participates in the schema-to-analysis routed message pipeline."
+          ]
+        },
+        {
+          "name": "QueryAnalyzerAgent.__init__",
+          "kind": "function",
+          "line": 25,
+          "column": 4,
+          "end": 42,
+          "parameters": [
+            "self",
+            "model_client_instance",
+            "db_type",
+            "input_func"
+          ],
+          "decorators": [],
+          "declared_role": "初始化查询分析智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/NAM-006: Initializes the actual runtime description and optional user input callback; fixed role/task text now uses SYSTEM_MESSAGE/TASK_TEMPLATE constants."
+          ]
+        },
+        {
+          "name": "QueryAnalyzerAgent._prepare_task",
+          "kind": "function",
+          "line": 131,
+          "column": 4,
+          "end": 155,
+          "parameters": [
+            "self",
+            "query",
+            "schema_context",
+            "mappings_str"
+          ],
+          "decorators": [],
+          "declared_role": "准备具体的分析任务",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Formats the actual schema/query/dialect/value-mapping inputs into the task template, explicitly describing a genuine empty mapping set."
+          ]
+        },
+        {
+          "name": "QueryAnalyzerAgent.handle_message",
+          "kind": "async_function",
+          "line": 159,
+          "column": 4,
+          "end": 229,
+          "parameters": [
+            "self",
+            "message",
+            "ctx"
+          ],
+          "decorators": [
+            "message_handler"
+          ],
+          "declared_role": "处理接收到的表结构信息消息，分析查询意图和所需表结构",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-002/ASY-005: Preserves real standalone versus UserProxy feedback modes, owns/closes the async stream, captures only analyzer text and forwards serialized memory plus original connection/schema/mapping fields."
+          ]
+        }
+      ],
+      "changes": [
+        "Replaced _build_system_message and _build_task_template literal-return methods with class constants.",
+        "Constructor keyword now correctly names AutoGen description."
+      ],
+      "limitations": [],
+      "removed_definitions": [
+        {
+          "name": "QueryAnalyzerAgent._build_system_message",
+          "replacement": "QueryAnalyzerAgent.SYSTEM_MESSAGE",
+          "reason": "NAM-006/DES-001: Fixed text needs a constant rather than a parameterless function.",
+          "review": "reviewed",
+          "notes": [
+            "NAM-006/DES-001: Fixed text needs a constant rather than a parameterless function."
+          ]
+        },
+        {
+          "name": "QueryAnalyzerAgent._build_task_template",
+          "replacement": "QueryAnalyzerAgent.TASK_TEMPLATE",
+          "reason": "NAM-006/DES-001: Fixed template data is distinct from the actual _prepare_task formatting operation.",
+          "review": "reviewed",
+          "notes": [
+            "NAM-006/DES-001: Fixed template data is distinct from the actual _prepare_task formatting operation."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/schema_retriever.py",
+      "summary": "Reviewed schema lookup, value-mapping formatting and routed response behavior; corrected stale graph/default-schema claims and removed a debug print.",
+      "definitions": [
+        {
+          "name": "SchemaRetrieverAgent",
+          "kind": "class",
+          "line": 16,
+          "column": 0,
+          "end": 92,
+          "parameters": [],
+          "decorators": [
+            "type_subscription(topic_type=TopicTypes.SCHEMA_RETRIEVER.value)"
+          ],
+          "declared_role": "表结构检索智能体，负责从元数据表获取相关表结构",
+          "bases": [
+            "BaseAgent"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Real routed capability retrieves metadata through the existing connection-aware service and prepares the downstream analyzer's schema/value hints."
+          ]
+        },
+        {
+          "name": "SchemaRetrieverAgent.__init__",
+          "kind": "function",
+          "line": 19,
+          "column": 4,
+          "end": 26,
+          "parameters": [
+            "self",
+            "model_client_instance",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化表结构检索智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: Supplies the unchanged runtime description/display/model/dialect values through their correctly named base parameters."
+          ]
+        },
+        {
+          "name": "SchemaRetrieverAgent.retrieve_schema",
+          "kind": "async_function",
+          "line": 28,
+          "column": 4,
+          "end": 45,
+          "parameters": [
+            "self",
+            "connection_id",
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "获取相关表结构信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/ASY-001: Awaits the actual detached connection-aware schema service and formats its concrete value mappings; retrieval failures remain visible to the handler."
+          ]
+        },
+        {
+          "name": "SchemaRetrieverAgent.handle_message",
+          "kind": "async_function",
+          "line": 48,
+          "column": 4,
+          "end": 92,
+          "parameters": [
+            "self",
+            "message",
+            "ctx"
+          ],
+          "decorators": [
+            "message_handler"
+          ],
+          "declared_role": "处理查询消息，从连接元数据获取相关表结构信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Preserves the required QueryMessage callback and connection_id=0 behavior; missing schema/connection now honestly says analysis continues from the query rather than claiming a nonexistent default schema."
+          ]
+        }
+      ],
+      "changes": [
+        "Corrected handler documentation from graph database to connection metadata.",
+        "Removed unneeded connection-id print.",
+        "Missing-schema notices no longer claim an available default schema.",
+        "Constructor keyword now correctly names AutoGen description."
+      ],
+      "limitations": []
+    },
+    {
+      "path": "app/agents/chatdb/sql_executor.py",
+      "summary": "Reviewed execution threading, shared SQL policy, explicit error envelopes and borrowed connection ownership; added validation at the actual model-SQL execution boundary.",
+      "definitions": [
+        {
+          "name": "SqlExecutorAgent",
+          "kind": "class",
+          "line": 21,
+          "column": 0,
+          "end": 83,
+          "parameters": [],
+          "decorators": [
+            "type_subscription(topic_type=TopicTypes.SQL_EXECUTOR.value)"
+          ],
+          "declared_role": "SQL执行智能体，负责执行SQL并返回结果",
+          "bases": [
+            "BaseAgent"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Concrete routed executor owns no database connection; it uses the explicitly injected caller-owned DBAccess under the actual SQL explanation/result protocol."
+          ]
+        },
+        {
+          "name": "SqlExecutorAgent.__init__",
+          "kind": "function",
+          "line": 24,
+          "column": 4,
+          "end": 38,
+          "parameters": [
+            "self",
+            "db_access",
+            "model_client_instance",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化SQL执行智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: Required db_access is explicit and borrowed, while model/dialect/runtime description remain configured base inputs."
+          ]
+        },
+        {
+          "name": "SqlExecutorAgent._execute_sql",
+          "kind": "async_function",
+          "line": 40,
+          "column": 4,
+          "end": 50,
+          "parameters": [
+            "self",
+            "sql"
+          ],
+          "decorators": [],
+          "declared_role": "Execute on the injected connection and report query errors to the pipeline.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/ASY-001: Extracts SQL without stripping quoted content, applies the shared single-read-only-SELECT policy before driver access, offloads actual DBAccess.run_sql and returns separate rows/error outcomes; cancellation propagates."
+          ]
+        },
+        {
+          "name": "SqlExecutorAgent.handle_message",
+          "kind": "async_function",
+          "line": 53,
+          "column": 4,
+          "end": 83,
+          "parameters": [
+            "self",
+            "message",
+            "ctx"
+          ],
+          "decorators": [
+            "message_handler"
+          ],
+          "declared_role": "处理接收到的消息，执行SQL查询",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Required async callback preserves explicit execution-error/no-rows/success responses and correlated query/sql/explanation/connection/result fields for visualization."
+          ]
+        }
+      ],
+      "changes": [
+        "_execute_sql now uses extract_sql_from_llm_response and validate_sql before DBAccess.run_sql.",
+        "Invalid or write-capable queries return the existing execution-error envelope without invoking the database.",
+        "Constructor keyword now correctly names AutoGen description."
+      ],
+      "limitations": []
+    },
+    {
+      "path": "app/agents/chatdb/sql_explainer.py",
+      "summary": "Reviewed prompt formatting and the entire explanation stream lifecycle; fixed prompt-return wrapper became data while real async stream consumption/closure stays.",
+      "definitions": [
+        {
+          "name": "SqlExplainerAgent",
+          "kind": "class",
+          "line": 20,
+          "column": 0,
+          "end": 140,
+          "parameters": [],
+          "decorators": [
+            "type_subscription(topic_type=TopicTypes.SQL_EXPLAINER.value)"
+          ],
+          "declared_role": "SQL解释智能体，负责解释SQL语句的含义",
+          "bases": [
+            "BaseAgent"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Concrete routed capability carries actual model/dialect/schema/prompt state for SQL explanation and publication to execution."
+          ]
+        },
+        {
+          "name": "SqlExplainerAgent.__init__",
+          "kind": "function",
+          "line": 23,
+          "column": 4,
+          "end": 36,
+          "parameters": [
+            "self",
+            "model_client_instance",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化SQL解释智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/NAM-006: Initializes the actual runtime description/base configuration and uses literal PROMPT_TEMPLATE rather than a getter returning fixed text."
+          ]
+        },
+        {
+          "name": "SqlExplainerAgent._prepare_prompt",
+          "kind": "function",
+          "line": 73,
+          "column": 4,
+          "end": 89,
+          "parameters": [
+            "self",
+            "query",
+            "sql",
+            "schema_context"
+          ],
+          "decorators": [],
+          "declared_role": "准备提示模板",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Formats actual query/SQL/dialect and optional supplied schema versus the existing configured schema into the explanation prompt."
+          ]
+        },
+        {
+          "name": "SqlExplainerAgent.handle_message",
+          "kind": "async_function",
+          "line": 92,
+          "column": 4,
+          "end": 140,
+          "parameters": [
+            "self",
+            "message",
+            "ctx"
+          ],
+          "decorators": [
+            "message_handler"
+          ],
+          "declared_role": "处理接收到的消息，解释SQL语句",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-002/ASY-005: Owns/closes the asynchronous explanation stream, awaits each real output chunk, requires a final textual TaskResult and forwards unchanged SQL/connection metadata only after success."
+          ]
+        }
+      ],
+      "changes": [
+        "Replaced _build_prompt_template with SqlExplainerAgent.PROMPT_TEMPLATE.",
+        "Constructor keyword now correctly names AutoGen description."
+      ],
+      "limitations": [],
+      "removed_definitions": [
+        {
+          "name": "SqlExplainerAgent._build_prompt_template",
+          "replacement": "SqlExplainerAgent.PROMPT_TEMPLATE",
+          "reason": "NAM-006/DES-001: Fixed template text is data; _prepare_prompt remains the actual formatting function.",
+          "review": "reviewed",
+          "notes": [
+            "NAM-006/DES-001: Fixed template text is data; _prepare_prompt remains the actual formatting function."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/sql_generator.py",
+      "summary": "Reviewed the standard generator and its routed callback; fixed prompt text is now one shared class constant used by both generation entries.",
+      "definitions": [
+        {
+          "name": "SqlGeneratorAgent",
+          "kind": "class",
+          "line": 14,
+          "column": 0,
+          "end": 94,
+          "parameters": [],
+          "decorators": [
+            "type_subscription(topic_type=TopicTypes.SQL_GENERATOR.value)"
+          ],
+          "declared_role": "SQL生成智能体，负责将自然语言转换为SQL",
+          "bases": [
+            "BaseAgent"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Concrete routed generation capability uses actual model/dialect/analysis memory and publishes the established SqlMessage contract."
+          ]
+        },
+        {
+          "name": "SqlGeneratorAgent.__init__",
+          "kind": "function",
+          "line": 17,
+          "column": 4,
+          "end": 30,
+          "parameters": [
+            "self",
+            "model_client_instance",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化SQL生成智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/NAM-006: Initializes the unchanged runtime description/base inputs and stores the shared literal PROMPT_TEMPLATE without a getter function."
+          ]
+        },
+        {
+          "name": "SqlGeneratorAgent.handle_analysis_message",
+          "kind": "async_function",
+          "line": 55,
+          "column": 4,
+          "end": 94,
+          "parameters": [
+            "self",
+            "message",
+            "ctx"
+          ],
+          "decorators": [
+            "message_handler"
+          ],
+          "declared_role": "处理AnalysisMessage类型的消息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/ASY-001: Required async callback rebuilds actual memory, invokes the configured model, requires final text and publishes SQL/source/connection fields unchanged."
+          ]
+        }
+      ],
+      "changes": [
+        "Replaced _build_prompt_template with SqlGeneratorAgent.PROMPT_TEMPLATE, also reused by the actual hybrid entry.",
+        "Constructor keyword now correctly names AutoGen description."
+      ],
+      "limitations": [],
+      "removed_definitions": [
+        {
+          "name": "SqlGeneratorAgent._build_prompt_template",
+          "replacement": "SqlGeneratorAgent.PROMPT_TEMPLATE",
+          "reason": "NAM-006/DES-001: A parameterless static function only returned constant prompt data.",
+          "review": "reviewed",
+          "notes": [
+            "NAM-006/DES-001: A parameterless static function only returned constant prompt data."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/text2sql_utils.py",
+      "summary": "Reviewed every model/cache/schema/SQL function and nested replacement/ranking callback; fixed score ordering, database-specific cast handling, actual SQL-execution policy and a misleading callback name.",
+      "definitions": [
+        {
+          "name": "QueryAnalysis",
+          "kind": "class",
+          "line": 33,
+          "column": 0,
+          "end": 43,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "The stable JSON fields requested from the query-analysis model.",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/FUN-003: Strict Pydantic response contract requires actual entity/relationship/intent/aggregation/time/comparison fields before model data can drive schema selection."
+          ]
+        },
+        {
+          "name": "RankedTable",
+          "kind": "class",
+          "line": 46,
+          "column": 0,
+          "end": 53,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "One table ID and its score in the model's schema-ranking response.",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005: Strict table-ranking record requires an integer identity, bounded score and reasoning; the caller additionally rejects IDs outside the real snapshot."
+          ]
+        },
+        {
+          "name": "TableRanking",
+          "kind": "class",
+          "line": 56,
+          "column": 0,
+          "end": 57,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "RootModel[list[RankedTable]]"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005: Strict root model expresses the actual model-returned list of RankedTable objects rather than probing arbitrary output shapes."
+          ]
+        },
+        {
+          "name": "_LRUCache",
+          "kind": "class",
+          "line": 60,
+          "column": 0,
+          "end": 81,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "简单的LRU缓存，避免查询分析缓存无限增长。",
+          "bases": [
+            "OrderedDict"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: Private OrderedDict subclass owns a real maximum-size/recency/eviction policy used by the query-analysis cache; it is stateful rather than a static helper container."
+          ]
+        },
+        {
+          "name": "_LRUCache.__init__",
+          "kind": "function",
+          "line": 63,
+          "column": 4,
+          "end": 67,
+          "parameters": [
+            "self",
+            "maxsize"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: Initializes OrderedDict state and requires a nonnegative configured maxsize; zero is the actual cache-disabled mode."
+          ]
+        },
+        {
+          "name": "_LRUCache.get",
+          "kind": "function",
+          "line": 69,
+          "column": 4,
+          "end": 73,
+          "parameters": [
+            "self",
+            "key",
+            "default"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Preserves the mapping-style get contract while moving hits to the recency end; a cache miss returns the explicit supplied default."
+          ]
+        },
+        {
+          "name": "_LRUCache.put",
+          "kind": "function",
+          "line": 75,
+          "column": 4,
+          "end": 81,
+          "parameters": [
+            "self",
+            "key",
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Implements the actual disabled/update/least-recent eviction behavior and keeps the configured memory bound."
+          ]
+        },
+        {
+          "name": "analyze_query_with_llm",
+          "kind": "async_function",
+          "line": 88,
+          "column": 0,
+          "end": 137,
+          "parameters": [
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "使用LLM分析自然语言查询，提取关键实体和意图",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/ERR-004: Uses the real async model client, validates extracted JSON and retains the existing logged keyword fallback plus bounded caching; cancellation is not converted into successful fallback."
+          ]
+        },
+        {
+          "name": "_create_fallback_analysis",
+          "kind": "function",
+          "line": 140,
+          "column": 0,
+          "end": 149,
+          "parameters": [
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "创建回退分析结果",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Builds the complete supported keyword-only analysis shape from the actual query and extracted keywords, keeping failure fallback distinct from unknown/unvalidated model fields."
+          ]
+        },
+        {
+          "name": "extract_keywords",
+          "kind": "function",
+          "line": 152,
+          "column": 0,
+          "end": 161,
+          "parameters": [
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "使用正则表达式从查询中提取关键词（回退方法）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Extracts concrete non-stopword text tokens for the existing matching fallback; no extra NLP dependency or parser framework is needed."
+          ]
+        },
+        {
+          "name": "find_relevant_tables_semantic",
+          "kind": "async_function",
+          "line": 164,
+          "column": 0,
+          "end": 232,
+          "parameters": [
+            "query",
+            "query_analysis",
+            "all_tables"
+          ],
+          "decorators": [],
+          "declared_role": "使用LLM进行语义匹配找到相关表",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Validates model ranking IDs against the actual available tables, applies real domain boosts and now sorts descending by final score before the later max-table cap."
+          ]
+        },
+        {
+          "name": "find_relevant_tables_semantic.<lambda>@227:44",
+          "kind": "lambda",
+          "line": 227,
+          "column": 44,
+          "end": 227,
+          "parameters": [
+            "table_score"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: New local sorted key selects the actual boosted tuple score; this ensures high-ranked domain candidates are not appended after lower-scored model entries."
+          ]
+        },
+        {
+          "name": "basic_table_matching",
+          "kind": "function",
+          "line": 235,
+          "column": 0,
+          "end": 262,
+          "parameters": [
+            "query",
+            "all_tables"
+          ],
+          "decorators": [],
+          "declared_role": "基本关键词匹配回退方法",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Existing fallback combines actual domain/table-name/description keywords and returns bounded descending relevance scores."
+          ]
+        },
+        {
+          "name": "basic_table_matching.<lambda>@262:39",
+          "kind": "lambda",
+          "line": 262,
+          "column": 39,
+          "end": 262,
+          "parameters": [
+            "table_score"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Local sorted callback selects the concrete keyword matching score from each (table_id,score) pair."
+          ]
+        },
+        {
+          "name": "format_schema_for_prompt",
+          "kind": "function",
+          "line": 265,
+          "column": 0,
+          "end": 309,
+          "parameters": [
+            "schema_context"
+          ],
+          "decorators": [],
+          "declared_role": "将表结构上下文格式化为LLM提示的字符串",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Formats the actual selected table/column/relationship snapshot for the service prompt; its comment-style representation has actual callers distinct from the runtime's DDL-style formatter."
+          ]
+        },
+        {
+          "name": "get_value_mappings",
+          "kind": "function",
+          "line": 312,
+          "column": 0,
+          "end": 330,
+          "parameters": [
+            "db",
+            "schema_context"
+          ],
+          "decorators": [],
+          "declared_role": "获取表结构上下文中列的值映射",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/RES-001: Reads actual selected-column mappings inside the caller-owned Session and preserves explicit persisted values over domain synonyms; detached plain dictionaries leave the worker."
+          ]
+        },
+        {
+          "name": "process_sql_with_value_mappings",
+          "kind": "function",
+          "line": 333,
+          "column": 0,
+          "end": 378,
+          "parameters": [
+            "sql",
+            "value_mappings",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "替换自然语言术语，并只为 MySQL 修正支持的 text 类型转换。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-003/NAM-001: Uses literal escaped schema/value terms, preserves the established MySQL default and now accepts the actual db_type keyword so PostgreSQL casts are not rewritten into another engine's syntax."
+          ]
+        },
+        {
+          "name": "process_sql_with_value_mappings.replace_value",
+          "kind": "function",
+          "line": 353,
+          "column": 12,
+          "end": 358,
+          "parameters": [
+            "match",
+            "replacement"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: Regex callback binds the current replacement value in its default argument, escapes SQL quotes and preserves the existing LIKE wildcard mapping; it avoids numeric regex backreference corruption."
+          ]
+        },
+        {
+          "name": "process_sql_with_value_mappings.replace_text_cast",
+          "kind": "function",
+          "line": 367,
+          "column": 4,
+          "end": 369,
+          "parameters": [
+            "match"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "NAM-001/FUN-005: Renamed _replace_metadata_cast to match its actual generic qualified-column text-cast use; it emits the existing CAST(... AS CHAR) only in the MySQL branch."
+          ]
+        },
+        {
+          "name": "validate_sql",
+          "kind": "function",
+          "line": 381,
+          "column": 0,
+          "end": 413,
+          "parameters": [
+            "sql"
+          ],
+          "decorators": [],
+          "declared_role": "检查单条 SELECT 查询边界；具体语法由数据库验证。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Conservative policy now requires exactly one parsed SELECT and rejects INTO in addition to existing dangerous keywords/semicolon/optional-UNION checks; only SQLParseError is a normal validation failure and unexpected programming faults propagate."
+          ]
+        },
+        {
+          "name": "extract_sql_from_llm_response",
+          "kind": "function",
+          "line": 416,
+          "column": 0,
+          "end": 449,
+          "parameters": [
+            "response"
+          ],
+          "decorators": [],
+          "declared_role": "从LLM响应中提取SQL查询",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: Extracts an actual SQL/code block or SELECT text without globally removing literal backticks; execution callers still validate the extracted candidate before driver access."
+          ]
+        },
+        {
+          "name": "snapshot_schema",
+          "kind": "function",
+          "line": 452,
+          "column": 0,
+          "end": 473,
+          "parameters": [
+            "db",
+            "connection_id"
+          ],
+          "decorators": [],
+          "declared_role": "Read metadata into plain values while the caller owns the Session.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/FUN-001: Reads the connection-scoped metadata into plain values while its caller owns the ORM Session; relationships are kept only when both endpoint tables/columns belong to that snapshot."
+          ]
+        },
+        {
+          "name": "select_relevant_schema",
+          "kind": "async_function",
+          "line": 476,
+          "column": 0,
+          "end": 495,
+          "parameters": [
+            "snapshot",
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "Rank an already detached metadata snapshot on the model client's loop.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/FUN-001: Ranks an already detached snapshot on the model loop, applies the real positive configured table cap and filters columns/relationships to selected identities."
+          ]
+        }
+      ],
+      "changes": [
+        "Sorts semantic rankings after domain boosting before callers apply the max-table limit.",
+        "process_sql_with_value_mappings has explicit db_type keyword with the real existing MySQL default; other engines retain native ::text syntax.",
+        "Renamed the generic text-cast callback to replace_text_cast and corrected its comments.",
+        "validate_sql requires one parsed statement and rejects INTO; docstring accurately describes the SELECT policy rather than claiming full SQL syntax validation."
+      ],
+      "limitations": [
+        "SQL validation remains the existing conservative SELECT/keyword policy, not a full dialect-aware SQL grammar validator. No database query, model call or SQL parser behavior was executed.",
+        "Value mapping remains the existing simple predicate/identifier rewrite; no general SQL rewriting framework was introduced."
+      ],
+      "removed_definitions": [
+        {
+          "name": "process_sql_with_value_mappings._replace_metadata_cast",
+          "replacement": "process_sql_with_value_mappings.replace_text_cast",
+          "reason": "NAM-001: The same callback handles other qualified columns as well as metadata.",
+          "review": "reviewed",
+          "notes": [
+            "NAM-001: The same callback handles other qualified columns as well as metadata."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/agents/chatdb/types.py",
+      "summary": "Reviewed all runtime enums and name/default constants; removed an unused duplicate topic dictionary while preserving registered and serialized enum values.",
+      "definitions": [
+        {
+          "name": "AgentTypes",
+          "kind": "class",
+          "line": 8,
+          "column": 0,
+          "end": 15,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "智能体类型枚举",
+          "bases": [
+            "Enum"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "NAM-006: Enum supplies the actual concrete agent identities used by display names and runtime constructor configuration; established values remain intact."
+          ]
+        },
+        {
+          "name": "TopicTypes",
+          "kind": "class",
+          "line": 18,
+          "column": 0,
+          "end": 26,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "主题类型枚举",
+          "bases": [
+            "Enum"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "NAM-006/FUN-005: Enum supplies the actual registered/published AutoGen topics used directly by every stage and collector."
+          ]
+        },
+        {
+          "name": "DatabaseTypes",
+          "kind": "class",
+          "line": 29,
+          "column": 0,
+          "end": 35,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "数据库类型枚举",
+          "bases": [
+            "Enum"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "NAM-006: Existing declared database-name constants remain for injected runtime dialect selection; they do not fabricate db_service connection support for unimplemented engines."
+          ]
+        }
+      ],
+      "changes": [
+        "Removed unused TOPIC_TYPES dictionary after checking all source, tests, examples, scripts and docs; all real callers already use TopicTypes directly."
+      ],
+      "limitations": []
+    },
+    {
+      "path": "app/agents/chatdb/visualization_recommender.py",
+      "summary": "Reviewed typed visualization configuration, pure prompt/JSON adapters and the complete routed result flow; fixed role text is now a class constant while actual optional table fallback remains visible.",
+      "definitions": [
+        {
+          "name": "VisualizationConfig",
+          "kind": "class",
+          "line": 21,
+          "column": 0,
+          "end": 23,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005: Pydantic boundary restricts actual supported visualization type values and requires configuration data before it is sent to the UI."
+          ]
+        },
+        {
+          "name": "VisualizationRecommenderAgent",
+          "kind": "class",
+          "line": 27,
+          "column": 0,
+          "end": 254,
+          "parameters": [],
+          "decorators": [
+            "type_subscription(topic_type=TopicTypes.VISUALIZATION_RECOMMENDER.value)"
+          ],
+          "declared_role": "可视化推荐智能体，负责建议合适的可视化方式",
+          "bases": [
+            "BaseAgent"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/FUN-005: Concrete runtime capability owns actual model/dialect/prompt state and transforms SqlResultMessage data into the established result fields."
+          ]
+        },
+        {
+          "name": "VisualizationRecommenderAgent.__init__",
+          "kind": "function",
+          "line": 30,
+          "column": 4,
+          "end": 43,
+          "parameters": [
+            "self",
+            "model_client_instance",
+            "db_type"
+          ],
+          "decorators": [],
+          "declared_role": "初始化可视化推荐智能体",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/NAM-006: Initializes the real runtime description/base configuration and stores SYSTEM_PROMPT instead of calling a method that only returns fixed text."
+          ]
+        },
+        {
+          "name": "VisualizationRecommenderAgent._prepare_task",
+          "kind": "function",
+          "line": 129,
+          "column": 4,
+          "end": 154,
+          "parameters": [
+            "message"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "准备任务描述",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-001: Static pure formatter includes the actual query, SQL and JSON result records in the model request."
+          ]
+        },
+        {
+          "name": "VisualizationRecommenderAgent._parse_visualization_config",
+          "kind": "function",
+          "line": 157,
+          "column": 4,
+          "end": 179,
+          "parameters": [
+            "content",
+            "fallback_results"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "解析可视化配置",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/ERR-004: Validates actual model JSON through VisualizationConfig and preserves the existing visibly logged table/column fallback only for invalid model configuration."
+          ]
+        },
+        {
+          "name": "VisualizationRecommenderAgent.handle_message",
+          "kind": "async_function",
+          "line": 182,
+          "column": 4,
+          "end": 254,
+          "parameters": [
+            "self",
+            "message",
+            "ctx"
+          ],
+          "decorators": [
+            "message_handler"
+          ],
+          "declared_role": "处理接收到的消息，推荐可视化方式",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/ASY-001: Required routed callback distinguishes SQL failure/no data/table/chart modes, awaits the real model and preserves all SQL/explanation/results/visualization response serialization fields."
+          ]
+        }
+      ],
+      "changes": [
+        "Replaced _build_prompt with VisualizationRecommenderAgent.SYSTEM_PROMPT.",
+        "Constructor keyword now correctly names AutoGen description."
+      ],
+      "limitations": [],
+      "removed_definitions": [
+        {
+          "name": "VisualizationRecommenderAgent._build_prompt",
+          "replacement": "VisualizationRecommenderAgent.SYSTEM_PROMPT",
+          "reason": "NAM-006/DES-001: Fixed role instructions are data; _prepare_task remains the actual parameterized formatter.",
+          "review": "reviewed",
+          "notes": [
+            "NAM-006/DES-001: Fixed role instructions are data; _prepare_task remains the actual parameterized formatter."
+          ]
+        }
+      ]
+    }
+  ],
+  "excluded_files": [
+    {
+      "path": "app/agents/chatdb/text2sql_service.py",
+      "reason": "Root agent's separate exclusive review/edit scope; read here only to inspect contracts and callers."
+    }
+  ],
+  "verification": {
+    "source_inventory_only": true,
+    "not_executed": [
+      "tests",
+      "lint",
+      "build",
+      "compile",
+      "application imports",
+      "services",
+      "browser",
+      "database, API or model calls"
+    ],
+    "reason": "User explicitly requested source-only audit without test/runtime execution."
+  }
+}

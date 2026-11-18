@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import logging
 import asyncio
+from collections.abc import AsyncIterator, Iterable
 from app.utils.lifecycle import close_with_timeout
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -14,9 +15,10 @@ from autogen_agentchat.base import TaskResult
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.messages import TextMessage, ModelClientStreamingChunkEvent, ToolCallRequestEvent, ToolCallExecutionEvent
+from autogen_core.models import ChatCompletionClient
 
 from app.agents.framework.common import autogen_memory_store
-from app.models.base import FinalAnswer
+from app.models.policy import FinalAnswer
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ class AgentChatTeam:
     def __init__(
         self,
         *,
-        model_client,
+        model_client: ChatCompletionClient,
         knowledge_tool: Callable[[str], Any],
         graph_tool: Callable[[str], Any],
         rule_tool: Callable[[str], Any],
@@ -134,14 +136,15 @@ class AgentChatTeam:
             )
             return final, debug
 
-    def _extract_tool_traces(self, messages) -> Dict[str, Any]:
+    @staticmethod
+    def _extract_tool_traces(messages: Iterable[Any]) -> Dict[str, Any]:
         calls: list[str] = []
         for message in messages:
             if isinstance(message, (ToolCallRequestEvent, ToolCallExecutionEvent)):
                 calls.extend(item.name for item in message.content)
         return {"calls": calls, "count": len(calls), "primary_tool": calls[0] if calls else None}
 
-    async def run_stream(self, session_id: str, query: str):
+    async def run_stream(self, session_id: str, query: str) -> AsyncIterator[Dict[str, Any]]:
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             started_at = time.perf_counter()

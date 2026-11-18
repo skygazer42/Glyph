@@ -5,9 +5,6 @@
 from __future__ import annotations
 
 import asyncio
-from functools import partial
-
-from app.utils.lifecycle import close_with_timeout
 import logging
 import time
 import uuid
@@ -15,7 +12,10 @@ from copy import deepcopy
 from threading import RLock
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from functools import partial
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from app.utils.lifecycle import close_with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -293,10 +293,12 @@ class SessionManager:
                 if current_time - session.last_active > self.timeout
             ]
             for session_id in expired:
-                self.delete_session(session_id)
+                # Expiry evicts the cache; only an explicit delete removes saved history.
+                del self.sessions[session_id]
+                self.message_queues.pop(session_id, None)
                 logger.info("清理过期会话: %s", session_id)
 
-    async def start_cleanup_task(self) -> None:
+    async def _run_cleanup(self) -> None:
         logger.info("启动会话自动清理任务")
         while True:
             try:
@@ -310,7 +312,7 @@ class SessionManager:
 
     def start(self) -> None:
         if self._cleanup_task is None or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self.start_cleanup_task())
+            self._cleanup_task = asyncio.create_task(self._run_cleanup())
 
     async def stop(self) -> None:
         if self._cleanup_task is not None:

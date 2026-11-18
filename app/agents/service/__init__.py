@@ -1,5 +1,1 @@
-"""Agent service package."""
-
-from .agent_service import AgentService
-
-__all__ = ["AgentService"]
+"""AgentService and its conversation integrations."""

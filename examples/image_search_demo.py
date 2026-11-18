@@ -3,27 +3,23 @@
 快速演示图片检索功能
 """
 
-import sys
-import traceback
 from pathlib import Path
 
-# 添加项目路径
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+from app.knowledge.hierarchical_index import HierarchicalRetriever
 
-from app.knowledge.hierarchical_index import HierarchicalRetriever  # noqa: E402 - executable script bootstraps the repository path
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def demo_image_search():
+def demo_image_search() -> None:
     """演示图片搜索"""
 
     # 存储目录（假设已构建索引）
-    storage_dir = str(project_root / "storage/policy_index")
+    storage_dir = str(PROJECT_ROOT / "storage/policy_index")
 
     # 检查索引是否存在
     if not Path(storage_dir).exists():
         print("❌ 索引不存在，请先构建索引：")
-        print("python scripts/4_embed_documents.py")
+        print("python -m scripts.embed_documents")
         return
 
     print("="*60)
@@ -123,9 +119,6 @@ def demo_image_search():
             if not image_only and results['text_nodes']:
                 print(f"\n另有 {len(results['text_nodes'])} 个文本结果")
 
-    except Exception as e:
-        print(f"\n❌ 出错: {e}")
-        traceback.print_exc()
     finally:
         if retriever is not None:
             retriever.close()

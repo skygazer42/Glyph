@@ -16,7 +16,7 @@ from autogen_core.models import UserMessage
 from app.agents.service.tools import KnowledgeTool, WebSearchTool
 from app.config.app_config import settings
 from app.core.llms import model_client
-from app.models.base import FinalAnswer, PolicyDocument, PolicyType
+from app.models.policy import FinalAnswer, PolicyDocument, PolicyType
 from app.agents.domain.policy_domain import PolicyDomainContext
 
 
@@ -237,9 +237,7 @@ class KnowledgeAgent:
         query: str,
         domain_context: Optional[PolicyDomainContext],
     ) -> Tuple[List[PolicyDocument], List[float], str]:
-        filters: Dict[str, Any] = {}
-        if domain_context and domain_context.region:
-            filters["region"] = domain_context.region
+        # shortcut: 地区只参与检索文本；索引存入地区字段后再加入硬过滤。
         variants = []
         if domain_context:
             variants.extend(domain_context.search_variants)
@@ -250,7 +248,7 @@ class KnowledgeAgent:
             if not candidate or candidate in seen:
                 continue
             seen.add(candidate)
-            docs, scores = await self._search_knowledge(candidate, filters=filters)
+            docs, scores = await self._search_knowledge(candidate)
             if docs:
                 return docs, scores, candidate
         return [], [], query

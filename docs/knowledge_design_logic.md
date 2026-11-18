@@ -16,7 +16,7 @@
   - 可配合 `MinerUAdapter`、OCR、批处理脚本使用。
 
 - 常用脚本：
-  - `scripts/5_embed_process_documents.py`
+  - `scripts/embed_process_documents.py`
     - 从目录（默认 `resources/data/process`）遍历文件；
     - 调用 `DocumentLoader.iter_documents_from_directory` 生成 `PolicyDocument`。
 
@@ -53,7 +53,7 @@
   LLAMAINDEX_CHUNK_OVERLAP=150                 # 相邻块的重叠字符数
   ```
 
-> 实际构建时，`scripts/4_embed_documents.py` 会根据这些配置，调用 `HierarchicalMarkdownProcessor` 按设定策略分块。
+> 实际构建时，`scripts/embed_documents.py` 会根据这些配置，调用 `HierarchicalMarkdownProcessor` 按设定策略分块。
 
 ---
 
@@ -75,7 +75,7 @@
 - 典型脚本：
   ```bash
   # 离线方式：从 Markdown 目录构建分级索引
-  python scripts/4_embed_documents.py \
+  python -m scripts.embed_documents \
     --data-dir resources/data/process \
     --storage-dir resources/storage/hierarchical
   ```
@@ -95,14 +95,16 @@
 - 存储层：`app/knowledge/milvus.py:MilvusStore`
   - 负责集合创建、写入向量、按相似度检索。
 
-- 统一入口：`KnowledgeService.index_documents`：
+- 完整快照入口：`KnowledgeService.index_documents`：
   - 把 `PolicyDocument` 列表写入 Milvus（embedding 模型由 `settings.embedding` 配置）；
   - 在 Hybrid 打开的情况下，同时调用 `LlamaIndexIntegration.build_index_from_documents` 用同一批文档刷新分级索引。
 
+  分级构建会替换整个快照，需要提供全量语料。分批追加使用 `KnowledgeTool.ingest` 或下方脚本，只向 Milvus 添加文档；分级索引由 `python -m scripts.embed_documents` 独立构建，避免最后一批覆盖已有快照。
+
 - 常用脚本：
   ```bash
-  # 使用 KnowledgeService 统一写入向量库（推荐）
-  python scripts/5_embed_process_documents.py --input-dir resources/data/process
+  # 分批追加向量，保留独立构建的分级快照
+  python -m scripts.embed_process_documents --input-dir resources/data/process
   ```
 
 - `.env` 配置：

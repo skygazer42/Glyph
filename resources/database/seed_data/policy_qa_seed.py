@@ -4,6 +4,7 @@
 """
 
 import json
+from pathlib import Path
 
 # ==================== 汽车消费补贴 QA 对 ====================
 
@@ -231,7 +232,7 @@ ALL_QA_PAIRS = {
 
 # ==================== 导出为 JSON ====================
 
-def export_qa_to_json(output_file="policy_qa_初始数据.json"):
+def export_qa_to_json(output_file: str | Path = "policy_qa_初始数据.json") -> str | Path:
     """导出QA对为JSON格式"""
     all_qa = []
     for qa_list in ALL_QA_PAIRS.values():
@@ -249,8 +250,8 @@ def export_qa_to_json(output_file="policy_qa_初始数据.json"):
         "qa_pairs": all_qa
     }
 
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    with open(output_file, 'w', encoding='utf-8') as output:
+        json.dump(data, output, ensure_ascii=False, indent=2)
 
     print(f"✅ 已导出 {len(all_qa)} 个QA对到 {output_file}")
     return output_file

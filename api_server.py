@@ -5,7 +5,7 @@ FastAPI 后端服务
 
 import logging
 from contextlib import AsyncExitStack, asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
 # Endpoints initialize clients after environment and logging setup.
-from app.api.endpoints import agent, dsl, knowledge, uploads, knowledge_graph, db_connections  # noqa: E402
+from app.api.endpoints import agent, auth, dsl, knowledge, uploads, knowledge_graph, db_connections  # noqa: E402
+from app.core.access import require_staff  # noqa: E402
 from app.api.schemas import HealthResponse  # noqa: E402
 from app.utils.lifecycle import close_with_timeout  # noqa: E402
 from app.api.deps import close_dependencies, get_session_manager  # noqa: E402
@@ -79,12 +80,13 @@ app.add_middleware(
 )
 
 # 注册路由
+app.include_router(auth.router, prefix="/api")
 app.include_router(agent.router, prefix="/api/agent", tags=["Agent 问答"])
-app.include_router(dsl.router, prefix="/api/dsl", tags=["DSL 生成"])
-app.include_router(knowledge.router, prefix="/api/knowledge", tags=["知识库"])
+app.include_router(dsl.router, prefix="/api/dsl", tags=["DSL 生成"], dependencies=[Depends(require_staff)])
+app.include_router(knowledge.router, prefix="/api/knowledge", tags=["知识库"], dependencies=[Depends(require_staff)])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["附件上传"])
-app.include_router(knowledge_graph.router, prefix="/api/knowledge-graph", tags=["知识图谱"])
-app.include_router(db_connections.router, prefix="/api/db", tags=["数据库连接"])
+app.include_router(knowledge_graph.router, prefix="/api/knowledge-graph", tags=["知识图谱"], dependencies=[Depends(require_staff)])
+app.include_router(db_connections.router, prefix="/api/db", tags=["数据库连接"], dependencies=[Depends(require_staff)])
 
 # ==================== 健康检查 ====================
 

@@ -167,10 +167,11 @@ import {
   CopyDocument,
   MoreFilled
 } from '@element-plus/icons-vue'
-import { useSessionList } from '@/composables/useLocalStorage'
+import { useSessionList, conversationStorage, conversationStorageKey } from '@/composables/useLocalStorage'
 
 // Props & Emits
-defineProps({
+const props = defineProps({
+  scope: { type: String, default: 'public' },
   currentSessionId: {
     type: String,
     default: null
@@ -180,7 +181,7 @@ defineProps({
 const emit = defineEmits(['session-change', 'session-create', 'session-delete'])
 
 // State
-const { sessions, upsertSession, removeSession, clearAll } = useSessionList()
+const { sessions, upsertSession, removeSession, clearAll } = useSessionList(props.scope)
 const searchQuery = ref('')
 const renameDialogVisible = ref(false)
 const newSessionTitle = ref('')
@@ -277,6 +278,7 @@ const duplicateSession = (session) => {
   const duplicated = {
     ...session,
     id: newSessionId,
+    serverId: null,
     title: `${session.title} (副本)`,
     createdAt: new Date().toISOString(),
     lastActive: new Date().toISOString()
@@ -284,15 +286,16 @@ const duplicateSession = (session) => {
 
   try {
     // 先复制历史，失败时不创建缺失历史的会话条目。
-    const originalMessages = localStorage.getItem(`chat_history_${session.id}`)
+    const storage = conversationStorage(props.scope)
+    const originalMessages = storage.getItem(conversationStorageKey(props.scope, `chat_history_${session.id}`))
     if (originalMessages) {
-      localStorage.setItem(`chat_history_${newSessionId}`, originalMessages)
+      storage.setItem(conversationStorageKey(props.scope, `chat_history_${newSessionId}`), originalMessages)
     }
     upsertSession(duplicated)
     ElMessage.success('已复制对话')
   } catch {
     try {
-      localStorage.removeItem(`chat_history_${newSessionId}`)
+      conversationStorage(props.scope).removeItem(conversationStorageKey(props.scope, `chat_history_${newSessionId}`))
     } catch {
       // 已报告复制失败；受限存储也可能阻止清理未关联的副本。
     }
@@ -415,9 +418,9 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: var(--wb-surface);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -427,7 +430,7 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(to bottom, #ffffff, #fafbfc);
+  background: var(--wb-surface);
 }
 
 .header-title {
@@ -468,13 +471,13 @@ defineExpose({
 }
 
 .session-item:hover {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-  border-color: rgba(102, 126, 234, 0.2);
+  background: var(--wb-tint);
+  border-color: var(--wb-line);
 }
 
 .session-item.active {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border-color: var(--primary-color);
+  background: var(--wb-blue-soft);
+  border-color: var(--wb-blue);
   box-shadow: var(--shadow-sm);
 }
 
@@ -533,7 +536,7 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.7;
+  opacity: 1;
 }
 
 .session-actions {
@@ -550,7 +553,7 @@ defineExpose({
 .session-footer {
   padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--border-color);
-  background: linear-gradient(to top, #ffffff, #fafbfc);
+  background: var(--wb-surface);
 }
 
 /* 暗色模式 */
@@ -560,7 +563,7 @@ defineExpose({
 
 [data-theme="dark"] .session-header,
 [data-theme="dark"] .session-footer {
-  background: linear-gradient(to bottom, #2d3748, #1a202c);
+  background: var(--wb-surface);
   border-color: rgba(255, 255, 255, 0.1);
 }
 

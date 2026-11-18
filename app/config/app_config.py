@@ -1,9 +1,9 @@
-"""
+﻿"""
 Gove项目配置设置
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, AliasChoices
 from dotenv import load_dotenv
@@ -50,6 +50,13 @@ class ModelSettings(BaseSettings):
     llm_model_name: str = Field(default="deepseek-chat", validation_alias=AliasChoices('LLM_MODEL_NAME', 'llm_model_name'))
     llm_temperature: float = Field(default=0, validation_alias=AliasChoices('LLM_TEMPERATURE', 'llm_temperature'))
     llm_ctx_buffer_size: int = Field(default=10, validation_alias=AliasChoices('LLM_CTX_BUFFER_SIZE', 'llm_ctx_buffer_size'))
+    llm_max_tokens: int | None = Field(
+        default=None, ge=1, validation_alias=AliasChoices("LLM_MAX_TOKENS", "llm_max_tokens")
+    )
+    llm_timeout: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False,
+        validation_alias=AliasChoices("LLM_TIMEOUT", "llm_timeout"),
+    )
 
 
 class EmbeddingSettings(BaseSettings):
@@ -130,7 +137,6 @@ class RerankerSettings(BaseSettings):
     top_n: int = Field(default=5, ge=1, validation_alias=AliasChoices('RERANKER_TOP_N', 'top_n'))
     timeout: int = Field(default=30, ge=1, validation_alias=AliasChoices('RERANKER_TIMEOUT', 'timeout'))
     return_documents: bool = Field(default=False, validation_alias=AliasChoices('RERANKER_RETURN_DOCUMENTS', 'return_documents'))
-    normalize_scores: bool = Field(default=False, validation_alias=AliasChoices('RERANKER_NORMALIZE_SCORES', 'normalize_scores'))
 
     # DashScope specific settings
     dashscope_api_key: Optional[str] = Field(default=None, validation_alias=AliasChoices('DASHSCOPE_API_KEY', 'dashscope_api_key'))
@@ -174,7 +180,7 @@ class MinerUSettings(BaseSettings):
     )
 
     # 运行模式: "official", "local", "auto"
-    mode: str = Field(
+    mode: Literal["auto", "local", "official"] = Field(
         default="auto",
         validation_alias=AliasChoices("MINERU_MODE", "MINERU__MODE"),
     )
@@ -283,15 +289,9 @@ class MinerUSettings(BaseSettings):
 
     def get_effective_base_url(self) -> str:
         """获取有效的基础 URL（根据模式）"""
-        if self.mode == "official":
+        if self.get_effective_mode() == "official":
             return self.official_base_url
-        elif self.mode == "local":
-            return self.api_base_url
-        else:  # auto
-            # 有 API Key 使用官方，否则使用本地
-            if self.api_key:
-                return self.official_base_url
-            return self.api_base_url
+        return self.api_base_url
 
     def get_effective_mode(self) -> str:
         """获取有效的运行模式"""
@@ -415,12 +415,14 @@ class SecuritySettings(BaseSettings):
         "env_nested_delimiter": "__"
     }
 
-    jwt_secret_key: str = Field(default="dev-secret")
+    jwt_secret_key: str | None = Field(default=None)
     jwt_algorithm: str = Field(default="HS256")
-    jwt_access_token_exp_minutes: int = Field(default=60)
-    api_default_username: str = Field(default="admin")
-    api_default_password: str = Field(default="admin123")
+    jwt_access_token_exp_minutes: int = Field(default=60, ge=1)
+    api_default_username: str | None = Field(default=None)
+    api_default_password: str | None = Field(default=None)
     api_default_fullname: str = Field(default="Administrator")
+    auth_cookie_secure: bool = Field(default=False)
+    public_session_exp_hours: int = Field(default=24, ge=1)
     rate_limit_query_times: int = Field(default=30)
     rate_limit_query_seconds: int = Field(default=60)
     rate_limit_docs_times: int = Field(default=5)
@@ -454,8 +456,3 @@ class Settings(BaseSettings):
 
 # 创建全局配置实例
 settings = Settings()
-
-# 确保必要的目录存在
-settings.system.data_dir.mkdir(parents=True, exist_ok=True)
-settings.system.logs_dir.mkdir(parents=True, exist_ok=True)
-Path(settings.llamaindex.storage_dir).mkdir(parents=True, exist_ok=True)

@@ -61,8 +61,10 @@ def _echo_result(payload: Dict[str, Any]) -> None:
 
 
 def _load_inputs(payload: str) -> Dict[str, Any]:
-    candidate = Path(payload)
-    data = json.loads(candidate.read_text(encoding="utf-8")) if candidate.exists() else json.loads(payload)
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        data = json.loads(Path(payload).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError("JSON inputs must be an object")
     return data

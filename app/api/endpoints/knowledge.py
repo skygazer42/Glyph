@@ -15,7 +15,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 
-from app.api.schemas import (
+from app.schemas.knowledge import (
     EmbedRequest,
     EmbedResponse,
     ParseRequest,
@@ -39,26 +39,17 @@ from app.api.deps import (
 from app.knowledge.doc_enhanced import EnhancedDocumentProcessor
 from app.knowledge.service import KnowledgeService
 from app.knowledge.document_workspace import DocumentWorkspace, SUPPORTED_FORMATS, atomic_write, safe_document_id
-from app.models.base import PolicyDocument, PolicyType
+from app.models.policy import PolicyDocument, PolicyType
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # 上传目录
 UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
 PARSED_DIR = UPLOAD_DIR / "parsed"
-PARSED_DIR.mkdir(parents=True, exist_ok=True)
 STATUS_DIR = UPLOAD_DIR / ".status"
-STATUS_DIR.mkdir(parents=True, exist_ok=True)
 PARSED_STATUS_DIR = STATUS_DIR / "parsed"
-PARSED_STATUS_DIR.mkdir(parents=True, exist_ok=True)
 EMBED_STATUS_DIR = STATUS_DIR / "embedded"
-EMBED_STATUS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _safe_doc_id(raw_id: str) -> str:
-    return safe_document_id(raw_id)
 
 
 def _workspace() -> DocumentWorkspace:
@@ -90,6 +81,7 @@ def _selected_processor(config: ProcessingConfig, processor: EnhancedDocumentPro
 
 def _save_upload(file_path: Path, source: BinaryIO) -> tuple[int, int]:
     """Keep file creation, copying and closing in the same worker thread."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     identity = None
     try:
         with open(file_path, "xb") as buffer:
@@ -142,7 +134,7 @@ def _rollback_failed_upload(file_path: Path, identity: tuple[int, int], source_v
 
 def _write_status_marker(dir_path: Path, doc_id: str, payload: dict) -> Path:
     """将状态信息写入 marker 文件。"""
-    doc_id = _safe_doc_id(doc_id)
+    doc_id = safe_document_id(doc_id)
     marker_path = _workspace().marker_path(dir_path, doc_id)
     dir_path.mkdir(parents=True, exist_ok=True)
     payload_with_meta = {
@@ -156,7 +148,7 @@ def _write_status_marker(dir_path: Path, doc_id: str, payload: dict) -> Path:
 
 def _mark_embedded(doc_id: str, source_version: str, parsed_version: str, vector_id: str) -> None:
     """记录文档已嵌入的状态。"""
-    doc_id = _safe_doc_id(doc_id)
+    doc_id = safe_document_id(doc_id)
     _write_status_marker(
         EMBED_STATUS_DIR,
         doc_id,
@@ -166,7 +158,7 @@ def _mark_embedded(doc_id: str, source_version: str, parsed_version: str, vector
 
 def _remove_status_marker(dir_path: Path, doc_id: str) -> None:
     """删除对应的状态文件。"""
-    doc_id = _safe_doc_id(doc_id)
+    doc_id = safe_document_id(doc_id)
     marker = _workspace().marker_path(dir_path, doc_id)
     if marker.exists():
         marker.unlink()
@@ -241,7 +233,7 @@ def _build_policy_document_from_cache(
 
 def _embed_document_once(request: EmbedRequest, knowledge_service: KnowledgeService) -> EmbedResponse:
     """Keep the OS lock and all blocking work in one worker thread."""
-    doc_id = _safe_doc_id(request.doc_id)
+    doc_id = safe_document_id(request.doc_id)
     workspace = _workspace()
     with workspace.document_lock(doc_id, "embedding"):
         file_path = workspace.source_path(doc_id)
@@ -285,7 +277,7 @@ async def upload_document(
         # 保存文件
         if file.filename is None:
             raise HTTPException(status_code=400, detail="上传文件缺少文件名")
-        doc_id = _safe_doc_id(Path(file.filename).name)
+        doc_id = safe_document_id(Path(file.filename).name)
         if not doc_id:
             raise HTTPException(status_code=400, detail="上传文件缺少文件名")
         workspace = _workspace()
@@ -334,7 +326,7 @@ async def parse_document(
     """
     解析已上传的文档，生成 Markdown 缓存。
     """
-    safe_doc_id = _safe_doc_id(request.doc_id)
+    safe_doc_id = safe_document_id(request.doc_id)
     try:
         workspace = _workspace()
         file_path = await run_in_threadpool(workspace.source_path, safe_doc_id)
@@ -542,7 +534,7 @@ def delete_document(doc_id: str):
         删除结果
     """
     try:
-        safe_doc_id = _safe_doc_id(doc_id)
+        safe_doc_id = safe_document_id(doc_id)
         workspace = _workspace()
         file_path = workspace.source_path(safe_doc_id, must_exist=False)
         if file_path.exists():

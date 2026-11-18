@@ -12,7 +12,7 @@ UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 
 class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    def __init__(self, model: Type[ModelType]):
+    def __init__(self, model: Type[ModelType]) -> None:
         """
         CRUD object with default methods to Create, Read, Update, Delete (CRUD).
 
@@ -66,7 +66,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db.refresh(db_obj)
         return db_obj
 
-    def remove(self, db: Session, *, id: int) -> Optional[ModelType]:
+    def remove(self, db: Session, *, id: Any) -> Optional[ModelType]:
         obj = db.get(self.model, id)
         if obj is None:
             return None

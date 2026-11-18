@@ -21,16 +21,16 @@ logger = logging.getLogger(__name__)
 class BaseAgent(RoutedAgent, ABC):
     """所有智能体的基类，提供共享功能"""
 
-    def __init__(self, agent_id: str, agent_name: str, model_client_instance=None, db_type=None):
+    def __init__(self, description: str, agent_name: str, model_client_instance=None, db_type=None):
         """初始化基础智能体
 
         Args:
-            agent_id: 智能体ID
+            description: 传给 AutoGen 的智能体描述，运行时负责分配智能体ID
             agent_name: 智能体名称（用于显示）
             model_client_instance: 模型客户端实例，如果为None则使用全局model_client
             db_type: 数据库类型，如果为None则使用默认DB_TYPE
         """
-        super().__init__(agent_id)
+        super().__init__(description=description)
         self.agent_name = agent_name
         self.model_client = model_client if model_client_instance is None else model_client_instance
         self.db_type = DEFAULT_DB_TYPE if db_type is None else db_type
@@ -119,48 +119,6 @@ class BaseAgent(RoutedAgent, ABC):
                 db_schema_str += f"-- {rel['source_table']}.{rel['source_column']} -> {rel['target_table']}.{rel['target_column']} ({rel['relationship_type'] or 'unknown'})\n"
 
         return db_schema_str
-
-    @staticmethod
-    def format_schema_as_markdown(schema_context: Dict[str, Any]) -> str:
-        """将表结构信息格式化为Markdown，适用于LLM提示中
-
-        Args:
-            schema_context: 表结构信息字典
-
-        Returns:
-            str: 格式化后的Markdown字符串
-        """
-        if not schema_context or not schema_context['tables']:
-            return ""
-
-        schema_info = "\n## 相关表结构\n"
-
-        # 添加表信息
-        for table in schema_context['tables']:
-            table_name = table['name']
-            table_desc = f" - {table['description']}" if table['description'] else ""
-            schema_info += f"### 表: {table_name}{table_desc}\n"
-
-            # 添加列信息
-            columns = [col for col in schema_context['columns'] if col['table_name'] == table_name]
-            if columns:
-                schema_info += "| 列名 | 类型 | 主键 | 外键 | 描述 |\n"
-                schema_info += "| --- | --- | --- | --- | --- |\n"
-                for column in columns:
-                    pk = "是" if column['is_primary_key'] else "否"
-                    fk = "是" if column['is_foreign_key'] else "否"
-                    desc = column['description']
-                    schema_info += f"| {column['name']} | {column['type']} | {pk} | {fk} | {desc} |\n"
-            schema_info += "\n"
-
-        # 添加关系信息
-        if schema_context['relationships']:
-            schema_info += "### 表关系\n"
-            for rel in schema_context['relationships']:
-                rel_type = f" ({rel['relationship_type']})" if rel['relationship_type'] else ""
-                schema_info += f"- {rel['source_table']}.{rel['source_column']} -> {rel['target_table']}.{rel['target_column']}{rel_type}\n"
-
-        return schema_info
 
     @staticmethod
     def rebuild_memory_from_content(memory_content: List[Dict[str, Any]]) -> ListMemory:

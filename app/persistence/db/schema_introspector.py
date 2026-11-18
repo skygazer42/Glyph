@@ -21,11 +21,7 @@ from typing import Dict, List, Tuple
 import pymysql
 from sqlalchemy.orm import Session
 
-from app.models.db_connection import DBConnection
-from app.models.schema_table import SchemaTable
-from app.models.schema_column import SchemaColumn
-from app.models.schema_relationship import SchemaRelationship
-from app.models.value_mapping import ValueMapping
+from app.models.database import DBConnection, SchemaColumn, SchemaRelationship, SchemaTable, ValueMapping
 
 
 @dataclass

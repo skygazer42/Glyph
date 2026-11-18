@@ -14,7 +14,7 @@ from .schemas import (
     PowertrainType,
     TimeWindow,
     ApplianceCategory,
-    CouponType,
+    CouponDiscountType,
 
     # Schema类
     AutoSubsidySchema,
@@ -37,7 +37,7 @@ __all__ = [
     'PowertrainType',
     'TimeWindow',
     'ApplianceCategory',
-    'CouponType',
+    'CouponDiscountType',
 
     # Schema类
     'AutoSubsidySchema',

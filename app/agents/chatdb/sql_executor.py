@@ -8,9 +8,10 @@ from typing import Optional
 
 from autogen_core import message_handler, MessageContext, TopicId, type_subscription
 
-from app.persistence.db.dbaccess import DBAccess
+from app.persistence.db.access import DBAccess
 from app.schemas.text2sql import SqlExplanationMessage, SqlResultMessage
 from .base import BaseAgent
+from .text2sql_utils import extract_sql_from_llm_response, validate_sql
 from .types import AgentTypes, AGENT_NAMES, TopicTypes
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class SqlExecutorAgent(BaseAgent):
             db_access: 已连接的数据库访问对象，由调用方管理生命周期
         """
         super().__init__(
-            agent_id="sql_executor_agent",
+            description="sql_executor_agent",
             agent_name=AGENT_NAMES[AgentTypes.SQL_EXECUTOR.value],
             model_client_instance=model_client_instance,
             db_type=db_type
@@ -39,7 +40,9 @@ class SqlExecutorAgent(BaseAgent):
     async def _execute_sql(self, sql: str) -> tuple[list, Optional[str]]:
         """Execute on the injected connection and report query errors to the pipeline."""
         try:
-            cleaned_sql = sql.replace("```sql", "").replace("```", "").strip()
+            cleaned_sql = extract_sql_from_llm_response(sql).strip()
+            if not validate_sql(cleaned_sql):
+                raise ValueError("Only a single read-only SELECT query is allowed")
             results = await asyncio.to_thread(self.db_access.run_sql, cleaned_sql)
             return results.to_dict("records"), None
         except Exception as exc:

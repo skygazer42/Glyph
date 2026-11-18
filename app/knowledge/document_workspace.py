@@ -27,7 +27,7 @@ if sys.platform == "win32":
 else:
     import fcntl
 
-from app.api.schemas import (
+from app.schemas.knowledge import (
     ChunkingConfig,
     ChunkPreview,
     ChunkPreviewRequest,

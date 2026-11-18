@@ -3,15 +3,13 @@
 支持 Markdown 文档的多级索引（文档级 -> 章节级 -> 块级）
 """
 
+import hashlib
+import json
 import os
 import re
-import json
-import hashlib
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Dict, Optional
-from dataclasses import dataclass, field
-from openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
 
 from llama_index.core import (
     Document,
@@ -35,11 +33,13 @@ from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.response_synthesizers import get_response_synthesizer
 from llama_index.core.response_synthesizers.type import ResponseMode
+from llama_index.embeddings.openai import OpenAIEmbedding
+from openai import OpenAI
 
 from app.config.app_config import settings
 
-from .image_retrieval import ImageIndexer
-from .rerank import Reranker
+from app.knowledge.image_retrieval import ImageIndexer
+from app.knowledge.rerank import Reranker
 
 
 @dataclass
@@ -60,6 +60,12 @@ class ChunkConfig:
     min_chunk_size: int = 200
     max_chunk_size: int = 800
     keyword_context_window: int = 80
+
+    def __post_init__(self) -> None:
+        if self.chunk_size <= 0:
+            raise ValueError("chunk_size must be positive")
+        if not 0 <= self.chunk_overlap < self.chunk_size:
+            raise ValueError("chunk_overlap must be nonnegative and smaller than chunk_size")
 
 
 class HierarchicalMarkdownProcessor:
@@ -91,6 +97,9 @@ class HierarchicalMarkdownProcessor:
 
         for line in lines:
             match = self.heading_pattern.match(line)
+            if match and len(match.group(1)) >= 3:
+                current_content.append(line)
+                continue
             if match:
                 # 保存之前的内容
                 if current_content:
@@ -151,9 +160,6 @@ class HierarchicalMarkdownProcessor:
                             'path': f"文档内容 > {title}"
                         }
 
-                elif level >= 3:
-                    # 三级及更深的内容作为普通文本
-                    current_content.append(line)
             else:
                 current_content.append(line)
 
@@ -249,8 +255,11 @@ class HierarchicalMarkdownProcessor:
         # 处理图片（如果启用）
         if self.image_indexer is not None and md_path and md_content:
             images, img_nodes = self.image_indexer.process_markdown_with_images(md_path, md_content)
+            for image in images:
+                image.doc_id = hierarchy['doc_id']
             # 将图片节点转换为 TextNode
             for img_node in img_nodes:
+                img_node['metadata']['doc_id'] = hierarchy['doc_id']
                 image_text_node = TextNode(
                     text=img_node['content'],
                     id_=img_node['id'],
@@ -261,6 +270,7 @@ class HierarchicalMarkdownProcessor:
                     node_id=doc_node.id_,
                     metadata={'title': hierarchy['title']}
                 )
+                doc_children.append(RelatedNodeInfo(node_id=image_text_node.id_))
                 nodes.append(image_text_node)
 
         # 处理章节
@@ -303,7 +313,7 @@ class HierarchicalMarkdownProcessor:
             nodes.append(section_node)
 
             # 创建细粒度块
-            chunks = self._split_into_chunks(section_text, section_id, section['path'])
+            chunks = self._split_into_chunks(section_text)
             for chunk_idx, chunk_text in enumerate(chunks):
                 chunk_node = TextNode(
                     text=chunk_text,
@@ -330,7 +340,7 @@ class HierarchicalMarkdownProcessor:
         doc_node.relationships[NodeRelationship.CHILD] = doc_children
         return nodes
 
-    def _split_into_chunks(self, text: str, section_id: str, path: str) -> List[str]:
+    def _split_into_chunks(self, text: str) -> List[str]:
         """
         将文本切分为块
 
@@ -384,6 +394,8 @@ class HierarchicalMarkdownProcessor:
             chunk = text[start:end].strip()
             if chunk:
                 chunks.append(chunk)
+            if end == text_len:
+                break
 
             # 滑动窗口 - 确保窗口向前移动
             new_start = end - self.config.chunk_overlap
@@ -498,6 +510,7 @@ class HierarchicalMarkdownProcessor:
                     if sep_pos != -1:
                         chunk_start = sep_pos + len(sep)
                         break
+                chunks.extend(self._split_simple(text[current_start:chunk_start]))
 
             # 尝试包含后续的关键词（如果它们很近）
             chunk_end = kw_end + self.config.keyword_context_window
@@ -526,7 +539,7 @@ class HierarchicalMarkdownProcessor:
 
             # 提取chunk
             chunk_text = text[chunk_start:chunk_end].strip()
-            if len(chunk_text) >= self.config.min_chunk_size:
+            if chunk_text:
                 chunks.append(chunk_text)
 
             # 更新位置
@@ -541,6 +554,8 @@ class HierarchicalMarkdownProcessor:
             elif chunks:
                 # 如果剩余文本太短，合并到最后一个chunk
                 chunks[-1] += " " + remaining
+            elif remaining:
+                chunks.append(remaining)
 
         return chunks
 
@@ -605,7 +620,7 @@ class HierarchicalIndexBuilder:
 
             # 按类型分类
             for node in nodes:
-                node_type = node.metadata.get('type', '')
+                node_type = node.metadata['type']
                 if node_type == 'document':
                     doc_nodes.append(node)
                 elif node_type == 'section':
@@ -636,7 +651,7 @@ class HierarchicalIndexBuilder:
 
         # 3. 块级索引（用于精确检索）
         chunk_index = VectorStoreIndex(
-            nodes=chunk_nodes,
+            nodes=chunk_nodes + image_nodes,
             show_progress=True
         )
 
@@ -691,6 +706,8 @@ class HierarchicalRetriever:
                  storage_dir: str = "./storage/hierarchical",
                  use_rerank: str = "dashscope",  # "dashscope", "simple", "none"
                  enable_images: bool = True):
+        if use_rerank not in {"dashscope", "simple", "none"}:
+            raise ValueError(f"Unsupported reranker: {use_rerank}")
         self.storage_dir = Path(storage_dir)
         self.use_rerank = use_rerank
         self.enable_images = enable_images
@@ -717,7 +734,8 @@ class HierarchicalRetriever:
             self.reranker = Reranker()
             print("使用 DashScope 重排器")
 
-    def _rank_by_retrieval_score(self, nodes: List, top_k: int) -> List:
+    @staticmethod
+    def _rank_by_retrieval_score(nodes: List, top_k: int) -> List:
         """简单的基于分数的重排"""
         def weighted_score(node) -> float:
             score = node.metadata["retrieval_score"]
@@ -780,8 +798,10 @@ class HierarchicalRetriever:
             nodes = self._hybrid_retrieve(query, top_k * 2)  # 多召回一些用于重排
         elif retrieval_mode == "hierarchical":
             nodes = self._hierarchical_retrieve(query, top_k * 2)
-        else:
+        elif retrieval_mode == "direct":
             nodes = self._direct_retrieve(query, top_k * 2)
+        else:
+            raise ValueError(f"Unsupported retrieval_mode: {retrieval_mode}")
 
         # 重排
         if use_rerank and self.use_rerank != "none" and len(nodes) > 0:
@@ -814,14 +834,6 @@ class HierarchicalRetriever:
             )
             chunk_nodes = chunk_retriever.retrieve(query)
             all_nodes.extend([self._scored_node(n) for n in chunk_nodes])
-
-        # 3. 从摘要索引检索（获取全局相关）
-        if 'summary_index' in self.indices:
-            summary_retriever = self.indices['summary_index'].as_retriever(
-                similarity_top_k=top_k
-            )
-            summary_nodes = summary_retriever.retrieve(query)
-            all_nodes.extend([self._scored_node(n) for n in summary_nodes])
 
         # 去重（基于节点 ID）
         unique_nodes = {}

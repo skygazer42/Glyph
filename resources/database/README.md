@@ -1,7 +1,7 @@
 # 政务智能问答数据库 Schema 说明（MySQL）
 
 > 本文档只描述 **表结构和使用约定**。  
-> 实际初始化和导数逻辑由 `scripts/2_seed_mysql_text2sql.py` 和 `scripts/init_data.sh` 负责完成，目标库为 **MySQL `policy_db`**。
+> 实际初始化和导数逻辑由 `scripts/seed_mysql_text2sql.py` 和 `scripts/init_data.sh` 负责完成，目标库为 **MySQL `policy_db`**。
 
 ---
 
@@ -25,17 +25,19 @@ Text2SQL 智能体、DSL 生成器等都会围绕这些表做检索和分析。
 
 ```bash
 # 仅初始化 MySQL / Text2SQL 演示数据
-python scripts/2_seed_mysql_text2sql.py
+python -m scripts.seed_mysql_text2sql
 
 # 或执行完整链路（建表 + MySQL + Milvus + 索引）
 bash scripts/init_data.sh
 ```
 
-`2_seed_mysql_text2sql.py` 会：
+`seed_mysql_text2sql.py` 会：
 
 1. 读取 `resources/database/schema/policy_qa_schema.sql`，转换为 MySQL 兼容语法并建表；
 2. 生成若干随机政策文档、实体、QA 对、标签，插入到 `policy_db` 中；
 3. 填充 `schema_hints`，方便 LLM / Text2SQL 理解表结构。
+
+默认不清空已有表。再次导入发生主键冲突时，本批 DML 回滚并明确报错；主动重置演示库使用 `python -m scripts.seed_mysql_text2sql --truncate`。`--no-truncate` 是保留旧数据的兼容参数。MySQL 的 DDL／TRUNCATE 独立提交，后续插入回滚不能恢复旧数据。合成问答的 `verified` 为 `False`，不代表人工核验。
 
 ### 2.2 验证表是否存在
 
@@ -135,7 +137,7 @@ mysql -h $DATABASE__MYSQL_HOST \
   - `table_name` / `column_name`
   - `hint_type`: `description` / `example` / `constraint`
   - `hint_text`: 中文提示文案
-- `scripts/2_seed_mysql_text2sql.py` 会自动填充一批中文提示，帮助模型理解字段语义。
+- `scripts/seed_mysql_text2sql.py` 会自动填充一批中文提示，帮助模型理解字段语义。
 
 ---
 
@@ -162,7 +164,7 @@ mysql -h $DATABASE__MYSQL_HOST \
 
 ```python
 from app.persistence.db.session import SessionLocal
-from app.models.schema_table import SchemaTable
+from app.models.database import SchemaTable
 
 db = SessionLocal()
 try:
@@ -191,7 +193,7 @@ resources/database/
 ## 7. 迁移与扩展建议
 
 - 新增表时：
-  - 优先修改 `policy_qa_schema.sql`，并确保 `2_seed_mysql_text2sql.py` 的语法转换仍然生效；
+  - 优先修改 `policy_qa_schema.sql`，并确保 `seed_mysql_text2sql.py` 的语法转换仍然生效；
   - 同时补充 `schema_hints`，提高 Text2SQL 的可用性。
 - 若引入新领域（城市 / 业务线），推荐：
   - 在 `metadata` / 标签中附加 `region` / `domain` 信息；

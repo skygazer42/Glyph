@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import List, Dict, Any
 from dataclasses import dataclass
 
-from app.models.db_connection import DBConnection
-from app.persistence.db.dbaccess import DBAccess
+from app.models.database import DBConnection
+from app.persistence.db.access import DBAccess
 
 
 @dataclass(frozen=True)

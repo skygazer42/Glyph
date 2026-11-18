@@ -5,30 +5,31 @@ Document loading utilities for the policy QA system.
 供 LightRAG 种子导入和离线脚本复用。
 """
 
-import uuid
-from typing import List, Optional, Dict, Any
-from pathlib import Path
-from datetime import datetime
-import PyPDF2
 import re
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Optional
+
+import PyPDF2
 from docx import Document
 
-from app.models.base import PolicyDocument, PolicyType
+from app.models.policy import PolicyDocument, PolicyType
 
 
 class DocumentLoader:
     """Load and process policy documents from various sources."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the document loader."""
-        self.supported_extensions = {".pdf", ".docx", ".txt", ".md", ".doc"}
+        self.supported_extensions = {".pdf", ".docx", ".txt", ".md"}
 
     def iter_documents_from_directory(
         self,
         directory_path: str,
         *,
         limit: Optional[int] = None,
-    ):
+    ) -> Iterator[PolicyDocument]:
         """Yield documents from a directory to avoid loading everything into memory."""
         directory = Path(directory_path)
 
@@ -102,7 +103,8 @@ class DocumentLoader:
             return self._extract_from_text(file_path)
         raise ValueError(f"Unsupported document extension: {extension}")
 
-    def _extract_from_pdf(self, file_path: Path) -> str:
+    @staticmethod
+    def _extract_from_pdf(file_path: Path) -> str:
         """Extract text from PDF file."""
         content: List[str] = []
 
@@ -117,7 +119,8 @@ class DocumentLoader:
 
         return "\n".join(content)
 
-    def _extract_from_docx(self, file_path: Path) -> str:
+    @staticmethod
+    def _extract_from_docx(file_path: Path) -> str:
         """Extract text from DOCX file."""
         doc = Document(str(file_path))
         content: List[str] = []
@@ -139,7 +142,8 @@ class DocumentLoader:
 
         return "\n".join(content)
 
-    def _extract_from_text(self, file_path: Path) -> str:
+    @staticmethod
+    def _extract_from_text(file_path: Path) -> str:
         """Extract text from plain text file."""
         with open(file_path, "r", encoding="utf-8") as file:
             return file.read()
@@ -171,7 +175,8 @@ class DocumentLoader:
 
         return metadata
 
-    def _extract_title(self, content: str) -> Optional[str]:
+    @staticmethod
+    def _extract_title(content: str) -> Optional[str]:
         """Extract title from content."""
         lines = content.split("\n")[:10]  # Check first 10 lines
 
@@ -185,7 +190,8 @@ class DocumentLoader:
 
         return None
 
-    def _extract_images(self, file_path: Path, content: str) -> List[str]:
+    @staticmethod
+    def _extract_images(file_path: Path, content: str) -> List[str]:
         """Extract image paths from markdown and convert to serve-able URLs."""
         images: List[str] = []
         pattern = re.compile(r"!\[[^\]]*\]\((images/[^\)]+)\)")
@@ -224,6 +230,8 @@ class DocumentLoader:
         content_preview = content[:1000]  # Check first 1000 characters
 
         for pattern, date_type in patterns:
+            if date_type in dates:
+                continue
             match = re.search(pattern, content_preview)
             if match:
                 try:
@@ -235,14 +243,15 @@ class DocumentLoader:
 
         return dates
 
-    def _parse_chinese_date(self, date_str: str) -> datetime:
+    @staticmethod
+    def _parse_chinese_date(date_str: str) -> datetime:
         """Parse Chinese date string."""
         patterns = [
-            (r"(\d{4})年(\d{1,2})月(\d{1,2})日", "%Y-%m-%d"),
-            (r"(\d{4})年(\d{1,2})月", "%Y-%m-01"),
+            r"(\d{4})年(\d{1,2})月(\d{1,2})日",
+            r"(\d{4})年(\d{1,2})月",
         ]
 
-        for pattern, _format_str in patterns:
+        for pattern in patterns:
             match = re.search(pattern, date_str)
             if match:
                 if len(match.groups()) == 3:
@@ -254,7 +263,8 @@ class DocumentLoader:
 
         raise ValueError(f"Unsupported Chinese date: {date_str}")
 
-    def _extract_departments(self, content: str) -> List[str]:
+    @staticmethod
+    def _extract_departments(content: str) -> List[str]:
         """Extract government departments from content."""
         departments: List[str] = []
         patterns = [
@@ -271,7 +281,8 @@ class DocumentLoader:
 
         return list(set(departments))
 
-    def _extract_target_groups(self, content: str) -> List[str]:
+    @staticmethod
+    def _extract_target_groups(content: str) -> List[str]:
         """Extract target groups from content."""
         groups: List[str] = []
         keywords = [
@@ -295,9 +306,10 @@ class DocumentLoader:
             if keyword in content:
                 groups.append(keyword)
 
-        return list(set(groups))
+        return groups
 
-    def _extract_regions(self, content: str) -> List[str]:
+    @staticmethod
+    def _extract_regions(content: str) -> List[str]:
         """Extract regions from content."""
         regions: List[str] = []
         patterns = [
@@ -314,7 +326,8 @@ class DocumentLoader:
 
         return list(set(regions))
 
-    def _extract_keywords(self, content: str) -> List[str]:
+    @staticmethod
+    def _extract_keywords(content: str) -> List[str]:
         """Extract keywords from content."""
         keywords: List[str] = []
         policy_keywords = [
@@ -356,9 +369,10 @@ class DocumentLoader:
             if keyword in content:
                 keywords.append(keyword)
 
-        return list(set(keywords))
+        return keywords
 
-    def _generate_summary(self, content: str) -> str:
+    @staticmethod
+    def _generate_summary(content: str) -> str:
         """Generate a summary of the content."""
         paragraphs = content.split("\n\n")
         if paragraphs:
@@ -368,7 +382,8 @@ class DocumentLoader:
 
         return content[:200] + "..." if len(content) > 200 else content
 
-    def _infer_source(self, file_path: Path) -> str:
+    @staticmethod
+    def _infer_source(file_path: Path) -> str:
         """Infer source from file path."""
         path_str = str(file_path).lower()
 
@@ -383,7 +398,8 @@ class DocumentLoader:
         else:
             return "未知来源"
 
-    def _infer_policy_type(self, content: str) -> PolicyType:
+    @staticmethod
+    def _infer_policy_type(content: str) -> PolicyType:
         """Infer policy type from content."""
         content_lower = content.lower()
 

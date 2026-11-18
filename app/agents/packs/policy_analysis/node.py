@@ -14,7 +14,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import TextMessage
 from pydantic import ConfigDict, RootModel, ValidationError
 
-from app.models.base import (
+from app.models.policy import (
     AgentType,
     MessageType,
     AgentMessage,
@@ -24,7 +24,7 @@ from app.models.base import (
 )
 from app.agents.framework.base.base_agent import ReactiveAgent
 from app.agents.framework.common.model_client import create_buffered_context
-from .prompt import nlp_extraction_system_prompt, nlp_extraction_user_prompt
+from .prompt import NLP_EXTRACTION_SYSTEM_PROMPT, build_nlp_extraction_user_prompt
 
 
 class ExtractedPolicyFacts(RootModel[list[str]]):
@@ -100,7 +100,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
             analyses.append(analysis.model_dump())
 
         # Synthesize analysis
-        synthesis = await self._synthesize_analyses(analyses, query_id)
+        synthesis = self._synthesize_analyses(analyses)
 
         return AgentMessage(
             type=MessageType.ANALYSIS_RESULT,
@@ -121,21 +121,18 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         # Extract structured information
         eligibility_criteria = await self._extract_eligibility_criteria(document)
-        benefit_details = await self._extract_benefit_details(document)
-        application_steps = await self._extract_application_steps(document)
-        required_documents = await self._extract_required_documents(document)
-        deadlines = await self._extract_deadlines(document)
-        contact_info = await self._extract_contact_info(document)
-        limitations = await self._extract_limitations(document)
+        benefit_details = self._extract_benefit_details(document)
+        application_steps = self._extract_application_steps(document)
+        required_documents = self._extract_required_documents(document)
+        deadlines = self._extract_deadlines(document)
+        contact_info = self._extract_contact_info(document)
+        limitations = self._extract_limitations(document)
 
         # Calculate relevance score based on query context
-        relevance_score = await self._calculate_relevance_score(document, query_id)
-
-        # Find related policies
-        related_policies = await self._find_related_policies(document)
+        relevance_score = self._calculate_relevance_score(document)
 
         # Calculate analysis confidence
-        analysis_confidence = await self._calculate_analysis_confidence(
+        analysis_confidence = self._calculate_analysis_confidence(
             eligibility_criteria,
             benefit_details,
             application_steps,
@@ -153,7 +150,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
             deadlines=deadlines,
             contact_info=contact_info,
             limitations=limitations,
-            related_policies=related_policies,
+            related_policies=[],
             analysis_confidence=analysis_confidence
         )
 
@@ -187,7 +184,7 @@ class PolicyAnalyzerAgent(ReactiveAgent):
         criteria = list(set(criteria))
         return [c for c in criteria if len(c) > 10]
 
-    async def _extract_benefit_details(self, document: PolicyDocument) -> Optional[str]:
+    def _extract_benefit_details(self, document: PolicyDocument) -> Optional[str]:
         """Extract benefit amounts and details."""
         content = document.content
         benefits = []
@@ -218,7 +215,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return "\n".join(benefits[:10]) if benefits else None
 
-    async def _extract_application_steps(self, document: PolicyDocument) -> List[str]:
+    @staticmethod
+    def _extract_application_steps(document: PolicyDocument) -> List[str]:
         """Extract application procedure steps."""
         content = document.content
         steps = []
@@ -251,7 +249,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return steps[:10]
 
-    async def _extract_required_documents(self, document: PolicyDocument) -> List[str]:
+    @staticmethod
+    def _extract_required_documents(document: PolicyDocument) -> List[str]:
         """Extract required application documents."""
         content = document.content
         documents = []
@@ -272,7 +271,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return list(set(documents))
 
-    async def _extract_deadlines(self, document: PolicyDocument) -> List[str]:
+    @staticmethod
+    def _extract_deadlines(document: PolicyDocument) -> List[str]:
         """Extract important dates and deadlines."""
         content = document.content
         deadlines = []
@@ -299,7 +299,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return deadlines[:10]
 
-    async def _extract_contact_info(self, document: PolicyDocument) -> List[str]:
+    @staticmethod
+    def _extract_contact_info(document: PolicyDocument) -> List[str]:
         """Extract contact information."""
         content = document.content
         contacts = []
@@ -323,7 +324,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return contacts[:10]
 
-    async def _extract_limitations(self, document: PolicyDocument) -> List[str]:
+    @staticmethod
+    def _extract_limitations(document: PolicyDocument) -> List[str]:
         """Extract policy limitations and restrictions."""
         content = document.content
         limitations = []
@@ -341,8 +343,9 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return limitations[:10]
 
-    async def _calculate_relevance_score(self, document: PolicyDocument, query_id: UUID) -> float:
-        """Calculate relevance score based on document content and query."""
+    @staticmethod
+    def _calculate_relevance_score(document: PolicyDocument) -> float:
+        """Score policy type and recency without claiming to inspect the user query."""
         # Simple scoring based on keyword matching
         score = 0.5  # Base score
 
@@ -362,13 +365,8 @@ class PolicyAnalyzerAgent(ReactiveAgent):
 
         return min(1.0, max(0.0, score))
 
-    async def _find_related_policies(self, document: PolicyDocument) -> List[UUID]:
-        """Find related policies based on keywords and departments."""
-        # This extractor has no policy store; related links require the retriever.
-        return []
-
-    async def _calculate_analysis_confidence(
-        self,
+    @staticmethod
+    def _calculate_analysis_confidence(
         eligibility: List[str],
         benefits: Optional[str],
         steps: List[str],
@@ -398,11 +396,11 @@ class PolicyAnalyzerAgent(ReactiveAgent):
             self._assistant = AssistantAgent(
                 name="policy_analyzer_llm",
                 description="Extracts structured policy facts via LLM.",
-                system_message=nlp_extraction_system_prompt(),
+                system_message=NLP_EXTRACTION_SYSTEM_PROMPT,
                 model_client=self.model_client,
                 model_context=create_buffered_context(10),
             )
-        user = nlp_extraction_user_prompt(content, prompt)
+        user = build_nlp_extraction_user_prompt(content, prompt)
         async with self._assistant_lock:
             resp = await self._assistant.on_messages([TextMessage(content=user, source="user")], CancellationToken())
         text = resp.chat_message.to_text().strip()
@@ -412,13 +410,14 @@ class PolicyAnalyzerAgent(ReactiveAgent):
             self.logger.warning("Invalid LLM policy facts; retaining pattern-based evidence", exc_info=True)
             return []
 
-    async def _synthesize_analyses(self, analyses: List[Dict], query_id: UUID) -> Dict[str, Any]:
+    @staticmethod
+    def _synthesize_analyses(analyses: List[Dict]) -> Dict[str, Any]:
         """Synthesize multiple document analyses."""
         if not analyses:
             return {}
 
         # Find most relevant document
-        most_relevant = max(analyses, key=lambda x: x["relevance_score"])
+        most_relevant = max(analyses, key=lambda analysis: analysis["relevance_score"])
 
         # Collect all benefits
         all_benefits = [a["benefit_details"] for a in analyses if a["benefit_details"]]

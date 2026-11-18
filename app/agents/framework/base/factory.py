@@ -76,7 +76,6 @@ class AgentFactory:
         question_understander = QuestionUnderstander(
             name="QuestionUnderstander",
             llm_config=self.llm_config,
-            vector_store=self.vector_store
         )
         self._owned_agents.append(question_understander)
         self.register_agent(AgentTypes.QUESTION_UNDERSTANDER, question_understander)

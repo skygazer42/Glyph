@@ -154,8 +154,7 @@ const toggleSource = (index) => {
   min-width: 0;
   min-height: 0;
   grid-area: evidence;
-  padding: 20px 18px;
-  border-left: 1px solid var(--wb-line);
+  padding: 0;
   background: var(--wb-evidence);
   overflow-y: auto;
 }
@@ -163,22 +162,25 @@ const toggleSource = (index) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 52px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--wb-line);
 }
 .evidence-heading h2 {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   margin: 0;
 }
 .evidence-heading h2 .el-icon {
-  color: var(--wb-blue);
+  color: var(--wb-muted);
 }
 .evidence-context {
   font-size: 12px;
   color: var(--wb-muted);
-  margin: 2px 0 16px;
+  margin: 12px 18px;
 }
 .evidence-context::before {
   content: '·';
@@ -186,33 +188,27 @@ const toggleSource = (index) => {
   margin-right: 5px;
 }
 .evidence-tabs :deep(.el-tabs__header) {
-  background: var(--wb-blue-soft);
-  border: 1px solid var(--wb-line);
-  border-radius: 6px;
-  padding: 3px;
-  margin-bottom: 18px;
+  border-bottom: 1px solid var(--wb-line);
+  padding: 0 18px;
+  margin-bottom: 0;
 }
-.evidence-tabs :deep(.el-tabs__nav-wrap::after), .evidence-tabs :deep(.el-tabs__active-bar) {
+.evidence-tabs :deep(.el-tabs__nav-wrap::after) {
   display: none;
 }
+.evidence-tabs :deep(.el-tabs__active-bar) { height: 2px; background: var(--wb-blue); }
 .evidence-tabs :deep(.el-tabs__item) {
-  height: 34px;
+  height: 38px;
   font-size: 13px;
   color: var(--wb-muted);
-  padding: 0 12px !important;
+  padding: 0 12px;
 }
 .evidence-tabs :deep(.el-tabs__item.is-active) {
-  background: var(--wb-surface);
   color: var(--wb-blue);
-  border-radius: 4px;
-  box-shadow: 0 0 0 1px var(--wb-border);
-  font-weight: 600;
+  font-weight: 500;
 }
 .policy-source {
   background: var(--wb-surface);
-  border: 1px solid var(--wb-line);
-  border-radius: var(--wb-radius);
-  margin-bottom: 12px;
+  border-bottom: 1px solid var(--wb-line);
   overflow: hidden;
 }
 .policy-source.is-selected {
@@ -224,7 +220,7 @@ const toggleSource = (index) => {
   width: 100%;
   border: 0;
   background: transparent;
-  padding: 16px;
+  padding: 18px;
   color: var(--wb-ink);
 }
 .source-summary:hover {
@@ -264,7 +260,7 @@ const toggleSource = (index) => {
 }
 .source-body {
   border-top: 1px solid var(--wb-line);
-  padding: 16px;
+  padding: 18px;
 }
 .source-origin {
   color: var(--wb-muted);
@@ -303,7 +299,7 @@ const toggleSource = (index) => {
   text-decoration: underline;
 }
 .source-unavailable {
-  font-size: 11px;
+  font-size: 12px;
 }
 .evidence-note {
   display: flex;
@@ -312,14 +308,14 @@ const toggleSource = (index) => {
   color: var(--wb-muted);
   font-size: 12px;
   line-height: 1.9;
-  margin: 18px 2px 0;
+  margin: 18px;
 }
 .evidence-note .el-icon {
   flex-shrink: 0;
 }
 .evidence-empty {
   text-align: center;
-  padding: 60px 14px 30px;
+  padding: 44px 20px 30px;
   color: var(--wb-muted);
 }
 .evidence-empty > .el-icon {
@@ -338,7 +334,8 @@ const toggleSource = (index) => {
   line-height: 1.9;
 }
 .evidence-conditions {
-  padding: 8px 4px;
+  padding: 8px 18px;
+  margin: 0;
 }
 .evidence-conditions > div {
   display: flex;

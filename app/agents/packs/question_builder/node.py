@@ -5,7 +5,7 @@ Question understanding agent for analyzing user queries.
 import logging
 import anyio
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import re
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -13,6 +13,28 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from app.agents.framework.common.model_client import create_openai_client
 from autogen_core.models import SystemMessage, UserMessage
 from app.agents.framework.base.types import MessageTypes, AnalysisReport
+
+
+QUESTION_SYSTEM_MESSAGE = """您是问题理解专员，专门分析用户关于政府政策的查询。
+
+您的任务：
+1. 理解用户意图和问题类型
+2. 提取关键实体、关键词和概念
+3. 识别提及或暗示的政策类型
+4. 识别时间和地点限制
+5. 识别目标群体或资格标准
+6. 生成结构化的分析报告
+
+需要处理的问题类型：
+- 政策资格问题
+- 补贴金额计算
+- 申请流程
+- 政策比较
+- 政策效果
+- 实施细节
+- 截止日期和时间问题
+
+始终为您的分析提供置信度评分并解释您的推理过程。"""
 
 
 class QuestionAnalysis(BaseModel):
@@ -46,46 +68,19 @@ class QuestionUnderstander:
         self,
         name: str,
         llm_config: Dict[str, Any],
-        vector_store: Optional[Any] = None,
         *, model_client=None,
     ):
         """Initialize the question understander."""
         self.name = name
         self.llm_config = llm_config
         self.logger = logging.getLogger(f"{__name__}.{name}")
-        self.system_message = self._get_default_system_message()
+        self.system_message = QUESTION_SYSTEM_MESSAGE
         self._owns_model_client = model_client is None
         self.model_client = create_openai_client(llm_config=llm_config) if model_client is None else model_client
-        self.vector_store = vector_store
-
-    def _get_default_system_message(self) -> str:
-        """Get the default system message."""
-        return """您是问题理解专员，专门分析用户关于政府政策的查询。
-
-您的任务：
-1. 理解用户意图和问题类型
-2. 提取关键实体、关键词和概念
-3. 识别提及或暗示的政策类型
-4. 识别时间和地点限制
-5. 识别目标群体或资格标准
-6. 生成结构化的分析报告
-
-需要处理的问题类型：
-- 政策资格问题
-- 补贴金额计算
-- 申请流程
-- 政策比较
-- 政策效果
-- 实施细节
-- 截止日期和时间问题
-
-始终为您的分析提供置信度评分并解释您的推理过程。"""
 
     async def process_message(
         self,
         message: str,
-        sender: Optional[Any] = None,
-        context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process and analyze the user's question."""
         try:

@@ -5,14 +5,13 @@
 from typing import Dict
 
 
-def generation_system_prompt() -> str:
-    return (
-        "你是政策问答的答案生成器。根据查询上下文与结构化信息，生成有用、准确的回答。"
-        "回答正文使用 Markdown 文本输出，语言清晰、条理分明，包含关键条件/金额/步骤，避免臆测。"
-    )
+GENERATION_SYSTEM_PROMPT = (
+    "你是政策问答的答案生成器。根据查询上下文与结构化信息，生成有用、准确的回答。"
+    "回答正文使用 Markdown 文本输出，语言清晰、条理分明，包含关键条件/金额/步骤，避免臆测。"
+)
 
 
-def generation_user_prompt(query_context: Dict, info: Dict, synthesis: Dict) -> str:
+def build_generation_user_prompt(query_context: Dict, info: Dict, synthesis: Dict) -> str:
     return (
         "请基于以下信息生成对用户政策问题的回答。\n\n"
         f"查询上下文：{query_context}\n\n"

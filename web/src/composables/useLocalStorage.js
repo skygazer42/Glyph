@@ -1,16 +1,39 @@
 /** JSON 本地持久化；默认对象属于每次调用，不与草稿共享。 */
 import { ref, watch } from 'vue'
 
-const sessions = ref(null)
+const sessionLists = new Map()
 const SESSION_STORAGE_KEY = 'chat_sessions'
+
+export function conversationStorage(scope = 'public') {
+  return globalThis[scope === 'public' ? 'localStorage' : 'sessionStorage']
+}
+
+export function conversationStorageKey(scope, key) {
+  return scope === 'public' ? key : `staff_chat_${encodeURIComponent(scope.slice(6)).replaceAll('_', '%5F')}_${key}`
+}
+
+/** 退出时只清理当前工作人员在本标签页的缓存。存储受限时由界面提示。 */
+export function clearStaffConversationCache(username) {
+  const scope = `staff:${username}`
+  const storage = conversationStorage(scope)
+  const prefix = conversationStorageKey(scope, '')
+  const keys = []
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index)
+    if (key?.startsWith(prefix)) keys.push(key)
+  }
+  for (const key of keys) storage.removeItem(key)
+  const sessions = sessionLists.get(scope)
+  if (sessions) sessions.value = []
+}
 
 function cloneDefaultValue(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
 }
 
-function readStorage(key, defaultValue, validate) {
+function readStorage(key, defaultValue, validate, scope) {
   try {
-    const stored = localStorage.getItem(key)
+    const stored = conversationStorage(scope).getItem(key)
     if (stored !== null) {
       const value = JSON.parse(stored)
       if (validate(value)) {
@@ -24,8 +47,8 @@ function readStorage(key, defaultValue, validate) {
   return cloneDefaultValue(defaultValue)
 }
 
-export function useLocalStorage(key, defaultValue = null, validate = () => true) {
-  const data = ref(readStorage(key, defaultValue, validate))
+export function useLocalStorage(key, defaultValue = null, validate = () => true, scope = 'public') {
+  const data = ref(readStorage(key, defaultValue, validate, scope))
   let clearing = false
 
   const stop = watch(data, (newValue) => {
@@ -34,9 +57,9 @@ export function useLocalStorage(key, defaultValue = null, validate = () => true)
     }
     try {
       if (newValue === null || newValue === undefined) {
-        localStorage.removeItem(key)
+        conversationStorage(scope).removeItem(key)
       } else {
-        localStorage.setItem(key, JSON.stringify(newValue))
+        conversationStorage(scope).setItem(key, JSON.stringify(newValue))
       }
     } catch (error) {
       console.error(`Failed to save ${key} to localStorage:`, error)
@@ -45,7 +68,7 @@ export function useLocalStorage(key, defaultValue = null, validate = () => true)
 
   const clear = () => {
     const value = cloneDefaultValue(defaultValue)
-    localStorage.removeItem(key)
+    conversationStorage(scope).removeItem(key)
     clearing = true
     try {
       data.value = value
@@ -58,8 +81,8 @@ export function useLocalStorage(key, defaultValue = null, validate = () => true)
 }
 
 /** 管理单个聊天会话的消息历史，切换时由调用方 stop。 */
-export function useChatHistory(sessionId) {
-  const STORAGE_KEY = `chat_history_${sessionId}`
+export function useChatHistory(sessionId, scope = 'public') {
+  const STORAGE_KEY = conversationStorageKey(scope, `chat_history_${sessionId}`)
   const MAX_MESSAGES = 500
   const { data: messages, clear, stop } = useLocalStorage(STORAGE_KEY, [], value =>
     Array.isArray(value) && value.every(message =>
@@ -67,7 +90,7 @@ export function useChatHistory(sessionId) {
       typeof message === 'object' &&
       typeof message.role === 'string' &&
       typeof message.content === 'string'
-    )
+    ), scope
   )
 
   const addMessage = (message) => {
@@ -86,6 +109,7 @@ function isSessionList(value) {
     typeof session === 'object' &&
     typeof session.id === 'string' &&
     typeof session.title === 'string' &&
+    (session.serverId === undefined || session.serverId === null || typeof session.serverId === 'string') &&
     (
       session.lastMessage === null ||
       session.lastMessage === undefined ||
@@ -95,13 +119,15 @@ function isSessionList(value) {
 }
 
 /** 所有会话入口共享列表；写入失败时保留原状态并向调用方抛错。 */
-export function useSessionList() {
-  if (sessions.value === null) {
-    sessions.value = readStorage(SESSION_STORAGE_KEY, [], isSessionList)
+export function useSessionList(scope = 'public') {
+  const storageKey = conversationStorageKey(scope, SESSION_STORAGE_KEY)
+  if (!sessionLists.has(scope)) {
+    sessionLists.set(scope, ref(readStorage(storageKey, [], isSessionList, scope)))
   }
+  const sessions = sessionLists.get(scope)
 
   const persistSessions = (nextSessions) => {
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSessions))
+    conversationStorage(scope).setItem(storageKey, JSON.stringify(nextSessions))
     sessions.value = nextSessions
   }
 
@@ -109,7 +135,7 @@ export function useSessionList() {
     const failedHistoryIds = []
     for (const sessionId of sessionIds) {
       try {
-        localStorage.removeItem(`chat_history_${sessionId}`)
+        conversationStorage(scope).removeItem(conversationStorageKey(scope, `chat_history_${sessionId}`))
       } catch (error) {
         failedHistoryIds.push(sessionId)
         console.warn(`会话已移除，但消息缓存清理失败: ${sessionId}`, error)
@@ -146,7 +172,7 @@ export function useSessionList() {
 
   const clearAll = () => {
     const sessionIds = sessions.value.map(session => session.id)
-    localStorage.removeItem(SESSION_STORAGE_KEY)
+    conversationStorage(scope).removeItem(storageKey)
     sessions.value = []
     return clearHistories(sessionIds)
   }

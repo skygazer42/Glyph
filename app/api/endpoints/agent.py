@@ -6,6 +6,7 @@ Agent 问答相关端点
 import json
 import os
 import logging
+from pathlib import Path
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette.concurrency import run_in_threadpool
@@ -24,17 +25,63 @@ from app.api.schemas import (
     SessionMessagesQuery,
 )
 from app.api.deps import get_session_manager, get_agent_service
+from app.api.endpoints.uploads import attachment_directory
 from app.agents.framework.common.session_manager import SessionManager
 from app.agents.service.agent_service import AgentService
+from app.models.policy import Attachment
+from app.core.access import ChatAccess, ChatSessionKey, get_chat_access, require_staff, resolve_chat_session
 from app.utils.lifecycle import close_with_timeout
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _validate_uploaded_attachment_paths(attachments: list[Attachment], access: ChatAccess) -> None:
+    upload_root = attachment_directory(access).resolve()
+    for attachment in attachments:
+        if not attachment.path:
+            if not attachment.url or not attachment.url.lower().startswith(("http://", "https://", "data:image/", "oss://")):
+                raise HTTPException(status_code=400, detail="请使用已上传的附件或有效的远程图片地址")
+            continue
+        try:
+            path = Path(attachment.path).resolve()
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="附件路径无效，请重新上传") from exc
+        if not path.is_relative_to(upload_root) or not path.is_file():
+            raise HTTPException(status_code=400, detail="附件不属于可用的上传文件")
+
+
+def _resolve_request_session(request: ChatRequest | ChatStreamRequest, access: ChatAccess) -> ChatSessionKey:
+    if not access.is_staff and (
+        request.connection_id is not None or request.text2sql_mode or request.user_id is not None
+    ):
+        raise HTTPException(status_code=403, detail="数据库查询与用户资料仅供已登录工作人员使用")
+    return resolve_chat_session(access, request.session_id)
+
+
+async def _prepare_chat_request(
+    request: ChatRequest, access: ChatAccess = Depends(get_chat_access)
+) -> ChatSessionKey:
+    session_key = _resolve_request_session(request, access)
+    if request.attachments:
+        await run_in_threadpool(_validate_uploaded_attachment_paths, request.attachments, access)
+    return session_key
+
+
+async def _prepare_stream_request(
+    request: ChatStreamRequest, access: ChatAccess = Depends(get_chat_access)
+) -> ChatSessionKey:
+    session_key = _resolve_request_session(request, access)
+    if request.attachments:
+        await run_in_threadpool(_validate_uploaded_attachment_paths, request.attachments, access)
+    return session_key
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def agent_chat(
     request: ChatRequest,
+    access: ChatAccess = Depends(get_chat_access),
+    session_key: ChatSessionKey = Depends(_prepare_chat_request),
     session_manager: SessionManager = Depends(get_session_manager),
     agent_service: AgentService = Depends(get_agent_service)
 ):
@@ -47,7 +94,7 @@ async def agent_chat(
         # 获取或创建会话
         session = await run_in_threadpool(
             session_manager.get_or_create_session,
-            request.session_id,
+            session_key.storage_id,
             connection_id=request.connection_id,
             user_id=request.user_id,
         )
@@ -75,6 +122,7 @@ async def agent_chat(
             connection_id=request.connection_id,
             attachments=request.attachments,
             force_text2sql=request.text2sql_mode,
+            allow_private_tools=access.is_staff,
         )
 
         # 添加助手消息到会话
@@ -93,26 +141,29 @@ async def agent_chat(
             {
                 "confidence": final.confidence,
                 "message_count": session.message_count,
+                "session_id": session_key.client_id,
             }
         )
-
-        session_id = metadata["session_id"]
 
         return ChatResponse(
             success=True,
             message=final.answer,
-            session_id=session_id,
+            session_id=session_key.client_id,
             metadata=metadata,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Agent 问答失败")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="咨询服务暂时不可用，请稍后重试") from e
 
 
 @router.post("/chat/stream")
 async def agent_chat_stream(
     request: ChatStreamRequest,
+    access: ChatAccess = Depends(get_chat_access),
+    session_key: ChatSessionKey = Depends(_prepare_stream_request),
     session_manager: SessionManager = Depends(get_session_manager),
     agent_service: AgentService = Depends(get_agent_service)
 ):
@@ -128,7 +179,7 @@ async def agent_chat_stream(
             # 获取或创建会话
             session = await run_in_threadpool(
                 session_manager.get_or_create_session,
-                request.session_id,
+                session_key.storage_id,
                 connection_id=request.connection_id,
                 user_id=request.user_id,
             )
@@ -152,14 +203,14 @@ async def agent_chat_stream(
             yield {
                 "event": "session",
                 "data": json.dumps({
-                    "session_id": session_id,
+                    "session_id": session_key.client_id,
                     "message_count": session.message_count
                 }, ensure_ascii=False)
             }
             logger.info(f"会话 {session_id} 开始流式问答")
             # 若开启 AgentChat 流式，优先尝试流式；否则回退一次性推送
             use_agentchat_stream = os.getenv("AGENTCHAT_STREAM_ENABLED", "").lower() in {"1", "true", "yes", "on"}
-            if use_agentchat_stream and agent_service._agentchat_team_enabled:
+            if use_agentchat_stream and agent_service.agentchat_streaming_enabled:
                 stream = agent_service.process_query_stream(
                     request.message,
                     session_id=session_id,
@@ -167,6 +218,7 @@ async def agent_chat_stream(
                     connection_id=request.connection_id,
                     attachments=request.attachments,
                     force_text2sql=request.text2sql_mode,
+                    allow_private_tools=access.is_staff,
                 )
                 try:
                     async for event in stream:
@@ -174,19 +226,19 @@ async def agent_chat_stream(
                             chunk = ChatStreamChunk(
                                 content=event["content"],
                                 done=False,
-                                session_id=session_id,
+                                session_id=session_key.client_id,
                                 metadata={},
                             )
                             yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
                         elif event["type"] == "final":
                             final = event["answer"]
                             full_metadata = dict(final.metadata)
-                            full_metadata.update({"confidence": final.confidence})
+                            full_metadata.update({"confidence": final.confidence, "session_id": session_key.client_id})
                             # 推送最终内容
                             chunk = ChatStreamChunk(
                                 content=final.answer,
                                 done=False,
-                                session_id=session_id,
+                                session_id=session_key.client_id,
                                 metadata=full_metadata,
                             )
                             yield {"event": "message", "data": chunk.model_dump_json(ensure_ascii=False)}
@@ -196,7 +248,7 @@ async def agent_chat_stream(
                                 session_id,
                                 "assistant",
                                 final.answer,
-                                metadata=full_metadata,
+                                metadata=final.metadata,
                             )
 
                             done_metadata = dict(full_metadata)
@@ -209,7 +261,7 @@ async def agent_chat_stream(
                             done_chunk = ChatStreamChunk(
                                 content="",
                                 done=True,
-                                session_id=session_id,
+                                session_id=session_key.client_id,
                                 metadata=done_metadata,
                             )
                             yield {"event": "done", "data": done_chunk.model_dump_json(ensure_ascii=False)}
@@ -224,15 +276,16 @@ async def agent_chat_stream(
                     connection_id=request.connection_id,
                     attachments=request.attachments,
                     force_text2sql=request.text2sql_mode,
+                    allow_private_tools=access.is_staff,
                 )
 
                 # 发送内容片段（一次性推送最终答案）
                 full_metadata = dict(final.metadata)
-                full_metadata.update({"confidence": final.confidence})
+                full_metadata.update({"confidence": final.confidence, "session_id": session_key.client_id})
                 chunk = ChatStreamChunk(
                     content=final.answer,
                     done=False,
-                    session_id=session_id,
+                    session_id=session_key.client_id,
                     metadata=full_metadata,
                 )
                 yield {
@@ -246,7 +299,7 @@ async def agent_chat_stream(
                     session_id,
                     "assistant",
                     final.answer,
-                    metadata=full_metadata,
+                    metadata=final.metadata,
                 )
 
                 # 发送完成信号
@@ -260,7 +313,7 @@ async def agent_chat_stream(
                 done_chunk = ChatStreamChunk(
                     content="",
                     done=True,
-                    session_id=session_id,
+                    session_id=session_key.client_id,
                     metadata=done_metadata,
                 )
 
@@ -271,14 +324,14 @@ async def agent_chat_stream(
 
                 logger.info(f"会话 {session_id} 流式问答完成")
 
-        except Exception as e:
+        except Exception:
             logger.exception("流式问答失败")
 
             # 发送错误信息
             error_chunk = ChatStreamChunk(
                 content="",
                 done=True,
-                error=str(e)
+                error="咨询服务暂时不可用，请稍后重试"
             )
 
             yield {
@@ -286,7 +339,7 @@ async def agent_chat_stream(
                 "data": error_chunk.model_dump_json(ensure_ascii=False)
             }
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), headers={"Cache-Control": "no-store"})
 
 
 # ==================== 会话管理端点 ====================
@@ -294,10 +347,12 @@ async def agent_chat_stream(
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
 def get_session(
     session_id: str,
+    access: ChatAccess = Depends(require_staff),
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """获取会话信息"""
-    session = session_manager.get_session(session_id)
+    session_key = resolve_chat_session(access, session_id, create=False)
+    session = session_manager.get_session(session_key.storage_id)
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
 
@@ -315,6 +370,7 @@ def get_session(
 
 @router.get("/sessions", response_model=ListSessionsResponse)
 def list_sessions(
+    access: ChatAccess = Depends(require_staff),
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """获取所有活跃会话列表"""
@@ -329,6 +385,7 @@ def list_sessions(
             status=session.status
         )
         for session in sessions
+        if session.session_id.startswith(access.namespace)
     ]
 
     return ListSessionsResponse(
@@ -341,10 +398,12 @@ def list_sessions(
 @router.delete("/sessions/{session_id}", response_model=DeleteSessionResponse)
 def delete_session(
     session_id: str,
+    access: ChatAccess = Depends(require_staff),
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """删除会话"""
-    session_manager.delete_session(session_id)
+    session_key = resolve_chat_session(access, session_id, create=False)
+    session_manager.delete_session(session_key.storage_id)
     return {"success": True, "message": "会话已删除"}
 
 
@@ -352,18 +411,20 @@ def delete_session(
 def get_session_messages(
     session_id: str,
     query: Annotated[SessionMessagesQuery, Query()],
+    access: ChatAccess = Depends(require_staff),
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """获取会话消息历史"""
-    session = session_manager.get_session(session_id)
+    session_key = resolve_chat_session(access, session_id, create=False)
+    session = session_manager.get_session(session_key.storage_id)
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在")
 
-    messages = session_manager.get_messages(session_id, limit=query.limit)
+    messages = session_manager.get_messages(session_key.storage_id, limit=query.limit)
 
     return {
         "success": True,
-        "session_id": session_id,
+        "session_id": session_key.client_id,
         "messages": messages,
         "total": len(messages)
     }

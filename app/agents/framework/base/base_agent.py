@@ -18,7 +18,7 @@ from autogen_core import (
 )
 from autogen_core.memory import ListMemory, MemoryContent, MemoryMimeType
 
-from app.models.base import (
+from app.models.policy import (
     AgentType,
     MessageType,
     AgentMessage
@@ -37,7 +37,6 @@ class PolicyAgentBase(RoutedAgent, ABC, Generic[T]):
         name: str,
         description: str,
         memory_size: int = 100,
-        **kwargs
     ):
         """Initialize the base agent."""
         super().__init__(description=description)

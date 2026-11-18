@@ -1,0 +1,2688 @@
+{
+  "files": [
+    {
+      "path": "app/agents/dsl_generator/__init__.py",
+      "summary": "Read the entire current package module. Keep its docstring-only surface and imports from actual owners; no eager parser, LLM client, or engine construction is added.",
+      "definitions": [],
+      "changes": [],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately."
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/document_parser.py",
+      "summary": "Read every document parser/extractor method. Retain shared reader-mode/configuration state, declare independent file/text conversions static, and preserve table-column positions.",
+      "definitions": [
+        {
+          "name": "DocumentParser",
+          "kind": "class",
+          "line": 15,
+          "column": 0,
+          "end": 312,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "文档解析器，支持多种格式",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the class because format policy, optional LlamaIndex mode, and reader configuration are shared by parse/metadata callers."
+          ]
+        },
+        {
+          "name": "DocumentParser.__init__",
+          "kind": "function",
+          "line": 18,
+          "column": 4,
+          "end": 27,
+          "parameters": [
+            "self",
+            "use_llama_index",
+            "llama_reader_kwargs"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/DAT-003: retain explicit reader configuration, advertise native DOCX/TXT/PDF only, and preserve existing DOC delegation when the optional LlamaIndex reader mode is selected."
+          ]
+        },
+        {
+          "name": "DocumentParser.parse",
+          "kind": "function",
+          "line": 29,
+          "column": 4,
+          "end": 57,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "解析文档文件并返回文本内容",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/WEB-001: retain existence/suffix checks and explicit native-versus-LlamaIndex dispatch; binary DOC is no longer sent to the native DOCX reader."
+          ]
+        },
+        {
+          "name": "DocumentParser._parse_txt",
+          "kind": "function",
+          "line": 60,
+          "column": 4,
+          "end": 63,
+          "parameters": [
+            "path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "解析纯文本文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/RES-001: changed to static because it only reads the supplied path; the source file closes deterministically."
+          ]
+        },
+        {
+          "name": "DocumentParser._parse_docx",
+          "kind": "function",
+          "line": 66,
+          "column": 4,
+          "end": 86,
+          "parameters": [
+            "path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "解析 Word 文档",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static; retain one cohesive paragraph/table extraction stage for an actual DOCX document."
+          ]
+        },
+        {
+          "name": "DocumentParser._parse_pdf",
+          "kind": "function",
+          "line": 89,
+          "column": 4,
+          "end": 100,
+          "parameters": [
+            "path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "解析 PDF 文档",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/RES-001: changed to static; retain the PDF file scope and legitimate no-text page handling."
+          ]
+        },
+        {
+          "name": "DocumentParser.preprocess_text",
+          "kind": "function",
+          "line": 102,
+          "column": 4,
+          "end": 162,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "预处理文本，提取结构化信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain the existing metadata/sections/amount/percentage heuristic stages; these are extraction hints and do not manufacture financial policy terms."
+          ]
+        },
+        {
+          "name": "DocumentParser._split_sections",
+          "kind": "function",
+          "line": 165,
+          "column": 4,
+          "end": 209,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "将文本分割成章节",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-001: changed to static; retain clause-first and paragraph fallback segmentation as distinct existing input modes."
+          ]
+        },
+        {
+          "name": "DocumentParser.extract_tables",
+          "kind": "function",
+          "line": 212,
+          "column": 4,
+          "end": 248,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "提取文本中的表格数据",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-001: changed to static and retain empty interior cells; remove only Markdown's outer delimiter cells so neighboring columns do not shift."
+          ]
+        },
+        {
+          "name": "DocumentParser.extract_rules",
+          "kind": "function",
+          "line": 251,
+          "column": 4,
+          "end": 295,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "提取文本中的规则信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-005: changed to static; keep the established optional regex rule hints rather than inventing a new policy parser."
+          ]
+        },
+        {
+          "name": "DocumentParser._parse_with_llama_reader",
+          "kind": "function",
+          "line": 301,
+          "column": 4,
+          "end": 312,
+          "parameters": [
+            "self",
+            "path"
+          ],
+          "decorators": [],
+          "declared_role": "Use LlamaIndex SimpleDirectoryReader to extract text.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/RES-001: retain the instance method because it uses this parser's configured reader kwargs; no-content failure stays visible."
+          ]
+        }
+      ],
+      "changes": [
+        "CLS-004: make pure file/text/table/rule transformations static.",
+        "DAT-001: preserve empty interior table cells instead of removing columns.",
+        "FUN-001: stop native DOC-to-DOCX misrouting while retaining optional reader delegation.",
+        "DAT-003/NAM-005: preserve explicitly supplied configuration and separate third-party imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "The optional LlamaIndex mode retains its existing DOC delegation; actual reader support still depends on the configured reader. No parser was instantiated or executed."
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/dsl_extractor.py",
+      "summary": "Read all wire models, Pydantic validators, extractor branches, complete prompts, regex extraction, response normalization, and nested date callback. Keep the real LLM/offline modes and their explicit external boundary.",
+      "definitions": [
+        {
+          "name": "ExtractedInput",
+          "kind": "class",
+          "line": 18,
+          "column": 0,
+          "end": 23,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/FUN-003: retain the strict external input specification with explicit name/type, a real required flag, and optional description."
+          ]
+        },
+        {
+          "name": "ExtractedPolicySource",
+          "kind": "class",
+          "line": 26,
+          "column": 0,
+          "end": 30,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-002: retain genuinely optional document identity/title/clause metadata; absent metadata does not imply a financial default."
+          ]
+        },
+        {
+          "name": "ExtractedValidity",
+          "kind": "class",
+          "line": 33,
+          "column": 0,
+          "end": 49,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD: retain the date/order model as the owner of the extracted validity contract."
+          ]
+        },
+        {
+          "name": "ExtractedValidity.validate_date",
+          "kind": "function",
+          "line": 40,
+          "column": 4,
+          "end": 43,
+          "parameters": [
+            "cls",
+            "value"
+          ],
+          "decorators": [
+            "field_validator('start', 'end')",
+            "classmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/PYD: retain the required Pydantic classmethod hook and canonicalize accepted calendar dates to YYYY-MM-DD before ordering them."
+          ]
+        },
+        {
+          "name": "ExtractedValidity.validate_order",
+          "kind": "function",
+          "line": 46,
+          "column": 4,
+          "end": 49,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [
+            "model_validator(mode='after')"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/PYD: retain the model hook that rejects start after end; normalized strings now have reliable chronological ordering."
+          ]
+        },
+        {
+          "name": "ExtractedPolicy",
+          "kind": "class",
+          "line": 52,
+          "column": 0,
+          "end": 58,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-006: retain a strict shared external envelope with per-instance containers and domain-specific extra fields, rather than a universal deep policy model."
+          ]
+        },
+        {
+          "name": "DSLExtractor",
+          "kind": "class",
+          "line": 64,
+          "column": 0,
+          "end": 640,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "使用 LLM 提取政策文本并生成 DSL",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: retain configured LLM/offline mode and settings used across extraction operations; no helper class layer is added."
+          ]
+        },
+        {
+          "name": "DSLExtractor.__init__",
+          "kind": "function",
+          "line": 67,
+          "column": 4,
+          "end": 77,
+          "parameters": [
+            "self",
+            "use_project_config"
+          ],
+          "decorators": [],
+          "declared_role": "初始化 DSL 提取器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: retain explicit extraction mode and existing settings; client acquisition remains inside the actual LLM operation."
+          ]
+        },
+        {
+          "name": "DSLExtractor.extract",
+          "kind": "function",
+          "line": 79,
+          "column": 4,
+          "end": 99,
+          "parameters": [
+            "self",
+            "text",
+            "metadata"
+          ],
+          "decorators": [],
+          "declared_role": "从文本中提取 DSL 结构",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DES-001: build a prompt only for the LLM branch, pass original source text to offline extraction, then parse the actual response."
+          ]
+        },
+        {
+          "name": "DSLExtractor._build_prompt",
+          "kind": "function",
+          "line": 101,
+          "column": 4,
+          "end": 111,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "构建 LLM 提示词",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-003: remove unused metadata forwarding from this private dispatcher and its three prompt builders; prompt selection depends on the supplied policy text."
+          ]
+        },
+        {
+          "name": "DSLExtractor._detect_policy_type",
+          "kind": "function",
+          "line": 115,
+          "column": 4,
+          "end": 121,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "检测政策类型",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/NAM-001: changed to static; explicit auto keywords now take precedence over the generic consumption fallback so 汽车消费补贴 is not treated as a coupon."
+          ]
+        },
+        {
+          "name": "DSLExtractor._build_appliance_prompt",
+          "kind": "function",
+          "line": 125,
+          "column": 4,
+          "end": 173,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "构建家电补贴提示词",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-003: changed to a static text-to-prompt conversion and removed its unused metadata parameter; preserve the existing explicit appliance fields."
+          ]
+        },
+        {
+          "name": "DSLExtractor._build_auto_prompt",
+          "kind": "function",
+          "line": 176,
+          "column": 4,
+          "end": 207,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "构建汽车补贴提示词",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-003: changed to static and removed unused metadata; request each tier's actual NEV/ICE powertrain because the downstream template contract requires it."
+          ]
+        },
+        {
+          "name": "DSLExtractor._build_coupon_prompt",
+          "kind": "function",
+          "line": 210,
+          "column": 4,
+          "end": 277,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "构建消费券提示词",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-003: changed to a static text-to-prompt conversion and removed unused metadata; keep the actual AMOUNT/PERCENT and usage-field contract."
+          ]
+        },
+        {
+          "name": "DSLExtractor._call_llm",
+          "kind": "function",
+          "line": 279,
+          "column": 4,
+          "end": 297,
+          "parameters": [
+            "self",
+            "prompt"
+          ],
+          "decorators": [],
+          "declared_role": "调用 LLM API",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/DAT-003: retain the owned OpenAI context, configured model/temperature including zero, and explicit missing-text failure."
+          ]
+        },
+        {
+          "name": "DSLExtractor._extract_with_rules",
+          "kind": "function",
+          "line": 299,
+          "column": 4,
+          "end": 411,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "使用规则提取（不依赖 LLM）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DES-005: retain the existing offline extraction heuristic and current domain metadata rules; no LLM fallback or new financial rate is invented."
+          ]
+        },
+        {
+          "name": "DSLExtractor._parse_response",
+          "kind": "function",
+          "line": 413,
+          "column": 4,
+          "end": 545,
+          "parameters": [
+            "self",
+            "response",
+            "original_text",
+            "metadata"
+          ],
+          "decorators": [],
+          "declared_role": "解析 LLM 响应",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: parse/validate the external JSON envelope, preserve known metadata supplementation, and validate the final validity window; missing mandatory selected-domain terms fail."
+          ]
+        },
+        {
+          "name": "DSLExtractor._parse_response.normalize_date",
+          "kind": "function",
+          "line": 417,
+          "column": 8,
+          "end": 424,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DAT-002: retain the local metadata-date normalization callback because it belongs to response enrichment and is followed by actual calendar validation."
+          ]
+        },
+        {
+          "name": "DSLExtractor._extract_city",
+          "kind": "function",
+          "line": 548,
+          "column": 4,
+          "end": 554,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "提取城市名称",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static; retain the existing supported-city naming heuristic and explicit Unknown label."
+          ]
+        },
+        {
+          "name": "DSLExtractor._extract_coupon_tiers",
+          "kind": "function",
+          "line": 557,
+          "column": 4,
+          "end": 578,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Parse patterns such as 满100减20 to build coupon tiers.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-007: changed to static; keep source-derived numeric coupon tiers and ordered deduplication rather than filling policy amounts."
+          ]
+        },
+        {
+          "name": "DSLExtractor._extract_policy_type",
+          "kind": "function",
+          "line": 582,
+          "column": 4,
+          "end": 597,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "提取政策类型",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static; retain the existing identifier-label vocabulary separately from template routing."
+          ]
+        },
+        {
+          "name": "DSLExtractor.validate_dsl",
+          "kind": "function",
+          "line": 602,
+          "column": 4,
+          "end": 640,
+          "parameters": [
+            "dsl_data"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "验证 DSL 数据的完整性和正确性",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/WEB-001: changed to static; retain the domain-aware shared-envelope checks and explicit list of validation errors."
+          ]
+        }
+      ],
+      "changes": [
+        "PYD: canonicalize extracted dates before the existing start/end order validator.",
+        "FUN-003/DES-001: remove unused private prompt metadata arguments and skip prompt construction in offline mode.",
+        "CLS-004: declare pure routing/prompt/regex/validation stages static.",
+        "NAM-001: route explicit auto text before the broad coupon fallback; request powertrain fields required downstream.",
+        "NAM-005: group standard-library/third-party/project imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "Policy-type and regex extraction remain source heuristics, including ambiguity for documents containing multiple policy kinds; no new classification algorithm was introduced.",
+        "No model call or extraction pipeline was run."
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/dsl_generator.py",
+      "summary": "Read the entire generator, built-in template, nested metadata sanitizer, named-preset builders, renderer/validator, and save path. Keep real template/index state; centralize atomic text persistence and reflect the engine's actual optional inputs/calc contract.",
+      "definitions": [
+        {
+          "name": "atomic_write_text",
+          "kind": "function",
+          "line": 22,
+          "column": 0,
+          "end": 38,
+          "parameters": [
+            "path",
+            "content"
+          ],
+          "decorators": [],
+          "declared_role": "Replace one owned output file only after the complete write succeeds.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-003: one reusable write owner for both generators and reports; reject a symlink destination, write/flush/fsync a temporary sibling, replace only after success, and clean up on all exits."
+          ]
+        },
+        {
+          "name": "DSLGenerator",
+          "kind": "class",
+          "line": 41,
+          "column": 0,
+          "end": 502,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "DSL 生成器，将结构化数据转换为 DSL YAML",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain owned output/template roots, Jinja environment, built-in template, and profile registry; these are real shared generation resources."
+          ]
+        },
+        {
+          "name": "DSLGenerator.__init__",
+          "kind": "function",
+          "line": 91,
+          "column": 4,
+          "end": 122,
+          "parameters": [
+            "self",
+            "output_dir",
+            "template_dir"
+          ],
+          "decorators": [],
+          "declared_role": "初始化 DSL 生成器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: create nested output parents at the actual owner, keep explicit external-versus-built-in template modes, and avoid global filesystem configuration side effects."
+          ]
+        },
+        {
+          "name": "DSLGenerator.generate",
+          "kind": "function",
+          "line": 124,
+          "column": 4,
+          "end": 173,
+          "parameters": [
+            "self",
+            "data",
+            "validate",
+            "template_name",
+            "auto_detect",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "生成 DSL YAML",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-003/FUN-002: retain per-call selected template/data, registry preparation, render, and optional validation in order; the shared generator does not store current request/template state."
+          ]
+        },
+        {
+          "name": "DSLGenerator._preprocess_data",
+          "kind": "function",
+          "line": 176,
+          "column": 4,
+          "end": 292,
+          "parameters": [
+            "data"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "预处理数据，确保格式正确",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-001: changed to static and preserve the caller's data through deepcopy; reject invalid input-container/items instead of silently dropping them while retaining the real string-name shorthand."
+          ]
+        },
+        {
+          "name": "DSLGenerator._preprocess_data._sanitize",
+          "kind": "function",
+          "line": 180,
+          "column": 8,
+          "end": 186,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DES-004: retain the local metadata-text sanitizer and established placeholder rules; it does not replace mandatory financial values."
+          ]
+        },
+        {
+          "name": "DSLGenerator.detect_template_type",
+          "kind": "function",
+          "line": 294,
+          "column": 4,
+          "end": 299,
+          "parameters": [
+            "self",
+            "data",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "根据数据和上下文自动检测最匹配的模板类型。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: retain an instance method because it queries this generator's configured registry and returns a genuine optional template name."
+          ]
+        },
+        {
+          "name": "DSLGenerator._render_template",
+          "kind": "function",
+          "line": 301,
+          "column": 4,
+          "end": 305,
+          "parameters": [
+            "self",
+            "template",
+            "data"
+          ],
+          "decorators": [],
+          "declared_role": "Render only the selected template; missing required data remains an error.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-001: retain the explicit generic-template output requirement and actual selected-template render; built-in values now use JSON/YAML-safe encoding so quotes/colons do not mutate data."
+          ]
+        },
+        {
+          "name": "DSLGenerator._validate_yaml",
+          "kind": "function",
+          "line": 308,
+          "column": 4,
+          "end": 349,
+          "parameters": [
+            "yaml_content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "验证生成的 YAML",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/WEB-001: changed to static; mirror actual engine reads: rule_id is text, inputs/calc may be absent and default to empty containers, output.status/final_result must be text, malformed supplied structures fail."
+          ]
+        },
+        {
+          "name": "DSLGenerator.save",
+          "kind": "function",
+          "line": 351,
+          "column": 4,
+          "end": 378,
+          "parameters": [
+            "self",
+            "yaml_content",
+            "filename"
+          ],
+          "decorators": [],
+          "declared_role": "保存 DSL 到文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/WEB-001: validate even explicitly named content before writing, retain existing single-filename/default-rule-ID behavior, and use atomic persistence so a failed save cannot truncate the previous rule."
+          ]
+        },
+        {
+          "name": "DSLGenerator.generate_from_template",
+          "kind": "function",
+          "line": 380,
+          "column": 4,
+          "end": 401,
+          "parameters": [
+            "self",
+            "template_type"
+          ],
+          "decorators": [],
+          "declared_role": "使用预定义模板生成 DSL",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DES-004/FUN-002: retain this public named-preset entry point because it generates the three existing tested preset modes; do not replace them with a speculative registry framework."
+          ]
+        },
+        {
+          "name": "DSLGenerator._get_appliance_template",
+          "kind": "function",
+          "line": 404,
+          "column": 4,
+          "end": 433,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "家电补贴模板",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-004: changed to static; retain the existing public appliance preset's rates/caps/optional energy semantics without treating those named presets as unknown extracted policy defaults."
+          ]
+        },
+        {
+          "name": "DSLGenerator._get_car_template",
+          "kind": "function",
+          "line": 436,
+          "column": 4,
+          "end": 474,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "汽车补贴模板",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-003: changed to static; preserve its current first-match price ranges, zero packages, unbounded endpoints, and expression-sandbox-compatible conditional expression."
+          ]
+        },
+        {
+          "name": "DSLGenerator._get_consumption_template",
+          "kind": "function",
+          "line": 477,
+          "column": 4,
+          "end": 502,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "消费补贴模板",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-004: changed to static; retain the explicit consumption preset parameters and current formula, including zero caps."
+          ]
+        }
+      ],
+      "changes": [
+        "RES-001: add atomic_write_text in the existing owner and share it with the domain generator/report writer; no new module or dependency.",
+        "WEB-001/ERR-003: validate content before either default-name or explicit-name persistence and reject symlink destinations.",
+        "DAT-001: JSON/YAML-encode built-in template values and render empty inputs as [], preserving quotes, expression text, and actual scalar types.",
+        "WEB-001: allow absent inputs/calc exactly as PolicyEngine does, while rejecting malformed supplied containers and missing/invalid output text.",
+        "CLS-004/DES-001: mark stateless preprocessing/preset/validation stages static and stop dropping invalid input items.",
+        "RES-001: let the output owner create nested parents."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "Save validation follows PolicyEngine._validate_inputs rule.get('inputs', []), _execute_calculation rule.get('calc', {}), and direct output/status/final_result reads; it does not execute a rule or prove financial correctness.",
+        "Existing filename APIs and explicit overwrite behavior are preserved. No rule file or report was generated during this audit.",
+        "External template escaping is outside this agent's write scope and was reported to root."
+      ],
+      "contract_sources": [
+        {
+          "path": "app/agents/dsl_generator/rule_engine.py",
+          "line": 53,
+          "definition": "PolicyEngine._load_all_rules",
+          "note": "Loader requires a mapping and a string rule_id."
+        },
+        {
+          "path": "app/agents/dsl_generator/rule_engine.py",
+          "line": 181,
+          "definition": "PolicyEngine._validate_inputs",
+          "note": "Absent inputs defaults to []; supplied input specifications are iterated."
+        },
+        {
+          "path": "app/agents/dsl_generator/rule_engine.py",
+          "line": 222,
+          "definition": "PolicyEngine._execute_calculation",
+          "note": "Absent calc defaults to {}; output, status, and final_result are directly required."
+        },
+        {
+          "path": "app/agents/dsl_generator/rule_engine.py",
+          "line": 402,
+          "definition": "PolicyEngine._eval_template",
+          "note": "Template/literal output operations require text values."
+        }
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/dsl_generator_domain.py",
+      "summary": "Read every domain generator method, actual model/prompt/template consumers, and all three nested repair callbacks. Keep its real per-domain generation flow while stopping JSON-content mutation and making repair/persistence precise.",
+      "definitions": [
+        {
+          "name": "DomainDrivenDSLGenerator",
+          "kind": "class",
+          "line": 28,
+          "column": 0,
+          "end": 411,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "领域驱动的DSL生成器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain shared model credentials, output root, and Jinja environment for the actual domain schema/prompt/template flow."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.__init__",
+          "kind": "function",
+          "line": 37,
+          "column": 4,
+          "end": 61,
+          "parameters": [
+            "self",
+            "api_key",
+            "api_base",
+            "output_dir"
+          ],
+          "decorators": [],
+          "declared_role": "初始化生成器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-003/RES-001: use environment defaults only when credentials/base URL are None and let this owner create nested output parents."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.extract_from_docx",
+          "kind": "function",
+          "line": 64,
+          "column": 4,
+          "end": 94,
+          "parameters": [
+            "docx_path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "从Word文档提取文本",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static because it only transforms the supplied document; keep paragraphs/tables in one extraction stage."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.detect_domain",
+          "kind": "function",
+          "line": 97,
+          "column": 4,
+          "end": 112,
+          "parameters": [
+            "text"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "自动检测政策领域",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static because routing uses the existing domain catalog rather than generator instance state."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.extract_with_llm",
+          "kind": "function",
+          "line": 114,
+          "column": 4,
+          "end": 160,
+          "parameters": [
+            "self",
+            "text",
+            "domain"
+          ],
+          "decorators": [],
+          "declared_role": "使用LLM提取结构化数据",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-001: retain the real domain prompt, configured model, owned client scope, and explicit missing-content/provider failures."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator._parse_json_response",
+          "kind": "function",
+          "line": 163,
+          "column": 4,
+          "end": 177,
+          "parameters": [
+            "response"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "解析LLM返回的JSON",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-001: changed to static; retain JSON/fenced-object parsing but remove speculative quote/trailing-comma rewrites that can change provider string values."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.validate_with_schema",
+          "kind": "function",
+          "line": 179,
+          "column": 4,
+          "end": 205,
+          "parameters": [
+            "self",
+            "data",
+            "domain"
+          ],
+          "decorators": [],
+          "declared_role": "使用Schema验证和规范化数据",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "PYD/ERR-002: retain the registered Pydantic boundary and one existing repair/revalidation path for known formatting problems; unregistered domains and unrepaired failures remain visible."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator._fix_common_issues",
+          "kind": "function",
+          "line": 208,
+          "column": 4,
+          "end": 268,
+          "parameters": [
+            "data",
+            "domain"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "修复常见的数据问题",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/CLS-003: changed to static; work on a deepcopy, preserve city components while repairing only the final rule-label segment, and retain concrete catalog normalization."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator._fix_common_issues.fix_time",
+          "kind": "function",
+          "line": 222,
+          "column": 8,
+          "end": 233,
+          "parameters": [
+            "time_str"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DAT-001: retain this local transformation but match only exact 24:00 midnight forms, preserve timezone suffix, and avoid converting malformed 24:00:30 into a valid time."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator._fix_common_issues.fix_times_recursive",
+          "kind": "function",
+          "line": 236,
+          "column": 8,
+          "end": 245,
+          "parameters": [
+            "obj"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: recurse into nested containers before testing key names so time_windows/start/end containers no longer prevent their children from being repaired."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator._fix_common_issues.normalize_recursive",
+          "kind": "function",
+          "line": 253,
+          "column": 12,
+          "end": 264,
+          "parameters": [
+            "obj"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain local recursive catalog normalization but apply all present variants instead of returning after the first substitution."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.generate_dsl_yaml",
+          "kind": "function",
+          "line": 270,
+          "column": 4,
+          "end": 289,
+          "parameters": [
+            "self",
+            "data",
+            "domain"
+          ],
+          "decorators": [],
+          "declared_role": "生成DSL YAML",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain actual catalog template selection/render; unknown or missing selected templates fail rather than falling back to another policy type."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.save_dsl",
+          "kind": "function",
+          "line": 291,
+          "column": 4,
+          "end": 310,
+          "parameters": [
+            "self",
+            "yaml_content",
+            "rule_id"
+          ],
+          "decorators": [],
+          "declared_role": "保存DSL到文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/RES-001: retain existing rule-ID filename guard, reuse the actual engine-envelope validator, and share atomic persistence with the generic generator."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.generate_from_text",
+          "kind": "function",
+          "line": 312,
+          "column": 4,
+          "end": 344,
+          "parameters": [
+            "self",
+            "text",
+            "domain"
+          ],
+          "decorators": [],
+          "declared_role": "从文本生成DSL（完整流程）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain detect/extract/validate/render/save order and explicit optional domain hint; no extra orchestration layer is introduced."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.generate_from_docx",
+          "kind": "function",
+          "line": 346,
+          "column": 4,
+          "end": 361,
+          "parameters": [
+            "self",
+            "docx_path",
+            "domain"
+          ],
+          "decorators": [],
+          "declared_role": "从Word文档生成DSL",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DES-004: retain the actual document entry point used by the CLI/batch wrapper; it owns the read-then-generate sequence."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator.batch_generate",
+          "kind": "function",
+          "line": 363,
+          "column": 4,
+          "end": 398,
+          "parameters": [
+            "self",
+            "input_dir",
+            "domain_hints"
+          ],
+          "decorators": [],
+          "declared_role": "批量生成DSL",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-004/ERR-004: annotate the existing list-of-records result and retain explicit per-file success/failure records and domain hints."
+          ]
+        },
+        {
+          "name": "DomainDrivenDSLGenerator._generate_report",
+          "kind": "function",
+          "line": 400,
+          "column": 4,
+          "end": 411,
+          "parameters": [
+            "self",
+            "results"
+          ],
+          "decorators": [],
+          "declared_role": "生成处理报告",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-004/RES-001: annotate None and use atomic text persistence for the existing JSON batch report instead of truncating a previous report on failure."
+          ]
+        },
+        {
+          "name": "generate_dsl",
+          "kind": "function",
+          "line": 415,
+          "column": 0,
+          "end": 431,
+          "parameters": [
+            "text_or_path",
+            "domain"
+          ],
+          "decorators": [],
+          "declared_role": "便捷函数：生成DSL",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DES-004: retain the real text-versus-Word convenience/CLI dispatcher; recognize uppercase .DOCX paths while keeping existing Path behavior."
+          ]
+        }
+      ],
+      "changes": [
+        "DAT-001: remove arbitrary JSON string rewriting and retain strict parsed-object/fenced-JSON semantics.",
+        "ERR-001: repair rule-label suffixes without greedily deleting the city from rule_id.",
+        "DAT-001: recurse through time-named containers, normalize only exact midnight, and retain timezone offsets.",
+        "FUN-002: apply all matching catalog term substitutions rather than stopping after the first.",
+        "RES-001/WEB-001: reuse atomic persistence and the actual engine-envelope validator for saved rules/reports.",
+        "CLS-004/FUN-004: mark pure transformations static and annotate existing batch/report results.",
+        "DAT-003: preserve explicit optional credentials/base URL; recognize uppercase DOCX input paths."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "Repair invocation still occurs only after schema validation fails. Moving all normalization before validation would also rewrite metadata/title strings and needs a separate data-normalization decision.",
+        "Root was informed that the consumer-coupon domain schema uses retail/dining while the executable template/runtime expects AMOUNT/PERCENT; no cross-directory schema or template was changed here.",
+        "The catalog also names optional trade-in/insurance templates absent from the current templates directory; selected missing templates continue to fail visibly."
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/main.py",
+      "summary": "Read every CLI callback/helper and Typer declaration. Preserve document/directory/test-rule registrations and options; parse valid inline JSON before attempting filesystem access.",
+      "definitions": [
+        {
+          "name": "_configure_logging",
+          "kind": "function",
+          "line": 20,
+          "column": 0,
+          "end": 25,
+          "parameters": [
+            "verbose"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "LOG/FUN-001: retain the CLI-owned logging configuration; handlers are configured at the executable entry boundary rather than in a business helper."
+          ]
+        },
+        {
+          "name": "global_options",
+          "kind": "function",
+          "line": 29,
+          "column": 0,
+          "end": 35,
+          "parameters": [
+            "ctx",
+            "verbose"
+          ],
+          "decorators": [
+            "app.callback()"
+          ],
+          "declared_role": "全局开关.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the registered Typer callback, declared options, and CLI context protocol; this short framework entry is not dead code."
+          ]
+        },
+        {
+          "name": "_build_pipeline",
+          "kind": "function",
+          "line": 38,
+          "column": 0,
+          "end": 51,
+          "parameters": [
+            "data_dir",
+            "output_dir",
+            "use_project_config",
+            "use_llama_parser",
+            "llama_reader_config"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DES-004: retain the shared two-command assembly boundary because it converts real CLI paths/options into the pipeline's constructor contract."
+          ]
+        },
+        {
+          "name": "_echo_result",
+          "kind": "function",
+          "line": 54,
+          "column": 0,
+          "end": 60,
+          "parameters": [
+            "payload"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain concrete status/file/result diagnostics for both document commands, including explicit per-file error records."
+          ]
+        },
+        {
+          "name": "_load_inputs",
+          "kind": "function",
+          "line": 63,
+          "column": 0,
+          "end": 70,
+          "parameters": [
+            "payload"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/RES-001: parse valid inline JSON first so long JSON is not treated as a filesystem path, then support the existing JSON-file mode; require the final value to be an object."
+          ]
+        },
+        {
+          "name": "_load_optional_json",
+          "kind": "function",
+          "line": 73,
+          "column": 0,
+          "end": 76,
+          "parameters": [
+            "payload"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-002/FUN-005: retain the real optional CLI configuration adapter used by both document commands; None means no reader overrides."
+          ]
+        },
+        {
+          "name": "process_document",
+          "kind": "function",
+          "line": 80,
+          "column": 0,
+          "end": 97,
+          "parameters": [
+            "path",
+            "output_dir",
+            "use_project_config",
+            "save",
+            "use_llama_parser",
+            "llama_reader_config"
+          ],
+          "decorators": [
+            "app.command('document')"
+          ],
+          "declared_role": "转换单个文档.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: preserve the registered document command and all declared options, including save/dry-run and optional reader configuration."
+          ]
+        },
+        {
+          "name": "process_directory",
+          "kind": "function",
+          "line": 101,
+          "column": 0,
+          "end": 118,
+          "parameters": [
+            "source_dir",
+            "output_dir",
+            "use_project_config",
+            "use_llama_parser",
+            "llama_reader_config"
+          ],
+          "decorators": [
+            "app.command('directory')"
+          ],
+          "declared_role": "批量转换目录下的所有文档.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: preserve the registered directory command, directory argument validation, option names, and per-file status output."
+          ]
+        },
+        {
+          "name": "test_rule",
+          "kind": "function",
+          "line": 122,
+          "column": 0,
+          "end": 131,
+          "parameters": [
+            "rule_id",
+            "inputs",
+            "rule_dir"
+          ],
+          "decorators": [
+            "app.command('test-rule')"
+          ],
+          "declared_role": "执行已有 DSL 规则并查看输出.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: preserve the registered test-rule command and explicit manual execution semantics; this function was reviewed but not invoked."
+          ]
+        }
+      ],
+      "changes": [
+        "DAT-001: decode valid inline JSON before filesystem access while retaining JSON-file inputs and the object-only boundary."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "No CLI, pipeline, test-rule command, application import, or external client was executed."
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/pipeline.py",
+      "summary": "Read the full pipeline, actual generation/save boundaries, batch results, and diagnostic-case methods. Keep shared real parser/extractor/generator/engine objects and preserve the registered operational diagnostics.",
+      "definitions": [
+        {
+          "name": "DSLPipeline",
+          "kind": "class",
+          "line": 20,
+          "column": 0,
+          "end": 235,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "High-level orchestration for parsing documents and producing DSL rules.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain shared configured parsing/extraction/generation/engine resources and a direct orchestration flow; no extra manager/factory layer is needed."
+          ]
+        },
+        {
+          "name": "DSLPipeline.__init__",
+          "kind": "function",
+          "line": 23,
+          "column": 4,
+          "end": 45,
+          "parameters": [
+            "self",
+            "data_dir",
+            "output_dir",
+            "use_project_config",
+            "use_llama_index_parser",
+            "llama_reader_kwargs"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: retain explicit mode/configuration arguments, owner-created output parents, and one set of real subsystem components."
+          ]
+        },
+        {
+          "name": "DSLPipeline.process_document",
+          "kind": "function",
+          "line": 47,
+          "column": 4,
+          "end": 108,
+          "parameters": [
+            "self",
+            "file_path",
+            "save"
+          ],
+          "decorators": [],
+          "declared_role": "Process an individual document.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/ERR-004: retain parse/extract/validate/render/optional-save order; validation failure cannot save or claim success, and the result explicitly identifies file errors."
+          ]
+        },
+        {
+          "name": "DSLPipeline.process_directory",
+          "kind": "function",
+          "line": 110,
+          "column": 4,
+          "end": 132,
+          "parameters": [
+            "self",
+            "directory"
+          ],
+          "decorators": [],
+          "declared_role": "Process all supported files in a directory.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-003: default only a missing directory argument, reject a non-directory source, and use the configured parser's supported suffixes case-insensitively; each file retains its explicit result."
+          ]
+        },
+        {
+          "name": "DSLPipeline.test_rule",
+          "kind": "function",
+          "line": 134,
+          "column": 4,
+          "end": 147,
+          "parameters": [
+            "self",
+            "rule_id",
+            "test_inputs"
+          ],
+          "decorators": [],
+          "declared_role": "Execute a rule with custom inputs.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain this public/manual diagnostic operation because it reloads actual persisted rules and returns the real execution status; it was not run."
+          ]
+        },
+        {
+          "name": "DSLPipeline.generate_test_cases",
+          "kind": "function",
+          "line": 149,
+          "column": 4,
+          "end": 177,
+          "parameters": [
+            "self",
+            "rule_id"
+          ],
+          "decorators": [],
+          "declared_role": "Generate rudimentary test cases for a rule.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DES-005: retain the existing rudimentary case generator rather than presenting it as proof of policy correctness or redesigning financial sampling."
+          ]
+        },
+        {
+          "name": "DSLPipeline.run_full_test",
+          "kind": "function",
+          "line": 179,
+          "column": 4,
+          "end": 205,
+          "parameters": [
+            "self",
+            "rule_id"
+          ],
+          "decorators": [],
+          "declared_role": "Execute generated test cases for a rule.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the established explicit manual smoke-report feature and result aggregation; its name does not authorize this audit to execute tests."
+          ]
+        },
+        {
+          "name": "DSLPipeline._default_input_value",
+          "kind": "function",
+          "line": 208,
+          "column": 4,
+          "end": 218,
+          "parameters": [
+            "spec"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-003/FUN-001: support the same integer/int and bool/boolean aliases accepted by the engine while preserving real False and numeric zero semantics."
+          ]
+        },
+        {
+          "name": "DSLPipeline._value_for_tier",
+          "kind": "function",
+          "line": 221,
+          "column": 4,
+          "end": 235,
+          "parameters": [
+            "name",
+            "input_type",
+            "tier"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-003/FUN-001: retain source-tier sample values and explicit threshold-None handling, with integer aliases kept consistent with the engine."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001: reject a missing/non-directory batch source instead of reporting a successful empty batch.",
+        "FUN-001: use the actual configured parser format policy and recognize uppercase suffixes.",
+        "DAT-003: honor integer/int and bool/boolean aliases in diagnostic values."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "The existing generated smoke cases remain heuristic and do not establish full policy/date/eligibility coverage.",
+        "No pipeline, generated case, or diagnostic execution was run."
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/rule_engine.py",
+      "summary": "Read the entire loader, period/input validation, arithmetic/mapping evaluator, every nested callback/lambda, sandboxed template path, context builder, and public rule queries. Keep the explicit expression allow-list and saved dsl_helpers namespace intact.",
+      "definitions": [
+        {
+          "name": "PolicyEngine",
+          "kind": "class",
+          "line": 23,
+          "column": 0,
+          "end": 474,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "政策规则引擎",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain actual loaded-rule state, output sandbox, and rule-directory lifecycle; it is not a stateless helper wrapper."
+          ]
+        },
+        {
+          "name": "PolicyEngine.__init__",
+          "kind": "function",
+          "line": 26,
+          "column": 4,
+          "end": 51,
+          "parameters": [
+            "self",
+            "rule_dir"
+          ],
+          "decorators": [],
+          "declared_role": "初始化规则引擎",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: let the owner create nested rule-directory parents; retain SandboxedEnvironment, StrictUndefined, and existing safe template globals."
+          ]
+        },
+        {
+          "name": "PolicyEngine._load_all_rules",
+          "kind": "function",
+          "line": 53,
+          "column": 4,
+          "end": 71,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "加载所有规则文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-001/CLS-003: assemble a replacement rule mapping locally and retain visible parse/load errors; a missing directory now raises instead of silently leaving stale rules as a successful reload."
+          ]
+        },
+        {
+          "name": "PolicyEngine.reload_rules",
+          "kind": "function",
+          "line": 73,
+          "column": 4,
+          "end": 75,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "重新加载所有规则（热更新）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DES-004: retain this public hot-reload entry because API and pipeline callers use it; it delegates the actual atomic mapping replacement."
+          ]
+        },
+        {
+          "name": "PolicyEngine.execute",
+          "kind": "function",
+          "line": 77,
+          "column": 4,
+          "end": 126,
+          "parameters": [
+            "self",
+            "rule_id",
+            "inputs",
+            "user_state"
+          ],
+          "decorators": [],
+          "declared_role": "执行指定规则",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/ERR-002: retain explicit ERROR/EXPIRED/INVALID_INPUT/success result states and source-identifiable failure reporting, never substituting a qualified result after a calculation error."
+          ]
+        },
+        {
+          "name": "PolicyEngine._is_valid_period",
+          "kind": "function",
+          "line": 128,
+          "column": 4,
+          "end": 151,
+          "parameters": [
+            "self",
+            "rule",
+            "inputs"
+          ],
+          "decorators": [],
+          "declared_role": "检查规则是否在有效期内",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-002/DES-004: retain genuinely optional validity windows, existing date-bound semantics, and the current-date choice only when no input reference timestamp exists."
+          ]
+        },
+        {
+          "name": "PolicyEngine._extract_reference_date",
+          "kind": "function",
+          "line": 153,
+          "column": 4,
+          "end": 170,
+          "parameters": [
+            "self",
+            "inputs"
+          ],
+          "decorators": [],
+          "declared_role": "从输入中提取与有效期相关的时间.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001: retain actual datetime/date/string input handling and explicit invalid-reference errors; do not hide a malformed supplied timestamp behind today's date."
+          ]
+        },
+        {
+          "name": "PolicyEngine._parse_date_string",
+          "kind": "function",
+          "line": 173,
+          "column": 4,
+          "end": 178,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "尝试解析 ISO 日期/时间.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-001: changed to static and remove the date-prefix truncation fallback so a malformed ISO timestamp suffix cannot silently become a valid reference date."
+          ]
+        },
+        {
+          "name": "PolicyEngine._validate_inputs",
+          "kind": "function",
+          "line": 181,
+          "column": 4,
+          "end": 220,
+          "parameters": [
+            "rule",
+            "inputs"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "验证输入参数",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/WEB-001: changed to static; reject bool/nonfinite numeric input and fractional values for integer fields while retaining required/optional fields, numeric strings, zero, and boolean aliases."
+          ]
+        },
+        {
+          "name": "PolicyEngine._execute_calculation",
+          "kind": "function",
+          "line": 222,
+          "column": 4,
+          "end": 263,
+          "parameters": [
+            "self",
+            "rule",
+            "inputs",
+            "user_state"
+          ],
+          "decorators": [],
+          "declared_role": "执行规则计算",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DAT-001: retain ordered calc evaluation, actual required output/status/final_result access, trace rendering, and a concrete execution dictionary; inputs/calc are genuinely optional."
+          ]
+        },
+        {
+          "name": "PolicyEngine._eval_expression",
+          "kind": "function",
+          "line": 265,
+          "column": 4,
+          "end": 276,
+          "parameters": [
+            "self",
+            "expr",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "Evaluate the DSL's arithmetic, comparisons, mapping access and helpers.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DES-004: retain literal values, the existing template mode, and parsed-expression dispatch; no raw Python eval/exec or undocumented alternate execution path is added."
+          ]
+        },
+        {
+          "name": "PolicyEngine._evaluate_node",
+          "kind": "function",
+          "line": 278,
+          "column": 4,
+          "end": 361,
+          "parameters": [
+            "self",
+            "node",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DES-005: retain the explicit operator/function/node allow-list, mapping-only attribute/get access, short-circuit behavior, and three registered subsidy helpers; do not expose the imported module or arbitrary callables."
+          ]
+        },
+        {
+          "name": "PolicyEngine._evaluate_node.<lambda>@290:31",
+          "kind": "lambda",
+          "line": 290,
+          "column": 31,
+          "end": 290,
+          "parameters": [
+            "a",
+            "b"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the local ast.In membership comparator (left in right) as one explicitly allowed comparison; it does not expose new user-callable functions."
+          ]
+        },
+        {
+          "name": "PolicyEngine._evaluate_node.<lambda>@291:34",
+          "kind": "lambda",
+          "line": 291,
+          "column": 34,
+          "end": 291,
+          "parameters": [
+            "a",
+            "b"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the local ast.NotIn membership comparator (left not in right) as one explicitly allowed comparison; it preserves the expression language's existing semantics."
+          ]
+        },
+        {
+          "name": "PolicyEngine._evaluate_node.evaluate",
+          "kind": "function",
+          "line": 292,
+          "column": 8,
+          "end": 293,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the local recursive AST adapter because every child must be evaluated under the same explicit context and allow-list."
+          ]
+        },
+        {
+          "name": "PolicyEngine._build_eval_context",
+          "kind": "function",
+          "line": 364,
+          "column": 4,
+          "end": 400,
+          "parameters": [
+            "rule",
+            "inputs",
+            "user_state"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Assemble the evaluation context exposed to DSL expressions.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-004: changed to static; preserve the actual context/user_state alias used by saved YAML, optional sections, and registered helper callback data without making arbitrary modules available."
+          ]
+        },
+        {
+          "name": "PolicyEngine._eval_template",
+          "kind": "function",
+          "line": 402,
+          "column": 4,
+          "end": 406,
+          "parameters": [
+            "self",
+            "template_str",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "使用 Jinja2 模板引擎求值",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/FUN-001: retain the sandboxed/StrictUndefined Jinja path and literal-text mode; rendering failure remains an execution error."
+          ]
+        },
+        {
+          "name": "PolicyEngine.check_limits",
+          "kind": "function",
+          "line": 408,
+          "column": 4,
+          "end": 453,
+          "parameters": [
+            "self",
+            "rule_id",
+            "user_id",
+            "category",
+            "user_state"
+          ],
+          "decorators": [],
+          "declared_role": "检查用户限额",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-003/DAT-002: retain actual category counts and optional unbounded limits; zero is enforced and is never replaced by a default."
+          ]
+        },
+        {
+          "name": "PolicyEngine.list_rules",
+          "kind": "function",
+          "line": 455,
+          "column": 4,
+          "end": 466,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "列出所有可用规则",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the public metadata/activity list built from actual current rules; optional display metadata has explicit existing placeholders."
+          ]
+        },
+        {
+          "name": "PolicyEngine.get_rule_info",
+          "kind": "function",
+          "line": 468,
+          "column": 4,
+          "end": 474,
+          "parameters": [
+            "self",
+            "rule_id"
+          ],
+          "decorators": [],
+          "declared_role": "获取规则详细信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/CLS-003: retain a copied rule metadata view with activity state and real None for a missing ID; no mutable current request is stored."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001: reject bool/NaN/infinity for float inputs and fractional float values for integer inputs, preserving valid zero and numeric-string behavior.",
+        "DAT-001: reject malformed supplied timestamp suffixes instead of parsing only the first ten characters.",
+        "ERR-001: surface a missing rule directory during reload rather than reporting success with stale rules.",
+        "CLS-004: declare pure input/context/date conversions static.",
+        "RES-001/NAM-005: owner-create nested rule directories and group imports without changing the sandbox's allow-list."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "The current rules directory contains several files with the same rule_id. Existing replacement precedence is preserved; resolving or migrating those rule artifacts is outside this source-only scope.",
+        "No expression, rule, sandbox attack, live reload, or eligibility callback was executed; source review is not a runtime sandbox proof."
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/subsidy_calculations.py",
+      "summary": "Read every pure runtime function, all three money/status flows, and the tier sort callback. Keep module functions from the parent's authorized flattening and preserve the existing YAML helper ABI, rates, rounding, zero values, and optional state-callback modes.",
+      "definitions": [
+        {
+          "name": "_parse_optional_number",
+          "kind": "function",
+          "line": 11,
+          "column": 0,
+          "end": 19,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/WEB-001: retain explicit None, reject booleans and nonfinite supplied values, and parse actual numeric inputs; failed conversion stays visible."
+          ]
+        },
+        {
+          "name": "_round_policy_value",
+          "kind": "function",
+          "line": 21,
+          "column": 0,
+          "end": 22,
+          "parameters": [
+            "value",
+            "digits"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-004/DES-005: retain the existing float-only rounding/epsilon rule from the prior authorized refactor; no new currency rounding algorithm is introduced."
+          ]
+        },
+        {
+          "name": "_parse_iso",
+          "kind": "function",
+          "line": 24,
+          "column": 0,
+          "end": 30,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-002/FUN-001: retain the actual optional datetime/ISO input boundary and existing naive-time UTC interpretation; invalid supplied values are not silently replaced."
+          ]
+        },
+        {
+          "name": "_is_within_window",
+          "kind": "function",
+          "line": 32,
+          "column": 0,
+          "end": 41,
+          "parameters": [
+            "timestamp",
+            "window"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-002: retain explicit absent timestamp/window/bound semantics and existing inclusive-start/exclusive-end comparisons."
+          ]
+        },
+        {
+          "name": "_parse_policy_bool",
+          "kind": "function",
+          "line": 43,
+          "column": 0,
+          "end": 56,
+          "parameters": [
+            "value",
+            "default"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-003: recognize explicit true/false tokens and numeric 0/1, preserve None's documented default, and reject unknown strings/objects instead of silently choosing False/True."
+          ]
+        },
+        {
+          "name": "_get_policy_callback",
+          "kind": "function",
+          "line": 58,
+          "column": 0,
+          "end": 66,
+          "parameters": [
+            "context",
+            "name"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-003/WEB-001: retain the parent's concrete callback lookup boundary and explicit non-callable rejection; only actual optional policy callback names are requested."
+          ]
+        },
+        {
+          "name": "appliance_subsidy",
+          "kind": "function",
+          "line": 72,
+          "column": 0,
+          "end": 133,
+          "parameters": [
+            "inputs",
+            "efficiency_rates",
+            "per_item_cap",
+            "category_limits",
+            "special_rules",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-003: preserve price/rate/cap/status calculation and selected-energy required rates, including zeros; reject a negative configured cap so a qualified result cannot have a negative subsidy."
+          ]
+        },
+        {
+          "name": "auto_subsidy",
+          "kind": "function",
+          "line": 139,
+          "column": 0,
+          "end": 274,
+          "parameters": [
+            "inputs",
+            "windows",
+            "limits",
+            "matching",
+            "budget",
+            "eligibility",
+            "price_basis",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/DAT-003: preserve current selection/rounding/status flow and optional callbacks, invoke present falsey callable objects, honor the real last interval bracket, and treat an explicit None lower bound as unbounded including zero."
+          ]
+        },
+        {
+          "name": "auto_subsidy.price_bounds",
+          "kind": "function",
+          "line": 224,
+          "column": 4,
+          "end": 227,
+          "parameters": [
+            "tier"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/WEB-001: replace the opaque sort lambda with one local finite-number conversion stage; None has an explicit unbounded sort meaning and supplied nonfinite upper values raise."
+          ]
+        },
+        {
+          "name": "consumer_coupon",
+          "kind": "function",
+          "line": 280,
+          "column": 0,
+          "end": 437,
+          "parameters": [
+            "inputs",
+            "valid_period",
+            "tiers",
+            "distribution",
+            "usage_limits",
+            "coupon_types",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/DAT-003: retain source-derived tier discounts, expiry, quota/scope/stacking logic and real zero values; provided callbacks are selected by None identity so a falsey callable is not silently skipped."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001: reject unknown policy boolean values while preserving bool/0/1 and recognized true/false strings.",
+        "DAT-003: invoke actual supplied callbacks using is not None rather than their unrelated truthiness.",
+        "DAT-001: validate finite tier bounds in one named local sort callback.",
+        "DAT-003: use the final bracket for descriptive intervals and preserve zero under an unbounded lower endpoint.",
+        "WEB-001: reject negative per-item caps instead of returning a qualified negative payment.",
+        "DES-003: retain the module-function design and exact three-helper YAML allow-list ABI established by root."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "Existing money rates, first-match/tier selection, rounding, and optional missing-state callback modes are retained; this audit does not define new policy eligibility or budget enforcement.",
+        "No financial calculation or callback was executed."
+      ],
+      "replaced_definitions": [
+        {
+          "name": "auto_subsidy.<lambda>",
+          "kind": "lambda",
+          "original_line": 217,
+          "replaced_by": "auto_subsidy.price_bounds",
+          "review": "reviewed",
+          "notes": [
+            "The new named local callback parses both optional bounds explicitly and rejects a supplied nonfinite maximum; the original tier ordering/zero/unbounded semantics are retained apart from the documented None-lower-endpoint correction."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/agents/dsl_generator/template_registry.py",
+      "summary": "Read the complete three-profile registry, data model, normalizers/defaults, recursive fill/search helpers, and nested haystack callback. Keep real registered-template data and boundary conversions; normalize the existing descriptive interval notation without altering monetary values.",
+      "definitions": [
+        {
+          "name": "_is_missing",
+          "kind": "function",
+          "line": 18,
+          "column": 0,
+          "end": 26,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "Determine whether a value should be treated as 'missing'.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-003/FUN-001: retain the explicit detection-only notion of empty metadata; numeric zero and False remain present signals."
+          ]
+        },
+        {
+          "name": "TemplateProfile",
+          "kind": "class",
+          "line": 30,
+          "column": 0,
+          "end": 55,
+          "parameters": [],
+          "decorators": [
+            "dataclass"
+          ],
+          "declared_role": "Metadata for a single Jinja template.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/DAT-006: retain the internal dataclass because it holds real template metadata, conversion/default callbacks, and independent keyword/signal containers."
+          ]
+        },
+        {
+          "name": "TemplateProfile.score",
+          "kind": "function",
+          "line": 41,
+          "column": 4,
+          "end": 55,
+          "parameters": [
+            "self",
+            "data",
+            "haystack"
+          ],
+          "decorators": [],
+          "declared_role": "Compute a heuristic score for how well the data matches this template.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-001: retain the instance method because it uses this profile's keywords/signals and actual configured match threshold."
+          ]
+        },
+        {
+          "name": "TemplateRegistry",
+          "kind": "class",
+          "line": 58,
+          "column": 0,
+          "end": 385,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Central place to reason about available templates.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the three real profiles and detection/preparation behavior together; no plugin/abstract factory is needed."
+          ]
+        },
+        {
+          "name": "TemplateRegistry.__init__",
+          "kind": "function",
+          "line": 61,
+          "column": 4,
+          "end": 62,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: build this registry's actual profile collection and retain explicit callback ownership."
+          ]
+        },
+        {
+          "name": "TemplateRegistry.detect",
+          "kind": "function",
+          "line": 68,
+          "column": 4,
+          "end": 83,
+          "parameters": [
+            "self",
+            "data",
+            "context"
+          ],
+          "decorators": [],
+          "declared_role": "Return the best matching template profile.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain ordered heuristic scoring and genuine None when no existing profile meets its configured threshold."
+          ]
+        },
+        {
+          "name": "TemplateRegistry.get_profile_by_template",
+          "kind": "function",
+          "line": 85,
+          "column": 4,
+          "end": 91,
+          "parameters": [
+            "self",
+            "template_name"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DES-004: retain the public exact-template lookup because explicit named-template generation uses it; a missing name is a real optional selection."
+          ]
+        },
+        {
+          "name": "TemplateRegistry.apply_defaults",
+          "kind": "function",
+          "line": 93,
+          "column": 4,
+          "end": 112,
+          "parameters": [
+            "self",
+            "data",
+            "profile"
+          ],
+          "decorators": [],
+          "declared_role": "Backfill defaults + normalize structure for the given template.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/DAT-003: retain deepcopy preparation and explicit mandatory appliance rate/cap checks; defaults do not invent missing financial amounts and zeros remain supplied."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._build_profiles",
+          "kind": "function",
+          "line": 118,
+          "column": 4,
+          "end": 147,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-004: retain instance assembly because profiles capture this owner's preparation/default callbacks; all three profiles are current real templates."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._appliance_defaults",
+          "kind": "function",
+          "line": 154,
+          "column": 4,
+          "end": 162,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-005: retain the static optional-envelope/default-container factory; it deliberately does not invent appliance rates or caps."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._auto_defaults",
+          "kind": "function",
+          "line": 165,
+          "column": 4,
+          "end": 173,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-005: retain optional structure/version defaults without adding unknown budget, tier, or per-person amounts."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._coupon_defaults",
+          "kind": "function",
+          "line": 176,
+          "column": 4,
+          "end": 182,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-005: retain optional envelope/container defaults without creating discount tiers or expiry/quota policy."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._prepare_appliance_payload",
+          "kind": "function",
+          "line": 189,
+          "column": 4,
+          "end": 208,
+          "parameters": [
+            "data"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-003: retain explicit rate/cap numeric normalization and required-term checks, preserving provided zero values."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._prepare_auto_payload",
+          "kind": "function",
+          "line": 211,
+          "column": 4,
+          "end": 255,
+          "parameters": [
+            "data"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-001: preserve real field aliases and explicit bounds/subsidies; normalize compact or descriptive interval endpoints to the equivalent two-bracket form before execution."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._prepare_coupon_payload",
+          "kind": "function",
+          "line": 258,
+          "column": 4,
+          "end": 297,
+          "parameters": [
+            "data"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-003: retain actual tier aliases, numeric checks, inferred coupon type list from real tiers, optional cap/name fields, and zero quota/duration preservation."
+          ]
+        },
+        {
+          "name": "TemplateRegistry.has_field",
+          "kind": "function",
+          "line": 304,
+          "column": 4,
+          "end": 312,
+          "parameters": [
+            "data",
+            "dotted_path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Check whether a dotted path exists and is non-empty.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-002: retain the explicit dotted-mapping traversal used by profile scoring; absent optional paths return False."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._deep_fill",
+          "kind": "function",
+          "line": 315,
+          "column": 4,
+          "end": 323,
+          "parameters": [
+            "target",
+            "defaults"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-001: retain recursive fills only for missing keys and reject malformed supplied object sections instead of replacing them with success defaults."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._build_haystack",
+          "kind": "function",
+          "line": 326,
+          "column": 4,
+          "end": 347,
+          "parameters": [
+            "data",
+            "context"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-001: retain the actual metadata/context search-text assembly; broad Any-to-text conversion is confined to heuristic detection, not financial computation."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._build_haystack.push",
+          "kind": "function",
+          "line": 329,
+          "column": 8,
+          "end": 334,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the local text-collection callback because it shares the one haystack buffer and deliberately skips missing optional metadata."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._normalize_placeholder",
+          "kind": "function",
+          "line": 350,
+          "column": 4,
+          "end": 356,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-004: retain this boundary's explicit existing placeholder vocabulary; numeric zero/False are not discarded as missing."
+          ]
+        },
+        {
+          "name": "TemplateRegistry._normalize_number",
+          "kind": "function",
+          "line": 359,
+          "column": 4,
+          "end": 385,
+          "parameters": [
+            "value"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/WEB-001: retain strict finite numeric/money-text normalization, reject bool/invalid provided data, and preserve actual zero rather than filling a financial fallback."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001/DAT-001: normalize actual descriptive interval endpoint notation, including '[min, max)', into its equivalent compact form while retaining explicit invalid-interval errors.",
+        "NAM-005: group the standard-library imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, model/API calls, or CLI/rule/calculation execution were run. AST parsing was used only to inventory source definitions; all implementations were read separately.",
+        "Template detection remains the existing three-profile heuristic; no new template family or unknown financial default was added.",
+        "Current external-template/domain-schema compatibility items were reported to root and are outside this agent's source directory."
+      ]
+    }
+  ]
+}

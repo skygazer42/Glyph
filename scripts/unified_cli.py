@@ -1,54 +1,28 @@
 #!/usr/bin/env python3
 """
-统一智能体版Gove政策问答系统 - 集成ChatDB和Gove的所有智能体
+政策知识服务命令行：python -m scripts.unified_cli。
 """
 
-import asyncio
-import anyio
+from __future__ import annotations
+
 import argparse
-import logging
+import asyncio
+from contextlib import AsyncExitStack
 import json
+import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
+import anyio
 
-from app.agents.service.agent_service import AgentService  # noqa: E402 - executable script bootstraps the repository path
-from app.utils.config import Config  # noqa: E402 - executable script bootstraps the repository path
-
-
-class AgentOrchestratorService:
-    """Compatibility wrapper that exposes AgentService via the old orchestrator interface."""
-
-    def __init__(self, config: Config):
-        self._service = AgentService(config=config)
-        self._initialized = False
-
-    async def _ensure_initialized(self):
-        if not self._initialized:
-            await self._service.initialize()
-            self._initialized = True
-
-    async def process_query(self, query: str, session_id: str | None = None):
-        await self._ensure_initialized()
-        return await self._service.process_query(query, session_id=session_id)
-
-    async def aclose(self) -> None:
-        await self._service.aclose()
-
-    async def get_metrics(self):
-        await self._ensure_initialized()
-        return {
-            "total_agents": 5,
-            "processing_chains": ["dialogue", "knowledge", "graph", "rule_engine", "text2sql"],
-        }
+if TYPE_CHECKING:
+    from app.agents.service.agent_service import AgentService
 
 
-async def interactive_mode(orchestrator: AgentOrchestratorService):
+async def interactive_mode(service: AgentService) -> None:
     """交互模式"""
-    print("\n=== Gove统一智能体系统 ===")
+    print("\n=== Glyph 政策知识服务 ===")
     print("🤖 集成ChatDB和Gove的智能体架构")
     print("✨ 支持功能：")
     print("   • 日常对话和问候")
@@ -74,13 +48,13 @@ async def interactive_mode(orchestrator: AgentOrchestratorService):
                 continue
 
             print("\n助手：正在智能分析并处理...")
-            response = await orchestrator.process_query(query, session_id)
+            response = await service.process_query(query, session_id=session_id)
 
             # 更新会话ID
             session_id = response.metadata.get("session_id")
 
             # 显示处理信息
-            chain = response.metadata.get("chain", "unknown")
+            chain = response.metadata["route"]
             retrieved = response.metadata.get("retrieved_count", 0)
             analyzed = response.metadata.get("analyzed_count", 0)
 
@@ -124,7 +98,7 @@ async def interactive_mode(orchestrator: AgentOrchestratorService):
             logging.error(f"Error in interactive mode: {e}", exc_info=True)
 
 
-async def demo_mode(orchestrator: AgentOrchestratorService):
+async def demo_mode(service: AgentService) -> None:
     """演示模式 - 展示不同智能体的能力"""
     print("\n=== 演示模式 ===")
 
@@ -132,35 +106,36 @@ async def demo_mode(orchestrator: AgentOrchestratorService):
         {
             "name": "对话测试",
             "query": "你好，请介绍一下自己",
-            "expected_chain": "chat",
+            "expected_chain": "dialogue",
             "description": "测试聊天智能体"
         },
         {
             "name": "简单查询",
             "query": "申请家电补贴需要什么条件？",
-            "expected_chain": "policy",
+            "expected_chain": "knowledge",
             "description": "测试政策查询链"
         },
         {
             "name": "计算测试",
             "query": "我想买台5000元的电视，能补贴多少钱？",
-            "expected_chain": "calculation",
+            "expected_chain": "rule_engine",
             "description": "测试计算智能体"
         },
         {
             "name": "比较测试",
             "query": "汽车补贴和家电补贴有什么区别？",
-            "expected_chain": "comparison",
+            "expected_chain": "knowledge",
             "description": "测试比较智能体"
         },
         {
             "name": "上下文测试",
             "query": "那申请材料有哪些？",
-            "expected_chain": "policy",
+            "expected_chain": "graph",
             "description": "测试会话上下文"
         }
     ]
 
+    session_id = None
     for i, scenario in enumerate(demo_scenarios, 1):
         print(f"\n{'='*50}")
         print(f"\n🔍 测试 {i}/{len(demo_scenarios)}: {scenario['name']}")
@@ -168,12 +143,13 @@ async def demo_mode(orchestrator: AgentOrchestratorService):
         print(f"   期望: {scenario['description']}")
         print(f"   预期链: {scenario['expected_chain']}")
 
-        response = await orchestrator.process_query(scenario['query'])
+        response = await service.process_query(scenario['query'], session_id=session_id)
+        session_id = response.metadata["session_id"]
 
-        actual_chain = response.metadata.get("chain", "unknown")
+        actual_chain = response.metadata["route"]
         confidence = response.confidence
 
-        print(f"\n[OK] Actual chain: {actual_chain}")
+        print(f"\nActual route: {actual_chain}")
         print(f"   置信度: {confidence:.1%}")
         print(f"   回答: {response.answer[:100]}...")
 
@@ -189,7 +165,7 @@ async def demo_mode(orchestrator: AgentOrchestratorService):
     print("\n[OK] Demo completed!")
 
 
-async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
+async def batch_mode(service: AgentService, query_file: str) -> None:
     """批量处理模式"""
     print(f"\n批量处理模式: {query_file}")
 
@@ -205,14 +181,14 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
 
         for i, query in enumerate(queries, 1):
             print(f"\n[{i}/{len(queries)}] 处理: {query[:50]}...")
-            response = await orchestrator.process_query(query)
+            response = await service.process_query(query)
 
             # 统计处理链
-            chain = response.metadata.get("chain", "unknown")
+            chain = response.metadata["route"]
             chain_stats[chain] = chain_stats.get(chain, 0) + 1
 
             # 统计意图类型
-            intent = response.metadata.get("intent", "unknown")
+            intent = response.metadata["intent"]["intent"]
             intent_stats[intent] = intent_stats.get(intent, 0) + 1
 
             results.append({
@@ -225,7 +201,13 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
             })
 
         # 保存结果
-        output_file = Path(query_file).with_suffix('.json')
+        query_path = Path(query_file)
+        output_file = (
+            query_path.with_name(f"{query_path.stem}.results.json")
+            if query_path.suffix.lower() == ".json" else query_path.with_suffix(".json")
+        )
+        if await asyncio.to_thread(output_file.exists) and await asyncio.to_thread(output_file.samefile, query_path):
+            raise ValueError("Batch output must not overwrite the input file")
         output_text = json.dumps({
                 "results": results,
                 "chain_statistics": chain_stats,
@@ -259,28 +241,24 @@ async def batch_mode(orchestrator: AgentOrchestratorService, query_file: str):
         raise
 
 
-async def metrics_mode(orchestrator: AgentOrchestratorService):
-    """指标模式 - 显示系统指标"""
-    print("\n=== 系统指标 ===")
-
-    # 获取指标
-    metrics = await orchestrator.get_metrics()
-
-    print("\n[STATS] Agent statistics:")
-    print(f"   总智能体数: {metrics['total_agents']}")
-    print(f"   处理链数: {metrics['processing_chains']}")
-
-    print("\n[OK] Metrics retrieved successfully")
+def metrics_mode(service: AgentService) -> None:
+    """Show this CLI's constructed components, without inventing runtime metrics."""
+    components = [service.rewrite_agent, service.knowledge_agent, service.graph_agent,
+                  service.rule_agent, service.workflow_agent]
+    print("\n=== 当前 CLI 组件清单 ===")
+    print(f"   已构造组件数: {len(components)}")
+    for component in components:
+        print(f"   - {type(component).__name__}")
 
 
-async def main():
+async def main() -> None:
     """主函数"""
-    parser = argparse.ArgumentParser(description='Gove统一智能体系统')
-    parser.add_argument('--config', '-c', default='config/config.yaml', help='配置文件路径')
+    parser = argparse.ArgumentParser(description='Glyph 政策知识服务')
+    parser.add_argument('--config', '-c', default=None, help='配置文件路径（未指定时尝试 config/config.yaml）')
     parser.add_argument('--interactive', '-i', action='store_true', help='交互模式')
     parser.add_argument('--batch', '-b', help='批量处理模式，查询文件路径')
     parser.add_argument('--demo', '-d', action='store_true', help='演示模式')
-    parser.add_argument('--metrics', '-m', action='store_true', help='显示系统指标')
+    parser.add_argument('--metrics', '-m', action='store_true', help='显示当前 CLI 组件清单')
     parser.add_argument('--debug', action='store_true', help='调试模式')
     parser.add_argument('--log-level', default='INFO', help='日志级别')
     args = parser.parse_args()
@@ -294,29 +272,44 @@ async def main():
     logger = logging.getLogger(__name__)
 
     try:
-        # 加载配置
-        if await asyncio.to_thread(Path(args.config).exists):
-            config = await asyncio.to_thread(Config.from_file, args.config)
+        from app.config.app_config import settings
+        from app.config.agent_config import AgentServiceConfig
+        config_path = Path("config/config.yaml") if args.config is None else Path(args.config)
+        if await asyncio.to_thread(config_path.exists):
+            config = await asyncio.to_thread(AgentServiceConfig.from_file, str(config_path))
         else:
-            config = Config.from_env()
+            if args.config is not None:
+                raise FileNotFoundError(config_path)
+            config = await anyio.to_thread.run_sync(AgentServiceConfig)
 
-        # 初始化编排服务
-        orchestrator = AgentOrchestratorService(config)
+        # 全局客户端首次导入前应用 CLI 模型配置，避免读取配置后仍使用另一个模型。
+        settings.model = settings.model.model_copy(update={
+            "llm_model_name": config.model.model_name,
+            "llm_api_key": config.model.api_key,
+            "llm_base_url": config.model.base_url,
+            "llm_temperature": config.model.temperature,
+            "llm_max_tokens": config.model.max_tokens,
+            "llm_timeout": config.model.timeout,
+        })
+        from app.core.llms import model_client
+        from app.utils.lifecycle import close_with_timeout
 
-        try:
+        async with AsyncExitStack() as stack:
+            stack.push_async_callback(close_with_timeout, model_client.close)
+            from app.agents.service.agent_service import AgentService
+            service = await anyio.to_thread.run_sync(lambda: AgentService(config=config))
+            stack.push_async_callback(close_with_timeout, service.aclose)
             # 根据模式运行
             if args.metrics:
-                await metrics_mode(orchestrator)
-            elif args.demo:
-                await demo_mode(orchestrator)
-            elif args.interactive or not args.batch:
-                await interactive_mode(orchestrator)
-            elif args.batch:
-                await batch_mode(orchestrator, args.batch)
-        finally:
-            with anyio.fail_after(5, shield=True):
-                await orchestrator.aclose()
-
+                metrics_mode(service)
+            else:
+                await service.initialize()
+                if args.demo:
+                    await demo_mode(service)
+                elif args.interactive or not args.batch:
+                    await interactive_mode(service)
+                elif args.batch:
+                    await batch_mode(service, args.batch)
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)

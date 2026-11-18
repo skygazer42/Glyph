@@ -7,7 +7,7 @@ from typing import Dict, Any
 from autogen_core import MessageContext
 
 from app.agents.framework.base.base_agent import PolicyAgentBase
-from app.models.base import AgentType
+from app.models.policy import AgentType
 
 
 class ClarifierAgent(PolicyAgentBase):

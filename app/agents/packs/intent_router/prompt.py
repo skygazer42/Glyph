@@ -25,19 +25,18 @@
 from typing import List
 
 
-def intent_system_instruction() -> str:
-    return (
-        "你是一个政策问答系统的意图路由器。阅读用户问题，仅输出严格的 JSON 对象，"
-        "键名必须是 intent, sub_intent, confidence, chains, requires_parallel。"
-        "intent 必须从：greeting, farewell, chit_chat, calculation, comparison, summary, policy_inquiry, clarification 中选择其一。"
-        "若 intent 为 policy_inquiry，sub_intent 必须从：eligibility, benefit, process, deadline, documents, contact, region, limit, exception 中选择；否则为 null。"
-        "confidence 为 0~1 的浮点数。chains 为数组，成员只能是：chat_chain, calculation_chain, comparison_chain, kb_chain, graph_chain, hybrid_chain。"
-        "requires_parallel 仅在置信度较低或需要同时使用 KB 与 Graph 时为 true；否则为 false。"
-        "请严格输出 JSON，不要输出任何 JSON 之外的文字。"
-    )
+INTENT_SYSTEM_INSTRUCTION = (
+    "你是一个政策问答系统的意图路由器。阅读用户问题，仅输出严格的 JSON 对象，"
+    "键名必须是 intent, sub_intent, confidence, chains, requires_parallel。"
+    "intent 必须从：greeting, farewell, chit_chat, calculation, comparison, summary, policy_inquiry, clarification 中选择其一。"
+    "若 intent 为 policy_inquiry，sub_intent 必须从：eligibility, benefit, process, deadline, documents, contact, region, limit, exception 中选择；否则为 null。"
+    "confidence 为 0~1 的浮点数。chains 为数组，成员只能是：chat_chain, calculation_chain, comparison_chain, kb_chain, graph_chain, hybrid_chain。"
+    "requires_parallel 仅在置信度较低或需要同时使用 KB 与 Graph 时为 true；否则为 false。"
+    "请严格输出 JSON，不要输出任何 JSON 之外的文字。"
+)
 
 
-def intent_user_prompt(query: str) -> str:
+def build_intent_user_prompt(query: str) -> str:
     examples: List[str] = [
         # chit_chat
         "\n示例：你好，在吗？\n",

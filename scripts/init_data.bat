@@ -28,7 +28,7 @@ REM 检查Python是否可用
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [错误] Python未安装或不在PATH中
-    echo 请安装Python 3.9+并添加到PATH
+    echo 请安装Python 3.10并添加到PATH
     pause
     exit /b 1
 )
@@ -59,7 +59,7 @@ echo 开始初始化数据...
 echo.
 
 echo 步骤 1/7: 创建数据库表
-python scripts\1_create_tables.py
+python -m scripts.create_tables
 if errorlevel 1 (
     echo [错误] 数据库表创建失败
     pause
@@ -69,7 +69,7 @@ echo [完成] 数据库表创建成功
 echo.
 
 echo 步骤 2/7: 初始化MySQL数据
-python scripts\2_seed_mysql_text2sql.py
+python -m scripts.seed_mysql_text2sql
 if errorlevel 1 (
     echo [警告] MySQL数据初始化失败，请检查数据库连接
 ) else (
@@ -78,7 +78,7 @@ if errorlevel 1 (
 echo.
 
 echo 步骤 3/7: 同步Text2SQL模式
-python scripts\7_sync_text2sql_schema.py
+python -m scripts.sync_text2sql_schema
 if errorlevel 1 (
     echo [警告] Text2SQL模式同步失败
 ) else (
@@ -87,7 +87,7 @@ if errorlevel 1 (
 echo.
 
 echo 步骤 4/7: 初始化Milvus集合
-python scripts\3_init_milvus.py
+python -m scripts.init_milvus
 if errorlevel 1 (
     echo [错误] Milvus初始化失败，请检查Milvus服务状态
     echo 确保运行: docker-compose up -d
@@ -99,22 +99,17 @@ echo.
 
 echo 步骤 5/7: 构建LlamaIndex索引（如果启用）
 REM 检查是否启用混合检索
-python -c "
-import sys
-sys.path.append('.')
-try:
-    from app.config import settings
-    hybrid_enabled = getattr(getattr(settings, 'system', settings), 'hybrid_retrieval_enabled', False)
-    exit(0 if hybrid_enabled else 1)
-except:
-    exit(1)
-" >nul 2>&1
+REM Exit 0: enabled; 2: disabled; 1: configuration or import failure.
+python -c "import sys; from app.config.app_config import settings; sys.exit(0 if settings.system.hybrid_retrieval_enabled else 2)"
 
-if errorlevel 1 (
+if errorlevel 2 (
     echo 跳过LlamaIndex构建（未启用混合检索）
+) else if errorlevel 1 (
+    echo [错误] 读取混合检索配置失败
+    exit /b 1
 ) else (
     echo 构建LlamaIndex分层索引...
-    python scripts\4_embed_documents.py --data-dir resources\data\process --storage-dir resources\storage\hierarchical --no-llm
+    python -m scripts.embed_documents --data-dir resources\data\process --storage-dir resources\storage\hierarchical --no-llm
     if errorlevel 1 (
         echo [警告] LlamaIndex构建失败，请确认API Key配置
     ) else (
@@ -124,7 +119,7 @@ if errorlevel 1 (
 echo.
 
 echo 步骤 6/7: 嵌入文档到Milvus
-python scripts\5_embed_process_documents.py --input-dir resources\data\process
+python -m scripts.embed_process_documents --input-dir resources\data\process
 if errorlevel 1 (
     echo [警告] 文档嵌入失败，请检查embedding配置
 ) else (
@@ -133,7 +128,7 @@ if errorlevel 1 (
 echo.
 
 echo 步骤 7/7: 初始化LightRAG（可选）
-python scripts\6_seed_lightrag.py --input-dir resources\data\process
+python -m scripts.seed_lightrag --input-dir resources\data\process
 if errorlevel 1 (
     echo [警告] LightRAG初始化失败（可选，可忽略）
 ) else (

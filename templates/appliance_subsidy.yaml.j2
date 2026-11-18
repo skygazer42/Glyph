@@ -1,11 +1,11 @@
-rule_id: {{ rule_id }}
-name: {{ name }}
-version: {{ version }}
+rule_id: {{ rule_id | tojson }}
+name: {{ name | tojson }}
+version: {{ version | tojson }}
 
 policy_source:
   doc_id: {{ policy_source.doc_id | default(none) | tojson }}
   title: {{ policy_source.title | tojson }}
-  {% if policy_source.clause %}clause: "{{ policy_source.clause }}"{% endif %}
+  {% if policy_source.clause %}clause: {{ policy_source.clause | tojson }}{% endif %}
 
 # ===== 有效期 =====
 valid_period: {{ valid_period | tojson }}
@@ -32,9 +32,9 @@ efficiency_rates: {{ efficiency_rates | tojson }}
 category_limits:
   per_category:
 {% for category, limit in category_limits.per_category.items() %}
-    {{ category }}: {{ limit }}
+    {{ category | tojson }}: {{ limit | tojson }}
 {% endfor %}
-  total_items: {{ category_limits.total_items | default(null) }}
+  total_items: {{ category_limits.total_items | default(none) | tojson }}
 
 # ===== 单品补贴上限 =====
 per_item_cap: {{ per_item_cap }}

@@ -19,7 +19,7 @@ from openai import AsyncOpenAI
 from autogen_core import MessageContext
 import faiss
 
-from app.models.base import (
+from app.models.policy import (
     AgentType,
    MessageType,
    AgentMessage,
@@ -274,7 +274,7 @@ class VectorRetrieverAgent(StatefulAgent):
                 doc_metadata = self.document_metadata[idx]
 
                 # Apply filters
-                if await self._passes_filters(doc_metadata, filters):
+                if self._passes_filters(doc_metadata, filters):
                     # Convert back to PolicyDocument
                     doc = PolicyDocument(
                         id=doc_metadata["id"],
@@ -333,7 +333,7 @@ class VectorRetrieverAgent(StatefulAgent):
                     rerank_score = rerank_scores.get(index, 0.0)
                     vector_score = faiss_scores[index]
                     fused.append((index, alpha * rerank_score + beta * vector_score))
-                fused.sort(key=lambda x: x[1], reverse=True)
+                fused.sort(key=lambda scored_document: scored_document[1], reverse=True)
                 idx_map = [i for i, _ in fused]
                 new_scores = [s for _, s in fused]
             else:
@@ -347,7 +347,8 @@ class VectorRetrieverAgent(StatefulAgent):
             self.logger.warning(f"Reranker failed: {e}", exc_info=True)
             return search_results
 
-    async def _passes_filters(self, doc_metadata: Dict, filters: Optional[Dict[str, Any]]) -> bool:
+    @staticmethod
+    def _passes_filters(doc_metadata: Dict, filters: Optional[Dict[str, Any]]) -> bool:
         """Check if document passes filters."""
         if not filters:
             return True

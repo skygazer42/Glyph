@@ -19,7 +19,7 @@ class SchemaRetrieverAgent(BaseAgent):
     def __init__(self, model_client_instance=None, db_type=None):
         """初始化表结构检索智能体"""
         super().__init__(
-            agent_id="schema_retriever_agent",
+            description="schema_retriever_agent",
             agent_name=AGENT_NAMES[AgentTypes.SCHEMA_RETRIEVER.value],
             model_client_instance=model_client_instance,
             db_type=db_type
@@ -46,7 +46,7 @@ class SchemaRetrieverAgent(BaseAgent):
 
     @message_handler
     async def handle_message(self, message: QueryMessage, ctx: MessageContext) -> None:
-        """处理查询消息，从图数据库获取相关表结构信息
+        """处理查询消息，从连接元数据获取相关表结构信息
 
         Args:
             message: 查询消息
@@ -62,7 +62,6 @@ class SchemaRetrieverAgent(BaseAgent):
             mappings_str = ""
             if message.connection_id is not None:
                 connection_id = message.connection_id
-                print(f"[{self.agent_name}] 收到连接ID: {connection_id}")
 
                 # 获取相关表结构信息和值映射
                 schema_context, mappings_str = await self.retrieve_schema(connection_id, message.query)
@@ -72,9 +71,9 @@ class SchemaRetrieverAgent(BaseAgent):
                     tables_info = "\n".join([f"- {table['name']}" for table in schema_context['tables']])
                     await self.send_response(f"已找到以下相关表:\n{tables_info} \n\n")
                 else:
-                    await self.send_response("未找到相关表结构，将使用默认数据库结构继续分析\n\n")
+                    await self.send_response("未找到相关表结构，将仅根据用户查询继续分析\n\n")
             else:
-                await self.send_response("未提供数据库连接ID，将使用默认数据库结构继续分析\n\n")
+                await self.send_response("未提供数据库连接ID，无法检索表结构，将仅根据用户查询继续分析\n\n")
 
             # 发送完成消息
             await self.send_response("表结构检索完成\n\n", is_final=True)

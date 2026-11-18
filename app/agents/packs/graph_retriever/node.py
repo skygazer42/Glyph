@@ -20,7 +20,7 @@ import requests
 
 from autogen_core import MessageContext
 
-from app.models.base import (
+from app.models.policy import (
     AgentType,
     MessageType,
     AgentMessage,
@@ -107,7 +107,7 @@ class GraphRetrieverAgent(StatefulAgent):
             embedding_func = EmbeddingFunc(
                 embedding_dim=self.embedding_dim,
                 max_token_size=int(os.getenv("MAX_EMBED_TOKENS", "8192")),
-                func=self._embedding_callable(),
+                func=self._select_embedding_function(),
             )
 
             self._rag = LightRAG(
@@ -167,7 +167,7 @@ class GraphRetrieverAgent(StatefulAgent):
             return settings.embedding.dimension
         return 1024
 
-    def _embedding_callable(self) -> Callable[[List[str]], Awaitable[List[List[float]]]]:
+    def _select_embedding_function(self) -> Callable[[List[str]], Awaitable[List[List[float]]]]:
         if self.embedding_backend == "openai":
             return self._embed_openai
         return self._embed_dashscope
@@ -241,8 +241,8 @@ class GraphRetrieverAgent(StatefulAgent):
         """Insert raw texts into LightRAG store."""
         if not self._initialized:
             await self.initialize()
-        for t in texts:
-            await self._rag.ainsert(t)
+        for text in texts:
+            await self._rag.ainsert(text)
 
     async def add_documents(self, documents: List[PolicyDocument]) -> int:
         """Insert PolicyDocuments into LightRAG store. Returns count of indexed documents."""
@@ -342,12 +342,7 @@ class GraphRetrieverAgent(StatefulAgent):
         ) -> List[Dict[str, Any]]:
             if not documents:
                 return []
-            loop = asyncio.get_running_loop()
-
-            def _run():
-                return reranker.rerank(query, documents, top_n)
-
-            ranked = await loop.run_in_executor(None, _run)
+            ranked = await asyncio.to_thread(reranker.rerank, query, documents, top_n)
 
             payload: List[Dict[str, Any]] = []
             for idx, score, _ in ranked:

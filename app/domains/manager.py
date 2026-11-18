@@ -11,7 +11,7 @@ from app.domains.prompt_catalog import get_domain_prompt
 class DomainConfig:
     """领域配置管理器"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.domains: Dict[str, Dict[str, Any]] = {
             "汽车补贴": {
                 "detect_keywords": ["汽车", "购车", "新能源", "燃油车", "发票不含税", "乘用车", "绿牌"],
@@ -169,16 +169,16 @@ class DomainConfig:
         """列出所有已配置的领域"""
         return list(self.domains.keys())
 
-    def add_domain(self, name: str, config: Dict[str, Any]):
+    def add_domain(self, name: str, config: Dict[str, Any]) -> None:
         """动态添加新领域"""
         self.domains[name] = config
 
-    def save_config(self, path: str = "config/domains.yaml"):
+    def save_config(self, path: str = "config/domains.yaml") -> None:
         """保存配置到文件"""
         with open(path, 'w', encoding='utf-8') as config_file:
             yaml.dump(self.domains, config_file, allow_unicode=True)
 
-    def load_config(self, path: str = "config/domains.yaml"):
+    def load_config(self, path: str = "config/domains.yaml") -> None:
         """从文件加载配置"""
         if Path(path).exists():
             with open(path, 'r', encoding='utf-8') as config_file:

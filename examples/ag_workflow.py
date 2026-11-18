@@ -7,10 +7,10 @@ from typing import Dict, Any, List
 from autogen_agentchat.teams import RoundRobinGroupChat, SelectorGroupChat
 from autogen_agentchat.conditions import TextMentionTermination, MaxMessageTermination
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.messages import TextMessage
+from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage, TextMessage
 from autogen_agentchat.base import ChatAgent, TaskResult, Team, TerminationCondition
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_core import SingleThreadedAgentRuntime
+from autogen_core import CancellationToken, SingleThreadedAgentRuntime
 import logging
 
 from examples.ag_prompt import (
@@ -33,7 +33,7 @@ class AGWorkflow:
         self.model_client = model_client
         self.runtime = SingleThreadedAgentRuntime()
         self.agents: Dict[str, AssistantAgent] = {}
-        self.teams: Dict[str, Any] = {}
+        self.teams: Dict[str, Team] = {}
 
     async def initialize(self):
         """初始化运行时"""
@@ -112,7 +112,7 @@ class AGWorkflow:
         self,
         team_name: str,
         message: str
-    ) -> List[TextMessage]:
+    ) -> List[BaseAgentEvent | BaseChatMessage]:
         """运行团队"""
         if team_name not in self.teams:
             raise ValueError(f"Team {team_name} not found")
@@ -156,7 +156,7 @@ class AGWorkflow:
 
         return messages
 
-    async def create_policy_qa_team(self):
+    def create_policy_qa_team(self) -> None:
         """创建政策问答团队"""
         # 添加专门的政策Agent
         self.add_agent(
@@ -184,7 +184,7 @@ class AGWorkflow:
             selector_prompt=POLICY_SELECTOR_PROMPT,
         )
 
-    async def create_comparison_team(self):
+    def create_comparison_team(self) -> None:
         """创建政策比较团队"""
         self.add_agent(
             name="policy_comparator",
@@ -206,7 +206,7 @@ class AGWorkflow:
         )
 
 
-async def example_usage():
+async def main() -> None:
     """使用示例"""
 
     # 创建模型客户端
@@ -220,7 +220,7 @@ async def example_usage():
     try:
         await orchestrator.initialize()
         # 创建政策问答团队
-        await orchestrator.create_policy_qa_team()
+        orchestrator.create_policy_qa_team()
 
         # 测试查询
         test_query = "我想了解小微企业的创业补贴政策，需要什么条件？"
@@ -248,15 +248,15 @@ async def example_usage():
 
 
 # 高级编排示例 - 带有条件分支的复杂流程
-class AdvancedOrchestrator:
-    """高级编排器 - 支持条件分支和复杂流程"""
+class ConditionalWorkflow:
+    """根据路由结果选择政策处理路径。"""
 
     def __init__(self, model_client: OpenAIChatCompletionClient):
         self.model_client = model_client
         self.agents: Dict[str, AssistantAgent] = {}
         self.workflows: Dict[str, List[str]] = {}
 
-    async def create_conditional_workflow(self):
+    def create_conditional_workflow(self) -> None:
         """创建条件工作流"""
         # 创建路由Agent
         router = AssistantAgent(
@@ -280,16 +280,14 @@ class AdvancedOrchestrator:
             "general_path": ["general_advisor", "answer_formatter"]
         }
 
-        # 为每个路径创建团队
         for path_name, agent_names in paths.items():
-            await self._create_path_team(path_name, agent_names)
+            self._add_path_agents(path_name, agent_names)
 
         self.agents["router"] = router
         self.workflows = paths
 
-    async def _create_path_team(self, path_name: str, agent_names: List[str]):
-        """为特定路径创建团队"""
-        # 这里简化实现，实际需要为每个路径创建专门的Agent
+    def _add_path_agents(self, path_name: str, agent_names: List[str]) -> None:
+        """注册路径需要且尚未创建的 Agent。"""
         for name in agent_names:
             if name not in self.agents:
                 self.agents[name] = AssistantAgent(
@@ -301,10 +299,10 @@ class AdvancedOrchestrator:
 
     async def execute_workflow(self, user_query: str) -> Dict[str, Any]:
         """执行条件工作流"""
-        # 1. 路由决策
-        # 获取路由决策
-        # (这里需要实现路由决策逻辑)
-        selected_path = "eligibility_path"  # 示例
+        response = await self.agents["router"].on_messages(
+            [TextMessage(content=user_query, source="user")], CancellationToken()
+        )
+        selected_path = response.chat_message.to_text().strip()
 
         # 2. 执行选定的路径
         if selected_path in self.workflows:
@@ -340,4 +338,4 @@ class AdvancedOrchestrator:
 
 if __name__ == "__main__":
     # 运行示例
-    asyncio.run(example_usage())
+    asyncio.run(main())

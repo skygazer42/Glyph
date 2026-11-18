@@ -15,11 +15,17 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from autogen_core.models import UserMessage
 from app.core.llms import model_client
-from app.persistence import crud
+from app.persistence.crud.schema_metadata import (
+    schema_column,
+    schema_relationship,
+    schema_table,
+    value_mapping,
+)
 from .domain_zh_gov import (
     candidate_tables_from_query,
     domain_value_mappings_for_schema,
 )
+from .types import DEFAULT_DB_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +224,7 @@ async def find_relevant_tables_semantic(query: str, query_analysis: Dict[str, An
                             for table_id, score in valid_tables]
             valid_tables.extend((table_id, 8.5) for table_id in boost_ids if table_id not in existing)
 
-            return valid_tables
+            return sorted(valid_tables, key=lambda table_score: table_score[1], reverse=True)
         else:
             raise ValueError("Schema ranking response did not contain a JSON array")
     except Exception as exc:
@@ -311,7 +317,7 @@ def get_value_mappings(db: Session, schema_context: Dict[str, Any]) -> Dict[str,
 
     for column in schema_context["columns"]:
         column_id = column["id"]
-        column_mappings = crud.value_mapping.get_by_column(db=db, column_id=column_id)
+        column_mappings = value_mapping.get_by_column(db=db, column_id=column_id)
 
         if column_mappings:
             qualified_column = f"{column['table_name']}.{column['name']}"
@@ -324,9 +330,14 @@ def get_value_mappings(db: Session, schema_context: Dict[str, Any]) -> Dict[str,
     return mappings
 
 
-def process_sql_with_value_mappings(sql: str, value_mappings: Dict[str, Dict[str, str]]) -> str:
+def process_sql_with_value_mappings(
+    sql: str,
+    value_mappings: Dict[str, Dict[str, str]],
+    *,
+    db_type: str = DEFAULT_DB_TYPE,
+) -> str:
     """
-    处理SQL查询，将自然语言术语替换为数据库值
+    替换自然语言术语，并只为 MySQL 修正支持的 text 类型转换。
     """
     if not value_mappings:
         return sql
@@ -348,33 +359,35 @@ def process_sql_with_value_mappings(sql: str, value_mappings: Dict[str, Dict[str
 
             sql = re.sub(pattern, replace_value, sql, flags=re.IGNORECASE)
 
-    # 额外一步：修正 LLM 生成的 PostgreSQL 风格 JSON/类型转换语法为 MySQL 兼容形式
+    if db_type.lower() != "mysql":
+        return sql
+
+    # 仅为 MySQL 修正 LLM 生成的 PostgreSQL 风格类型转换语法。
     # 1) 将 "alias.metadata::text" 或 "metadata::text" 替换为 CAST(... AS CHAR)
-    def _replace_metadata_cast(match: re.Match) -> str:
+    def replace_text_cast(match: re.Match) -> str:
         column_reference = match.group(1)
         return f"CAST({column_reference} AS CHAR)"
 
     # 匹配类似 "pd.metadata::text" 或 "metadata::text"
-    sql = re.sub(r"\b([\w]+\.[Mm][Ee][Tt][Aa][Dd][Aa][Tt][Aa])::text\b", _replace_metadata_cast, sql)
-    sql = re.sub(r"\b([Mm][Ee][Tt][Aa][Dd][Aa][Tt][Aa])::text\b", _replace_metadata_cast, sql)
+    sql = re.sub(r"\b([\w]+\.[Mm][Ee][Tt][Aa][Dd][Aa][Tt][Aa])::text\b", replace_text_cast, sql)
+    sql = re.sub(r"\b([Mm][Ee][Tt][Aa][Dd][Aa][Tt][Aa])::text\b", replace_text_cast, sql)
 
-    # 2) 通用的 "::text" 类型转换，退化为直接使用原列
-    # 例如 "some_column::text" -> "CAST(some_column AS CHAR)"
-    sql = re.sub(r"\b([\w]+\.[\w]+)::text\b", _replace_metadata_cast, sql)
+    # 2) 其他带表名或别名的列，如 "t.name::text" -> "CAST(t.name AS CHAR)"。
+    sql = re.sub(r"\b([\w]+\.[\w]+)::text\b", replace_text_cast, sql)
 
     return sql
 
 
 def validate_sql(sql: str) -> bool:
     """
-    验证SQL语法
+    检查单条 SELECT 查询边界；具体语法由数据库验证。
     """
     try:
         # 从环境变量读取安全开关（默认禁止 UNION）
         allow_union = os.getenv("TEXT2SQL__ALLOW_UNION", "false").lower() == "true"
 
         parsed = sqlparse.parse(sql)
-        if not parsed:
+        if len(parsed) != 1:
             return False
 
         # 检查是否是SELECT语句（为了安全）
@@ -383,7 +396,7 @@ def validate_sql(sql: str) -> bool:
             return False
 
         # 额外安全检查：禁止危险关键字/多语句/UNION
-        if re.search(r"\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|ATTACH|DETACH|VACUUM|REINDEX|PRAGMA|REPLACE)\b",
+        if re.search(r"\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|ATTACH|DETACH|VACUUM|REINDEX|PRAGMA|REPLACE|INTO)\b",
                      sql, flags=re.IGNORECASE):
             return False
 
@@ -438,11 +451,11 @@ def extract_sql_from_llm_response(response: str) -> str:
 
 def snapshot_schema(db: Session, connection_id: int) -> Dict[str, Any]:
     """Read metadata into plain values while the caller owns the Session."""
-    tables = crud.schema_table.get_by_connection(db=db, connection_id=connection_id)
+    tables = schema_table.get_by_connection(db=db, connection_id=connection_id)
     table_names = {table.id: table.table_name for table in tables}
-    columns = crud.schema_column.get_by_table_ids(db=db, table_ids=list(table_names)) if tables else []
+    columns = schema_column.get_by_table_ids(db=db, table_ids=list(table_names)) if tables else []
     column_names = {column.id: column.column_name for column in columns}
-    relationships = crud.schema_relationship.get_by_connection(db=db, connection_id=connection_id) if tables else []
+    relationships = schema_relationship.get_by_connection(db=db, connection_id=connection_id) if tables else []
     return {
         "tables": [{"id": table.id, "name": table.table_name, "description": table.description} for table in tables],
         "columns": [{"id": column.id, "name": column.column_name, "type": column.data_type,

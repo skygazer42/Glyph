@@ -5,14 +5,12 @@ Text2SQL服务 - 重构后的版本
 import asyncio
 import logging
 from typing import Dict, Any
-from sqlalchemy.orm import Session
 
 from autogen_core.models import UserMessage
 
-from app.models.db_connection import DBConnection
-from app.persistence import crud
+from app.persistence.crud.db_connection import db_connection as db_connection_crud
 from app.persistence.db.session import SessionLocal
-from app.schemas.query import QueryResponse
+from app.schemas.text2sql import SQLQueryResult
 from app.agents.chatdb.db_service import ConnectionSettings, execute_query
 from app.agents.chatdb.text2sql_utils import (
     snapshot_schema, select_relevant_schema, get_value_mappings, format_schema_for_prompt,
@@ -24,10 +22,34 @@ from .domain_zh_gov import parse_time_window, infer_intent, normalize_terms
 logger = logging.getLogger(__name__)
 
 
-def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings: Dict[str, Dict[str, str]], *, hints: Dict[str, Any] | None = None) -> str:
+def construct_prompt(
+    schema_context: Dict[str, Any],
+    query: str,
+    value_mappings: Dict[str, Dict[str, str]],
+    *,
+    hints: Dict[str, Any] | None = None,
+    db_type: str = "mysql",
+) -> str:
     """
     为LLM构建增强上下文和指令的提示
     """
+    if db_type.lower() == "mysql":
+        dialect_name = "MySQL 8.0"
+        dialect_rules = (
+            "- 仅使用 MySQL 语法，不使用 PostgreSQL/SQLite 专用语法；\n"
+            "- 类型转换使用 CAST(... AS ...)，不要使用 ::text 或 ILIKE；\n"
+            "- JSON 字段使用 MySQL 的 JSON_EXTRACT、JSON_CONTAINS 等函数。"
+        )
+    elif db_type.lower() in {"postgres", "postgresql"}:
+        dialect_name = "PostgreSQL"
+        dialect_rules = (
+            "- 仅使用 PostgreSQL 语法，不使用 MySQL 专用函数；\n"
+            "- 类型转换可使用 CAST(... AS TEXT) 或 ::text；\n"
+            "- 文本、日期和 JSON 运算必须与给定字段类型一致。"
+        )
+    else:
+        raise ValueError(f"Unsupported Text2SQL database type: {db_type}")
+
     # 格式化表结构信息
     schema_str = format_schema_for_prompt(schema_context)
 
@@ -49,7 +71,7 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
             intent_lines.append(f"- 建议聚合: {aggregation}")
         if order := hints.get("order_by"):
             intent_lines.append("- 时间排序: 倒序(最近优先)" if order == "desc_time" else f"- 排序: {order}")
-        if row_limit := hints.get("limit"):
+        if (row_limit := hints.get("limit")) is not None:
             intent_lines.append(f"- 默认限制返回行数: {row_limit}")
         if (time_window := hints.get("time_window")) and time_window.get("start"):
             # 告诉LLM优先使用与时间相关的列进行过滤
@@ -62,14 +84,11 @@ def construct_prompt(schema_context: Dict[str, Any], query: str, value_mappings:
     prompt = f"""
 你是一名专业的 SQL 开发专家，专门将自然语言问题转换为精确的 SQL 查询。
 
-⚠️ 目标数据库为 **MySQL 8.0**，请务必遵守以下约束：
-- 只能使用 **MySQL 语法**，禁止输出 PostgreSQL/SQLite 专用语法；
-- 禁止使用 `::` 类型转换（如 `col::text`）、`ILIKE`、`jsonb` 运算符（如 `->`、`->>`、`@>` 等）；
-- 如需进行类型转换，请使用 `CAST(col AS CHAR)` 或 MySQL 支持的 `CAST(... AS ...)` 语法；
-- JSON 字段请使用 MySQL 的 JSON 函数（如 `JSON_EXTRACT`、`JSON_CONTAINS`），或将字段 `CAST(... AS CHAR)` 后再配合 `LIKE` 进行模糊匹配；
+目标数据库为 **{dialect_name}**，请遵守以下约束：
+{dialect_rules}
 - 只生成 **单条 SELECT 查询**，不要包含多条语句或 DML/DDL 语句。
 
-### 数据库结构（MySQL 表结构摘要）:
+### 数据库结构（{dialect_name} 表结构摘要）:
 ```sql
 {schema_str}
 {mappings_str}
@@ -130,7 +149,7 @@ async def generate_sql_with_model(prompt: str) -> str:
 def _load_text2sql_context(connection_id: int) -> tuple[Dict[str, Any], Dict[str, Dict[str, str]], ConnectionSettings]:
     """Create, consume and close one Session on the same worker thread."""
     with SessionLocal() as db:
-        connection = crud.db_connection.get(db, id=connection_id)
+        connection = db_connection_crud.get(db, id=connection_id)
         if connection is None:
             raise ValueError(f"DB connection not found: {connection_id}")
         schema = snapshot_schema(db, connection_id)
@@ -148,7 +167,7 @@ async def retrieve_schema_for_connection(connection_id: int, query: str) -> tupl
 async def process_text2sql_query_for_connection_async(
     connection_id: int,
     natural_language_query: str
-) -> QueryResponse:
+) -> SQLQueryResult:
     """
     处理自然语言查询并转换为SQL
     """
@@ -170,7 +189,7 @@ async def process_text2sql_query_for_connection_async(
 
         # 如果没有找到相关表结构，返回错误
         if not schema_context["tables"]:
-            return QueryResponse(
+            return SQLQueryResult(
                 sql="",
                 results=None,
                 error="无法为此查询识别相关表。",
@@ -178,7 +197,10 @@ async def process_text2sql_query_for_connection_async(
             )
 
         # 3. 构建提示（附带时间/意图提示）
-        prompt = construct_prompt(schema_context, normalized_query, value_mappings, hints=hints)
+        prompt = construct_prompt(
+            schema_context, normalized_query, value_mappings,
+            hints=hints, db_type=connection_settings.db_type,
+        )
 
         # 4. 调用LLM API
         llm_response = await generate_sql_with_model(prompt)
@@ -187,7 +209,9 @@ async def process_text2sql_query_for_connection_async(
         sql = extract_sql_from_llm_response(llm_response)
 
         # 6. 使用值映射处理SQL
-        processed_sql = process_sql_with_value_mappings(sql, value_mappings)
+        processed_sql = process_sql_with_value_mappings(
+            sql, value_mappings, db_type=connection_settings.db_type,
+        )
 
         # 6.1 缺省行数保护：无聚合/无显式LIMIT时默认限制返回数量
         if "limit" not in processed_sql.lower() and inferred.get("aggregation") != "count":
@@ -195,7 +219,7 @@ async def process_text2sql_query_for_connection_async(
 
         # 7. 验证SQL
         if not validate_sql(processed_sql):
-            return QueryResponse(
+            return SQLQueryResult(
                 sql=processed_sql,
                 results=None,
                 error="生成的SQL验证失败。它可能不是有效的SELECT语句。",
@@ -210,7 +234,7 @@ async def process_text2sql_query_for_connection_async(
         try:
             results = await asyncio.to_thread(execute_query, connection_settings, processed_sql)
 
-            return QueryResponse(
+            return SQLQueryResult(
                 sql=processed_sql,
                 results=results,
                 error=None,
@@ -222,7 +246,7 @@ async def process_text2sql_query_for_connection_async(
             )
         except Exception as e:
             logger.exception("Text2SQL query execution failed")
-            return QueryResponse(
+            return SQLQueryResult(
                 sql=processed_sql,
                 results=None,
                 error=f"SQL执行失败: {str(e)}",
@@ -234,20 +258,9 @@ async def process_text2sql_query_for_connection_async(
             )
     except Exception as e:
         logger.exception("Text2SQL query processing failed")
-        return QueryResponse(
+        return SQLQueryResult(
             sql="",
             results=None,
             error=f"处理查询时出错: {str(e)}",
             context=None
         )
-
-
-class Text2SQLService:
-    """Object-oriented facade for the Text2SQL helpers."""
-
-    async def run_async(self, db: Session, connection: DBConnection, query: str) -> QueryResponse:
-        return await process_text2sql_query_for_connection_async(connection.id, query)
-
-    def run(self, db: Session, connection: DBConnection, query: str) -> QueryResponse:
-        # 为向后兼容保留同步接口，在独立线程内可安全调用
-        return asyncio.run(self.run_async(db, connection, query))

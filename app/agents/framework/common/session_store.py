@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.models.base import FinalAnswer, UserQuery
+from app.models.policy import FinalAnswer, UserQuery
 
 
 MAX_TURNS = int(os.getenv("CONVERSATION__MAX_TURNS", os.getenv("CONVERSATION_MAX_TURNS", "20")))
@@ -26,7 +26,7 @@ _SESSIONS: Dict[str, Dict[str, Any]] = {}
 def create_or_update_session(session_id: Optional[str], user_id: Optional[str]) -> Tuple[str, Dict[str, Any]]:
     session_id = session_id or f"session_{datetime.now().timestamp()}"
     session = _SESSIONS.get(session_id)
-    if not session:
+    if session is None:
         session = {
             "session_id": session_id,
             "user_id": user_id,

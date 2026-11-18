@@ -1,0 +1,1174 @@
+{
+  "files": [
+    {
+      "path": "scripts/__init__.py",
+      "summary": "Read the complete docstring-only package entry. Keep module commands under python -m scripts.<module> without eager operations or sys.path mutation.",
+      "definitions": [],
+      "changes": [],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately."
+      ]
+    },
+    {
+      "path": "scripts/create_tables.py",
+      "summary": "Read the whole script and the actual ORM registry/session owners. No additional source edit: registry explicitly imports both mapping modules before create_all.",
+      "definitions": [
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 10,
+          "column": 0,
+          "end": 12,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DB-001: retain the guarded explicit table-creation command; the imported registry registers chat_history/database mappings before metadata.create_all, and database failure cannot print the success line."
+          ]
+        }
+      ],
+      "changes": [],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "This command creates tables in an existing configured database; it was not invoked and no schema was changed."
+      ]
+    },
+    {
+      "path": "scripts/embed_documents.py",
+      "summary": "Read the complete argument, scan, build, verification, and cleanup flow against HierarchicalIndexBuilder/Retriever. Keep the existing offline hierarchy command and report its real storage/result behavior.",
+      "definitions": [
+        {
+          "name": "parse_args",
+          "kind": "function",
+          "line": 23,
+          "column": 0,
+          "end": 45,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-005: preserve all existing flags and let an omitted storage directory use the application's configured hierarchy location instead of a competing hardcoded path."
+          ]
+        },
+        {
+          "name": "find_markdown_files",
+          "kind": "function",
+          "line": 48,
+          "column": 0,
+          "end": 69,
+          "parameters": [
+            "data_dir"
+          ],
+          "decorators": [],
+          "declared_role": "查找所有 Markdown 文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/WEB-001: retain the visible invalid-directory/no-file result used by the CLI exit gate, include real files only, and recognize case-insensitive Markdown suffixes."
+          ]
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 72,
+          "column": 0,
+          "end": 184,
+          "parameters": [
+            "args"
+          ],
+          "decorators": [],
+          "declared_role": "主函数",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/FUN-002: preserve build/actual retrieval verification/finally-close order, return failure when verification fails, respect proxy configuration, and avoid an unrelated reranker dependency for index verification; report local hierarchy storage accurately."
+          ]
+        }
+      ],
+      "changes": [
+        "DAT-005: derive the default storage directory from settings.llamaindex.storage_dir.",
+        "FUN-001: recognize uppercase Markdown file suffixes and ignore directories masquerading as files.",
+        "DES-001: remove unconditional HTTP/HTTPS/ALL_PROXY environment deletion.",
+        "RES-001: verify the actual stored vector index without requiring an extra reranker/model.",
+        "NAM-001: correct claims about writing to Milvus and show the selected embedding model/local storage steps."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "The builder's existing embed_model_name=None path does not itself wire every app embedding setting into LlamaIndex global Settings; this shared-owner configuration issue was reported to root rather than duplicating guessed SDK setup in the CLI.",
+        "No model was initialized and no index/retrieval verification was executed."
+      ]
+    },
+    {
+      "path": "scripts/embed_process_documents.py",
+      "summary": "Read the streaming loader, batching closure, resource acquisition/cleanup, and CLI mapping. Keep this stage a vector append operation so it cannot replace a full hierarchical snapshot with one batch.",
+      "definitions": [
+        {
+          "name": "parse_args",
+          "kind": "function",
+          "line": 25,
+          "column": 0,
+          "end": 49,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: preserve input-dir/batch-size/limit/dry-run flags and describe the real Milvus stage separately from full hierarchical construction."
+          ]
+        },
+        {
+          "name": "ingest_documents",
+          "kind": "async_function",
+          "line": 52,
+          "column": 0,
+          "end": 114,
+          "parameters": [
+            "input_dir",
+            "batch_size",
+            "limit",
+            "dry_run"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/ASY-001/RES-001: validate real directory/limits before acquisition, let limit=0 do no work, acquire the owned service in a worker with use_hierarchical=False, and retain shielded cleanup after success/failure."
+          ]
+        },
+        {
+          "name": "ingest_documents.<lambda>@72:8",
+          "kind": "lambda",
+          "line": 72,
+          "column": 8,
+          "end": 72,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-001: retain this local constructor callback because anyio's worker interface needs a zero-argument acquisition callable with the explicit hierarchy-disabled option."
+          ]
+        },
+        {
+          "name": "ingest_documents.flush_batch",
+          "kind": "async_function",
+          "line": 80,
+          "column": 8,
+          "end": 91,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/CLS-003: retain the local async batch owner because it shares pending documents/indexed count, preserves the real dry-run mode, and clears a batch only after its operation succeeds."
+          ]
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 117,
+          "column": 0,
+          "end": 126,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/WEB-001: retain the guarded asyncio entry and pass the user's actual batch value to validation rather than silently clamping zero/negative values to one."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001/DAT-003: reject invalid batch/negative limits and invalid input directories; a valid zero limit acquires no service.",
+        "DB-001: use KnowledgeService(use_hierarchical=False) for batch appends, preserving the separate full hierarchy snapshot.",
+        "ASY-001/RES-001: use the existing anyio worker boundary for owned service construction and retain bounded cleanup.",
+        "FUN-004: make pending batches concrete PolicyDocument lists and annotate the flush result.",
+        "DES-001: remove hidden batch-size clamping."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "KnowledgeService.index_documents remains a full-snapshot hierarchical operation; root handles other append callers. This script never rebuilds a hierarchy from an individual batch.",
+        "No parsing, embedding, database access, or dry-run command was executed."
+      ]
+    },
+    {
+      "path": "scripts/import_data.py",
+      "summary": "Read the entire original importer, including all executable Python strings, fixture text, SQL/Docker calls, process cancellation, and final reporting. Replace destructive/fake Milvus code with configured real storage and make preparation-only stages explicit.",
+      "definitions": [
+        {
+          "name": "DataImporter",
+          "kind": "class",
+          "line": 22,
+          "column": 0,
+          "end": 326,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Own sample-file paths, MySQL setup, and configured Milvus ingestion.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the class because project/data roots and its related setup/import operations share real state; remove the generic temporary-script machinery instead of adding another execution framework."
+          ]
+        },
+        {
+          "name": "DataImporter.__init__",
+          "kind": "function",
+          "line": 25,
+          "column": 4,
+          "end": 27,
+          "parameters": [
+            "self",
+            "project_root"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/DAT-003: retain the explicit optional project root and derived data directory; None alone selects the repository default."
+          ]
+        },
+        {
+          "name": "DataImporter._run_command",
+          "kind": "async_function",
+          "line": 29,
+          "column": 4,
+          "end": 57,
+          "parameters": [
+            "self",
+            "command",
+            "input",
+            "env"
+          ],
+          "decorators": [],
+          "declared_role": "Own the subprocess until completion, timeout, or cancelled cleanup.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-006/ASY-009/RES-001: retain one owned subprocess until completion/timeout/cancellation, checked exit status, kill/reap cleanup, and credential environment; execute relative operations under the explicit project root."
+          ]
+        },
+        {
+          "name": "DataImporter._mysql_command",
+          "kind": "function",
+          "line": 60,
+          "column": 4,
+          "end": 65,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/WEB-001: changed to static; retain argv-only Docker/mysql invocation with MYSQL_PWD in environment and an explicit UTF-8 charset, without putting the password in command arguments."
+          ]
+        },
+        {
+          "name": "DataImporter.init_mysql",
+          "kind": "async_function",
+          "line": 67,
+          "column": 4,
+          "end": 80,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Initialize schema without claiming that sample SQL rows were imported.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DES-001: reuse the existing seed owner's checked-in schema conversion, then execute the two actual Docker/MySQL steps; log schema initialization without claiming sample SQL rows were imported."
+          ]
+        },
+        {
+          "name": "DataImporter._milvus_stats",
+          "kind": "function",
+          "line": 83,
+          "column": 4,
+          "end": 90,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/RES-001: one synchronous worker owner constructs the configured MilvusStore, reads real stats, and closes it; no hardcoded collection/schema or destructive reset remains."
+          ]
+        },
+        {
+          "name": "DataImporter.init_milvus",
+          "kind": "async_function",
+          "line": 92,
+          "column": 4,
+          "end": 96,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Ensure the configured collection exists; preserve its current records.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-001/ASY-001: preserve/initialize the configured collection through the real store and log actual count/dimension instead of dropping the old collection."
+          ]
+        },
+        {
+          "name": "DataImporter.write_sample_policies",
+          "kind": "async_function",
+          "line": 98,
+          "column": 4,
+          "end": 199,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Write explicitly synthetic sample policies to the local fixture file.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "NAM-001/ASY-001: rename the former import_sample_data stage to describe its actual JSON-file write, mark titles as synthetic, and retain worker-owned filesystem calls."
+          ]
+        },
+        {
+          "name": "DataImporter.prepare_lightrag_documents",
+          "kind": "async_function",
+          "line": 201,
+          "column": 4,
+          "end": 265,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Prepare Markdown seed files; graph indexing is a separate command.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "NAM-001/ASY-001: rename the former import_to_lightrag stage to describe raw Markdown preparation; explicitly mark the fixture text synthetic and do not falsely claim graph indexing."
+          ]
+        },
+        {
+          "name": "DataImporter._index_sample_policies",
+          "kind": "function",
+          "line": 268,
+          "column": 4,
+          "end": 293,
+          "parameters": [
+            "sample_file"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/RES-001: validate the actual fixture list through required fields/PolicyDocument, derive stable UUIDs, use the configured real embedding backend with upsert, and own/close the store within one worker."
+          ]
+        },
+        {
+          "name": "DataImporter.import_embeddings",
+          "kind": "async_function",
+          "line": 295,
+          "column": 4,
+          "end": 300,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Use the configured real embedding backend and stable sample IDs.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/ERR-001: replace random-vector subprocess code with the actual configured synchronous ingestion stage and report its returned count only after successful flush."
+          ]
+        },
+        {
+          "name": "DataImporter.verify_import",
+          "kind": "async_function",
+          "line": 302,
+          "column": 4,
+          "end": 314,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Report actual connectivity, collection count, and prepared seed files.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/ASY-001: report actual MySQL table output, configured Milvus counts, and prepared Markdown counts; distinguish these checks from graph building or SQL-row ingestion."
+          ]
+        },
+        {
+          "name": "DataImporter.verify_import.<lambda>@313:51",
+          "kind": "lambda",
+          "line": 313,
+          "column": 51,
+          "end": 313,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/ASY-001: retain the local filesystem-count callback so its glob/list work runs in the existing worker boundary."
+          ]
+        },
+        {
+          "name": "DataImporter.run",
+          "kind": "async_function",
+          "line": 316,
+          "column": 4,
+          "end": 326,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/ERR-001: keep the real setup/write/index/report stages sequential, let errors stop the command, and describe precisely which stages completed and which LightRAG command remains separate."
+          ]
+        }
+      ],
+      "changes": [
+        "ERR-001/DB-001: delete the embedded unconditional drop_collection reset and reuse the configured MilvusStore without erasing records.",
+        "DAT-001: replace np.random.random vectors, incompatible fixed schema/dimension/IDs, and invalid policy_document types with actual embedding, validated PolicyDocument, stable UUIDs, and upsert.",
+        "DES-001: delete arbitrary temporary Python script execution and duplicate SQLite/MySQL conversion; reuse mysql_schema_statements.",
+        "NAM-001: rename JSON-write and graph-file-preparation methods; update their run call sites and final status text.",
+        "RES-001/ASY-001: keep store acquisition/use/close in one worker and preserve subprocess cancellation ownership.",
+        "DAT-001: label synthetic fixture titles, source metadata, and prepared Markdown rather than presenting sample legal text as current verified policy."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "The existing MySQL path intentionally initializes Docker policy_db schema; it does not insert fixture SQL rows. LightRAG preparation writes seed files; actual graph building remains scripts.seed_lightrag.",
+        "Running this script later now requires the configured real embedding service instead of writing fake random vectors; this audit made no provider request.",
+        "No subprocess, Docker command, schema initialization, fixture write, or ingestion operation in this script was invoked."
+      ],
+      "removed_definitions": [
+        {
+          "name": "DataImporter._run_python_script",
+          "kind": "async_function",
+          "review": "reviewed",
+          "notes": [
+            "No production caller remains after removing embedded Milvus scripts. Removed temporary-file script execution and its dedicated machinery; process ownership remains in the still-used _run_command."
+          ]
+        },
+        {
+          "name": "DataImporter._convert_sqlite_to_mysql",
+          "kind": "function",
+          "review": "reviewed",
+          "notes": [
+            "The importer now reuses mysql_schema_statements from the actual seed/schema owner instead of maintaining a second incomplete converter."
+          ]
+        }
+      ],
+      "renamed_definitions": [
+        {
+          "name": "DataImporter.import_sample_data",
+          "kind": "async_function",
+          "renamed_to": "DataImporter.write_sample_policies",
+          "review": "reviewed",
+          "notes": [
+            "The actual stage writes a local synthetic JSON file and does not import SQL rows. Its only production run call site was migrated."
+          ]
+        },
+        {
+          "name": "DataImporter.import_to_lightrag",
+          "kind": "async_function",
+          "renamed_to": "DataImporter.prepare_lightrag_documents",
+          "review": "reviewed",
+          "notes": [
+            "The actual stage prepares raw Markdown seed files and does not build a graph. Its only production run call site was migrated."
+          ]
+        }
+      ],
+      "removed_embedded_scripts": [
+        {
+          "owner": "DataImporter.init_milvus",
+          "definitions": [
+            "init_milvus"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "The original executed string hardcoded schema/dimension/collection and unconditionally dropped an existing collection; replaced with the configured owned store."
+          ]
+        },
+        {
+          "owner": "DataImporter.import_embeddings",
+          "definitions": [
+            "import_embeddings"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "The original executed string generated random vectors and incompatible records; replaced with actual PolicyDocument ingestion, provider embedding, stable IDs, and explicit upsert."
+          ]
+        },
+        {
+          "owner": "DataImporter.verify_import",
+          "definitions": [],
+          "review": "reviewed",
+          "notes": [
+            "The original executed string hardcoded the Milvus connection/collection. Verification now reports actual configured store statistics without a temporary program."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/init_milvus.py",
+      "summary": "Read the guarded store initialization, actual statistics, boolean exit contract, and finally cleanup. Retain this real resource owner and add the explicit result annotation.",
+      "definitions": [
+        {
+          "name": "init_milvus_collection",
+          "kind": "function",
+          "line": 8,
+          "column": 0,
+          "end": 34,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Initialize Milvus collection.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-004/RES-001/ERR-002: annotate the real bool result, preserve the configured store/actual statistics, close acquired storage on all exits, and let main translate False into a failing process exit."
+          ]
+        }
+      ],
+      "changes": [
+        "FUN-004: annotate the existing initialization/CLI status result as bool."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "The function was not invoked; no collection or connection was created."
+      ]
+    },
+    {
+      "path": "scripts/render_docker_report.py",
+      "summary": "Read every literal historical fixture field and rendering/write step. Keep fixture content distinct from a current test run and label the actual render time separately.",
+      "definitions": [
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 11,
+          "column": 0,
+          "end": 126,
+          "parameters": [
+            "output_file"
+          ],
+          "decorators": [],
+          "declared_role": "Render historical fixture data; this function does not execute Docker checks.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-001: retain historical_fixture/executed=False, preserve the checked-in fixture's historical timestamp, add an actual rendered_at timestamp, and create only the requested artifact parent when invoked; no container claim is produced as a new measurement."
+          ]
+        }
+      ],
+      "changes": [
+        "DAT-001: keep historical fixture time 2025-11-16T11:16:29.127831 rather than replacing it with the present render time.",
+        "FUN-004: annotate None and add a separate rendered_at field plus explicit historical/render labels.",
+        "RES-001: let this artifact owner create a requested output parent."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "Fixture steps/statuses are illustrative stored data, not verified historical events or current container measurements. The renderer was not run."
+      ]
+    },
+    {
+      "path": "scripts/seed_lightrag.py",
+      "summary": "Read all CLI arguments, the full async ingestion/flush flow, manifest writer, and actual AgentService manifest consumer. Retain the owned graph agent and truthful full-source marker semantics.",
+      "definitions": [
+        {
+          "name": "parse_args",
+          "kind": "function",
+          "line": 27,
+          "column": 0,
+          "end": 53,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: preserve input/workdir/batch/limit flags and the existing environment-owned working-directory default."
+          ]
+        },
+        {
+          "name": "seed_lightrag",
+          "kind": "async_function",
+          "line": 56,
+          "column": 0,
+          "end": 108,
+          "parameters": [
+            "input_dir",
+            "workdir",
+            "batch_size",
+            "limit"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/RES-001: reject invalid source/batch/negative limit before acquiring an agent, preserve zero as no work, stream real documents, close the owned agent, and write a full-source manifest only for an unlimited completed seed."
+          ]
+        },
+        {
+          "name": "seed_lightrag.<lambda>@74:43",
+          "kind": "lambda",
+          "line": 74,
+          "column": 43,
+          "end": 74,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-001: retain the constructor callback because it captures the actual working directory for worker-owned graph-agent acquisition."
+          ]
+        },
+        {
+          "name": "seed_lightrag.flush",
+          "kind": "async_function",
+          "line": 80,
+          "column": 8,
+          "end": 86,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/CLS-003: retain the local async batch closure because it owns the pending document list and resets it only after successful real ingestion."
+          ]
+        },
+        {
+          "name": "write_seed_manifest",
+          "kind": "function",
+          "line": 111,
+          "column": 0,
+          "end": 128,
+          "parameters": [
+            "source_dir",
+            "workdir",
+            "supported_extensions"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-003/DAT-001: take the actual loader's supported suffix policy explicitly and include only those source files, matching AgentService._collect_seed_manifest instead of claiming unsupported/cache files were ingested."
+          ]
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 131,
+          "column": 0,
+          "end": 140,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/FUN-001: retain the guarded async command and pass the actual requested batch size through validation, with no silent clamping."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001/DAT-003: validate directories/batch sizes/negative limits; allow limit=0 without model acquisition.",
+        "RES-001: acquire the graph agent through the existing anyio worker boundary and retain bounded shutdown.",
+        "DAT-001: bounded imports do not overwrite the marker with a false full-source completion claim.",
+        "FUN-003: pass supported_extensions into the manifest writer so its file set matches the loader and actual service consumer.",
+        "FUN-004: type pending documents concretely and annotate the flush result."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "The existing manifest uses byte size and integer mtime, matching AgentService; this audit does not introduce a new on-disk format or claim same-second hash detection.",
+        "No graph/model/storage/manifest operation was executed."
+      ],
+      "changed_signatures": [
+        {
+          "name": "write_seed_manifest",
+          "signature": "write_seed_manifest(source_dir: Path, workdir: Path, supported_extensions: set[str]) -> None",
+          "notes": [
+            "The single production call now passes loader.supported_extensions; tests owner was notified."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "scripts/seed_mysql_text2sql.py",
+      "summary": "Read every SQL template, row generator, identifier/value boundary, schema transformation, reset flag, transaction, and connection exit. Keep intentionally synthetic demo data while making reset explicit and DML atomic under its owned connection.",
+      "definitions": [
+        {
+          "name": "MySQLConfig",
+          "kind": "class",
+          "line": 23,
+          "column": 0,
+          "end": 28,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "TypedDict"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/FUN-004: retain the TypedDict because it expresses the actual fixed connection mapping passed to PyMySQL without adding an unnecessary configuration object."
+          ]
+        },
+        {
+          "name": "load_mysql_config",
+          "kind": "function",
+          "line": 34,
+          "column": 0,
+          "end": 42,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Read MySQL connection settings from environment (defaults match docker-compose).",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-005: retain documented environment defaults and explicit required output keys; the CLI owns dotenv loading and connection creation."
+          ]
+        },
+        {
+          "name": "connect_mysql",
+          "kind": "function",
+          "line": 45,
+          "column": 0,
+          "end": 56,
+          "parameters": [
+            "cfg"
+          ],
+          "decorators": [],
+          "declared_role": "Create the owned connection for one transaction of synthetic rows.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-003/RES-001: return an owned connection with autocommit=False for the caller's seed transaction; remove unused multi-statement capability because converted schema statements are executed separately."
+          ]
+        },
+        {
+          "name": "mysql_schema_statements",
+          "kind": "function",
+          "line": 59,
+          "column": 0,
+          "end": 95,
+          "parameters": [
+            "schema_path"
+          ],
+          "decorators": [],
+          "declared_role": "Convert this repository's SQLite-oriented table schema for MySQL.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DES-003/FUN-001: factor the existing checked-in schema conversion into its real shared owner; remove full-line comments before CREATE TABLE detection so charset/collation are applied, and retain the explicitly limited repository-schema splitter."
+          ]
+        },
+        {
+          "name": "apply_schema",
+          "kind": "function",
+          "line": 98,
+          "column": 0,
+          "end": 102,
+          "parameters": [
+            "conn"
+          ],
+          "decorators": [],
+          "declared_role": "Execute the converted table schema; MySQL DDL commits independently.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-003/RES-001: execute the shared converted statements under a cursor scope and document that MySQL DDL commits independently."
+          ]
+        },
+        {
+          "name": "truncate_tables",
+          "kind": "function",
+          "line": 105,
+          "column": 0,
+          "end": 114,
+          "parameters": [
+            "conn",
+            "tables"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DB-001: validate every bare table identifier before disabling foreign-key checks, quote identifiers, and preserve finally-based foreign-key restoration after any truncate error."
+          ]
+        },
+        {
+          "name": "random_date_between",
+          "kind": "function",
+          "line": 117,
+          "column": 0,
+          "end": 123,
+          "parameters": [
+            "year"
+          ],
+          "decorators": [],
+          "declared_role": "Generate publish/effective/expiry dates.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DES-004: retain explicit historical synthetic date generation and valid publish/effective/expiry ordering; these are fixtures, not observations."
+          ]
+        },
+        {
+          "name": "generate_documents",
+          "kind": "function",
+          "line": 126,
+          "column": 0,
+          "end": 165,
+          "parameters": [
+            "count"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001: retain fixed synthetic IDs/shape and generated sample content, mark metadata synthetic=True, and label titles as examples rather than verified/current official documents."
+          ]
+        },
+        {
+          "name": "generate_entities",
+          "kind": "function",
+          "line": 168,
+          "column": 0,
+          "end": 194,
+          "parameters": [
+            "docs"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DES-004: retain the explicit related synthetic-row generator and actual document foreign keys; do not introduce a new extraction/measurement system."
+          ]
+        },
+        {
+          "name": "generate_qa_pairs",
+          "kind": "function",
+          "line": 197,
+          "column": 0,
+          "end": 222,
+          "parameters": [
+            "docs",
+            "per_doc"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001: retain the actual synthetic question/answer rows but mark verified=False because random generated examples were never checked against policy evidence."
+          ]
+        },
+        {
+          "name": "generate_tags",
+          "kind": "function",
+          "line": 225,
+          "column": 0,
+          "end": 239,
+          "parameters": [
+            "docs"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the explicit synthetic tag/weight generator and per-document associations; these values are fixture generation, not measured relevance."
+          ]
+        },
+        {
+          "name": "generate_schema_hints",
+          "kind": "function",
+          "line": 242,
+          "column": 0,
+          "end": 248,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the concrete four hints consumed by Text2SQL setup; no generic registry or extra option is needed."
+          ]
+        },
+        {
+          "name": "bulk_insert",
+          "kind": "function",
+          "line": 251,
+          "column": 0,
+          "end": 259,
+          "parameters": [
+            "conn",
+            "sql",
+            "rows"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-001/RES-001: retain driver executemany with bound mapping/tuple values and owned cursor; SQL templates are fixed at actual callers rather than interpolating policy text."
+          ]
+        },
+        {
+          "name": "seed_mysql",
+          "kind": "function",
+          "line": 262,
+          "column": 0,
+          "end": 314,
+          "parameters": [
+            "conn",
+            "doc_count"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-003/FUN-002: keep document/related-row generation and parameterized inserts in direct order; the caller owns the one final commit or rollback."
+          ]
+        },
+        {
+          "name": "parse_args",
+          "kind": "function",
+          "line": 317,
+          "column": 0,
+          "end": 343,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DES-004: reset is now explicit --truncate, default keeps data, and the real legacy --no-truncate flag remains as a mutually exclusive compatibility alias."
+          ]
+        },
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 346,
+          "column": 0,
+          "end": 380,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-003/RES-001: reject negative count before connecting, apply optional DDL/reset explicitly, commit one successful seed DML transaction, roll it back on failure, and always close the owned connection."
+          ]
+        }
+      ],
+      "changes": [
+        "DB-001: default preserves existing rows; only explicit --truncate clears the known demo tables, with --no-truncate retained.",
+        "DB-003: disable autocommit and let main own commit/rollback for the seed DML batch.",
+        "WEB-001: validate/quote table identifiers before any destructive operation.",
+        "DES-003: extract mysql_schema_statements for the importer and seed command, avoiding duplicate converters and fixing comment-prefixed charset detection.",
+        "DAT-001: synthetic rows are labeled and generated QA is explicitly unverified.",
+        "WEB-001: reject negative document counts before acquisition; legitimate zero is not replaced with a default."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "MySQL CREATE/TRUNCATE are DDL and commit independently. Explicit --truncate cannot promise restoring old rows after a later seed failure; rollback covers the subsequent transactional DML.",
+        "Default repeated seeding may fail on existing synthetic IDs and rolls back its DML; it does not silently reset or invent a new upsert policy for SQL demos.",
+        "The checked-in schema splitter has a documented limit for semicolons inside SQL literals; no new SQL parser dependency was installed.",
+        "No connection, SQL, reset, commit, rollback, or data generation was executed."
+      ],
+      "cli_contract": {
+        "default": "Preserve existing data; do not truncate.",
+        "truncate": "--truncate explicitly truncates the existing eight known demo tables before seeding. DDL cannot be restored by a later DML rollback.",
+        "legacy_no_truncate": "--no-truncate remains an accepted compatibility flag and has the same effect as the default.",
+        "repeat": "Existing synthetic IDs may cause a default repeat to fail and roll back its seed DML instead of deleting old data."
+      }
+    },
+    {
+      "path": "scripts/sync_text2sql_schema.py",
+      "summary": "Read the complete session/connection/schema refresh flow and the actual CRUD update/schema model contracts. Reuse the existing transaction owners and keep the default connection aligned with current configuration.",
+      "definitions": [
+        {
+          "name": "main",
+          "kind": "function",
+          "line": 21,
+          "column": 0,
+          "end": 54,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DAT-001/RES-001: validate the desired connection once, create it if absent or update it through existing typed CRUD when present, refresh the actual configured target, and always close this session; no password is printed."
+          ]
+        }
+      ],
+      "changes": [
+        "DAT-001: update an existing Policy Demo MySQL connection from current settings before introspection instead of silently refreshing the old host/database.",
+        "PYD: reuse DBConnectionCreate/DBConnectionUpdate and the actual existing CRUD update contract."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "Connection CRUD and metadata refresh own their existing transactions; this wrapper does not promise one atomic operation across connection metadata and target database discovery.",
+        "No database or introspection call was made."
+      ]
+    },
+    {
+      "path": "scripts/unified_cli.py",
+      "summary": "Read every mode/argument, actual AgentService metadata/signature, configuration path, output artifact, and resource lifetime. Keep the real direct AgentService interface and show observed route/intent/components rather than fake metrics.",
+      "definitions": [
+        {
+          "name": "interactive_mode",
+          "kind": "async_function",
+          "line": 23,
+          "column": 0,
+          "end": 98,
+          "parameters": [
+            "service"
+          ],
+          "decorators": [],
+          "declared_role": "交互模式",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-003/DAT-001: use the actual keyword-only session_id argument and required route metadata; retain the interactive error boundary and actual source/confidence display."
+          ]
+        },
+        {
+          "name": "demo_mode",
+          "kind": "async_function",
+          "line": 101,
+          "column": 0,
+          "end": 165,
+          "parameters": [
+            "service"
+          ],
+          "decorators": [],
+          "declared_role": "演示模式 - 展示不同智能体的能力",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/CLS-003: keep one returned session across the context scenario, use actual route labels, and report mismatches instead of printing unconditional success for the observed chain."
+          ]
+        },
+        {
+          "name": "batch_mode",
+          "kind": "async_function",
+          "line": 168,
+          "column": 0,
+          "end": 241,
+          "parameters": [
+            "service",
+            "query_file"
+          ],
+          "decorators": [],
+          "declared_role": "批量处理模式",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/RES-001: consume route plus intent.intent from the actual service contract, aggregate real counts, retain no-result handling, and write a separate .results.json for .json inputs with same-file collision rejection."
+          ]
+        },
+        {
+          "name": "metrics_mode",
+          "kind": "function",
+          "line": 244,
+          "column": 0,
+          "end": 251,
+          "parameters": [
+            "service"
+          ],
+          "decorators": [],
+          "declared_role": "Show this CLI's constructed components, without inventing runtime metrics.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: make this synchronous because it only prints this CLI's actual constructed component classes/count; it does not invent runtime performance or availability measurements."
+          ]
+        },
+        {
+          "name": "main",
+          "kind": "async_function",
+          "line": 254,
+          "column": 0,
+          "end": 315,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "主函数",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ASY-001: parse help/options before heavy app imports, distinguish missing explicit config from the real default mode, acquire configuration/service in workers, and use the existing AsyncExitStack/close_with_timeout ownership for service and the CLI's global model client.",
+            "FUN-002/CLS-002: load dotenv/settings and validated CLI config, apply all six model options, construct the shared client, register cleanup, then import/create AgentService. No per-request model switching is introduced."
+          ]
+        },
+        {
+          "name": "main.<lambda>@300:53",
+          "kind": "lambda",
+          "line": 300,
+          "column": 53,
+          "end": 300,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-001: retain the local constructor callback to pass the validated config through the anyio worker boundary without inventing a factory wrapper."
+          ]
+        }
+      ],
+      "changes": [
+        "FUN-003: update direct service calls to keyword-only session_id and preserve the actual returned demo session.",
+        "DAT-001: use actual route and nested intent metadata instead of obsolete chain fields/unhashable intent dictionaries.",
+        "ERR-003: avoid overwriting .json query inputs and reject same-file/hard-link output collisions.",
+        "FUN-001: --metrics now prints constructed components, without seed initialization or fabricated system metrics.",
+        "RES-001: defer app imports until after argument parsing and close both owned CLI service and model-client resources with the existing lifecycle helper.",
+        "DAT-005: explicit missing config paths fail; the existing default-file/environment mode remains.",
+        "ASY-001: keep configuration/service construction and file I/O at actual worker boundaries.",
+        "Root integration: apply the effective CLI model settings before first core.llms import; forward actual optional max_tokens/timeout and register client cleanup before importing the service."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, inspected CLI/subprocess commands, database/Docker/model/service operations, or runtime checks were executed. AST parsing was used only for source-definition inventory; implementations and actual callers were read separately.",
+        "Component inventory is not a live availability or performance check. No CLI mode, service, model, file-processing operation, or telemetry collection was run.",
+        "Constructor option support was verified in immutable official AutoGen source; no installed SDK or model request was executed."
+      ],
+      "changed_signatures": [
+        {
+          "name": "metrics_mode",
+          "signature": "metrics_mode(service: AgentService) -> None",
+          "notes": [
+            "Now synchronous and reports the supplied service's actual constructed components. The single main call site was migrated."
+          ]
+        }
+      ]
+    }
+  ]
+}

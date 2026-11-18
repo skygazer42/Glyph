@@ -1,7 +1,7 @@
 # Core AutoGen Framework
-autogen-core>=0.4.0
-autogen-agentchat>=0.4.0
-autogen-ext[openai]>=0.4.0
+autogen-core>=0.6.0
+autogen-agentchat>=0.6.0
+autogen-ext[openai]>=0.6.0
 
 # Model Clients
 openai>=1.50.0
@@ -48,7 +48,7 @@ google-genai
 
 # Web Framework
 requests>=2.31.0
-fastapi>=0.111.0
+fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 # Web Search
 tavily-python>=0.3.3

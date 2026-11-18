@@ -12,9 +12,6 @@
 
 ```
 app/agents/
-├── ag_builder.py         # 轻量 AG 组合器 Demo（原 simple_controller）
-├── ag_prompt.py          # Workflow 共用的提示词
-├── ag_workflow.py        # AutoGen Workflow Demo（原 ag_orchestrator）
 ├── framework/            # AutoGen Core 抽象：BaseAgent、会话、监控、安全等
 ├── packs/                # 「一个 Agent = 一个目录」的实现，示例：chat_agent、graph_retriever
 ├── pipeline/             # AgentService 使用的业务流水线代理（Rewrite/Knowledge/Graph/Rule/Text2SQL）
@@ -29,13 +26,15 @@ app/agents/
 
 > **提示**：老的 `app/services/`、`app/agents/core` 等目录已经废弃，所有 orchestration 逻辑都在本目录完成。
 
+可选组合器和 Workflow 演示位于仓库根目录的 `examples/`。包根不再聚合导出全部实现，内部导入指向定义模块；项目级约定见 [Python 代码与目录约定](../../docs/PYTHON_STRUCTURE.md)。
+
 ```mermaid
 flowchart TD
     A[用户请求<br/>message + attachments] --> B[RewriteAgent<br/>语义改写]
     B --> C[IntentDetectionTool<br/>意图/chain]
-    C -->|chit_chat| D[DialogueAgent]
+    C -->|chit_chat| D[respond_to_dialogue]
     C -->|clarification| E[ClarifierAgent]
-    C -->|text2sql| F[Text2SQLAgent]
+    C -->|text2sql| F[answer_text2sql_query]
     C -->|graph_chain / summary| G[GraphAgent<br/>LightRAG + RAG 回退]
     C -->|calculation_chain / rule| H[RuleEngineAgent<br/>DSL]
     C -->|vision_chain / user_history<br/>或检测到图片| I[WorkflowAgent<br/>GraphFlow 团队]
@@ -72,7 +71,7 @@ flowchart TD
    - `knowledge`：KnowledgeAgent（Milvus 向量检索 + 摘要）  
    - `graph`：GraphAgent（LightRAG，可回落到知识库）  
    - `rule_engine`：RuleEngineAgent（DSL PolicyEngine 计算）  
-   - `text2sql`：Text2SQLAgent（ChatDB pipeline，需要 `connection_id`）  
+   - `text2sql`：`answer_text2sql_query`（ChatDB pipeline，需要 `connection_id`）
    - `workflow`：WorkflowAgent（GraphFlow，将多模态解析/用户资料查询→知识检索/规则计算→最终答复串成一个小团队）  
 
 4. **结果包装**  
@@ -130,7 +129,7 @@ packs/<agent_name>/
 ## API / CLI 的使用方式
 
 ```python
-from app.agents.service import AgentService
+from app.agents.service.agent_service import AgentService
 
 service = AgentService()
 await service.initialize()

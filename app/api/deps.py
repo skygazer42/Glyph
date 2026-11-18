@@ -12,12 +12,12 @@ from app.agents.dsl_generator.dsl_extractor import DSLExtractor
 from app.agents.dsl_generator.dsl_generator import DSLGenerator
 from app.agents.dsl_generator.document_parser import DocumentParser
 from app.agents.dsl_generator.rule_engine import PolicyEngine
-from app.agents.service.agent_service import AgentService
 from app.agents.framework.common.session_manager import SessionManager
+from app.agents.service.agent_service import AgentService
 from app.agents.service.chat_history_store import ChatHistoryStore
-from app.knowledge.service import KnowledgeService
-from app.knowledge.doc_enhanced import EnhancedDocumentProcessor
 from app.core.llms import model_client
+from app.knowledge.doc_enhanced import EnhancedDocumentProcessor
+from app.knowledge.service import KnowledgeService
 from app.utils.lifecycle import close_with_timeout
 
 
@@ -98,11 +98,6 @@ def get_enhanced_doc_processor() -> EnhancedDocumentProcessor:
 
 
 # ==================== Agent 相关依赖 ====================
-
-def get_model_client():
-    """获取模型客户端实例"""
-    return model_client
-
 
 async def get_agent_service() -> AgentService:
     """获取统一 AgentService 实例"""

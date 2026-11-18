@@ -27,16 +27,18 @@ DATABASE__MYSQL_DB=policy_db
 cd /path/to/Glyph
 
 # 仅初始化 MySQL 政策问答 / Text2SQL 数据
-python scripts/2_seed_mysql_text2sql.py
+python -m scripts.seed_mysql_text2sql
 
 # 或执行完整数据链路（建表 + MySQL + Milvus + 索引）
 bash scripts/init_data.sh
 ```
 
-`scripts/2_seed_mysql_text2sql.py` 会做两件事：
+`scripts/seed_mysql_text2sql.py` 会做两件事：
 
 - 读取 `resources/database/schema/policy_qa_schema.sql`，转换成 MySQL 语法并建表；
 - 自动生成一小批政务政策文档、实体、QA 对和标签，插入到 `policy_db` 中。
+
+默认保留已有记录；重复主键会使本批插入回滚。仅主动重置演示数据时使用 `python -m scripts.seed_mysql_text2sql --truncate`，该参数会清空八张表；清空操作不能由后续 DML 回滚恢复。合成问答标记为未人工核验。
 
 ### 3. 验证初始化结果
 
@@ -114,6 +116,6 @@ LIMIT 10;
 ## 下一步
 
 - 查看完整表结构：`resources/database/schema/policy_qa_schema.sql`
-- 查看数据生成逻辑：`scripts/2_seed_mysql_text2sql.py`
+- 查看数据生成逻辑：`scripts/seed_mysql_text2sql.py`
 - 查看整体链路说明：项目根目录 `README.md` 中的 “导入示例数据” 章节
 

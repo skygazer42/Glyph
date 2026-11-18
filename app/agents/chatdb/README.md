@@ -325,21 +325,19 @@ TEXT2SQL__ALLOW_UNION=false     # 禁止 UNION 查询
 ### 基础查询
 
 ```python
-from app.agents.chatdb.text2sql_service import Text2SQLService
-
-service = Text2SQLService()
+from app.agents.chatdb.text2sql_service import process_text2sql_query_for_connection_async
 
 # 示例1: 简单查询
-result = await service.query(
-    query="有多少个政策文件？",
+result = await process_text2sql_query_for_connection_async(
+    natural_language_query="有多少个政策文件？",
     connection_id=1
 )
 # SQL: SELECT COUNT(*) FROM policies;
 # 结果: {"count": 42}
 
 # 示例2: 带条件查询
-result = await service.query(
-    query="家电类政策有哪些？",
+result = await process_text2sql_query_for_connection_async(
+    natural_language_query="家电类政策有哪些？",
     connection_id=1
 )
 # SQL: SELECT title, publish_date FROM policies WHERE category = '家电' LIMIT 10;
@@ -350,8 +348,8 @@ result = await service.query(
 
 ```python
 # 示例3: 时间范围查询
-result = await service.query(
-    query="列出近三个月发布的政策标题及来源",
+result = await process_text2sql_query_for_connection_async(
+    natural_language_query="列出近三个月发布的政策标题及来源",
     connection_id=1
 )
 # SQL: SELECT title, source, publish_date FROM policies
@@ -359,8 +357,8 @@ result = await service.query(
 #      ORDER BY publish_date DESC;
 
 # 示例4: 聚合统计
-result = await service.query(
-    query="按政策类型统计数量",
+result = await process_text2sql_query_for_connection_async(
+    natural_language_query="按政策类型统计数量",
     connection_id=1
 )
 # SQL: SELECT category, COUNT(*) as count FROM policies
@@ -371,8 +369,8 @@ result = await service.query(
 
 ```python
 # 示例5: 政策领域查询
-result = await service.query(
-    query="济南市2025年家电补贴政策发放情况",
+result = await process_text2sql_query_for_connection_async(
+    natural_language_query="济南市2025年家电补贴政策发放情况",
     connection_id=1
 )
 # 自动识别:

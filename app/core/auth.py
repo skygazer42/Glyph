@@ -30,6 +30,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 def _seed_users() -> Dict[str, APIUserInDB]:
     username = settings.security.api_default_username
     password = settings.security.api_default_password
+    if not username or not password:
+        return {}
     return {
         username: APIUserInDB(
             username=username,
@@ -43,9 +45,15 @@ def _seed_users() -> Dict[str, APIUserInDB]:
 _users_db: Dict[str, APIUserInDB] = _seed_users()
 
 
+def get_api_user(username: str) -> Optional[APIUserInDB]:
+    return _users_db.get(username)
+
+
 def authenticate_user(username: str, password: str) -> Optional[APIUserInDB]:
-    user = _users_db.get(username)
+    user = get_api_user(username)
     if user is None:
+        # Keep unknown usernames on the same password-derivation path.
+        get_password_hash(password, salt="missing-api-user")
         return None
     if not verify_password(password, user.hashed_password):
         return None
@@ -53,6 +61,8 @@ def authenticate_user(username: str, password: str) -> Optional[APIUserInDB]:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    if not settings.security.jwt_secret_key:
+        raise HTTPException(status_code=503, detail="认证签名密钥未配置，请设置 SECURITY__JWT_SECRET_KEY。")
     to_encode = data.copy()
     if expires_delta is None:
         expires_delta = timedelta(minutes=settings.security.jwt_access_token_exp_minutes)
@@ -66,6 +76,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def _decode_token(token: str) -> APIUserInDB:
+    if not settings.security.jwt_secret_key:
+        raise HTTPException(status_code=503, detail="认证签名密钥未配置，请设置 SECURITY__JWT_SECRET_KEY。")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -133,6 +145,7 @@ __all__ = [
     "APIUserInDB",
     "authenticate_user",
     "create_access_token",
+    "get_api_user",
     "get_current_active_user",
     "oauth2_scheme",
 ]

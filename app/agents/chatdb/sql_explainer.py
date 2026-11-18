@@ -28,17 +28,14 @@ class SqlExplainerAgent(BaseAgent):
             db_type: 数据库类型
         """
         super().__init__(
-            agent_id="sql_explainer_agent",
+            description="sql_explainer_agent",
             agent_name=AGENT_NAMES[AgentTypes.SQL_EXPLAINER.value],
             model_client_instance=model_client_instance,
             db_type=db_type
         )
-        self._prompt_template = self._build_prompt_template()
+        self._prompt_template = self.PROMPT_TEMPLATE
 
-    @staticmethod
-    def _build_prompt_template() -> str:
-        """构建提示模板"""
-        return """
+    PROMPT_TEMPLATE = """
         你是一名专业的SQL解释专家，你的任务是以准确、易懂的方式向非技术人员解释给定的SQL语句的含义和作用。
 
         ## 数据库类型

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.agents.dsl_generator.rule_engine import PolicyEngine
 from app.core.llms import model_client
-from app.models.base import FinalAnswer
+from app.models.policy import FinalAnswer
 
 
 class RuleExecutionPlan(BaseModel):
@@ -48,7 +48,7 @@ class RuleEngineAgent:
             raise KeyError(rule_id)
         inputs = self._coerce_inputs(rule_info, plan.inputs)
         result = self.engine.execute(rule_id, inputs)
-        answer_text = self._format_result(rule_id, result, inputs)
+        answer_text = self._format_result(result, inputs)
         qualified = result["status"] in {"QUALIFIED", "SUCCESS"}
         confidence = 0.85 if qualified else 0.45
 
@@ -101,7 +101,8 @@ class RuleEngineAgent:
             self.logger.error("Rule planner调用失败: %s", exc, exc_info=True)
             raise
 
-    def _build_planner_prompt(self, query: str, contexts: List[Dict[str, Any]]) -> str:
+    @staticmethod
+    def _build_planner_prompt(query: str, contexts: List[Dict[str, Any]]) -> str:
         lines = [
             "你是政策规则匹配助手。以下是系统中可用的 DSL 规则，"
             "请阅读规则及其输入说明，并根据用户问题选择最合适的规则，同时推理输入参数。",
@@ -121,8 +122,9 @@ class RuleEngineAgent:
         lines.append(f"\n用户问题：{query}")
         return "\n".join(lines)
 
+    @staticmethod
     def _coerce_inputs(
-        self, rule_info: Dict[str, Any], raw_inputs: Dict[str, Any]
+        rule_info: Dict[str, Any], raw_inputs: Dict[str, Any]
     ) -> Dict[str, Any]:
         specs_map = {
             spec["name"]: spec for spec in rule_info.get("inputs", [])
@@ -134,6 +136,12 @@ class RuleEngineAgent:
                 converted[key] = value
                 continue
             input_type = spec["type"].lower()
+            if input_type in {"float", "int", "integer"} and isinstance(value, bool):
+                converted[key] = value
+                continue
+            if input_type in {"int", "integer"} and isinstance(value, float) and not value.is_integer():
+                converted[key] = value
+                continue
             try:
                 if input_type == "float":
                     converted[key] = float(value)
@@ -156,8 +164,9 @@ class RuleEngineAgent:
                 converted[key] = value
         return converted
 
+    @staticmethod
     def _format_result(
-        self, rule_id: str, result: Dict[str, Any], inputs: Dict[str, Any]
+        result: Dict[str, Any], inputs: Dict[str, Any]
     ) -> str:
         status = result["status"]
         msg = result.get("message", "")
@@ -236,7 +245,8 @@ class RuleEngineAgent:
             total_processing_time=0.0,
         )
 
-    def _parse_execution_plan(self, text: Any) -> RuleExecutionPlan:
+    @staticmethod
+    def _parse_execution_plan(text: Any) -> RuleExecutionPlan:
         if not isinstance(text, str):
             raise ValueError("Rule planner returned non-text content")
         text = text.strip()

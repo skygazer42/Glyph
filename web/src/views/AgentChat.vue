@@ -1,129 +1,45 @@
 <template>
-<div class="policy-workbench" :class="{ 'navigation-collapsed': navigationCollapsed, 'evidence-collapsed': !evidenceVisible }">
-  <WorkbenchSidebar
-    :collapsed="navigationCollapsed"
-    :sessions="sessions"
-    :current-session-id="sessionId"
-    @create="startConsultation"
-    @select="handleSessionChange"
-    @manage="showSessionDrawer = true"
-    @settings="settingsVisible = true"
-  />
-  <header class="workbench-header">
-    <el-tooltip :content="navigationCollapsed ? '展开导航' : '收起导航'" placement="bottom">
-      <span>
-        <button
-          type="button"
-          class="workbench-icon"
-          :aria-label="navigationCollapsed ? '展开导航' : '收起导航'"
-          :aria-expanded="!navigationCollapsed"
-          aria-controls="workbench-navigation"
-          @click="navigationCollapsed = !navigationCollapsed"
-        >
-          <el-icon>
-            <Expand v-if="navigationCollapsed" />
-            <Fold v-else />
-          </el-icon>
-        </button>
-      </span>
-    </el-tooltip>
-    <div class="consultation-heading">
-      <h1>
-        {{ currentSession?.title === '新对话' ? '政策咨询工作台' : currentSession?.title || '政策咨询工作台' }}
-      </h1>
-      <span>
-        智能问答
-      </span>
-    </div>
-    <div class="workbench-header-actions">
-      <el-tooltip :content="isConnected ? '服务连接正常' : '服务暂未连接，可查看历史记录'" placement="bottom">
-        <span class="service-status" :class="{ 'is-connected': isConnected }" :aria-label="isConnected ? '服务已连接' : '服务未连接'">
-          <i />
-          {{ isConnected ? '已连接' : '未连接' }}
-        </span>
-      </el-tooltip>
-      <el-tooltip content="使用帮助" placement="bottom">
-        <button type="button" class="workbench-icon" aria-label="使用帮助" @click="helpVisible = true">
-          <el-icon>
-            <QuestionFilled />
-          </el-icon>
-        </button>
-      </el-tooltip>
-      <button
-        type="button"
-        class="evidence-toggle"
-        :aria-expanded="evidenceVisible"
-        aria-controls="policy-evidence"
-        @click="evidenceVisible = !evidenceVisible"
-      >
-        <el-icon>
-          <Reading />
-        </el-icon>
-        <span>
-          政策依据
-        </span>
-        <span v-if="activeSources.length" class="evidence-count">
-          {{ activeSources.length }}
-        </span>
-      </button>
+<div class="policy-workbench" :class="{ 'is-staff': workspace, 'is-empty': !messages.length, 'evidence-collapsed': !evidenceVisible }">
+  <header v-if="!workspace" class="public-consultation-header">
+    <div class="public-header-inner">
+      <router-link to="/agent" class="public-brand" aria-label="政策咨询服务">
+        <PlatformMark class="public-platform-symbol" width="34" height="34" /><div class="public-brand-copy"><strong>政策知识服务平台</strong><span>公众咨询</span></div>
+      </router-link>
+      <div class="public-header-actions">
+        <ConsultationActions :evidence-visible="evidenceVisible" :source-count="activeSources.length" @new="startConsultation" @history="showSessionDrawer = true" @evidence="toggleEvidence" @settings="settingsVisible = true" />
+        <router-link :to="auth.hasActiveSession() ? '/workbench' : '/login?redirect=/workbench'" class="public-staff-link">{{ auth.hasActiveSession() ? '进入工作台' : '工作人员登录' }} <el-icon><Right /></el-icon></router-link>
+      </div>
     </div>
   </header>
+  <div v-if="workspace" class="consultation-titlebar">
+      <div>
+        <h1>政策咨询</h1>
+      </div>
+      <ConsultationActions workspace :evidence-visible="evidenceVisible" :source-count="activeSources.length" @new="startConsultation" @history="showSessionDrawer = true" @evidence="toggleEvidence" @settings="settingsVisible = true" />
+  </div>
   <main class="conversation-workspace" aria-label="政策咨询">
-    <div ref="messagesContainer" class="conversation-scroll" role="log" aria-label="咨询记录" :aria-busy="loading">
+    <div v-if="isConnected === false" class="consultation-service-note" role="status">
+      <el-icon aria-hidden="true"><Warning /></el-icon>
+      <span>咨询暂未连接，已有记录可查阅。</span>
+      <button type="button" :disabled="checkingConnection" @click="checkConnection"><el-icon :class="{ 'is-loading': checkingConnection }"><Refresh /></el-icon>{{ checkingConnection ? '正在连接' : '重新连接' }}</button>
+    </div>
+    <section v-if="!messages.length" class="consultation-welcome">
+      <div class="welcome-heading"><span class="welcome-symbol" aria-hidden="true"><el-icon><Reading /></el-icon></span><component :is="workspace ? 'h2' : 'h1'">从一个政策问题开始</component></div>
+      <p class="welcome-description">请说明政策、地区和时间；测算时补充金额与能效等级。</p>
+    </section>
+    <div v-show="messages.length" ref="messagesContainer" class="conversation-scroll" role="log" aria-label="咨询记录" :aria-busy="loading">
       <div class="conversation-reading">
-        <section v-if="!messages.length" class="consultation-welcome">
-          <span class="welcome-mark">
-            <GlyphMark />
-          </span>
-          <p class="welcome-eyebrow">
-            GLYPH · 政策智能服务
-          </p>
-          <h2>
-            查政策，理条件，算补贴。
-          </h2>
-          <p class="welcome-description">
-            从一个具体问题开始，让政策依据和测算过程都清楚可查。
-          </p>
-          <div class="consultation-suggestions">
-            <button
-              v-for="(question, index) in exampleQuestions"
-              :key="question"
-              type="button"
-              :disabled="loading"
-              @click="askExample(question)"
-            >
-              <el-icon>
-                <component :is="index === 0 ? Reading : index === 1 ? DataAnalysis : ChatDotRound" />
-              </el-icon>
-              <span>
-                {{ question }}
-              </span>
-              <el-icon>
-                <Right />
-              </el-icon>
-            </button>
-          </div>
-          <button type="button" class="welcome-measure" @click="openMeasurement">
-            <el-icon>
-              <Plus />
-            </el-icon>
-            填写条件，开始补贴测算
-          </button>
-        </section>
         <article v-for="(message, index) in messages" :key="getMessageKey(message)" class="conversation-message" :class="message.role">
           <div v-if="message.role === 'user'" class="user-question">
+            <span class="question-label">{{ workspace ? '咨询问题' : '您的提问' }}</span>
             <p>
               {{ message.content }}
             </p>
           </div>
           <template v-else>
             <div class="assistant-heading">
-              <span class="assistant-mark">
-                <GlyphMark />
-              </span>
-              <strong>
-                Glyph 政策助手
-              </strong>
+              <span class="assistant-mark"><el-icon><Reading /></el-icon></span>
+              <strong>政策答复</strong>
               <span class="answer-number">
                 答复 {{ getAnswerNumber(index) }}
               </span>
@@ -148,19 +64,13 @@
                 本条答复未返回正文。
               </span>
               <div v-if="getReferences(message).length" class="answer-source-links">
-                <span>
-                  政策依据
-                </span>
-                <button
-                  v-for="(source, sourceIndex) in getReferences(message)"
-                  :key="sourceIndex"
-                  type="button"
-                  class="citation"
-                  :aria-label="`查看政策依据 ${sourceIndex + 1}：${source.title}`"
-                  @click="showEvidence(message, sourceIndex)"
-                >
-                  {{ sourceIndex + 1 }}
-                </button>
+                <span>政策依据</span>
+                <div class="inline-source-list">
+                  <button v-for="(source, sourceIndex) in getReferences(message)" :key="sourceIndex" type="button" class="inline-policy-source"
+                    :aria-label="'查看政策依据 ' + (sourceIndex + 1) + '：' + source.title" @click="showEvidence(message, sourceIndex)">
+                    <span class="citation">{{ sourceIndex + 1 }}</span><span>{{ source.title }}</span><el-icon><Right /></el-icon>
+                  </button>
+                </div>
               </div>
             </div>
             <details v-if="getSubsidyResult(message.metadata)" class="answer-details" @toggle="revealDetails($event.target)">
@@ -169,7 +79,7 @@
               </summary>
               <div class="formatted-answer" v-html="formatMessage(message.content)" />
             </details>
-            <Text2SQLResult v-if="message.metadata?.route === 'text2sql'" :metadata="message.metadata" />
+            <Text2SQLResult v-if="workspace && message.metadata?.route === 'text2sql'" :metadata="message.metadata" />
             <div class="answer-actions">
               <el-tooltip content="复制答复" placement="bottom">
                 <button type="button" class="workbench-icon" aria-label="复制答复" :disabled="!message.content" @click="copyMessage(message)">
@@ -178,7 +88,7 @@
                   </el-icon>
                 </button>
               </el-tooltip>
-              <span v-if="getRouteLabel(message)" class="answer-route">
+              <span v-if="workspace && getRouteLabel(message)" class="answer-route">
                 {{ getRouteLabel(message) }}
               </span>
               <button v-if="getReferences(message).length" type="button" class="answer-evidence-link" @click="showEvidence(message, 0)">
@@ -201,20 +111,7 @@
     </div>
     <div class="composer-area">
       <div class="composer-reading">
-        <div class="composer-shortcuts">
-          <button type="button" :disabled="loading" @click="openMeasurement">
-            <el-icon>
-              <Plus />
-            </el-icon>
-            补贴测算
-          </button>
-          <button type="button" :disabled="loading" @click="setFollowup('请列出这项政策的适用条件和所需材料。')">
-            <el-icon>
-              <Plus />
-            </el-icon>
-            查询条件与材料
-          </button>
-        </div>
+
         <div class="consultation-composer">
           <div v-if="currentConditions.length" class="composer-context">
             <span>
@@ -228,7 +125,7 @@
             ref="composerRef"
             v-model="inputMessage"
             type="textarea"
-            :autosize="{ minRows: 1, maxRows: 5 }"
+            :autosize="{ minRows: 2, maxRows: 5 }"
             resize="none"
             maxlength="10000"
             aria-label="政策咨询问题"
@@ -255,7 +152,8 @@
               <FileUploader
                 ref="attachmentUploaderRef"
                 variant="quiet"
-                upload-url="/api/uploads"
+                :upload-url="workspace ? '/api/uploads/staff' : '/api/uploads'"
+                :headers="workspace ? auth.staffHeaders() : {}"
                 :drag="false"
                 :multiple="true"
                 :limit="5"
@@ -265,14 +163,12 @@
                 :disabled="loading"
                 button-text="附件"
                 @change="handleAttachmentChange"
+                @error="handleAttachmentError"
               />
-              <el-tooltip content="切换流式响应、数据库查询等设置" placement="top">
-                <button type="button" class="workbench-icon" aria-label="咨询设置" @click="settingsVisible = true">
-                  <el-icon>
-                    <SetUp />
-                  </el-icon>
-                </button>
-              </el-tooltip>
+              <div class="composer-shortcuts">
+                <button type="button" :disabled="loading" @click="openMeasurement"><el-icon><Plus /></el-icon>补贴测算</button>
+                <button type="button" :disabled="loading" aria-label="查询条件与材料" @click="setFollowup('请列出这项政策的适用条件和所需材料。')"><el-icon><Plus /></el-icon>条件与材料</button>
+              </div>
               <span class="keyboard-hint">
                 <kbd>
                   Enter
@@ -298,6 +194,13 @@
             </button>
           </div>
         </div>
+        <section v-if="!messages.length" class="consultation-starters" aria-label="常见政策问题">
+          <p class="suggestion-heading">选择常见问题，补充后发送</p>
+          <div class="consultation-suggestions">
+            <button v-for="question in exampleQuestions" :key="question.title" type="button" :disabled="loading" @click="askExample(question.prompt)"><el-icon><Reading /></el-icon><span><strong>{{ question.title }}</strong><span>{{ question.prompt }}</span></span><el-icon><Right /></el-icon></button>
+            <button type="button" :disabled="loading" @click="openMeasurement"><el-icon><Plus /></el-icon><span><strong>补贴测算</strong><span>填写金额与能效等级</span></span><el-icon><Right /></el-icon></button>
+          </div>
+        </section>
         <p class="consultation-disclaimer">
           智能答复与测算结果仅供参考，具体办理请以政策原文及主管部门要求为准。
         </p>
@@ -309,7 +212,7 @@
     :message="activeMessage"
     :source-index="activeSourceIndex"
     :reveal-token="evidenceRevealToken"
-    @close="evidenceVisible = false"
+    @close="closeEvidence"
   />
   <el-drawer
     v-if="isCompact"
@@ -318,18 +221,20 @@
     :with-header="false"
     size="min(356px, 100vw)"
     class="glyph-dialog evidence-drawer"
+    @update:model-value="value => { if (!value) closeEvidence() }"
   >
     <PolicyEvidence
       :message="activeMessage"
       :source-index="activeSourceIndex"
       :reveal-token="evidenceRevealToken"
-      @close="evidenceVisible = false"
+      @close="closeEvidence"
     />
   </el-drawer>
   <el-drawer v-model="showSessionDrawer" title="会话管理" direction="ltr" size="min(380px, 100vw)" class="glyph-dialog">
     <SessionManager
       ref="sessionManagerRef"
       :current-session-id="sessionId"
+      :scope="conversationScope"
       @session-change="handleSessionChange"
       @session-create="handleSessionCreate"
       @session-delete="handleSessionDelete"
@@ -337,6 +242,7 @@
   </el-drawer>
   <el-drawer v-model="settingsVisible" title="咨询设置" size="min(380px, 100vw)" class="glyph-dialog">
     <el-form label-position="top" class="consultation-settings">
+      <template v-if="workspace">
       <el-form-item label="用户 ID">
         <el-select v-model="userId" :disabled="loading" filterable allow-create default-first-option clearable placeholder="可选，用于关联咨询身份">
           <el-option v-for="id in presetUserIds" :key="id" :label="id" :value="id" />
@@ -353,6 +259,7 @@
           将问题转换为 SQL，查询所选数据库。
         </p>
       </el-form-item>
+      </template>
       <el-form-item label="逐步显示答复">
         <el-switch v-model="useStreaming" :disabled="loading" />
         <p>
@@ -448,34 +355,43 @@
 import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { agentApi, dbApi } from '@/api'
 import { ElMessage } from 'element-plus'
-import { ChatDotRound, Delete, QuestionFilled, CopyDocument, Expand, Fold, Reading, DataAnalysis, Right, Plus, SetUp, VideoPause } from '@element-plus/icons-vue'
+import { Delete, CopyDocument, Reading, Right, Plus, Refresh, VideoPause, Warning } from '@element-plus/icons-vue'
 import SessionManager from '@/components/SessionManager.vue'
 import FileUploader from '@/components/FileUploader.vue'
 import Text2SQLResult from '@/components/Text2SQLResult.vue'
-import { useChatHistory, useSessionList } from '@/composables/useLocalStorage'
+import { useChatHistory, useSessionList, conversationStorage, conversationStorageKey } from '@/composables/useLocalStorage'
+import { useAuthStore } from '@/stores/auth'
+import { redirectStaffToLogin } from '@/api/request'
 import { useTheme } from '@/composables/useTheme'
-import WorkbenchSidebar from '@/components/workbench/WorkbenchSidebar.vue'
-import GlyphMark from '@/components/workbench/GlyphMark.vue'
+import PlatformMark from '@/components/workbench/PlatformMark.vue'
+import ConsultationActions from '@/components/workbench/ConsultationActions.vue'
+import { shouldOpenEvidence } from '@/utils/consultationEvidence'
 import PolicyEvidence from '@/components/workbench/PolicyEvidence.vue'
 import SubsidyResultCard from '@/components/workbench/SubsidyResultCard.vue'
 import { getSubsidyResult, getPolicySources, getPolicyConditions } from '@/utils/policyPresentation'
 
+const props = defineProps({ workspace: { type: Boolean, default: false } })
+const auth = useAuthStore()
+const conversationScope = props.workspace ? `staff:${auth.staffUser.username}` : 'public'
+
 // 状态
 const inputMessage = ref('')
 const loading = ref(false)
-const isConnected = ref(true)
+const isConnected = ref(null)
+const checkingConnection = ref(false)
 const messagesContainer = ref(null)
 const useStreaming = ref(true) // 是否使用流式响应
 const sessionId = ref(null) // 会话ID
+const serverSessionId = ref(null)
 const showSessionDrawer = ref(false) // 显示会话侧边栏
 const sessionManagerRef = ref(null) // 会话管理器引用
 const attachmentUploaderRef = ref(null)
 
-const USER_ID_STORAGE_KEY = 'agent_chat_user_id'
+const USER_ID_STORAGE_KEY = conversationStorageKey(conversationScope, 'agent_chat_user_id')
 const presetUserIds = ['12345', '67890', '88888']
 const readStoredUserId = () => {
   try {
-    return localStorage.getItem(USER_ID_STORAGE_KEY) ?? ''
+    return props.workspace ? conversationStorage(conversationScope).getItem(USER_ID_STORAGE_KEY) ?? '' : ''
   } catch {
     console.warn('用户ID无法读取，当前可继续临时对话')
     return ''
@@ -499,15 +415,17 @@ const normalizeUserId = (value) => {
 }
 
 const getResolvedUserId = () => {
+  if (!props.workspace) return null
   const normalized = normalizeUserId(userId.value)
   return normalized.length > 0 ? normalized : null
 }
 
 watch(userId, (value) => {
+  if (!props.workspace) return
   const normalized = normalizeUserId(value)
   try {
     if (normalized.length === 0) {
-      localStorage.removeItem(USER_ID_STORAGE_KEY)
+      conversationStorage(conversationScope).removeItem(USER_ID_STORAGE_KEY)
       if (value) {
         userId.value = ''
       }
@@ -519,7 +437,7 @@ watch(userId, (value) => {
       return
     }
 
-    localStorage.setItem(USER_ID_STORAGE_KEY, normalized)
+    conversationStorage(conversationScope).setItem(USER_ID_STORAGE_KEY, normalized)
   } catch {
     console.warn('用户ID无法保存，当前可继续临时对话')
   }
@@ -528,6 +446,7 @@ watch(userId, (value) => {
 // 加载可用的数据库连接，并优先选择 Policy Demo MySQL
 let connectionsRequest = null
 onMounted(async () => {
+  if (!props.workspace) return
   const request = {}
   connectionsRequest = request
   try {
@@ -571,6 +490,10 @@ const handleAttachmentChange = (fileItems) => {
   attachments.value = normalizeAttachmentRecords(fileItems)
 }
 
+const handleAttachmentError = ({ error }) => {
+  if (props.workspace && error.status === 401) redirectStaffToLogin()
+}
+
 const buildAttachmentPayload = () => {
   if (attachments.value.length === 0) {
     return []
@@ -593,9 +516,9 @@ const resetAttachments = () => {
 }
 
 // 会话管理
-const { sessions, upsertSession, updateSessionActivity } = useSessionList()
+const { sessions, upsertSession, updateSessionActivity } = useSessionList(conversationScope)
 
-// 当前会话的消息历史（使用 localStorage 持久化）
+// 公众记录保存在本机，工作人员记录仅保存在本标签页。
 let chatHistory = null
 const messages = ref([])
 const messageKeys = new WeakMap()
@@ -621,11 +544,15 @@ const cancelPendingMessage = () => {
 
 const loadSession = (newSessionId) => {
   cancelPendingMessage()
+  resetAttachments()
+  evidenceVisible.value = false
+  manualEvidenceChoice = null
   chatHistory?.stop?.()
   sessionId.value = newSessionId
+  serverSessionId.value = sessions.value.find(session => session.id === newSessionId)?.serverId ?? null
 
   // 创建或加载会话历史
-  chatHistory = useChatHistory(newSessionId)
+  chatHistory = useChatHistory(newSessionId, conversationScope)
   messages.value = chatHistory.messages.value
 
   // 更新会话活跃时间
@@ -641,9 +568,9 @@ const loadSession = (newSessionId) => {
 
 // 示例问题
 const exampleQuestions = [
-  '济南市目前有哪些消费补贴政策？',
-  '家电以旧换新补贴需要满足哪些条件？',
-  '新能源汽车补贴需要准备什么材料？'
+  { title: '查找政策', prompt: '济南有哪些消费补贴政策？' },
+  { title: '核对条件', prompt: '家电补贴需要满足哪些条件？' },
+  { title: '办理材料', prompt: '新能源车补贴要哪些材料？' }
 ]
 
 // 格式化消息（支持简单的Markdown）
@@ -653,14 +580,14 @@ const formatMessage = (text) => {
   }
 
   // 简单的markdown转换
-  return String(text)
+  const formatted = String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/`(.*?)`/g, '<code>$1</code>')
+  return formatted.split(/\n\s*\n/).map(paragraph => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`).join('')
 }
 
 // 提取引用信息
@@ -668,21 +595,14 @@ const getReferences = (message) => getPolicySources(message?.metadata)
 
 // 路由标签
 const getRouteLabel = (message) => {
-  const { route_display, route } = message?.metadata || {}
-  if (route_display) {
-    return route_display
-  }
-  if (route) {
-    return route
-  }
-  return ''
+  return message?.metadata?.route_display || ''
 }
 
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      messagesContainer.value.scrollTop = messages.value.length ? messagesContainer.value.scrollHeight : 0
     }
   })
 }
@@ -815,6 +735,18 @@ const updateSessionMetadata = (message) => {
   }
 }
 
+const acceptServerSession = (id) => {
+  if (!id || serverSessionId.value === id) return
+  serverSessionId.value = id
+  const session = sessions.value.find(item => item.id === sessionId.value)
+  if (!session) return
+  try {
+    upsertSession({ ...session, serverId: id })
+  } catch {
+    ElMessage.warning('会话凭证未能保存，刷新后可能需要新建咨询')
+  }
+}
+
 // 发送消息（流式）
 const sendMessageStream = async (userMessage) => {
   // 添加用户消息
@@ -850,7 +782,7 @@ const sendMessageStream = async (userMessage) => {
     const resolvedUserId = getResolvedUserId()
     const payload = {
       message: userMessage,
-      session_id: sessionId.value
+      session_id: serverSessionId.value ?? sessionId.value
     }
 
     if (resolvedUserId) {
@@ -862,10 +794,10 @@ const sendMessageStream = async (userMessage) => {
       payload.attachments = attachmentPayload
     }
 
-    if (selectedConnectionId.value) {
+    if (props.workspace && selectedConnectionId.value) {
       payload.connection_id = selectedConnectionId.value
     }
-    if (text2sqlMode.value) {
+    if (props.workspace && text2sqlMode.value) {
       payload.text2sql_mode = true
     }
 
@@ -874,7 +806,8 @@ const sendMessageStream = async (userMessage) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream'
+        'Accept': 'text/event-stream',
+        ...(props.workspace ? auth.staffHeaders() : { 'X-Client-Audience': 'public' })
       },
       body: JSON.stringify(payload),
       signal: request.controller.signal
@@ -884,7 +817,12 @@ const sendMessageStream = async (userMessage) => {
       return false
     }
     if (!response.ok) {
-      throw new Error('请求失败')
+      if (props.workspace && response.status === 401) {
+        await redirectStaffToLogin()
+        return false
+      }
+      const problem = await response.json().catch(() => null)
+      throw new Error(typeof problem?.detail === 'string' ? problem.detail : '咨询请求未完成，请稍后重试')
     }
 
     if (!response.body) {
@@ -930,9 +868,7 @@ const sendMessageStream = async (userMessage) => {
         throw new Error(error || '流式响应失败')
       }
 
-      if (session_id && !sessionId.value) {
-        sessionId.value = session_id
-      }
+      acceptServerSession(session_id)
 
       if (eventType === 'session') {
         return null
@@ -1020,7 +956,7 @@ const sendMessageStream = async (userMessage) => {
     typewriter.dispose()
 
     // 更新错误消息
-    targetMessage.content = '抱歉，我遇到了一些问题，请稍后再试。'
+    targetMessage.content = error.message || '咨询请求未完成，请稍后重试。'
     updateSessionMetadata(targetMessage)
     return false
   } finally {
@@ -1074,11 +1010,11 @@ const sendMessageNonStream = async (userMessage) => {
     const attachmentPayload = buildAttachmentPayload()
     const response = await agentApi.chat(
       userMessage,
-      sessionId.value,
-      selectedConnectionId.value || null,
+      serverSessionId.value ?? sessionId.value,
+      props.workspace ? selectedConnectionId.value || null : null,
       resolvedUserId,
       attachmentPayload,
-      text2sqlMode.value ? { text2sql_mode: true } : {}
+      { staffRequest: props.workspace, text2sql_mode: props.workspace && text2sqlMode.value }
     )
 
     if (chatRequest !== request) {
@@ -1088,9 +1024,7 @@ const sendMessageNonStream = async (userMessage) => {
     if (success) {
       const { session_id, message, metadata } = response
       // 更新会话ID
-      if (session_id) {
-        sessionId.value = session_id
-      }
+      acceptServerSession(session_id)
 
       // 添加助手回复
       const assistantMsg = {
@@ -1142,6 +1076,8 @@ const clearChat = () => {
     }
   }
   messages.value = chatHistory ? chatHistory.messages.value : []
+  evidenceVisible.value = false
+  manualEvidenceChoice = null
 
   const session = sessions.value.find(item => item.id === sessionId.value)
   if (session) {
@@ -1158,8 +1094,7 @@ const clearChat = () => {
 
 // 点击示例问题
 const askExample = (question) => {
-  inputMessage.value = question
-  sendMessage()
+  setFollowup(question)
 }
 
 // 检查连接状态
@@ -1167,6 +1102,7 @@ const checkConnection = async () => {
   healthRequest?.controller.abort()
   const request = { controller: new AbortController() }
   healthRequest = request
+  checkingConnection.value = true
   try {
     const response = await fetch('/api/health', { signal: request.controller.signal })
     if (healthRequest === request) {
@@ -1175,6 +1111,11 @@ const checkConnection = async () => {
   } catch {
     if (healthRequest === request) {
       isConnected.value = false
+    }
+  } finally {
+    if (healthRequest === request) {
+      healthRequest = null
+      checkingConnection.value = false
     }
   }
 }
@@ -1223,11 +1164,18 @@ const compactQuery = window.matchMedia('(max-width: 1099px)')
 const isCompact = ref(compactQuery.matches)
 const updateCompactLayout = (event) => {
   isCompact.value = event.matches
-  navigationCollapsed.value = event.matches
   if (event.matches) evidenceVisible.value = false
 }
-const navigationCollapsed = ref(window.innerWidth < 1100)
-const evidenceVisible = ref(window.innerWidth >= 1200)
+const evidenceVisible = ref(false)
+let manualEvidenceChoice = null
+const toggleEvidence = () => {
+  evidenceVisible.value = !evidenceVisible.value
+  manualEvidenceChoice = evidenceVisible.value
+}
+const closeEvidence = () => {
+  evidenceVisible.value = false
+  manualEvidenceChoice = false
+}
 const settingsVisible = ref(false)
 const measurementVisible = ref(false)
 const helpVisible = ref(false)
@@ -1236,11 +1184,15 @@ const selectedAnswerKey = ref(null)
 const activeSourceIndex = ref(0)
 const evidenceRevealToken = ref(0)
 const measurementForm = ref({ region: '', year: new Date().getFullYear(), category: '', price: undefined, energyLevel: 1 })
+const measurementDrafts = new Map()
 const currentSession = computed(() => sessions.value.find(session => session.id === sessionId.value))
 const latestAnswer = computed(() => [...messages.value].reverse().find(message => message.role === 'assistant') || null)
 const activeMessage = computed(() => messages.value.find(message => message.role === 'assistant' && getMessageKey(message) === selectedAnswerKey.value) || latestAnswer.value)
 const activeSources = computed(() => getPolicySources(activeMessage.value?.metadata))
 const currentConditions = computed(() => getPolicyConditions(latestAnswer.value?.metadata))
+watch([activeSources, currentConditions, loading], () => {
+  if (shouldOpenEvidence({ sourceCount: activeSources.value.length, conditionCount: currentConditions.value.length, compact: isCompact.value, loading: loading.value, manualChoice: manualEvidenceChoice })) evidenceVisible.value = true
+})
 watch(() => messages.value.length, () => { selectedAnswerKey.value = null })
 
 const getAnswerNumber = (index) => messages.value.slice(0, index + 1).filter(message => message.role === 'assistant').length
@@ -1249,6 +1201,7 @@ const showEvidence = (message, sourceIndex) => {
   activeSourceIndex.value = sourceIndex
   evidenceRevealToken.value++
   evidenceVisible.value = true
+  manualEvidenceChoice = true
 }
 const revealDetails = (element) => {
   if (!element.open) return
@@ -1263,11 +1216,10 @@ const startConsultation = () => {
   createNewSession()
   selectedAnswerKey.value = null
   inputMessage.value = ''
-  resetAttachments()
   nextTick(() => composerRef.value?.focus())
 }
 const setFollowup = (question) => {
-  inputMessage.value = question
+  inputMessage.value = inputMessage.value.trim() ? `${inputMessage.value}\n\n${question}` : question
   nextTick(() => composerRef.value?.focus())
 }
 const handleComposerKeydown = (event) => {
@@ -1277,14 +1229,24 @@ const handleComposerKeydown = (event) => {
   }
 }
 const openMeasurement = () => {
-  const metadata = latestAnswer.value?.metadata
-  const inputs = metadata?.inputs
-  measurementForm.value = {
-    region: typeof metadata?.domain_context?.region === 'string' ? metadata.domain_context.region : '',
-    year: new Date().getFullYear(),
-    category: typeof inputs?.category === 'string' ? inputs.category : '',
-    price: typeof inputs?.price === 'number' ? inputs.price : undefined,
-    energyLevel: [1, 2].includes(inputs?.energy_level) ? inputs.energy_level : 0
+  if (!isCompact.value) {
+    evidenceVisible.value = true
+    manualEvidenceChoice = true
+  }
+  const draft = measurementDrafts.get(sessionId.value)
+  if (draft) {
+    measurementForm.value = draft
+  } else {
+    const metadata = latestAnswer.value?.metadata
+    const inputs = metadata?.inputs
+    measurementForm.value = {
+      region: typeof metadata?.domain_context?.region === 'string' ? metadata.domain_context.region : '',
+      year: new Date().getFullYear(),
+      category: typeof inputs?.category === 'string' ? inputs.category : '',
+      price: typeof inputs?.price === 'number' ? inputs.price : undefined,
+      energyLevel: [1, 2].includes(inputs?.energy_level) ? inputs.energy_level : 0
+    }
+    measurementDrafts.set(sessionId.value, measurementForm.value)
   }
   measurementVisible.value = true
 }
@@ -1324,6 +1286,15 @@ onBeforeUnmount(() => {
   clearInterval(connectionTimer)
   chatHistory?.stop?.()
 })
+
+watch(() => auth.staffUser, (user) => {
+  if (props.workspace && (!user || conversationScope !== `staff:${user.username}`)) {
+    cancelPendingMessage()
+    chatHistory?.stop?.()
+    messages.value = []
+    resetAttachments()
+  }
+}, { flush: 'sync' })
 </script>
 
 <style src="@/styles/workbench.css"></style>

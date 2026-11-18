@@ -4,12 +4,15 @@
 """
 
 import logging
+import math
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Annotated, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -45,6 +48,60 @@ class GraphStats(BaseModel):
     edges: int
     file_size: int
     type_distribution: Optional[Dict[str, int]] = None
+
+
+class ExplorationNode(GraphNode):
+    neighbor_count: int
+
+
+class ExplorationLink(GraphLink):
+    id: str
+    directed: bool
+
+
+class SubgraphData(BaseModel):
+    nodes: list[ExplorationNode]
+    links: list[ExplorationLink]
+    total_nodes: int
+    total_links: int
+    truncated: bool
+    center_id: str | None
+    revision: str
+
+
+class GraphSearchData(BaseModel):
+    nodes: list[ExplorationNode]
+    total: int
+    revision: str
+
+
+class SubgraphQuery(BaseModel):
+    node_id: str | None = Field(default=None, min_length=1)
+    depth: int = Field(default=1, ge=1, le=3)
+    limit: int = Field(default=120, ge=1, le=600)
+
+
+class GraphSearchQuery(BaseModel):
+    q: str = Field(min_length=1, max_length=200)
+    limit: int = Field(default=12, ge=1, le=50)
+
+    @field_validator("q")
+    @classmethod
+    def strip_query(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("搜索词不能为空")
+        return value
+
+
+@dataclass
+class GraphIndex:
+    nodes: dict[str, ExplorationNode]
+    links: tuple[ExplorationLink, ...]
+    neighbors: dict[str, set[str]]
+    ranked_ids: tuple[str, ...]
+    rank: dict[str, int]
+    revision: str
 
 
 @router.get("/graph", response_model=GraphData)
@@ -91,6 +148,11 @@ def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
     Returns:
         (节点列表, 边列表)
     """
+    nodes, links = _parse_exploration_graphml(file_path)
+    return nodes, [GraphLink(**link.model_dump()) for link in links]
+
+
+def _parse_exploration_graphml(file_path: Path) -> tuple[list[GraphNode], list[ExplorationLink]]:
     tree = ET.parse(file_path)
     root = tree.getroot()
 
@@ -125,29 +187,167 @@ def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
             source_id=node_data.get('source_id', '')
         ))
 
-    # 解析边
-    for edge in root.findall('.//graphml:edge', ns):
-        source = edge.attrib['source']
-        target = edge.attrib['target']
-        edge_data = {}
+    # 无原生边 ID 时使用全图序号，保证同一文件版本内不同子图的 ID 一致。
+    for graph in root.findall('.//graphml:graph', ns):
+        default_directed = graph.get('edgedefault', 'undirected') == 'directed'
+        for edge in graph.findall('graphml:edge', ns):
+            edge_data = {}
+            for data in edge.findall('graphml:data', ns):
+                key_id = data.get('key')
+                key_name = key_map.get(key_id, key_id)
+                edge_data[key_name] = data.text or ""
 
-        for data in edge.findall('graphml:data', ns):
-            key_id = data.get('key')
-            key_name = key_map.get(key_id, key_id)
-            edge_data[key_name] = data.text or ""
-
-        # 解析权重
-        weight = float(edge_data.get('weight', 1.0))
-
-        links.append(GraphLink(
-            source=source,
-            target=target,
-            weight=weight,
-            keywords=edge_data.get('keywords', ''),
-            description=edge_data.get('description', '')[:100]  # 限制长度
-        ))
+            weight = float(edge_data.get('weight', 1.0))
+            if not math.isfinite(weight):
+                raise ValueError("图谱边权重必须为有限数值")
+            directed = edge.get('directed')
+            if directed is not None and directed not in {'true', 'false', '1', '0'}:
+                raise ValueError("图谱边 directed 属性无效")
+            edge_id = edge.get('id')
+            links.append(ExplorationLink(
+                id=f"edge:{len(links)}" if edge_id is None else f"graphml:{edge_id}",
+                source=edge.attrib['source'],
+                target=edge.attrib['target'],
+                weight=weight,
+                keywords=edge_data.get('keywords', ''),
+                description=edge_data.get('description', '')[:100],
+                directed=default_directed if directed is None else directed in {'true', '1'},
+            ))
 
     return nodes, links
+
+
+@lru_cache(maxsize=1)
+def _cached_graph(file_path: str, mtime_ns: int, size: int) -> GraphIndex:
+    nodes, links = _parse_exploration_graphml(Path(file_path))
+    node_map = {node.id: node for node in nodes}
+    if len(node_map) != len(nodes):
+        raise ValueError("图谱节点 ID 重复")
+    if len({link.id for link in links}) != len(links):
+        raise ValueError("图谱边 ID 重复")
+    neighbors: dict[str, set[str]] = {node.id: set() for node in nodes}
+    weighted_degree = {node.id: 0.0 for node in nodes}
+    for link in links:
+        if link.source not in node_map or link.target not in node_map:
+            raise ValueError("图谱边引用了不存在的节点")
+        weighted_degree[link.source] += link.weight
+        if link.source != link.target:
+            neighbors[link.source].add(link.target)
+            neighbors[link.target].add(link.source)
+            weighted_degree[link.target] += link.weight
+    exploration_nodes = {
+        node.id: ExplorationNode(**node.model_dump(), neighbor_count=len(neighbors[node.id]))
+        for node in nodes
+    }
+    ranked_ids = tuple(sorted(node_map, key=lambda node_id: (
+        node_map[node_id].type.strip().strip("\"'").casefold() not in {'policy', '政策'},
+        -weighted_degree[node_id],
+        -len(neighbors[node_id]),
+        node_id,
+    )))
+    return GraphIndex(
+        nodes=exploration_nodes,
+        links=tuple(links),
+        neighbors=neighbors,
+        ranked_ids=ranked_ids,
+        rank={node_id: index for index, node_id in enumerate(ranked_ids)},
+        revision=f"{mtime_ns}:{size}",
+    )
+
+
+def _load_graph_index() -> GraphIndex:
+    graph_file = Path("resources/data/lightrag/graph_chunk_entity_relation.graphml").resolve()
+    try:
+        stat = graph_file.stat()
+        # shortcut: 版本由 mtime 和大小识别，导入若保留两者时改用内容摘要。
+        graph = _cached_graph(str(graph_file), stat.st_mtime_ns, stat.st_size)
+        latest_stat = graph_file.stat()
+        if (latest_stat.st_mtime_ns, latest_stat.st_size) != (stat.st_mtime_ns, stat.st_size):
+            raise HTTPException(status_code=409, detail="图谱数据已更新，请重新查询")
+        return graph
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="知识图谱文件不存在，请先导入数据") from exc
+    except (OSError, ET.ParseError, ValueError, KeyError) as exc:
+        logger.exception("加载知识图谱失败")
+        raise HTTPException(status_code=500, detail="加载知识图谱失败，请检查 GraphML 文件") from exc
+
+
+def _overview_ids(graph: GraphIndex, limit: int) -> list[str]:
+    remaining = set(graph.nodes)
+    selected = []
+    frontier: set[str] = set()
+    seeds = iter(sorted(graph.ranked_ids, key=lambda node_id: (
+        not graph.neighbors[node_id], graph.rank[node_id],
+    )))
+    while remaining and len(selected) < min(limit, 24):
+        if not frontier:
+            seed = next(node_id for node_id in seeds if node_id in remaining)
+            frontier.add(seed)
+        node_id = min(frontier, key=graph.rank.__getitem__)
+        frontier.remove(node_id)
+        remaining.remove(node_id)
+        selected.append(node_id)
+        frontier.update(graph.neighbors[node_id] & remaining)
+    return selected
+
+
+def _center_ids(graph: GraphIndex, node_id: str, depth: int, limit: int) -> tuple[list[str], bool]:
+    selected = [node_id]
+    seen = {node_id}
+    frontier = [node_id]
+    for _ in range(depth):
+        candidates = set()
+        for current in frontier:
+            candidates.update(graph.neighbors[current])
+        candidates.difference_update(seen)
+        ordered = sorted(candidates, key=graph.rank.__getitem__)
+        remaining = limit - len(selected)
+        if len(ordered) > remaining:
+            selected.extend(ordered[:remaining])
+            return selected, True
+        selected.extend(ordered)
+        seen.update(ordered)
+        frontier = ordered
+        if not frontier:
+            break
+    return selected, False
+
+
+@router.get("/subgraph", response_model=SubgraphData)
+def get_subgraph(query: Annotated[SubgraphQuery, Query()]) -> SubgraphData:
+    """返回核心概览或中心节点的有限深度邻域；只包含真实节点和诱导边。"""
+    graph = _load_graph_index()
+    if query.node_id is None:
+        selected = _overview_ids(graph, query.limit)
+        truncated = len(selected) < len(graph.nodes)
+    else:
+        if query.node_id not in graph.nodes:
+            raise HTTPException(status_code=404, detail="图谱节点不存在")
+        selected, truncated = _center_ids(graph, query.node_id, query.depth, query.limit)
+    selected_ids = set(selected)
+    return SubgraphData(
+        nodes=[graph.nodes[node_id] for node_id in selected],
+        links=[link for link in graph.links if link.source in selected_ids and link.target in selected_ids],
+        total_nodes=len(graph.nodes),
+        total_links=len(graph.links),
+        truncated=truncated,
+        center_id=query.node_id,
+        revision=graph.revision,
+    )
+
+
+@router.get("/search", response_model=GraphSearchData)
+def search_graph(query: Annotated[GraphSearchQuery, Query()]) -> GraphSearchData:
+    """搜索全图，不受当前已加载子图限制。"""
+    graph = _load_graph_index()
+    term = query.q.casefold()
+    matches = [
+        graph.nodes[node_id] for node_id in graph.ranked_ids
+        if any(term in value.casefold() for value in (
+            graph.nodes[node_id].label, graph.nodes[node_id].type, node_id,
+        ))
+    ]
+    return GraphSearchData(nodes=matches[:query.limit], total=len(matches), revision=graph.revision)
 
 
 @router.get("/graph/stats", response_model=GraphStats, response_model_exclude_none=True)

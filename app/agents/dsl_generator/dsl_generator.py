@@ -3,55 +3,71 @@ DSL 生成器模块
 将结构化数据转换为 YAML 格式的 DSL
 """
 
-import yaml
 from copy import deepcopy
-import jinja2
-import logging
-from pathlib import Path
-from typing import Dict, Any, List, Optional
 from datetime import datetime
+import logging
+import os
+from pathlib import Path
+import tempfile
+from typing import Dict, Any, List, Optional
+
+import jinja2
+import yaml
 
 from .template_registry import TemplateRegistry
 
 logger = logging.getLogger(__name__)
 
 
+def atomic_write_text(path: Path, content: str) -> None:
+    """Replace one owned output file only after the complete write succeeds."""
+    if path.is_symlink():
+        raise ValueError("DSL output must not be a symbolic link")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", newline="", dir=path.parent, suffix=".tmp", delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 class DSLGenerator:
     """DSL 生成器，将结构化数据转换为 DSL YAML"""
 
     # DSL 模板
-    DSL_TEMPLATE = """rule_id: {{ rule_id }}
+    DSL_TEMPLATE = """rule_id: {{ rule_id | tojson }}
 policy_source:
-  doc_id: "{{ policy_source.get('doc_id', '') }}"
-  title: "{{ policy_source.get('title', '未命名政策') }}"
-  {% if policy_source.get('clause') %}clause: "{{ policy_source.get('clause') }}"{% endif %}
+  doc_id: {{ policy_source.get('doc_id', '') | tojson }}
+  title: {{ policy_source.get('title', '未命名政策') | tojson }}
+  {% if policy_source.get('clause') %}clause: {{ policy_source.get('clause') | tojson }}{% endif %}
 {% if valid_period %}
 valid_period:
-  {% if valid_period.get('start') %}start: "{{ valid_period.get('start') }}"{% endif %}
-  {% if valid_period.get('end') %}end: "{{ valid_period.get('end') }}"{% endif %}
+  {% if valid_period.get('start') %}start: {{ valid_period.get('start') | tojson }}{% endif %}
+  {% if valid_period.get('end') %}end: {{ valid_period.get('end') | tojson }}{% endif %}
 {% endif %}
 
-inputs:
-{% for input in inputs %}
-  - name: {{ input.name }}
-    type: {{ input.type }}
-    required: {{ input.required | lower }}
-    {% if input.get('description') %}description: "{{ input.description }}"{% endif %}
-{% endfor %}
+inputs: {{ inputs | tojson }}
 
 {% if limits %}
 limits:
   {% for key, value in limits.items() %}
-  {{ key }}: {{ value }}
+  {{ key | tojson }}: {{ value | tojson }}
   {% endfor %}
 {% endif %}
 
 {% if tiers %}
 tiers:
 {% for tier in tiers %}
-  - range: [{{ tier.range[0] if tier.range[0] is not none else 'null' }}, {{ tier.range[1] if tier.range[1] is not none else 'null' }}]
+  - range: [{{ tier.range[0] | tojson }}, {{ tier.range[1] | tojson }}]
     {% for key, value in tier.items() if key != 'range' %}
-    {{ key }}: {{ value }}
+    {{ key | tojson }}: {{ value | tojson }}
     {% endfor %}
 {% endfor %}
 {% endif %}
@@ -59,15 +75,13 @@ tiers:
 {% if calc %}
 calc:
   {% for key, value in calc.items() %}
-  {{ key }}: {% if '\n' in value|string %}|
-    {{ value | indent(4) }}
-  {% else %}{{ value }}{% endif %}
+  {{ key | tojson }}: {{ value | tojson }}
   {% endfor %}
 {% endif %}
 
 output:
-  status: "{{ output['status'] }}"
-  final_result: "{{ output['final_result'] }}"
+  status: {{ output['status'] | tojson }}
+  final_result: {{ output['final_result'] | tojson }}
   {% if output.get('trace_template') %}
   trace_template: |
     {{ output.get('trace_template') | indent(4) }}
@@ -83,7 +97,7 @@ output:
             template_dir: Jinja2模板目录
         """
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.template_dir = Path(template_dir)
 
@@ -158,7 +172,8 @@ output:
 
         return yaml_content
 
-    def _preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _preprocess_data(data: Dict[str, Any]) -> Dict[str, Any]:
         """预处理数据，确保格式正确"""
         processed = deepcopy(data)
 
@@ -224,7 +239,9 @@ output:
             processed['inputs'] = []
         else:
             # 将字符串列表转换为字典列表
-            if processed['inputs'] and isinstance(processed['inputs'], list):
+            if not isinstance(processed['inputs'], list):
+                raise ValueError("inputs must be a list")
+            if processed['inputs']:
                 new_inputs = []
                 for item in processed['inputs']:
                     if isinstance(item, str):
@@ -242,6 +259,8 @@ output:
                         if 'type' not in item:
                             item['type'] = 'string'
                         new_inputs.append(item)
+                    else:
+                        raise ValueError("Each input must be a name or object")
                 processed['inputs'] = new_inputs
 
         # Named templates own their output expressions; the generic template requires them.
@@ -285,7 +304,8 @@ output:
             raise ValueError("Generic DSL requires explicit output expressions")
         return template.render(**data)
 
-    def _validate_yaml(self, yaml_content: str) -> List[str]:
+    @staticmethod
+    def _validate_yaml(yaml_content: str) -> List[str]:
         """验证生成的 YAML"""
         errors = []
 
@@ -296,18 +316,32 @@ output:
                 return ["YAML must contain an object"]
 
             # 检查必填字段
-            required_fields = ['rule_id', 'inputs', 'output']
+            required_fields = ['rule_id', 'output']
             for field in required_fields:
                 if field not in data:
                     errors.append(f"缺少必填字段: {field}")
 
-            # 检查输入变量格式
-            if 'inputs' in data and isinstance(data['inputs'], list):
-                for i, input_var in enumerate(data['inputs']):
+            if 'rule_id' in data and not isinstance(data['rule_id'], str):
+                errors.append("rule_id must be text")
+            inputs = data.get('inputs', [])
+            if not isinstance(inputs, list):
+                errors.append("inputs must be a list")
+            else:
+                for i, input_var in enumerate(inputs):
                     if not isinstance(input_var, dict):
                         errors.append(f"输入变量 {i} 格式错误")
                     elif 'name' not in input_var:
                         errors.append(f"输入变量 {i} 缺少 name 字段")
+            if 'calc' in data and not isinstance(data['calc'], dict):
+                errors.append("calc must be an object")
+            output = data.get('output')
+            if 'output' in data:
+                if not isinstance(output, dict):
+                    errors.append("output must be an object")
+                else:
+                    for field in ('status', 'final_result'):
+                        if field not in output or not isinstance(output[field], str):
+                            errors.append(f"output.{field} must be text")
 
         except yaml.YAMLError as e:
             errors.append(f"YAML 解析错误: {e}")
@@ -325,6 +359,9 @@ output:
         Returns:
             保存的文件路径
         """
+        errors = self._validate_yaml(yaml_content)
+        if errors:
+            raise ValueError("DSL YAML validation failed: " + "; ".join(errors))
         if filename is None:
             # 从 YAML 中提取 rule_id 作为文件名
             data = yaml.safe_load(yaml_content)
@@ -335,7 +372,7 @@ output:
         if not filename or Path(filename).name != filename or '/' in filename or '\\' in filename:
             raise ValueError("DSL filename must be a single file name")
         file_path = self.output_dir / filename
-        file_path.write_text(yaml_content, encoding='utf-8')
+        atomic_write_text(file_path, yaml_content)
         logger.info(f"DSL 已保存到: {file_path}")
 
         return file_path
@@ -363,7 +400,8 @@ output:
         template_data = templates[template_type](**kwargs)
         return self.generate(template_data)
 
-    def _get_appliance_template(self, **kwargs) -> Dict[str, Any]:
+    @staticmethod
+    def _get_appliance_template(**kwargs) -> Dict[str, Any]:
         """家电补贴模板"""
         return {
             'rule_id': kwargs.get('rule_id', 'Rule_Jinan_Appliance_2025'),
@@ -394,7 +432,8 @@ output:
             }
         }
 
-    def _get_car_template(self, **kwargs) -> Dict[str, Any]:
+    @staticmethod
+    def _get_car_template(**kwargs) -> Dict[str, Any]:
         """汽车补贴模板"""
         tiers = kwargs.get('tiers', [
             {'range': [0, 100000], 'package': 1900},
@@ -434,7 +473,8 @@ output:
             }
         }
 
-    def _get_consumption_template(self, **kwargs) -> Dict[str, Any]:
+    @staticmethod
+    def _get_consumption_template(**kwargs) -> Dict[str, Any]:
         """消费补贴模板"""
         return {
             'rule_id': kwargs.get('rule_id', 'Rule_Jinan_Consumption_2025'),

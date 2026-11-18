@@ -1,5 +1,17 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
+
+export function redirectStaffToLogin() {
+  useAuthStore().invalidate()
+  useAppStore().resetPrivateState()
+  const route = router.currentRoute.value
+  if (route.meta.workspace) {
+    return router.replace({ path: '/login', query: { reason: 'expired', redirect: route.fullPath } })
+  }
+}
 
 const instance = axios.create({
   baseURL: '/api',
@@ -12,6 +24,15 @@ const instance = axios.create({
 // 请求拦截器：添加重试配置
 instance.interceptors.request.use(
   config => {
+    config.staffRequest = config.staffRequest === true || /^\/(?:dsl|knowledge(?:-graph)?|db|system)(?:\/|$)/.test(config.url)
+    if (config.staffRequest) {
+      const auth = useAuthStore()
+      if (config.staffSessionToken !== undefined && config.staffSessionToken !== auth.csrfToken) {
+        throw new axios.CanceledError('登录状态已变化', config)
+      }
+      Object.assign(config.headers, auth.staffHeaders())
+      config.staffSessionToken = auth.csrfToken
+    }
     // 为每个请求添加重试配置（如果没有的话）
     if (!config.retryConfig) {
       config.retryConfig = {
@@ -32,12 +53,24 @@ instance.interceptors.request.use(
 
 // 响应拦截器：处理错误和重试
 instance.interceptors.response.use(
-  response => response.data,
+  response => {
+    if (response.config.staffRequest && response.config.staffSessionToken !== useAuthStore().csrfToken) {
+      throw new axios.CanceledError('登录状态已变化', response.config)
+    }
+    return response.data
+  },
   async error => {
     if (axios.isCancel(error)) {
       return Promise.reject(error)
     }
     const config = error.config
+    if (config?.staffRequest && config.staffSessionToken !== useAuthStore().csrfToken) {
+      return Promise.reject(new axios.CanceledError('登录状态已变化', config))
+    }
+    if (config?.staffRequest && error.response?.status === 401) {
+      await redirectStaffToLogin()
+      return Promise.reject(error)
+    }
 
     // 如果没有配置或不应该重试，直接拒绝
     if (!config || !config.retryConfig) {
@@ -107,7 +140,7 @@ function handleError(error, retryCount = 0) {
         ElMessage.error(`请求参数错误: ${message}`)
         break
       case 401:
-        ElMessage.error('未授权，请重新登录')
+        ElMessage.error(message)
         break
       case 403:
         ElMessage.error('拒绝访问')

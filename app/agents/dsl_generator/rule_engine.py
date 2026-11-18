@@ -3,17 +3,19 @@
 执行 DSL 定义的政策规则
 """
 
-import yaml
 import ast
-import operator
-import jinja2
 import logging
+import operator
+from datetime import date, datetime
+from math import isfinite
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Callable
-from datetime import datetime, date
-from jinja2.sandbox import SandboxedEnvironment
+from typing import Any, Callable, Dict, List, Optional
 
-from app.agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
+import jinja2
+from jinja2.sandbox import SandboxedEnvironment
+import yaml
+
+import app.agents.dsl_generator.subsidy_calculations as subsidy_calculations
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +23,16 @@ logger = logging.getLogger(__name__)
 class PolicyEngine:
     """政策规则引擎"""
 
-    def __init__(self, rule_dir: str = "rules"):
+    def __init__(self, rule_dir: Optional[str] = "rules"):
         """
         初始化规则引擎
 
         Args:
-            rule_dir: 规则文件目录
+            rule_dir: 规则文件目录；None 用于不读写文件的草稿试算
         """
-        self.rule_dir = Path(rule_dir)
-        self.rule_dir.mkdir(exist_ok=True)
+        self.rule_dir = Path(rule_dir) if rule_dir is not None else None
+        if self.rule_dir is not None:
+            self.rule_dir.mkdir(parents=True, exist_ok=True)
         self.rules: Dict[str, Dict[str, Any]] = {}
         self.env = SandboxedEnvironment(
             loader=jinja2.BaseLoader(),
@@ -50,11 +53,12 @@ class PolicyEngine:
 
     def _load_all_rules(self):
         """加载所有规则文件"""
+        if self.rule_dir is None:
+            return
         rules: Dict[str, Dict[str, Any]] = {}
 
         if not self.rule_dir.exists():
-            logger.warning(f"规则目录不存在: {self.rule_dir}")
-            return
+            raise FileNotFoundError(f"规则目录不存在: {self.rule_dir}")
 
         for file_path in self.rule_dir.glob("*.yaml"):
             try:
@@ -93,7 +97,11 @@ class PolicyEngine:
                 'rule_id': rule_id
             }
 
-        rule = self.rules[rule_id]
+        return self.execute_rule(self.rules[rule_id], inputs, user_state)
+
+    def execute_rule(self, rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """执行已解析的规则，不写入规则目录或改变已加载规则。"""
+        rule_id = rule['rule_id']
 
         try:
             # 检查规则有效期
@@ -168,18 +176,16 @@ class PolicyEngine:
             raise ValueError(f"Invalid reference date type: {key}")
         return None
 
-    def _parse_date_string(self, value: str) -> Optional[date]:
+    @staticmethod
+    def _parse_date_string(value: str) -> Optional[date]:
         """尝试解析 ISO 日期/时间."""
         try:
             return datetime.fromisoformat(value.replace('Z', '+00:00')).date()
         except ValueError:
-            pass
-        try:
-            return datetime.strptime(value[:10], '%Y-%m-%d').date()
-        except ValueError:
             return None
 
-    def _validate_inputs(self, rule: Dict[str, Any], inputs: Dict[str, Any]) -> List[str]:
+    @staticmethod
+    def _validate_inputs(rule: Dict[str, Any], inputs: Dict[str, Any]) -> List[str]:
         """验证输入参数"""
         errors = []
 
@@ -198,15 +204,18 @@ class PolicyEngine:
             if name in inputs:
                 value = inputs[name]
                 if value is not None:
-                    if input_type == 'float':
+                    if input_type in {'float', 'number'}:
                         try:
-                            float(value)
-                        except (ValueError, TypeError):
+                            if isinstance(value, bool) or not isfinite(float(value)):
+                                raise ValueError("Expected a finite number")
+                        except (ValueError, TypeError, OverflowError):
                             errors.append(f"参数 {name} 应为浮点数")
                     elif input_type in {'int', 'integer'}:
                         try:
-                            int(value)
-                        except (ValueError, TypeError):
+                            integer = int(value)
+                            if isinstance(value, bool) or integer != float(value):
+                                raise ValueError("Expected an integer")
+                        except (ValueError, TypeError, OverflowError):
                             errors.append(f"参数 {name} 应为整数")
                     elif input_type in {'bool', 'boolean'}:
                         if not isinstance(value, bool):
@@ -338,9 +347,9 @@ class PolicyEngine:
                 owner = node.func.value
                 if isinstance(owner, ast.Name) and owner.id == 'dsl_helpers':
                     helpers: Dict[str, Callable[..., Any]] = {
-                        'appliance_subsidy': DSLRuntimeHelpers.appliance_subsidy,
-                        'auto_subsidy': DSLRuntimeHelpers.auto_subsidy,
-                        'consumer_coupon': DSLRuntimeHelpers.consumer_coupon,
+                        'appliance_subsidy': subsidy_calculations.appliance_subsidy,
+                        'auto_subsidy': subsidy_calculations.auto_subsidy,
+                        'consumer_coupon': subsidy_calculations.consumer_coupon,
                     }
                     if node.func.attr not in helpers:
                         raise ValueError(f'Unsupported DSL helper: {node.func.attr}')
@@ -358,7 +367,8 @@ class PolicyEngine:
                             **{keyword.arg: evaluate(keyword.value) for keyword in node.keywords if keyword.arg is not None})
         raise ValueError(f'Unsupported DSL expression: {type(node).__name__}')
 
-    def _build_eval_context(self, rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def _build_eval_context(rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Assemble the evaluation context exposed to DSL expressions."""
         user_state = user_state or {}
         ctx = {

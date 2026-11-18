@@ -4,7 +4,7 @@ Chinese gov/policy domain helpers for ChatDB (政务领域适配).
 This module centralizes:
 - Domain synonyms for tables/columns/values (中英/中性别名 → 规范值)
 - Region aliases (e.g., "济南市" → "济南")
-- Time window phrase parser (e.g., "近三个月" → [start,end])
+- Time window phrase parser (e.g., "近3个月" → [start,end])
 - Lightweight intent heuristics (count/list/latest/top)
 
 These hints are consumed by Text2SQL utilities/prompts to improve
@@ -132,6 +132,9 @@ def parse_time_window(query: str, today: Optional[date] = None) -> Optional[Time
         return TimeWindow(start=date(now.year, 1, 1), end=now, phrase="今年")
     if re.search(r"本月", query):
         return TimeWindow(start=date(now.year, now.month, 1), end=now, phrase="本月")
+    if re.search(r"本季度", query):
+        quarter_start_month = (now.month - 1) // 3 * 3 + 1
+        return TimeWindow(start=date(now.year, quarter_start_month, 1), end=now, phrase="本季度")
     if re.search(r"本周", query):
         # Monday as start of week
         start = now - timedelta(days=(now.weekday()))

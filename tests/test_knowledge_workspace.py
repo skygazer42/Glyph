@@ -49,8 +49,8 @@ def api(monkeypatch, tmp_path):
         stub(name)
     settings = SimpleNamespace(mineru=SimpleNamespace(enabled=False, api_key=None))
     stub("app.config.app_config", settings=settings)
-    load("app.models.base", "app/models/base.py")
-    schemas = load("app.api.schemas", "app/api/schemas.py")
+    load("app.models.policy", "app/models/policy.py")
+    schemas = load("app.schemas.knowledge", "app/schemas/knowledge.py")
     workspace_module = load("app.knowledge.document_workspace", "app/knowledge/document_workspace.py")
     processors = []
 
@@ -70,6 +70,7 @@ def api(monkeypatch, tmp_path):
     stub("app.knowledge.doc_enhanced", EnhancedDocumentProcessor=Processor)
     stub("app.knowledge.service", KnowledgeService=type("KnowledgeService", (), {}))
     router = load("_knowledge_workspace_api", "app/api/endpoints/knowledge.py")
+    router.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     app = FastAPI()
     app.include_router(router.router, prefix="/api/knowledge")
     with TestClient(app, raise_server_exceptions=False) as client:

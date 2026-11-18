@@ -1,10 +1,10 @@
-rule_id: {{ rule_id }}
-name: {{ name }}
-version: {{ version }}
+rule_id: {{ rule_id | tojson }}
+name: {{ name | tojson }}
+version: {{ version | tojson }}
 
 policy_source:
-  doc_id: {{ policy_source.doc_id | default(null) | tojson }}
-  title: {{ policy_source.title | default(null) | tojson }}
+  doc_id: {{ policy_source.doc_id | default(none) | tojson }}
+  title: {{ policy_source.title | default(none) | tojson }}
 
 # ===== 有效期 =====
 valid_period: {{ valid_period | tojson }}
@@ -19,7 +19,7 @@ tiers:
     threshold: {{ tier.threshold }}         # 门槛
     discount: {{ tier.discount }}           # AMOUNT=减免金额; PERCENT=折扣比例(0~1)
     {% if tier.cap is defined %}cap: {{ tier.cap | tojson }}{% endif %}   # PERCENT可选封顶金额
-    {% if tier.name %}name: "{{ tier.name }}"{% endif %}
+    {% if tier.name %}name: {{ tier.name | tojson }}{% endif %}
 {% endfor %}
 
 # ===== 发放规则 =====

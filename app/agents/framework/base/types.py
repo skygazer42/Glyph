@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 
-from app.models.base import PolicyDocument as PolicyDocument
+from app.models.policy import PolicyDocument as PolicyDocument
 
 
 class AgentTypes(Enum):

@@ -22,23 +22,39 @@ def test_builder_requires_the_query_promised_by_its_workflow():
         asyncio.run(QueryAnalyzer().handle({}))
 
 
+def test_builder_workflow_retrieves_the_analyzed_policy_category():
+    from examples.ag_builder import AGBuilder, AnswerGenerator, PolicyRetriever, QueryAnalyzer
+
+    async def run():
+        builder = AGBuilder()
+        for agent in (QueryAnalyzer(), PolicyRetriever(), AnswerGenerator()):
+            builder.register(agent)
+        builder.create_workflow("policy", ["query_analyzer", "policy_retriever", "answer_generator"])
+        await builder.start()
+        try:
+            return await builder.run_workflow("policy", {"query": "小微企业能申请多少补贴？"})
+        finally:
+            await builder.stop()
+
+    result = asyncio.run(run())
+    assert result["count"] == 1
+    assert result["retrieved_policies"][0]["title"] in result["answer"]
+
+
 def test_enterprise_roles_use_current_sdk_and_borrow_model_client():
     from autogen_core import CancellationToken
     from autogen_agentchat.messages import TextMessage
     from autogen_ext.models.replay import ReplayChatCompletionClient
-    from examples.enterprise_agents import EnterpriseAutoGenConfig
+    from examples.enterprise_agents import create_enterprise_agents
 
     client = ReplayChatCompletionClient(['analysis'] * 6)
-    config = EnterpriseAutoGenConfig(client)
-    agents = config.create_enterprise_agents()
+    agents = create_enterprise_agents(client)
     assert set(agents) == {
         'enterprise_data_collector', 'enterprise_financial_analyst',
         'enterprise_risk_analyst', 'enterprise_quantitative_analyst',
         'enterprise_compliance_officer', 'enterprise_portfolio_manager',
     }
-    prompts = config.get_agent_system_messages()
-    assert all(len(prompts[name]) > 100 for name in agents)
-    assert all(config.validate_agent_configuration().values())
+    assert all(agent.name == name for name, agent in agents.items())
 
     async def exchange():
         try:
@@ -99,7 +115,7 @@ def test_simple_seed_import_has_no_file_side_effect(tmp_path, monkeypatch):
 
     namespace = runpy.run_path(str(ROOT / "resources/database/seed_data/generate_qa_data.py"))
 
-    assert len(namespace["qa_data"]["qa_pairs"]) == 10
+    assert len(namespace["QA_DATA"]["qa_pairs"]) == 10
     assert list(tmp_path.iterdir()) == []
 
 
@@ -113,7 +129,7 @@ def test_simple_seed_main_still_exports_data(tmp_path, monkeypatch):
 
 
 def test_importer_uses_explicit_root_and_propagates_process_failure(tmp_path, monkeypatch):
-    namespace = runpy.run_path(str(ROOT / "tests/data_import.py"))
+    namespace = runpy.run_path(str(ROOT / "scripts/import_data.py"))
     importer = namespace["DataImporter"](project_root=tmp_path)
     assert importer.data_dir == tmp_path / "resources/data"
 
@@ -121,34 +137,14 @@ def test_importer_uses_explicit_root_and_propagates_process_failure(tmp_path, mo
         raise subprocess.CalledProcessError(1, args, stderr="database unavailable")
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fail)
-    import pytest
 
     with pytest.raises(subprocess.CalledProcessError):
         asyncio.run(importer._run_command(["docker", "version"]))
 
 
-def test_importer_removes_temporary_script_when_process_fails(tmp_path, monkeypatch):
-    namespace = runpy.run_path(str(ROOT / "tests/data_import.py"))
-    importer = namespace["DataImporter"](project_root=tmp_path)
-    observed = []
-
-    async def fail(command, **kwargs):
-        script = Path(command[-1])
-        observed.append(script)
-        assert await asyncio.to_thread(script.read_text, encoding="utf-8") == "print('中文')"
-        raise RuntimeError("failed")
-
-    monkeypatch.setattr(importer, "_run_command", fail)
-    import pytest
-
-    with pytest.raises(RuntimeError, match="failed"):
-        asyncio.run(importer._run_python_script("print('中文')"))
-    assert not observed[0].exists()
-
-
-def test_importer_cancellation_reaps_process_before_removing_script(tmp_path, monkeypatch):
-    monkeypatch.setattr(__import__('tempfile'), 'tempdir', str(tmp_path))
-    ns = runpy.run_path(str(ROOT / 'tests/data_import.py'))
+def test_importer_cancellation_reaps_the_owned_process(tmp_path, monkeypatch):
+    ns = runpy.run_path(str(ROOT / 'scripts/import_data.py'))
+    killed = []
     reaped = []
 
     async def check():
@@ -158,6 +154,7 @@ def test_importer_cancellation_reaps_process_before_removing_script(tmp_path, mo
 
                 def kill(self):
                     self.returncode = -9
+                    killed.append(True)
 
                 async def communicate(self, input=None):
                     if self.returncode is None:
@@ -165,24 +162,58 @@ def test_importer_cancellation_reaps_process_before_removing_script(tmp_path, mo
                         await anyio.lowlevel.checkpoint()
                     await anyio.lowlevel.checkpoint()
                     reaped.append(True)
-                    assert list(tmp_path.glob('glyph-import-*/import_data.py'))
                     return b'', b''
 
             async def create(*args, **kwargs):
                 return Process()
 
             monkeypatch.setattr(asyncio, 'create_subprocess_exec', create)
-            await ns['DataImporter'](tmp_path)._run_python_script('pass')
+            await ns['DataImporter'](tmp_path)._run_command(['docker', 'version'])
         assert scope.cancelled_caught
-        assert reaped == [True] and list(tmp_path.iterdir()) == []
+        assert killed == reaped == [True]
 
     anyio.run(check)
+
+
+def test_importer_uses_configured_store_without_reset_and_upserts_stable_ids(tmp_path, monkeypatch):
+    from unittest.mock import AsyncMock, Mock
+
+    store = SimpleNamespace(
+        get_stats=Mock(return_value={"collection_name": "existing", "total_documents": 11, "dim": 2}),
+        add_documents=Mock(), close=Mock(),
+    )
+    factory = Mock(return_value=store)
+    milvus_module = ModuleType("app.knowledge.milvus")
+    milvus_module.MilvusStore = factory
+    monkeypatch.setitem(sys.modules, milvus_module.__name__, milvus_module)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", AsyncMock(
+        side_effect=AssertionError("configured ingestion must not launch reset scripts")))
+    namespace = runpy.run_path(str(ROOT / "scripts/import_data.py"))
+    importer = namespace["DataImporter"](tmp_path)
+    asyncio.run(importer.init_milvus())
+    store.get_stats.assert_called_once()
+
+    sample = tmp_path / "sample_policies.json"
+    sample.write_text(json.dumps([{
+        "doc_id": "sample-1", "title": "合成样例", "content": "合成政策正文", "category": "示例", "region": "示例地区",
+        "effective_date": "2030-01-01T00:00:00", "expiry_date": "2031-01-01T00:00:00",
+    }]), encoding="utf-8")
+    assert importer._index_sample_policies(sample) == 1
+    assert importer._index_sample_policies(sample) == 1
+    first, second = store.add_documents.call_args_list
+    assert first.kwargs == second.kwargs == {"upsert": True}
+    assert first.args[0][0].id == second.args[0][0].id
+    assert first.args[0][0].metadata["synthetic"] is True
+    assert first.args[0][0].content == "合成政策正文"
+    assert store.close.call_count == 3
+    assert factory.call_count == 3
+    assert all(call.args == () and call.kwargs == {} for call in factory.call_args_list)
 
 
 def test_mysql_failure_does_not_include_credentials_in_arguments_or_exception(tmp_path, monkeypatch):
     secret = "offline-test-secret"
     monkeypatch.setenv("MYSQL_ROOT_PASSWORD", secret)
-    namespace = runpy.run_path(str(ROOT / "tests/data_import.py"))
+    namespace = runpy.run_path(str(ROOT / "scripts/import_data.py"))
     importer = namespace["DataImporter"](project_root=tmp_path)
 
     async def fail(*command, **kwargs):
@@ -204,13 +235,38 @@ def test_empty_cli_batch_writes_empty_result_without_querying(tmp_path, capsys):
 
     asyncio.run(namespace["batch_mode"](object(), str(query_file)))
 
-    assert json.loads(query_file.with_suffix(".json").read_text(encoding="utf-8"))["results"] == []
+    outputs = list(tmp_path.glob("*.json"))
+    assert len(outputs) == 1
+    assert json.loads(outputs[0].read_text(encoding="utf-8"))["results"] == []
     assert "平均置信度" not in capsys.readouterr().out
+
+
+def test_cli_batch_preserves_a_query_file_with_json_extension(tmp_path):
+    from unittest.mock import AsyncMock
+
+    namespace = load_definitions(
+        "scripts/unified_cli.py", {"batch_mode"}, asyncio=asyncio,
+        Path=Path, json=json, logging=__import__("logging"),
+    )
+    query_file = tmp_path / "queries.json"
+    source = "policy question\n"
+    query_file.write_text(source, encoding="utf-8")
+    service = SimpleNamespace(process_query=AsyncMock(return_value=SimpleNamespace(
+        answer="policy answer", confidence=0, metadata={"route": "knowledge", "intent": {"intent": "policy_inquiry"}}, sources=[],
+    )))
+
+    asyncio.run(namespace["batch_mode"](service, str(query_file)))
+
+    assert query_file.read_text(encoding="utf-8") == source
+    outputs = [path for path in tmp_path.iterdir() if path != query_file]
+    assert len(outputs) == 1
+    result = json.loads(outputs[0].read_text(encoding="utf-8"))["results"][0]
+    assert result["query"] == "policy question" and result["answer"] == "policy answer"
+    assert result["confidence"] == 0
 
 
 def test_cli_batch_failure_remains_visible(tmp_path):
     namespace = load_definitions("scripts/unified_cli.py", {"batch_mode"}, asyncio=asyncio, Path=Path, json=json, logging=__import__("logging"))
-    import pytest
 
     with pytest.raises(FileNotFoundError):
         asyncio.run(namespace["batch_mode"](object(), str(tmp_path / "missing.txt")))
@@ -237,7 +293,7 @@ def test_autogen_examples_do_not_start_work_on_import(monkeypatch):
         coroutine.close()
 
     monkeypatch.setattr(asyncio, "run", record_run)
-    for name in ("autogen_demo1.py", "autogen_demo2.py"):
+    for name in ("autogen_streaming.py", "autogen_agent_tools.py"):
         runpy.run_path(str(ROOT / "examples" / name))
     assert calls == []
 
@@ -271,7 +327,7 @@ def test_streaming_reference_uses_final_citations_on_iteration_limit():
         def get_all_spans(self):
             return {}
 
-    namespace = load_definitions("examples/base.py", {"R2RStreamingAgent"}, R2RAgent=Agent, re=__import__("re"), CitationTracker=Tracker, Message=SimpleNamespace, SSEFormatter=Formatter, logger=__import__("logging").getLogger(__name__))
+    namespace = load_definitions("examples/r2r/base.py", {"R2RStreamingAgent"}, R2RAgent=Agent, re=__import__("re"), CitationTracker=Tracker, Message=SimpleNamespace, SSEFormatter=Formatter, logger=__import__("logging").getLogger(__name__))
     instance = object.__new__(namespace["R2RStreamingAgent"])
     instance._reset = lambda: setattr(instance, "_completed", False)
     instance.config = SimpleNamespace(max_iterations=0)
@@ -294,8 +350,42 @@ def test_streaming_reference_uses_final_citations_on_iteration_limit():
     assert not any(event[0] == "error" for event in events)
 
 
+@pytest.mark.parametrize("messages", [[], [SimpleNamespace(role="user", content="echo")]])
+def test_reference_returns_new_messages_even_when_answer_matches_input(messages):
+    class Conversation:
+        def __init__(self):
+            self.messages = []
+
+        async def add_message(self, message):
+            self.messages.append({"role": message.role, "content": message.content})
+
+        async def get_messages(self):
+            return self.messages
+
+    namespace = load_definitions(
+        "examples/r2r/base.py", {"R2RAgent"}, Agent=object, CombinedMeta=type,
+        Conversation=Conversation, Message=SimpleNamespace, syncable=lambda function: function,
+    )
+    agent = object.__new__(namespace["R2RAgent"])
+    agent.config = SimpleNamespace(max_iterations=0)
+
+    async def setup(instruction):
+        pass
+
+    async def summarize(iterations):
+        return "echo"
+
+    agent._setup = setup
+    agent._generate_llm_summary = summarize
+    result = asyncio.run(agent.arun(messages))
+    assert result == [{"role": "assistant", "content": "echo"}]
+    assert agent.conversation.messages == [
+        *({"role": message.role, "content": message.content} for message in messages), *result,
+    ]
+
+
 def test_citation_reference_calls_model_serialization():
-    namespace = load_definitions("examples/base.py", {"R2RStreamingAgent"}, R2RAgent=object, re=__import__("re"), dump_obj=lambda value: value)
+    namespace = load_definitions("examples/r2r/base.py", {"R2RStreamingAgent"}, R2RAgent=object, re=__import__("re"), dump_obj=lambda value: value)
     instance = object.__new__(namespace["R2RStreamingAgent"])
 
     class Model:
@@ -325,7 +415,7 @@ def test_reference_early_stream_exit_closes_provider_generator(class_name):
         finally:
             closed.append(True)
 
-    ns = load_definitions('examples/base.py', {'R2RStreamingAgent', 'R2RXMLStreamingAgent'},
+    ns = load_definitions('examples/r2r/base.py', {'R2RStreamingAgent', 'R2RXMLStreamingAgent'},
                           R2RAgent=object, re=__import__('re'), CitationTracker=object,
                           SSEFormatter=Formatter, logger=__import__('logging').getLogger(__name__),
                           find_new_citation_spans=lambda *args: {})
@@ -351,7 +441,7 @@ def test_reference_early_stream_exit_closes_provider_generator(class_name):
 
 
 def test_reference_never_forges_anthropic_thinking_signature():
-    ns = load_definitions('examples/base.py', {'R2RStreamingAgent'}, R2RAgent=object,
+    ns = load_definitions('examples/r2r/base.py', {'R2RStreamingAgent'}, R2RAgent=object,
                           re=__import__('re'), Message=SimpleNamespace)
     agent = object.__new__(ns['R2RStreamingAgent'])
 
@@ -363,8 +453,46 @@ def test_reference_never_forges_anthropic_thinking_signature():
         asyncio.run(agent._handle_thinking({}, 'unsigned thinking'))
 
 
+@pytest.mark.parametrize("flags,expected", [([], False), (["--truncate"], True), (["--no-truncate"], False)])
+def test_mysql_seed_requires_explicit_truncation(flags, expected, monkeypatch):
+    namespace = runpy.run_path(str(ROOT / "scripts/seed_mysql_text2sql.py"))
+    monkeypatch.setattr(sys, "argv", ["seed_mysql_text2sql", *flags])
+    assert namespace["parse_args"]().truncate is expected
+
+
+def test_synthetic_mysql_qa_rows_are_unverified():
+    namespace = runpy.run_path(str(ROOT / "scripts/seed_mysql_text2sql.py"))
+    rows = namespace["generate_qa_pairs"]([{"doc_id": "sample-1", "title": "合成样例", "category": "示例"}])
+    assert rows and all(row["verified"] is False for row in rows)
+    assert all(row["doc_id"] == "sample-1" for row in rows)
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_mysql_seed_transaction_owner_commits_or_rolls_back_and_closes(tmp_path, failed):
+    from unittest.mock import Mock
+
+    connection = Mock()
+    seed = Mock(side_effect=OSError("seed failed") if failed else None)
+    namespace = load_definitions(
+        "scripts/seed_mysql_text2sql.py", {"main"}, BASE_DIR=tmp_path,
+        parse_args=lambda: SimpleNamespace(documents=1, skip_schema=True, truncate=False),
+        load_dotenv=lambda path: None, load_mysql_config=lambda: {},
+        connect_mysql=lambda config: connection, seed_mysql=seed,
+    )
+    if failed:
+        with pytest.raises(OSError, match="seed failed"):
+            namespace["main"]()
+        connection.rollback.assert_called_once()
+        connection.commit.assert_not_called()
+    else:
+        namespace["main"]()
+        connection.commit.assert_called_once()
+        connection.rollback.assert_not_called()
+    connection.close.assert_called_once()
+
+
 def test_truncation_reenables_foreign_keys_after_failure():
-    namespace = runpy.run_path(str(ROOT / "scripts/2_seed_mysql_text2sql.py"))
+    namespace = runpy.run_path(str(ROOT / "scripts/seed_mysql_text2sql.py"))
     commands = []
 
     class Cursor:
@@ -390,11 +518,11 @@ def test_dry_run_does_not_construct_knowledge_service(tmp_path):
         def iter_documents_from_directory(self, path, limit):
             return iter([{"text": "one"}, {"text": "two"}])
 
-    def fail_service():
+    def fail_service(*, use_hierarchical):
         raise AssertionError("dry run must not initialize a store")
 
     logger = SimpleNamespace(info=lambda *args: None, success=lambda *args: None)
-    namespace = load_definitions("scripts/5_embed_process_documents.py", {"ingest_documents"}, asyncio=asyncio, Path=Path, DocumentLoader=Loader, KnowledgeService=fail_service, logger=logger)
+    namespace = load_definitions("scripts/embed_process_documents.py", {"ingest_documents"}, asyncio=asyncio, Path=Path, DocumentLoader=Loader, KnowledgeService=fail_service, logger=logger)
     asyncio.run(namespace["ingest_documents"](str(tmp_path), 1, None, True))
 
 
@@ -406,18 +534,84 @@ def test_embed_script_closes_owned_service_after_failed_ingestion(tmp_path):
             yield object()
 
     class Service:
+        def __init__(self, *, use_hierarchical):
+            assert use_hierarchical is False
+
         async def index_documents(self, documents):
             raise OSError('index failed')
 
         async def close(self):
             closed.append(True)
 
-    ns = load_definitions('scripts/5_embed_process_documents.py', {'ingest_documents'},
+    ns = load_definitions('scripts/embed_process_documents.py', {'ingest_documents'},
                           asyncio=asyncio, Path=Path, DocumentLoader=Loader,
                           KnowledgeService=Service, logger=SimpleNamespace(info=lambda *args: None))
     with pytest.raises(OSError, match='index failed'):
         asyncio.run(ns['ingest_documents'](str(tmp_path), 1, None, False))
     assert closed == [True]
+
+
+@pytest.mark.parametrize("path,function_name", [
+    ("scripts/embed_process_documents.py", "ingest_documents"),
+    ("scripts/seed_lightrag.py", "seed_lightrag"),
+])
+@pytest.mark.parametrize("batch_size,limit,valid", [(0, None, False), (1, -1, False), (1, 0, True)])
+def test_ingestion_limits_are_resolved_before_acquiring_stores(tmp_path, path, function_name, batch_size, limit, valid):
+    from unittest.mock import Mock
+
+    store = Mock(side_effect=AssertionError("limit boundary must not acquire a store"))
+    namespace = load_definitions(
+        path, {function_name}, asyncio=asyncio, Path=Path, DocumentLoader=Mock(),
+        KnowledgeService=store, GraphRetrieverAgent=store, logger=Mock(),
+    )
+    arguments = ((str(tmp_path), batch_size, limit, False) if function_name == "ingest_documents"
+                 else (str(tmp_path), str(tmp_path / "graph"), batch_size, limit))
+    if valid:
+        asyncio.run(namespace[function_name](*arguments))
+    else:
+        with pytest.raises(ValueError):
+            asyncio.run(namespace[function_name](*arguments))
+    store.assert_not_called()
+
+
+@pytest.mark.parametrize("limit", [1, None])
+def test_lightrag_only_writes_a_full_manifest_after_unlimited_ingestion(tmp_path, limit):
+    from unittest.mock import AsyncMock, Mock
+
+    loader = SimpleNamespace(supported_extensions={".md"}, iter_documents_from_directory=Mock(return_value=iter([object()])))
+    agent = SimpleNamespace(add_documents=AsyncMock(), close=AsyncMock())
+    manifest = Mock()
+    namespace = load_definitions(
+        "scripts/seed_lightrag.py", {"seed_lightrag"}, asyncio=asyncio, Path=Path,
+        DocumentLoader=Mock(return_value=loader), GraphRetrieverAgent=Mock(return_value=agent),
+        write_seed_manifest=manifest, logger=Mock(),
+    )
+    workdir = tmp_path / "graph"
+    asyncio.run(namespace["seed_lightrag"](str(tmp_path), str(workdir), 1, limit))
+    if limit is None:
+        manifest.assert_called_once_with(tmp_path, workdir, {".md"})
+    else:
+        manifest.assert_not_called()
+    agent.close.assert_awaited_once()
+
+
+def test_lightrag_manifest_only_tracks_supported_source_files(tmp_path):
+    from datetime import datetime
+    from unittest.mock import Mock
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "policy.md").write_text("policy", encoding="utf-8")
+    (source / "ignored.json").write_text("{}", encoding="utf-8")
+    namespace = load_definitions(
+        "scripts/seed_lightrag.py", {"write_seed_manifest"},
+        Path=Path, json=json, datetime=datetime, logger=Mock(),
+    )
+    workdir = tmp_path / "graph"
+    namespace["write_seed_manifest"](source, workdir, {".md"})
+    manifest = json.loads((workdir / "seed_manifest.json").read_text(encoding="utf-8"))
+    assert list(manifest["files"]) == ["policy.md"]
+    assert manifest["seed_dir"] == str(source.resolve())
 
 
 def test_init_milvus_script_closes_store_when_stats_fail():
@@ -432,7 +626,7 @@ def test_init_milvus_script_closes_store_when_stats_fail():
         def close(self):
             closed.append(True)
 
-    ns = load_definitions('scripts/3_init_milvus.py', {'init_milvus_collection'}, MilvusStore=Store)
+    ns = load_definitions('scripts/init_milvus.py', {'init_milvus_collection'}, MilvusStore=Store)
     assert ns['init_milvus_collection']() is False
     assert closed == [True]
 
@@ -472,8 +666,53 @@ def test_workflow_stream_skips_final_task_result_and_stops_runtime():
     assert workflow.runtime.started is False
 
 
+@pytest.mark.parametrize("selected_path", ["calculation_path", "missing_path"])
+def test_conditional_workflow_uses_router_decision_and_rejects_unknown_paths(selected_path):
+    from unittest.mock import AsyncMock
+
+    closed = []
+    participants = []
+
+    async def stream(task):
+        try:
+            yield SimpleNamespace(content="answer", source="calculator")
+        finally:
+            closed.append(True)
+
+    def create_team(**kwargs):
+        participants.extend(kwargs["participants"])
+        return SimpleNamespace(run_stream=stream)
+
+    namespace = load_definitions(
+        "examples/ag_workflow.py", {"ConditionalWorkflow"},
+        TextMessage=SimpleNamespace, CancellationToken=object,
+        RoundRobinGroupChat=create_team, MaxMessageTermination=lambda **kwargs: None,
+        TaskResult=type("TaskResult", (), {}),
+    )
+    workflow = namespace["ConditionalWorkflow"](object())
+    router = SimpleNamespace(on_messages=AsyncMock(return_value=SimpleNamespace(
+        chat_message=SimpleNamespace(to_text=lambda: selected_path),
+    )))
+    calculator = object()
+    workflow.agents = {"router": router, "calculator": calculator}
+    workflow.workflows = {"calculation_path": ["calculator"]}
+
+    if selected_path == "missing_path":
+        with pytest.raises(ValueError, match="missing_path"):
+            asyncio.run(workflow.execute_workflow("subsidy amount"))
+        assert participants == []
+    else:
+        result = asyncio.run(workflow.execute_workflow("subsidy amount"))
+        assert result["path"] == "calculation_path"
+        assert result["agent_sequence"] == ["calculator"]
+        assert [message.content for message in result["messages"]] == ["answer"]
+        assert participants == [calculator]
+        assert closed == [True]
+    assert router.on_messages.call_args.args[0][0].content == "subsidy amount"
+
+
 def test_research_executor_allows_loop_progress_and_reports_timeout():
-    namespace = load_definitions("examples/research.py", {"ResearchAgentMixin"}, RAGAgentMixin=object, asyncio=asyncio, tempfile=__import__("tempfile"), os=__import__("os"), subprocess=subprocess, sys=sys)
+    namespace = load_definitions("examples/r2r/research.py", {"ResearchAgentMixin"}, RAGAgentMixin=object, asyncio=asyncio, tempfile=__import__("tempfile"), os=__import__("os"), subprocess=subprocess, sys=sys)
     instance = object.__new__(namespace["ResearchAgentMixin"])
 
     async def run():
@@ -495,12 +734,37 @@ def test_research_executor_allows_loop_progress_and_reports_timeout():
 
 
 def test_research_formatter_requires_explicit_execution_status():
-    namespace = load_definitions("examples/research.py", {"ResearchAgentMixin"}, RAGAgentMixin=object)
+    namespace = load_definitions("examples/r2r/research.py", {"ResearchAgentMixin"}, RAGAgentMixin=object)
     instance = object.__new__(namespace["ResearchAgentMixin"])
     result = {"result": None, "stdout": "", "stderr": "", "error": None, "timed_out": False, "timeout": 10}
 
     with pytest.raises(KeyError, match="success"):
         instance._format_python_results(result)
+
+
+def test_research_failed_script_write_removes_its_temporary_file(tmp_path):
+    class BrokenTemporaryFile:
+        name = str(tmp_path / "research.py")
+
+        def __enter__(self):
+            Path(self.name).touch()
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def write(self, code):
+            raise OSError("temporary script write failed")
+
+    namespace = load_definitions(
+        "examples/r2r/research.py", {"ResearchAgentMixin"},
+        RAGAgentMixin=object, asyncio=asyncio, os=__import__("os"),
+        tempfile=SimpleNamespace(NamedTemporaryFile=lambda **kwargs: BrokenTemporaryFile()),
+    )
+    agent = object.__new__(namespace["ResearchAgentMixin"])
+    with pytest.raises(OSError, match="temporary script write failed"):
+        asyncio.run(agent._execute_python_with_process_timeout("pass"))
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_research_cancelled_process_is_reaped_and_temporary_file_removed(tmp_path, monkeypatch):
@@ -527,7 +791,7 @@ def test_research_cancelled_process_is_reaped_and_temporary_file_removed(tmp_pat
                 return Process()
 
             monkeypatch.setattr(asyncio, 'create_subprocess_exec', create_process)
-            ns = load_definitions('examples/research.py', {'ResearchAgentMixin'},
+            ns = load_definitions('examples/r2r/research.py', {'ResearchAgentMixin'},
                                   RAGAgentMixin=object, asyncio=asyncio, sys=sys,
                                   tempfile=__import__('tempfile'), os=__import__('os'))
             agent = object.__new__(ns['ResearchAgentMixin'])
@@ -552,7 +816,7 @@ def test_rag_reference_initializes_each_agent_once_and_keeps_registry():
             return False
 
     names = {"RAGAgentMixin", "R2RRAGAgent", "R2RXMLToolsRAGAgent", "R2RStreamingRAGAgent", "R2RXMLToolsStreamingRAGAgent"}
-    namespace = load_definitions("examples/rag.py", names, R2RAgent=Agent, R2RXMLToolsAgent=Agent, R2RStreamingAgent=Agent, R2RXMLStreamingAgent=Agent, ToolRegistry=Registry, SearchResultsCollector=object, logger=__import__("logging").getLogger(__name__))
+    namespace = load_definitions("examples/r2r/rag.py", names, R2RAgent=Agent, R2RXMLToolsAgent=Agent, R2RStreamingAgent=Agent, R2RXMLStreamingAgent=Agent, ToolRegistry=Registry, SearchResultsCollector=object, logger=__import__("logging").getLogger(__name__))
     for name in names - {"RAGAgentMixin"}:
         registry = Registry()
         instance = namespace[name](database_provider=object(), llm_provider=object(), config=SimpleNamespace(rag_tools=[], stream=False), search_settings=object(), rag_generation_config=object(), knowledge_search_method=object(), content_method=object(), file_search_method=object(), tool_registry=registry)
@@ -560,7 +824,7 @@ def test_rag_reference_initializes_each_agent_once_and_keeps_registry():
         assert instance.tool_registry is registry
 
     research_names = {"ResearchAgentMixin", "R2RResearchAgent", "R2RStreamingResearchAgent", "R2RXMLToolsResearchAgent", "R2RXMLToolsStreamingResearchAgent"}
-    research = load_definitions("examples/research.py", research_names, **namespace)
+    research = load_definitions("examples/r2r/research.py", research_names, **namespace)
     for name in research_names - {"ResearchAgentMixin"}:
         for maximum, expected in ((0, 0), (None, 15), (7, 7)):
             config = SimpleNamespace(rag_tools=[], research_tools=[], stream=False, max_iterations=maximum)
@@ -575,7 +839,7 @@ def test_rag_reference_initializes_each_agent_once_and_keeps_registry():
 
 
 def test_docker_report_identifies_fixture_and_accepts_output_path(tmp_path):
-    namespace = runpy.run_path(str(ROOT / "tests/docker_rebuild_test.py"))
+    namespace = runpy.run_path(str(ROOT / "scripts/render_docker_report.py"))
     output = tmp_path / "report.json"
     namespace["main"](output)
     data = json.loads(output.read_text(encoding="utf-8"))
@@ -584,18 +848,18 @@ def test_docker_report_identifies_fixture_and_accepts_output_path(tmp_path):
 
 
 @pytest.mark.parametrize("field", ["level_1_bonus", "no_label_rate"])
-def test_round4_appliance_requires_rate_for_selected_energy_level(field):
-    from app.agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
+def test_appliance_requires_rate_for_selected_energy_level(field):
+    import app.agents.dsl_generator.subsidy_calculations as subsidy_calculations
     with pytest.raises((KeyError, ValueError)):
-        DSLRuntimeHelpers.appliance_subsidy(
+        subsidy_calculations.appliance_subsidy(
             {"price": 100, "energy_level": 1 if field == "level_1_bonus" else None},
             {"base_rate": .1}, 0,
         )
 
 
-def test_round4_coupon_does_not_invent_expiry():
-    from app.agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
-    result = DSLRuntimeHelpers.consumer_coupon(
+def test_coupon_does_not_invent_expiry():
+    import app.agents.dsl_generator.subsidy_calculations as subsidy_calculations
+    result = subsidy_calculations.consumer_coupon(
         {"consumption_amount": 100, "coupon_type": "AMOUNT", "claim_time": "2025-01-01"},
         tiers=[{"type": "AMOUNT", "threshold": 0, "discount": 10}],
         coupon_types=["AMOUNT"],
@@ -604,23 +868,23 @@ def test_round4_coupon_does_not_invent_expiry():
 
 
 @pytest.mark.parametrize("value", ["invalid", float("nan"), float("inf")])
-def test_round4_runtime_rejects_provided_invalid_number(value):
-    from app.agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
+def test_runtime_rejects_provided_invalid_number(value):
+    import app.agents.dsl_generator.subsidy_calculations as subsidy_calculations
     with pytest.raises((ValueError, TypeError)):
-        DSLRuntimeHelpers._parse_optional_number(value)
+        subsidy_calculations._parse_optional_number(value)
 
 
-def test_round4_runtime_rejects_invalid_policy_window():
-    from app.agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
+def test_runtime_rejects_invalid_policy_window():
+    import app.agents.dsl_generator.subsidy_calculations as subsidy_calculations
     with pytest.raises(ValueError):
-        DSLRuntimeHelpers.auto_subsidy(
+        subsidy_calculations.auto_subsidy(
             {"invoice_no_tax": 100, "vehicle_type": "NEV", "purchase_time": "2025-01-01", "claim_time": "2025-01-02"},
             windows={"purchase_window": {"start": "broken"}},
         )
 
 
 @pytest.mark.parametrize("output", [None, {}, {"status": "QUALIFIED"}])
-def test_round4_policy_engine_requires_explicit_output(output, tmp_path):
+def test_policy_engine_requires_explicit_output(output, tmp_path):
     from app.agents.dsl_generator.rule_engine import PolicyEngine
     engine = PolicyEngine(str(tmp_path))
     rule = {"rule_id": "r", "inputs": []}
@@ -630,14 +894,14 @@ def test_round4_policy_engine_requires_explicit_output(output, tmp_path):
     assert engine.execute("r", {})["status"] == "ERROR"
 
 
-def test_round4_policy_engine_rejects_invalid_reference_date(tmp_path):
+def test_policy_engine_rejects_invalid_reference_date(tmp_path):
     from app.agents.dsl_generator.rule_engine import PolicyEngine
     engine = PolicyEngine(str(tmp_path))
     engine.rules["r"] = {"rule_id": "r", "valid_period": {"start": "2020-01-01"}, "output": {"status": "QUALIFIED", "final_result": "0"}}
     assert engine.execute("r", {"claim_time": "broken"})["status"] == "ERROR"
 
 
-def test_round4_generator_rejects_selected_missing_template(tmp_path):
+def test_generator_rejects_selected_missing_template(tmp_path):
     from app.agents.dsl_generator.dsl_generator import DSLGenerator
     import jinja2
     generator = DSLGenerator(str(tmp_path), str(tmp_path))
@@ -651,7 +915,7 @@ def test_round4_generator_rejects_selected_missing_template(tmp_path):
     ("consumer_coupon", {"coupon_types": ["AMOUNT"], "tiers": [{"type": "AMOUNT", "threshold": 0, "discount": 0}]}, "valid_days"),
     ("consumer_coupon", {"coupon_types": ["AMOUNT"], "tiers": [{"type": "AMOUNT", "threshold": 0, "discount": 10}]}, "valid_days"),
 ])
-def test_round4_templates_preserve_unknown_policy_terms(profile, data, forbidden, tmp_path):
+def test_templates_preserve_unknown_policy_terms(profile, data, forbidden, tmp_path):
     from app.agents.dsl_generator.dsl_generator import DSLGenerator
     from app.agents.dsl_generator.rule_engine import PolicyEngine
     import yaml
@@ -674,27 +938,27 @@ def test_round4_templates_preserve_unknown_policy_terms(profile, data, forbidden
     ("_prepare_auto_payload", {"tiers": [{"range": [0, None], "subsidy": 0}]}),
     ("_prepare_coupon_payload", {"tiers": [{"type": "AMOUNT", "discount": 0}]}),
 ])
-def test_round4_template_normalization_rejects_missing_financial_terms(prepare, data):
+def test_template_normalization_rejects_missing_financial_terms(prepare, data):
     from app.agents.dsl_generator.template_registry import TemplateRegistry
     with pytest.raises((ValueError, KeyError)):
         getattr(TemplateRegistry, prepare)(data)
 
 
 @pytest.mark.parametrize("payload", [{"inputs": [{"name": "x"}]}, {"inputs": [{"name": "x", "type": 1}]}, {"valid_period": {"start": "2025-02-30"}}, {"valid_period": {"start": "2026-01-01", "end": "2025-01-01"}}])
-def test_round4_extractor_rejects_malformed_contract(payload):
+def test_extractor_rejects_malformed_contract(payload):
     from app.agents.dsl_generator.dsl_extractor import DSLExtractor
     with pytest.raises(ValueError):
         DSLExtractor(use_project_config=False)._parse_response(json.dumps(payload), "普通政策")
 
 
-def test_round4_domain_requires_registered_schema():
+def test_domain_requires_registered_schema():
     from app.agents.dsl_generator.dsl_generator_domain import DomainDrivenDSLGenerator
     with pytest.raises(ValueError):
         object.__new__(DomainDrivenDSLGenerator).validate_with_schema({}, "unknown")
 
 
 @pytest.mark.parametrize("present", ["index", "metadata"])
-def test_round4_vector_refuses_incomplete_persisted_pair(tmp_path, present):
+def test_vector_refuses_incomplete_persisted_pair(tmp_path, present):
     ns = load_definitions("app/agents/packs/vector_retriever/node.py", {"VectorRetrieverAgent"}, StatefulAgent=object, Path=Path, os=__import__("os"), faiss=SimpleNamespace(IndexFlatIP=lambda dim: object()))
     agent = object.__new__(ns["VectorRetrieverAgent"])
     agent.embedding_dim, agent.logger = 2, __import__("logging").getLogger(__name__)
@@ -704,7 +968,7 @@ def test_round4_vector_refuses_incomplete_persisted_pair(tmp_path, present):
         agent._load_or_create_index()
 
 
-def test_round4_vector_stats_reads_falsey_live_index():
+def test_vector_stats_reads_falsey_live_index():
     ns = load_definitions("app/agents/packs/vector_retriever/node.py", {"VectorRetrieverAgent"}, StatefulAgent=object)
     class Index:
         ntotal = 3
@@ -716,7 +980,7 @@ def test_round4_vector_stats_reads_falsey_live_index():
     assert agent.get_stats()["index_size"] == 3
 
 
-def test_round4_absent_policy_limit_is_unbounded(tmp_path):
+def test_absent_policy_limit_is_unbounded(tmp_path):
     from app.agents.dsl_generator.rule_engine import PolicyEngine
     engine = PolicyEngine(str(tmp_path))
     engine.rules["r"] = {"rule_id": "r"}
@@ -725,7 +989,7 @@ def test_round4_absent_policy_limit_is_unbounded(tmp_path):
 
 
 @pytest.mark.parametrize("embedding", ["not-vector", [float("nan")]])
-def test_round4_graph_embedding_rejects_invalid_response(embedding):
+def test_graph_embedding_rejects_invalid_response(embedding):
     class Response:
         def __enter__(self):
             return self

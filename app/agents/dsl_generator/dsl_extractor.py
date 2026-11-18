@@ -5,15 +5,14 @@ DSL 提取器模块（优化版）
 
 import json
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.config.app_config import settings
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ExtractedInput(BaseModel):
@@ -40,7 +39,7 @@ class ExtractedValidity(BaseModel):
     @classmethod
     def validate_date(cls, value: str | None) -> str | None:
         if value is not None:
-            datetime.strptime(value, "%Y-%m-%d")
+            return datetime.strptime(value, "%Y-%m-%d").date().isoformat()
         return value
 
     @model_validator(mode="after")
@@ -88,12 +87,9 @@ class DSLExtractor:
         Returns:
             提取的 DSL 结构
         """
-        # 构建提示词
-        prompt = self._build_prompt(text, metadata)
-
         # 调用 LLM
         if self.use_project_config:
-            response = self._call_llm(prompt)
+            response = self._call_llm(self._build_prompt(text))
         else:
             response = self._extract_with_rules(text)
 
@@ -102,31 +98,31 @@ class DSLExtractor:
 
         return dsl_data
 
-    def _build_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def _build_prompt(self, text: str) -> str:
         """构建 LLM 提示词"""
         # 先检测政策类型
         policy_type = self._detect_policy_type(text)
 
         if policy_type == 'appliance':
-            return self._build_appliance_prompt(text, metadata)
+            return self._build_appliance_prompt(text)
         elif policy_type == 'auto':
-            return self._build_auto_prompt(text, metadata)
+            return self._build_auto_prompt(text)
         else:
-            return self._build_coupon_prompt(text, metadata)
+            return self._build_coupon_prompt(text)
 
 
-    def _detect_policy_type(self, text: str) -> str:
+    @staticmethod
+    def _detect_policy_type(text: str) -> str:
         """检测政策类型"""
         if any(keyword in text for keyword in ['家电', '以旧换新', '能效', '空调', '冰箱', '洗衣机']):
             return 'appliance'
-        if any(keyword in text for keyword in ['消费券', '消费', '零售', '餐饮', '优惠券']):
-            return 'coupon'
         if any(keyword in text for keyword in ['汽车', '购车', '乘用车', '车辆', '发票']):
             return 'auto'
         return 'coupon'
 
 
-    def _build_appliance_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    @staticmethod
+    def _build_appliance_prompt(text: str) -> str:
         """构建家电补贴提示词"""
         prompt = f"""你是一名政策规则工程师，任务是将家电补贴政策文本提取为JSON格式。
 
@@ -176,7 +172,8 @@ class DSLExtractor:
 """
         return prompt
 
-    def _build_auto_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    @staticmethod
+    def _build_auto_prompt(text: str) -> str:
         """构建汽车补贴提示词"""
         prompt = f"""你是一名政策规则工程师，任务是将汽车补贴政策文本提取为JSON格式。
 
@@ -192,6 +189,7 @@ class DSLExtractor:
 
 **分档信息:**
 3. tiers: 价格分档，每档包含:
+   - powertrain: 动力类型 NEV 或 ICE，必须从原文提取
    - range: [最低价, 最高价] (最高价可以是null表示无上限)
    - subsidy: 该档位的补贴金额
    - name: 档位名称（可选）
@@ -208,7 +206,8 @@ class DSLExtractor:
 """
         return prompt
 
-    def _build_coupon_prompt(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    @staticmethod
+    def _build_coupon_prompt(text: str) -> str:
         """构建消费券提示词"""
         prompt = f"""你是一名政策规则工程师，任务是将消费券政策文本提取为JSON格式。
 
@@ -545,7 +544,8 @@ class DSLExtractor:
 
         return data
 
-    def _extract_city(self, text: str) -> str:
+    @staticmethod
+    def _extract_city(text: str) -> str:
         """提取城市名称"""
         cities = ['济南', '青岛', '烟台', '潍坊', '临沂', '淄博', '济宁', '泰安']
         for city in cities:
@@ -553,7 +553,8 @@ class DSLExtractor:
                 return city
         return 'Unknown'
 
-    def _extract_coupon_tiers(self, text: str) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _extract_coupon_tiers(text: str) -> List[Dict[str, Any]]:
         """Parse patterns such as 满100减20 to build coupon tiers."""
         pattern = r'(?:满)?(\d+(?:\.\d+)?)\s*元?\s*(?:减|抵)(\d+(?:\.\d+)?)\s*元'
         tiers: List[Dict[str, Any]] = []
@@ -577,7 +578,8 @@ class DSLExtractor:
         return tiers
 
 
-    def _extract_policy_type(self, text: str) -> str:
+    @staticmethod
+    def _extract_policy_type(text: str) -> str:
         """提取政策类型"""
         checks = [
             (['消费券', '代金券', '优惠券'], 'Consumption'),
@@ -596,7 +598,8 @@ class DSLExtractor:
 
 
 
-    def validate_dsl(self, dsl_data: Dict[str, Any]) -> List[str]:
+    @staticmethod
+    def validate_dsl(dsl_data: Dict[str, Any]) -> List[str]:
         """
         验证 DSL 数据的完整性和正确性
 

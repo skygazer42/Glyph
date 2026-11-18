@@ -401,7 +401,7 @@ onBeforeUnmount(() => {
   <el-dialog
     v-model="visible"
     class="glyph-dialog knowledge-import-dialog"
-    title="导入资料"
+    title="上传资料"
     width="760px"
     :close-on-click-modal="false"
     :close-on-press-escape="!busy"
@@ -442,7 +442,7 @@ onBeforeUnmount(() => {
         <ul v-if="entries.length" class="import-files" aria-label="本次导入文件" :aria-busy="busy">
           <li v-for="entry in entries" :key="entry.id">
             <div class="file-row">
-              <el-icon class="file-icon" aria-hidden="true"><Document /></el-icon>
+              <el-icon class="file-icon" :class="{ 'is-pdf': /\.pdf$/i.test(entry.name) }" aria-hidden="true"><Document /></el-icon>
               <div class="file-identity">
                 <strong>{{ entry.name }}</strong>
                 <small>{{ formatBytes(entry.size) }}<template v-if="entry.docId"> · 已保留上传记录</template></small>
@@ -522,79 +522,100 @@ onBeforeUnmount(() => {
   --el-text-color-primary: var(--wb-ink);
   --el-text-color-regular: var(--wb-ink);
   --el-text-color-secondary: var(--wb-muted);
+  --el-text-color-placeholder: var(--wb-muted);
   --el-border-color: var(--wb-border);
   --el-border-color-light: var(--wb-line);
   --el-fill-color-blank: var(--wb-surface);
+  --el-fill-color-light: var(--wb-tint);
   --el-dialog-bg-color: var(--wb-surface);
+  --el-border-radius-base: var(--wb-radius);
+  --el-font-size-base: var(--wb-text-size);
+  display: flex;
+  flex-direction: column;
   max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
   color: var(--wb-ink);
-  font-family: var(--wb-font);
+  font: var(--wb-text-size)/1.8 var(--wb-font);
   border-radius: var(--wb-radius);
 }
-.import-intro { margin: -8px 0 20px; color: var(--wb-muted); font-size: 13px; line-height: 1.8; }
-.import-form { max-height: min(65dvh, 680px); overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
-.import-section + .import-section { border-top: 1px solid var(--wb-line); margin-top: 22px; padding-top: 20px; }
-.import-section h3 { display: flex; align-items: center; gap: 9px; margin: 0 0 14px; font-size: 14px; font-weight: 500; color: var(--wb-ink); }
-.import-section h3 > span { color: var(--wb-blue); font-family: var(--wb-number); font-size: 12px; }
+.knowledge-import-dialog :deep(.el-dialog__header),
+.knowledge-import-dialog :deep(.el-dialog__footer) { flex: none; padding: 18px 24px; border-color: var(--wb-line); }
+.knowledge-import-dialog :deep(.el-dialog__header) { border-bottom: 1px solid var(--wb-line); margin: 0; }
+.knowledge-import-dialog :deep(.el-dialog__footer) { border-top: 1px solid var(--wb-line); }
+.knowledge-import-dialog :deep(.el-dialog__title) { color: var(--wb-ink); font-size: var(--wb-reading-size); font-weight: 600; }
+.knowledge-import-dialog :deep(.el-dialog__body) { min-height: 0; padding: 24px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.knowledge-import-dialog :deep(.el-button) { min-height: var(--wb-control-height); font: 400 var(--wb-text-size)/1 var(--wb-font); box-shadow: none; }
+.knowledge-import-dialog :deep(.el-input__wrapper),
+.knowledge-import-dialog :deep(.el-select__wrapper) { min-height: var(--wb-control-height); font-size: var(--wb-text-size); }
+.import-intro { margin: 0 0 22px; color: var(--wb-muted); font-size: var(--wb-text-size); line-height: 1.8; }
+.import-form { min-width: 0; }
+.import-section + .import-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--wb-line); }
+.import-section h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; color: var(--wb-ink); font-size: var(--wb-text-size); font-weight: 600; }
+.import-section h3 > span { color: var(--wb-blue); font-family: var(--wb-number); font-size: 13px; }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-.file-count, .import-note, .field-note { color: var(--wb-muted); font-size: 12px; line-height: 1.8; }
+.file-count, .import-note, .field-note { color: var(--wb-muted); font-size: 13px; line-height: 1.8; }
 .file-count { font-family: var(--wb-number); }
 .import-upload :deep(.el-upload) { display: block; }
-.import-upload :deep(.el-upload-dragger) { padding: 18px 16px; border: 1px dashed var(--wb-border); border-radius: 6px; background: var(--wb-tint); }
+.import-upload :deep(.el-upload-dragger) { padding: 24px 16px; border: 1px dashed var(--wb-border); border-radius: var(--wb-radius); background: var(--wb-tint); }
 .import-upload :deep(.el-upload-dragger:hover), .import-upload :deep(.el-upload-dragger.is-dragover) { border-color: var(--wb-blue); background: var(--wb-blue-soft); }
-.upload-icon { color: var(--wb-blue); font-size: 24px; }
-.upload-label { margin-top: 5px; font-size: 14px; color: var(--wb-blue); }
-.upload-label span { margin-left: 9px; font-size: 13px; color: var(--wb-muted); }
-.import-upload p { margin: 7px 0 0; color: var(--wb-muted); font-size: 12px; line-height: 1.8; }
-.import-note { margin: 8px 0 0; }
-.import-files { padding: 0; margin: 14px 0 0; list-style: none; }
-.import-files > li { padding: 11px 0; border-bottom: 1px solid var(--wb-line); }
-.file-row { display: flex; align-items: center; gap: 10px; }
-.file-icon { flex: none; color: var(--wb-blue); font-size: 20px; }
+.upload-icon { color: var(--wb-blue); font-size: 26px; }
+.upload-label { margin-top: 6px; color: var(--wb-blue); font-size: var(--wb-text-size); }
+.upload-label span { margin-left: 10px; color: var(--wb-muted); font-size: var(--wb-text-size); }
+.import-upload p { margin: 8px 0 0; color: var(--wb-muted); font-size: 13px; line-height: 1.8; }
+.import-note { margin: 10px 0 0; }
+.import-files { padding: 0; margin: 16px 0 0; list-style: none; }
+.import-files > li { padding: 14px 0; border-bottom: 1px solid var(--wb-line); }
+.file-row { display: flex; align-items: center; gap: 12px; }
+.file-icon { flex: none; width: 29px; height: 34px; border-radius: 4px; background: color-mix(in srgb, var(--wb-muted) 8%, var(--wb-surface)); color: color-mix(in srgb, var(--wb-blue) 32%, var(--wb-muted)); font-size: 22px; }
+.file-icon.is-pdf { color: color-mix(in srgb, var(--wb-error) 54%, var(--wb-muted)); background: color-mix(in srgb, var(--wb-error) 5%, var(--wb-surface)); }
 .file-identity { min-width: 0; flex: 1; }
-.file-identity strong { display: block; font-size: 13px; font-weight: 400; color: var(--wb-ink); overflow-wrap: anywhere; line-height: 1.7; }
-.file-identity small { display: block; margin-top: 2px; color: var(--wb-muted); font-size: 12px; line-height: 1.7; }
-.file-status { display: flex; align-items: center; gap: 4px; flex: none; color: var(--wb-muted); font-size: 12px; line-height: 1.7; }
-.file-status.is-done { color: var(--wb-blue); }
+.file-identity strong { display: block; color: var(--wb-ink); font-size: var(--wb-text-size); font-weight: 400; line-height: 1.7; overflow-wrap: anywhere; }
+.file-identity small { display: block; margin-top: 4px; color: var(--wb-muted); font-size: 12px; line-height: 1.8; }
+.file-status { display: flex; align-items: center; gap: 5px; flex: none; max-width: 180px; color: var(--wb-muted); font-size: 13px; line-height: 1.8; }
+.file-status.is-done { color: var(--wb-success); }
 .file-status.is-error, .entry-error, .import-error { color: var(--wb-error); }
-.entry-error { margin: 7px 0 0 30px; font-size: 12px; line-height: 1.85; overflow-wrap: anywhere; }
-.file-result { margin: 6px 40px 0 30px; font-size: 12px; line-height: 1.8; }
+.entry-error { margin: 8px 0 0 34px; font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
+.file-result { margin: 10px 42px 0 34px; font-size: 13px; line-height: 1.8; }
 .file-result summary { width: fit-content; color: var(--wb-blue); cursor: pointer; }
-.file-result dl { margin: 10px 0 0; padding: 10px 12px; background: var(--wb-tint); border-radius: 4px; }
-.file-result dl > div { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; margin: 2px 0; }
+.file-result dl { margin: 12px 0 0; padding: 12px; border-radius: var(--wb-radius); background: var(--wb-tint); }
+.file-result dl > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; margin: 3px 0; }
 .file-result dt { color: var(--wb-muted); }
 .file-result dd { margin: 0; overflow-wrap: anywhere; }
-.result-excerpt { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--wb-line); font: 12px/1.9 var(--wb-font); color: var(--wb-ink); }
+.result-excerpt { max-height: 220px; margin: 10px 0 0; padding: 12px; overflow-y: auto; border: 1px solid var(--wb-line); color: var(--wb-ink); font: var(--wb-reading-size)/1.8 var(--wb-font); white-space: pre-wrap; overflow-wrap: anywhere; }
 .import-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.import-grid :deep(.el-form-item) { margin-bottom: 0; }
-.import-grid :deep(.el-form-item__label) { height: auto; margin-bottom: 7px; color: var(--wb-muted); font-size: 12px; line-height: 1.8; }
+.import-grid :deep(.el-form-item) { min-width: 0; margin-bottom: 0; }
+.import-grid :deep(.el-form-item__label) { height: auto; margin-bottom: 8px; color: var(--wb-ink); font-size: var(--wb-text-size); line-height: 24px; }
 .import-grid :deep(.el-select) { width: 100%; }
 .import-grid :deep(.el-select__wrapper.is-disabled .el-select__selected-item) { color: var(--wb-muted); }
-.field-note { margin: 7px 0 0; }
-.save-scope > span { color: var(--wb-muted); font-size: 12px; }
-.save-scope p { margin: 7px 0 0; color: var(--wb-muted); font-size: 12px; line-height: 1.85; }
-.selection-feedback, .restore-note, .capability-note, .parser-notice { background: var(--wb-tint); color: var(--wb-muted); border-radius: 5px; padding: 10px 12px; margin: 10px 0 0; font-size: 12px; line-height: 1.85; }
+.field-note { margin: 8px 0 0; }
+.save-scope > span { color: var(--wb-ink); font-size: var(--wb-text-size); }
+.save-scope p { margin: 8px 0 0; color: var(--wb-muted); font-size: 13px; line-height: 1.85; }
+.selection-feedback, .restore-note, .capability-note, .parser-notice { padding: 12px; margin: 12px 0 0; border-radius: var(--wb-radius); background: var(--wb-tint); color: var(--wb-muted); font-size: 13px; line-height: 1.85; }
 .feedback-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.selection-feedback ul { margin: 2px 0 0; padding-left: 18px; overflow-wrap: anywhere; }
-.capability-note, .parser-notice { display: flex; align-items: baseline; gap: 7px; }
+.selection-feedback ul { margin: 4px 0 0; padding-left: 18px; overflow-wrap: anywhere; }
+.capability-note, .parser-notice { display: flex; align-items: baseline; gap: 8px; }
 .parser-notice { color: var(--wb-blue); background: var(--wb-blue-soft); }
-.import-error, .import-message { margin: 14px 0 0; font-size: 12px; line-height: 1.85; }
+.import-error, .import-message { margin: 16px 0 0; font-size: 13px; line-height: 1.85; }
 .import-message { color: var(--wb-blue); }
-.import-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 7px; text-align: left; }
+.import-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; text-align: left; }
 .draft-status { margin: 0; color: var(--wb-muted); font-size: 12px; line-height: 1.8; }
 .draft-status small { display: block; font-size: 12px; }
-.import-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: none; }
+.import-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; flex: none; }
 .import-actions :deep(.el-button + .el-button) { margin-left: 0; }
 .import-form :deep(button:focus-visible), .file-result summary:focus-visible { outline: 2px solid var(--wb-blue); outline-offset: 3px; }
 @media (max-width: 680px) {
-  .import-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .import-form { max-height: 62dvh; }
+  .knowledge-import-dialog :deep(.el-dialog__header), .knowledge-import-dialog :deep(.el-dialog__footer) { padding: 18px 20px; }
+  .knowledge-import-dialog :deep(.el-dialog__body) { padding: 20px; }
+  .knowledge-import-dialog :deep(input), .knowledge-import-dialog :deep(textarea), .knowledge-import-dialog :deep(.el-select__selected-item) { font-size: 16px; }
+  .import-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .file-row { flex-wrap: wrap; }
-  .file-identity { flex-basis: calc(100% - 65px); }
-  .file-status { padding-left: 30px; flex: 1; }
+  .file-identity { flex-basis: calc(100% - 70px); }
+  .file-status { max-width: none; padding-left: 34px; flex: 1; }
   .file-result { margin-right: 0; }
-  .import-footer { align-items: stretch; flex-direction: column; gap: 10px; }
-  .import-actions { justify-content: flex-end; }
+  .import-footer { align-items: stretch; flex-direction: column; gap: 12px; }
+  .import-actions { justify-content: flex-end; gap: 8px; }
   .import-actions :deep(.el-button) { padding-inline: 10px; }
 }
 </style>

@@ -1,30 +1,62 @@
 /* 全局CSS变量 - 设计系统（政务风格） */
 
 :root {
-  /* Approved Glyph workbench: screen typography, separate from formal documents. */
-  --wb-blue: #24558a;
-  --wb-blue-hover: #1b456f;
-  --wb-blue-soft: #edf3fa;
-  --wb-ink: #29323e;
-  --wb-muted: #6b7280;
+  /* R14 01 resource workspace; original document pages keep their typography. */
+  --wb-blue: #237f92;
+  --wb-blue-hover: #1c6c7c;
+  --wb-blue-soft: #eaf3f5;
+  --wb-ink: #0f172a;
+  --wb-secondary: #334155;
+  --wb-muted: #64748b;
   --wb-error: #b42332;
-  --wb-line: #e3e7ed;
-  --wb-border: #cbd9eb;
-  --wb-canvas: #f7f8fa;
-  --wb-evidence: #f8f9fb;
-  --wb-tint: #f6f8fb;
+  --wb-error-soft: #fef2f2;
+  --wb-error-border: #fecaca;
+  --wb-line: #e2e8f0;
+  --wb-border: #cbd5e1;
+  --wb-canvas: #f8fafc;
+  --wb-evidence: #ffffff;
+  --wb-tint: #f1f5f9;
   --wb-surface: #ffffff;
-  --wb-font: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
-  --wb-number: 'Segoe UI', sans-serif;
-  --wb-radius: 8px;
+  --wb-sidebar: #f1f5f9;
+  --wb-nav-active: #e9edef;
+  --wb-brand: #252b31;
+  --wb-brand-ink: #ffffff;
+  --wb-brand-muted: #68747e;
+  --platform-mark-primary: #237f92;
+  --platform-mark-secondary: #254956;
+  --wb-sidebar-width: 220px;
+  --wb-font: 'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  --wb-number: 'Inter', 'Segoe UI', sans-serif;
+  --wb-graph-policy: #0f6e84;
+  --wb-graph-org: #4f46e5;
+  --wb-graph-condition: #d97706;
+  --wb-graph-other: #059669;
+  --wb-graph-label-bg: rgba(255, 255, 255, .94);
+  --wb-graph-edge: #64748b;
+  --wb-graph-badge-bg: #eef2f6;
+  --wb-graph-badge-text: #64748b;
+  --wb-graph-badge-border: #d4dde8;
+  --wb-radius: 7px;
   --wb-motion: 180ms ease;
-  --wb-reading-width: 780px;
-  --wb-header-height: 64px;
-  /* 主色调 - 政务红蓝渐变 */
-  --primary-gradient: linear-gradient(135deg, #c8232c 0%, #0052d9 100%);
-  --primary-color: #0052d9;
-  --primary-light: #3d7fff;
-  --primary-dark: #003cab;
+  --wb-reading-width: 800px;
+  --wb-header-height: 56px;
+  --wb-public-header-height: 64px;
+  --wb-page-width: 1680px;
+  --wb-page-padding: 28px;
+  --wb-text-size: 15px;
+  --wb-reading-size: 18px;
+  --wb-title-size: 20px;
+  --wb-object-title-size: 20px;
+  --wb-control-height: 36px;
+  --wb-success: #47745f;
+  --wb-warning: #b45309;
+  --wb-warning-soft: #fffbeb;
+  --wb-warning-border: #fde68a;
+  /* Existing components share the selected workspace primary color. */
+  --primary-gradient: var(--wb-blue);
+  --primary-color: var(--wb-blue);
+  --primary-light: var(--wb-blue-hover);
+  --primary-dark: var(--wb-blue-hover);
 
   /* 辅助色 - 中国红 */
   --secondary-color: #c8232c;
@@ -57,10 +89,10 @@
     0 10px 10px -5px rgba(0, 0, 0, 0.04);
 
   /* 圆角 */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
   --radius-full: 9999px;
 
   /* 间距 */
@@ -77,11 +109,9 @@
   --transition-slow: 350ms ease-in-out;
 
   /* 字体 */
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-sans: var(--wb-font);
   --font-mono:
-    'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono',
+    'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code',
     Consolas, 'Courier New', monospace;
 
   /* 字体大小 */
@@ -101,14 +131,36 @@
   --wb-blue-hover: #c3daf7;
   --wb-blue-soft: #233449;
   --wb-ink: #e1e7ef;
+  --wb-secondary: #c6d1e0;
   --wb-muted: #a4b0c0;
   --wb-error: #ffb4bc;
+  --wb-error-soft: #38252f;
+  --wb-error-border: #70404d;
+  --wb-success: #8dd7b0;
+  --wb-warning: #ebc483;
+  --wb-warning-soft: #302b22;
+  --wb-warning-border: #645337;
   --wb-line: #344153;
   --wb-border: #415a78;
   --wb-canvas: #1a2330;
   --wb-evidence: #1b2533;
   --wb-tint: #202c3b;
   --wb-surface: #17212e;
+  --wb-sidebar: #1a2530;
+  --wb-nav-active: #2b3946;
+  --wb-brand: #e1e7ef;
+  --wb-brand-muted: #a4b0c0;
+  --platform-mark-primary: #89cbd3;
+  --platform-mark-secondary: #e1e7ef;
+  --wb-graph-policy: #38bdf8;
+  --wb-graph-org: #a78bfa;
+  --wb-graph-condition: #fbbf24;
+  --wb-graph-other: #34d399;
+  --wb-graph-label-bg: rgba(15, 23, 42, .9);
+  --wb-graph-edge: #64748b;
+  --wb-graph-badge-bg: #1e293b;
+  --wb-graph-badge-text: #94a3b8;
+  --wb-graph-badge-border: #334155;
   /* 背景色 */
   --bg-color: #1a1d23;
   --bg-secondary: #24272e;

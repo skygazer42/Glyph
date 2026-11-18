@@ -18,7 +18,7 @@
   - `KnowledgeAgent`：混合检索、早停与答案合成。
   - `GraphAgent`：对接 LightRAG 本地图谱。
   - `RuleEngine`：YAML DSL 计算器，位于 `rules/`。
-  - `Text2SQLAgent`：`app/agents/chatdb/`，包含 schema 检索、SQL 生成、执行与可视化。
+  - `answer_text2sql_query`：`app/agents/pipeline/text2sql_agent.py` 负责结果呈现；`app/agents/chatdb/` 包含 schema 检索、SQL 生成、执行与可视化。
   - 其他（Dialogue、Clarifier、Workflow、PolicyAnalyzer 等）在路由图中协同。
 - **智能路由能力**：FAQ 命中 → Rewrite/Domain → FastPath → IntentRouter → 各链路；`EARLY_STOP_CONF` 控制早停。
 
@@ -28,14 +28,14 @@
   - `app/knowledge/document_loader.py` 将 Markdown/PDF 标准化为 `PolicyDocument`。
   - `HierarchicalMarkdownProcessor`（`app/knowledge/hierarchical_index.py`）支持 simple/sentence/keyword_aware 三种分块策略。
 - **索引与向量**：
-  - **LlamaIndex**：`scripts/4_embed_documents.py` 构建 doc/section/chunk/summary 分级索引；存储在 `LLAMAINDEX_STORAGE_DIR`。
-  - **Milvus**：`app/knowledge/milvus.py` 负责集合/索引；`scripts/5_embed_process_documents.py` 写入嵌入。
+  - **LlamaIndex**：`scripts/embed_documents.py` 构建 doc/section/chunk/summary 分级索引；存储在 `LLAMAINDEX_STORAGE_DIR`。
+  - **Milvus**：`app/knowledge/milvus.py` 负责集合/索引；`scripts/embed_process_documents.py` 写入嵌入。
 - **混合召回**：`KnowledgeService.search` 先融合 LlamaIndex 结果，再调用 Milvus；可通过 `.env` 关闭 Hybrid。
 - **置信度与早停**：`EARLY_STOP_CONF`（默认 0.8）决定是否直接提取政策要点，减少 LLM 调用。
 
 ## 图谱与 LightRAG
 
-- **图谱引擎**：LightRAG，工作目录 `resources/data/lightrag`。`scripts/6_seed_lightrag.py` 负责构建实体/关系。
+- **图谱引擎**：LightRAG，工作目录 `resources/data/lightrag`。`scripts/seed_lightrag.py` 负责构建实体/关系。
 - **查询模式**：naive/local/global/hybrid，可在 `.env` 中通过 `LIGHTRAG_QUERY_MODE` 切换。
 - **使用场景**：Policy 脉络、关系推理、流程追溯；GraphAgent 输出会被 `AnswerComposer` 聚合。
 - **示意图**：`docs/assets/knowledge_graph_sample.svg` 提供栈内图谱示例。
@@ -44,7 +44,7 @@
 
 - **数据位置**：`rules/`、`resources/dsl/`、`templates/`；YAML 定义政策 ID、资格、金额计算、封顶等逻辑。
 - **执行链路**：RuleEngine 读取 DSL → PolicyEngine 计算 → AnswerComposer 格式化，支撑高确定性场景（补贴测算、资格判断）。
-- **脚本支持**：`python scripts/check_config.py`、`scripts/check_mineru_config.py` 在提交前校验配置一致性。
+- **脚本支持**：`python -m scripts.check_config`、`scripts/check_mineru_config.py` 在提交前校验配置一致性。
 
 ## Text2SQL（ChatDB）
 
@@ -54,7 +54,7 @@
   - `sql_executor.py`：仅允许 SELECT，拒绝 DML/DDL/UNION，多语句。
   - `visualization_recommender.py`：根据结果推荐表格/图表。
   - `domain_zh_gov.py`：解析时间窗口、地区关键词增强 SQL。
-- **依赖**：MySQL 8.0、`scripts/1_create_tables.py` 初始化 `policy_qa` 库；`scripts/2_seed_mysql_text2sql.py` 导入示例数据。
+- **依赖**：MySQL 8.0、`scripts/create_tables.py` 初始化 `policy_qa` 库；`scripts/seed_mysql_text2sql.py` 导入示例数据。
 
 ## 前端与可视化
 

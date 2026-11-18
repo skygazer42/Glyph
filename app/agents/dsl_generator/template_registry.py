@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
 from math import isfinite
+from typing import Any, Callable, Dict, List, Optional
 
 
 def _is_missing(value: Any) -> bool:
@@ -236,8 +236,10 @@ class TemplateRegistry:
             if "min_ex_tax" not in entry or "max_ex_tax" not in entry:
                 raise ValueError("Auto tier requires explicit price bounds")
             entry.setdefault("open_interval", "[)")
-            if entry["open_interval"] not in {"[]", "[)", "(]", "()"}:
+            interval = entry["open_interval"]
+            if not isinstance(interval, str) or len(interval) < 2 or interval[0] not in "[(" or interval[-1] not in "])":
                 raise ValueError("Invalid auto tier interval")
+            entry["open_interval"] = interval[0] + interval[-1]
             if "subsidy" not in entry:
                 entry["subsidy"] = entry["package"] if "package" in entry else entry["benefit"]
             for key in ("min_ex_tax", "max_ex_tax", "subsidy"):

@@ -16,11 +16,11 @@ import yaml
 from app.agents.dsl_generator.dsl_extractor import DSLExtractor
 from app.agents.dsl_generator.dsl_generator import DSLGenerator
 from app.agents.dsl_generator.dsl_generator_domain import DomainDrivenDSLGenerator
-from app.agents.dsl_generator.dsl_runtime_helpers import DSLRuntimeHelpers
+import app.agents.dsl_generator.subsidy_calculations as subsidy_calculations
 from app.agents.dsl_generator.pipeline import DSLPipeline
 from app.agents.dsl_generator.rule_engine import PolicyEngine
 from app.agents.dsl_generator.template_registry import TemplateRegistry
-from app.models.base import GeneratedAnswer
+from app.models.policy import GeneratedAnswer
 from test_python_guidelines_tooling import load_definitions
 
 
@@ -41,6 +41,100 @@ def test_dsl_save_rejects_paths_outside_output_directory(tmp_path, filename):
     generator = DSLGenerator(str(tmp_path))
     with pytest.raises(ValueError):
         generator.save('rule_id: r\ninputs: []\noutput: {}', filename)
+
+
+def test_generic_dsl_preserves_quoted_values_expressions_and_empty_inputs(tmp_path):
+    generator = DSLGenerator(str(tmp_path))
+    data = {
+        "rule_id": "Rule: 'quoted'", "policy_source": {"title": "居民的'旧车': #补贴"},
+        "inputs": [], "calc": {"value": '"double: #" if True else \'single\''},
+        "output": {"status": "QUALIFIED", "final_result": "{{ calc.value }}"},
+    }
+    rule = yaml.safe_load(generator.generate(data))
+    assert rule["rule_id"] == data["rule_id"]
+    assert rule["policy_source"]["title"] == data["policy_source"]["title"]
+    assert rule["inputs"] == []
+    assert rule["calc"] == data["calc"]
+    assert rule["output"] == data["output"]
+
+
+def test_external_template_roundtrip_preserves_quotes_newlines_and_optional_limits(tmp_path):
+    from test_python_guidelines_tooling import ROOT
+
+    marker = 'Policy: "quoted"\nsecond line'
+    data = {
+        "rule_id": marker, "name": "Policy: 'quoted'", "version": marker,
+        "policy_source": {"title": "Title: 'quoted'", "clause": 'Clause: "quoted"'},
+        "efficiency_rates": {"base_rate": 0.15}, "per_item_cap": 2000,
+        "category_limits": {"per_category": {marker: 1}},
+    }
+    generator = DSLGenerator(str(tmp_path), str(ROOT / "templates"))
+    rule = yaml.safe_load(generator.generate(data, template_name="appliance_subsidy.yaml.j2"))
+    assert rule["rule_id"] == rule["version"] == marker
+    assert rule["name"] == data["name"]
+    assert rule["policy_source"]["clause"] == data["policy_source"]["clause"]
+    assert rule["category_limits"] == {"per_category": {marker: 1}, "total_items": None}
+
+
+@pytest.mark.parametrize("discount_type,discount", [("AMOUNT", 10), ("PERCENT", 0.1)])
+def test_coupon_schema_accepts_executor_discount_types(discount_type, discount):
+    from app.domains.schemas import ConsumerCouponSchema, CouponDiscountType
+
+    model = ConsumerCouponSchema.model_validate({
+        "rule_id": "Rule_Jinan_Coupon_2030", "name": "Coupon", "policy_source": {}, "valid_period": {},
+        "coupon_types": [discount_type],
+        "tiers": [{"type": discount_type, "threshold": 100, "discount": discount}],
+        "distribution": {}, "usage_limits": {"merchant_types": ["retail", "dining"]}, "output": {},
+    })
+    assert model.coupon_types == [CouponDiscountType(discount_type)]
+    assert model.tiers[0].type == CouponDiscountType(discount_type)
+    assert model.usage_limits["merchant_types"] == ["retail", "dining"]
+
+
+def test_dsl_save_accepts_the_minimal_executable_engine_contract(tmp_path):
+    rule = {"rule_id": "minimal", "output": {"status": "QUALIFIED", "final_result": "0"}}
+    path = DSLGenerator(str(tmp_path)).save(yaml.safe_dump(rule))
+    assert yaml.safe_load(path.read_text(encoding="utf-8")) == rule
+    assert PolicyEngine(str(tmp_path)).execute("minimal", {})["final_result"] == "0"
+
+
+@pytest.mark.parametrize("output", [{}, {"status": "QUALIFIED"}, {"status": "QUALIFIED", "final_result": 0}])
+def test_dsl_save_rejects_invalid_outputs_before_writing(tmp_path, output):
+    generator = DSLGenerator(str(tmp_path))
+    with pytest.raises(ValueError, match="output"):
+        generator.save(yaml.safe_dump({"rule_id": "invalid", "output": output}))
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_dsl_atomic_write_preserves_existing_file_when_replace_fails(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+
+    module = importlib.import_module("app.agents.dsl_generator.dsl_generator")
+    path = tmp_path / "rule.yaml"
+    path.write_text("previous", encoding="utf-8")
+    monkeypatch.setattr(module.os, "replace", Mock(side_effect=OSError("replace failed")))
+    with pytest.raises(OSError, match="replace failed"):
+        module.atomic_write_text(path, "replacement")
+    assert path.read_text(encoding="utf-8") == "previous"
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_dsl_atomic_write_rejects_symlinks_without_changing_their_target(tmp_path):
+    from app.agents.dsl_generator.dsl_generator import atomic_write_text
+
+    target = tmp_path / "target.yaml"
+    target.write_text("previous", encoding="utf-8")
+    link = tmp_path / "link.yaml"
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, "winerror", None) != 1314:
+            raise
+        pytest.skip("Windows symbolic links require developer mode or elevated privilege")
+    with pytest.raises(ValueError, match="symbolic link"):
+        atomic_write_text(link, "replacement")
+    assert target.read_text(encoding="utf-8") == "previous"
+    assert link.is_symlink()
 
 
 def test_invalid_generated_yaml_is_a_visible_failure(tmp_path, monkeypatch):
@@ -179,7 +273,7 @@ def test_zero_values_survive_template_normalization(tmp_path):
 
 
 def test_zero_no_label_rate_does_not_receive_base_subsidy():
-    result = DSLRuntimeHelpers.appliance_subsidy({"price": 1000}, {"base_rate": 0.15, "no_label_rate": 0})
+    result = subsidy_calculations.appliance_subsidy({"price": 1000}, {"base_rate": 0.15, "no_label_rate": 0})
     assert result["rate"] == 0
     assert result["final_subsidy"] == 0
 
@@ -191,7 +285,7 @@ def test_coupon_check_failure_cannot_qualify(callback):
 
     context = {"available_quota_at": lambda *args: 100, "used_quota_total": lambda: 0, callback: fail}
     with pytest.raises(RuntimeError, match="store unavailable"):
-        DSLRuntimeHelpers.consumer_coupon(
+        subsidy_calculations.consumer_coupon(
             {"consumption_amount": 100, "coupon_type": "AMOUNT", "claim_time": "2025-01-01", "user_id": "u"},
             tiers=[{"type": "AMOUNT", "threshold": 0, "discount": 10}],
             distribution={"total_quota": 100, "quota_per_person": 1},
@@ -205,7 +299,7 @@ def test_auto_check_failure_cannot_qualify(callback):
         raise RuntimeError("eligibility store unavailable")
 
     with pytest.raises(RuntimeError, match="store unavailable"):
-        DSLRuntimeHelpers.auto_subsidy(
+        subsidy_calculations.auto_subsidy(
             {"invoice_no_tax": 100, "vehicle_type": None if callback == "classify_powertrain" else "NEV", "purchase_time": "2025-01-01", "claim_time": "2025-01-01", "buyer_id": "u"},
             limits={"dedupe_keys": ["buyer_id"], "per_person_max_cars": 1},
             matching={"tiers": [{"powertrain": "NEV", "min_ex_tax": 0, "max_ex_tax": None, "subsidy": 10}]},
@@ -245,6 +339,90 @@ def test_extractors_reject_non_object_or_invalid_json():
         domain._parse_json_response("[]")
 
 
+@pytest.mark.parametrize("response", ["{'name': 'policy'}", '{"name": "policy",}'])
+def test_domain_json_parser_rejects_repaired_quotes_or_trailing_commas(response):
+    with pytest.raises(ValueError):
+        DomainDrivenDSLGenerator._parse_json_response(response)
+
+
+@pytest.mark.parametrize("fenced", [False, True])
+def test_domain_json_parser_preserves_apostrophes_in_valid_values(fenced):
+    value = {"name": "O'Brien's policy"}
+    response = json.dumps(value)
+    if fenced:
+        response = f"```json\n{response}\n```"
+    assert DomainDrivenDSLGenerator._parse_json_response(response) == value
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("济南市汽车消费补贴", "auto"), ("购车消费券", "auto"),
+    ("家电消费补贴", "appliance"), ("商场消费券", "coupon"),
+])
+def test_policy_type_detection_keeps_specific_vehicle_signals(text, expected):
+    assert DSLExtractor._detect_policy_type(text) == expected
+
+
+def test_domain_time_repair_preserves_city_and_only_normalizes_exact_midnight():
+    data = {"rule_id": "Rule_Jinan_Auto_2030", "time_windows": [{
+        "start": "2030-01-01T24:00:00+08:00", "end": "2030-01-01T24:00:30+08:00",
+    }]}
+    fixed = DomainDrivenDSLGenerator._fix_common_issues(data, "汽车补贴")
+    assert fixed["rule_id"] == "Rule_Jinan_Car_2030"
+    assert fixed["time_windows"][0]["start"] == "2030-01-02 00:00:00+08:00"
+    assert fixed["time_windows"][0]["end"] == data["time_windows"][0]["end"]
+    assert data["time_windows"][0]["start"] == "2030-01-01T24:00:00+08:00"
+
+
+def test_document_table_extraction_preserves_an_empty_middle_column():
+    from app.agents.dsl_generator.document_parser import DocumentParser
+
+    tables = DocumentParser.extract_tables("| 类别 | 条件 | 金额 |\n| 汽车 | | 100 |")
+    assert tables == [[["类别", "条件", "金额"], ["汽车", "", "100"]]]
+
+
+@pytest.mark.parametrize("invoice,interval,expected", [
+    (0, "[min, max]", "QUALIFIED"), (100, "[min, max]", "QUALIFIED"),
+    (100, "[min, max)", "NOT_QUALIFIED"),
+])
+def test_vehicle_tiers_preserve_described_interval_boundaries(invoice, interval, expected):
+    tier = {"powertrain": "NEV", "min_ex_tax": None, "max_ex_tax": 100,
+            "subsidy": 10, "open_interval": interval}
+    prepared = TemplateRegistry._prepare_auto_payload({"tiers": [tier]})
+    for matching in ({"tiers": [tier]}, prepared["matching"]):
+        result = subsidy_calculations.auto_subsidy({
+            "invoice_no_tax": invoice, "vehicle_type": "NEV",
+            "purchase_time": "2030-01-01", "claim_time": "2030-01-01",
+        }, matching=matching)
+        assert result["status"] == expected
+
+
+@pytest.mark.parametrize("value", ["unknown", "", 2, float("nan")])
+def test_policy_boolean_parser_rejects_unknown_values(value):
+    with pytest.raises(ValueError):
+        subsidy_calculations._parse_policy_bool(value)
+
+
+@pytest.mark.parametrize("value", [False, 0, "false", "0"])
+def test_policy_boolean_parser_preserves_explicit_false(value):
+    assert subsidy_calculations._parse_policy_bool(value) is False
+
+
+@pytest.mark.parametrize("kind,value,expected", [
+    ("float", True, "INVALID_INPUT"), ("float", float("nan"), "INVALID_INPUT"),
+    ("float", float("inf"), "INVALID_INPUT"), ("integer", True, "INVALID_INPUT"),
+    ("integer", 1.5, "INVALID_INPUT"), ("integer", float("inf"), "INVALID_INPUT"),
+    ("float", 0, "QUALIFIED"), ("integer", "0", "QUALIFIED"),
+])
+def test_rule_numeric_inputs_preserve_zero_and_reject_invalid_values(tmp_path, kind, value, expected):
+    engine = PolicyEngine(str(tmp_path))
+    engine.rules["numbers"] = {"rule_id": "numbers", "inputs": [{"name": "value", "type": kind}],
+                               "output": {"status": "QUALIFIED", "final_result": "{{ inputs.value }}"}}
+    result = engine.execute("numbers", {"value": value})
+    assert result["status"] == expected
+    if expected == "QUALIFIED":
+        assert float(result["final_result"]) == 0
+
+
 def test_generator_preserves_input_and_zero_upper_bound(tmp_path):
     generator = DSLGenerator(str(tmp_path))
     data: dict[str, Any] = {"rule_id": "zero", "policy_source": {"title": "  Original  "}, "inputs": [{"name": "price"}], "tiers": [{"range": [-1, 0]}], "output": {"status": "QUALIFIED", "final_result": "0"}}
@@ -261,7 +439,7 @@ def test_comparator_includes_required_comparison_type():
     agent = object.__new__(namespace["PolicyComparatorAgent"])
     agent.comparison_dimensions = {}
     docs = [SimpleNamespace(id=uuid4(), title="one"), SimpleNamespace(id=uuid4(), title="two")]
-    result = asyncio.run(agent._compare_policies(docs, uuid4(), "all"))
+    result = agent._compare_policies(docs, uuid4(), "all")
     assert result.comparison_type == "all"
 
 
@@ -270,7 +448,7 @@ def test_answer_quality_uses_declared_weights_and_memory_protocol():
     agent = object.__new__(namespace["AnswerGeneratorAgent"])
     agent.quality_criteria = {"completeness": 0.3, "accuracy": 0.3, "clarity": 0.2, "practicality": 0.2}
     answer = GeneratedAnswer(query_id=uuid4(), answer="## 建议" + "a" * 500, sources=[], confidence=1, evidence=["one", "two", "three"], assumptions=[], limitations=[], followup_questions=[])
-    assert asyncio.run(agent._validate_answer_quality(answer)) == 1
+    assert agent._validate_answer_quality(answer) == 1
 
 
 def test_unsupported_embedding_backend_is_visible():
@@ -398,7 +576,7 @@ def test_graph_storage_close_failure_still_releases_owned_reranker():
 
 @pytest.mark.parametrize("query,value", [("申请材料", "document_requirement"), ("联系电话", "contact_info"), ("查询进度", "status_inquiry")])
 def test_query_analyzer_declared_intents_match_keyword_mapping(query, value):
-    from app.models.base import AgentType, PolicyType, QueryIntent
+    from app.models.policy import AgentType, PolicyType, QueryIntent
 
     class Base:
         def __init__(self, **kwargs):
@@ -458,7 +636,7 @@ def test_policy_analysis_shared_assistant_serializes_requests():
     ns = load_definitions('app/agents/packs/policy_analysis/node.py', {'PolicyAnalyzerAgent'},
                           ReactiveAgent=object, asyncio=asyncio, json=json,
                           TextMessage=lambda **kwargs: kwargs, CancellationToken=lambda: None,
-                          nlp_extraction_user_prompt=lambda *args: 'test')
+                          build_nlp_extraction_user_prompt=lambda *args: 'test')
     agent = object.__new__(ns['PolicyAnalyzerAgent'])
     agent.model_client = object()
     agent._assistant_lock = asyncio.Lock()
@@ -524,7 +702,7 @@ def test_intent_classifier_rejects_malformed_model_result(response):
     ns = load_definitions('app/agents/packs/intent_router/utils.py', {'LLMIntentClassifier'},
                           asyncio=asyncio, IntentPrediction=IntentPrediction, AssistantAgent=object,
                           TextMessage=lambda **kwargs: kwargs, CancellationToken=object,
-                          intent_user_prompt=lambda query: query, intent_system_instruction=lambda: 'classify',
+                          build_intent_user_prompt=lambda query: query, INTENT_SYSTEM_INSTRUCTION='classify',
                           logging_manager=SimpleNamespace(log_llm_stream_start=lambda **kwargs: None,
                                                           log_llm_stream_end=lambda **kwargs: None,
                                                           log_llm_call=lambda **kwargs: None))
@@ -639,7 +817,7 @@ def test_vector_fusion_uses_real_zero_scores_and_unranked_documents(monkeypatch)
     {'requires_parallel': 'false'}, {'intent': 'invented_intent'},
     {'sub_intent': ['benefit']},
 ])
-def test_round4_pack_intent_json_rejects_invalid_contract(monkeypatch, change):
+def test_pack_intent_json_rejects_invalid_contract(monkeypatch, change):
     from app.agents.packs.intent_router import utils
     from unittest.mock import AsyncMock, Mock
 
@@ -654,7 +832,7 @@ def test_round4_pack_intent_json_rejects_invalid_contract(monkeypatch, change):
         asyncio.run(classifier.classify('补贴'))
 
 
-def test_round4_pack_intent_json_preserves_zero_and_false(monkeypatch):
+def test_pack_intent_json_preserves_zero_and_false(monkeypatch):
     from app.agents.packs.intent_router import utils
     from unittest.mock import AsyncMock, Mock
 
@@ -672,7 +850,7 @@ def test_round4_pack_intent_json_preserves_zero_and_false(monkeypatch):
 @pytest.mark.parametrize('pack,class_name', [
     ('intent_router', 'IntentRouterAgent'), ('query_analyzer', 'QueryAnalyzerAgent'),
 ])
-def test_round4_pack_processing_failure_does_not_fabricate_success(pack, class_name):
+def test_pack_processing_failure_does_not_fabricate_success(pack, class_name):
     module = importlib.import_module(f'app.agents.packs.{pack}.node')
     agent = object.__new__(getattr(module, class_name))
     agent.logger = logging.getLogger('pack-failure')
@@ -688,10 +866,10 @@ def test_round4_pack_processing_failure_does_not_fabricate_success(pack, class_n
 
 
 @pytest.mark.parametrize('text', ['', ' \n\t'])
-def test_round4_pack_empty_llm_answer_is_failure(text, monkeypatch):
+def test_pack_empty_llm_answer_is_failure(text, monkeypatch):
     from app.agents.packs.answer_generator.node import AnswerGeneratorAgent
     from autogen_agentchat.agents import AssistantAgent
-    from unittest.mock import AsyncMock, create_autospec
+    from unittest.mock import Mock, create_autospec
 
     agent = object.__new__(AnswerGeneratorAgent)
     agent._assistant_lock = asyncio.Lock()
@@ -699,14 +877,14 @@ def test_round4_pack_empty_llm_answer_is_failure(text, monkeypatch):
     assistant.on_messages.return_value = SimpleNamespace(
         chat_message=SimpleNamespace(to_text=lambda: text))
     agent._assistant = assistant
-    monkeypatch.setattr(agent, '_calculate_answer_confidence', AsyncMock(return_value=.8))
+    monkeypatch.setattr(agent, '_calculate_answer_confidence', Mock(return_value=.8))
     with pytest.raises(ValueError, match='empty'):
-        asyncio.run(agent._generate_with_llm({'query_id': uuid4(), 'intent': 'general'}, [], {}, 'general'))
+        asyncio.run(agent._generate_with_llm({'query_id': uuid4(), 'intent': 'general'}, [], {}))
 
 
-def test_round4_pack_larger_evidence_reaches_existing_confidence_weights():
+def test_pack_larger_evidence_reaches_existing_confidence_weights():
     from app.agents.packs.query_analyzer.node import QueryAnalyzerAgent
-    from app.models.base import QueryIntent
+    from app.models.policy import QueryIntent
 
     agent = object.__new__(QueryAnalyzerAgent)
     assert agent._calculate_confidence(QueryIntent.GENERAL_INQUIRY, ['e'] * 3, [], []) == pytest.approx(.6)
@@ -715,7 +893,7 @@ def test_round4_pack_larger_evidence_reaches_existing_confidence_weights():
     assert agent._calculate_confidence(QueryIntent.GENERAL_INQUIRY, [], ['k'] * 4, []) == pytest.approx(.7)
 
 
-def test_round4_pack_validated_prediction_reaches_both_consumers():
+def test_pack_validated_prediction_reaches_both_consumers():
     from app.agents.packs.intent_router.node import IntentRouterAgent
     from app.agents.packs.intent_router.utils import IntentPrediction, LLMIntentClassifier
     from app.agents.service.tools import IntentDetectionTool
@@ -740,7 +918,7 @@ def test_round4_pack_validated_prediction_reaches_both_consumers():
     ('你好补贴', 'greeting', .5, None),
     ('政策补贴申请条件流程', 'policy_inquiry', 1, 'eligibility'),
 ])
-def test_round4_pack_rule_sub_intent_belongs_to_its_candidate(
+def test_pack_rule_sub_intent_belongs_to_its_candidate(
     text, expected_intent, expected_confidence, expected_sub_intent
 ):
     from app.agents.packs.intent_router.node import IntentRouterAgent
@@ -758,7 +936,7 @@ def test_round4_pack_rule_sub_intent_belongs_to_its_candidate(
 
 
 @pytest.fixture
-def round4_json_review_payload():
+def review_payload():
     return {
         'relevance_score': 0.8, 'policy_summary': 'Existing subsidy',
         'key_points': ['Applications are open'], 'eligibility_criteria': ['Residents'],
@@ -774,14 +952,14 @@ def round4_json_review_payload():
     {'benefits': {'amount': 100}}, {'relevance_score': 2},
     {'confidence': False}, {'deadlines': None},
 ])
-def test_round4_json_policy_review_invalid_data_uses_explicit_fallback(
-    monkeypatch, caplog, round4_json_review_payload, change
+def test_json_policy_review_invalid_data_uses_explicit_fallback(
+    monkeypatch, caplog, review_payload, change
 ):
     from app.agents.packs.policy_review.node import PolicyReviewAgent
-    from app.models.base import PolicyDocument, PolicyType
+    from app.models.policy import PolicyDocument, PolicyType
     from unittest.mock import AsyncMock
 
-    payload = {**round4_json_review_payload, **change}
+    payload = {**review_payload, **change}
     agent = PolicyReviewAgent('review-json', {}, model_client=object())
     monkeypatch.setattr(agent, '_request_completion', AsyncMock(return_value=json.dumps(payload)))
     document = PolicyDocument(title='Subsidy', source='Local government', content='Subsidy policy',
@@ -792,14 +970,14 @@ def test_round4_json_policy_review_invalid_data_uses_explicit_fallback(
     assert any(record.exc_info for record in caplog.records)
 
 
-def test_round4_json_policy_review_preserves_zero_empty_and_optional_contact(
-    monkeypatch, round4_json_review_payload
+def test_json_policy_review_preserves_zero_empty_and_optional_contact(
+    monkeypatch, review_payload
 ):
     from app.agents.packs.policy_review.node import PolicyReviewAgent
-    from app.models.base import PolicyDocument, PolicyType
+    from app.models.policy import PolicyDocument, PolicyType
     from unittest.mock import AsyncMock
 
-    payload = {**round4_json_review_payload, 'relevance_score': 0, 'confidence': 0,
+    payload = {**review_payload, 'relevance_score': 0, 'confidence': 0,
                'key_points': [], 'eligibility_criteria': [], 'benefits': '', 'deadlines': ''}
     agent = PolicyReviewAgent('review-json', {}, model_client=object())
     monkeypatch.setattr(agent, '_request_completion', AsyncMock(return_value=json.dumps(payload)))
@@ -809,7 +987,7 @@ def test_round4_json_policy_review_preserves_zero_empty_and_optional_contact(
     assert result == payload
 
 
-def test_round4_json_policy_synthesis_rejects_broken_internal_analysis():
+def test_json_policy_synthesis_rejects_broken_internal_analysis():
     from app.agents.packs.policy_review.node import PolicyReviewAgent
 
     agent = PolicyReviewAgent('review-json', {}, model_client=object())
@@ -817,11 +995,11 @@ def test_round4_json_policy_synthesis_rejects_broken_internal_analysis():
                   'analysis': {'key_points': [], 'eligibility_criteria': [],
                                'benefits': '', 'deadlines': ''}}]
     with pytest.raises(KeyError, match='relevance_score'):
-        asyncio.run(agent._synthesize_analysis('query', documents))
+        agent._synthesize_analysis(documents)
 
 
 @pytest.fixture
-def round4_json_question_payload():
+def question_payload():
     return {
         'intent': 'Find subsidy eligibility', 'entities': ['Residents'],
         'keywords': ['subsidy'], 'policy_types': ['subsidy'],
@@ -836,27 +1014,27 @@ def round4_json_question_payload():
     {'policy_types': [False]}, {'confidence': True},
     {'time_constraints': ['tomorrow']}, {'location_constraints': 123},
 ])
-def test_round4_json_question_invalid_fields_use_rule_fallback(
-    monkeypatch, round4_json_question_payload, change
+def test_json_question_invalid_fields_use_rule_fallback(
+    monkeypatch, question_payload, change
 ):
     from app.agents.packs.question_builder.node import QuestionUnderstander
     from unittest.mock import AsyncMock
 
     agent = QuestionUnderstander('question-json', {}, model_client=object())
-    payload = {**round4_json_question_payload, **change}
+    payload = {**question_payload, **change}
     monkeypatch.setattr(agent, '_request_completion', AsyncMock(return_value=json.dumps(payload)))
     result = asyncio.run(agent._analyze_question('家电补贴条件'))
     assert result['reasoning'] == 'Rule-based analysis (fallback)'
     assert '补贴' in result['keywords']
 
 
-def test_round4_json_question_preserves_zero_and_missing_optional_constraints(
-    monkeypatch, round4_json_question_payload
+def test_json_question_preserves_zero_and_missing_optional_constraints(
+    monkeypatch, question_payload
 ):
     from app.agents.packs.question_builder.node import QuestionUnderstander
     from unittest.mock import AsyncMock
 
-    payload = {**round4_json_question_payload, 'confidence': 0, 'entities': [],
+    payload = {**question_payload, 'confidence': 0, 'entities': [],
                'keywords': [], 'policy_types': []}
     del payload['time_constraints'], payload['location_constraints']
     agent = QuestionUnderstander('question-json', {}, model_client=object())
@@ -869,7 +1047,7 @@ def test_round4_json_question_preserves_zero_and_missing_optional_constraints(
 
 
 @pytest.mark.parametrize('payload', [[{'invented': 'fact'}], [2], [False], [None]])
-def test_round4_json_nlp_rejects_nonstring_facts_without_losing_regex_evidence(payload, caplog):
+def test_json_nlp_rejects_nonstring_facts_without_losing_regex_evidence(payload, caplog):
     from app.agents.packs.policy_analysis.node import PolicyAnalyzerAgent
     from unittest.mock import AsyncMock
 
@@ -887,7 +1065,7 @@ def test_round4_json_nlp_rejects_nonstring_facts_without_losing_regex_evidence(p
 
 
 @pytest.mark.parametrize('facts', [[], ['fact'], [f'fact-{index}' for index in range(22)]])
-def test_round4_json_nlp_keeps_valid_strings_and_existing_twenty_fact_limit(facts):
+def test_json_nlp_keeps_valid_strings_and_existing_twenty_fact_limit(facts):
     from app.agents.packs.policy_analysis.node import PolicyAnalyzerAgent
     from unittest.mock import AsyncMock
 
@@ -900,7 +1078,7 @@ def test_round4_json_nlp_keeps_valid_strings_and_existing_twenty_fact_limit(fact
 
 
 @pytest.mark.parametrize('payload', [[{'invented': 'entity'}], [8], [False], {'entities': ['Policy']}])
-def test_round4_json_retriever_invalid_entities_use_existing_keyword_strategy(monkeypatch, payload):
+def test_json_retriever_invalid_entities_use_existing_keyword_strategy(monkeypatch, payload):
     from app.agents.packs.policy_retriever.node import PolicyRetriever
     from unittest.mock import AsyncMock
 
@@ -910,7 +1088,7 @@ def test_round4_json_retriever_invalid_entities_use_existing_keyword_strategy(mo
 
 
 @pytest.mark.parametrize('entities', [[], ['汽车', '']])
-def test_round4_json_retriever_preserves_valid_empty_entity_results(monkeypatch, entities):
+def test_json_retriever_preserves_valid_empty_entity_results(monkeypatch, entities):
     from app.agents.packs.policy_retriever.node import PolicyRetriever
     from unittest.mock import AsyncMock
 
@@ -922,7 +1100,7 @@ def test_round4_json_retriever_preserves_valid_empty_entity_results(monkeypatch,
 @pytest.mark.parametrize('payload', [{}, {'query': ''}, {'query': ' \t'},
                                      {'query': 42}, {'query': 'policy', 'filters': None}])
 @pytest.mark.parametrize('as_json', [False, True])
-def test_round4_json_retrieval_rejects_invalid_request_before_search(monkeypatch, payload, as_json):
+def test_json_retrieval_rejects_invalid_request_before_search(monkeypatch, payload, as_json):
     from app.agents.packs.policy_retriever.node import PolicyRetriever
     from unittest.mock import AsyncMock
 
@@ -935,7 +1113,7 @@ def test_round4_json_retrieval_rejects_invalid_request_before_search(monkeypatch
 
 
 @pytest.mark.parametrize('as_json', [False, True])
-def test_round4_json_retrieval_default_hybrid_keeps_vector_only_configuration(as_json):
+def test_json_retrieval_default_hybrid_keeps_vector_only_configuration(as_json):
     from app.agents.packs.policy_retriever.node import PolicyRetriever
     from unittest.mock import Mock
 
@@ -948,7 +1126,7 @@ def test_round4_json_retrieval_default_hybrid_keeps_vector_only_configuration(as
     search.assert_called_once_with('policy', top_k=5, threshold=0.7, filters={})
 
 
-def test_round4_json_explicit_graph_search_requires_configured_graph(monkeypatch):
+def test_json_explicit_graph_search_requires_configured_graph(monkeypatch):
     from app.agents.packs.policy_retriever.node import PolicyRetriever
     from unittest.mock import AsyncMock
 
@@ -962,25 +1140,25 @@ def test_round4_json_explicit_graph_search_requires_configured_graph(monkeypatch
 
 @pytest.mark.parametrize('query_fields', [{}, {'query': ''}, {'query': ' \t'}])
 @pytest.mark.parametrize('as_json', [False, True])
-def test_round4_json_policy_review_requires_query_before_analyzing(
-    monkeypatch, round4_json_review_payload, query_fields, as_json
+def test_json_policy_review_requires_query_before_analyzing(
+    monkeypatch, review_payload, query_fields, as_json
 ):
     from app.agents.packs.policy_review.node import PolicyReviewAgent
-    from app.models.base import PolicyDocument, PolicyType
+    from app.models.policy import PolicyDocument, PolicyType
     from unittest.mock import AsyncMock
 
     document = PolicyDocument(title='Policy', source='Government', content='Policy text',
                               doc_type=PolicyType.SUBSIDY)
     payload = {'documents': [document.model_dump(mode='json')], **query_fields}
     agent = PolicyReviewAgent('review-json', {}, model_client=object())
-    analyze = AsyncMock(return_value=round4_json_review_payload)
+    analyze = AsyncMock(return_value=review_payload)
     monkeypatch.setattr(agent, '_analyze_document', analyze)
     result = asyncio.run(agent.process_message(json.dumps(payload) if as_json else payload))
     assert result['success'] is False
     analyze.assert_not_awaited()
 
 
-def test_round4_json_policy_review_preserves_explicit_no_documents_error(monkeypatch):
+def test_json_policy_review_preserves_explicit_no_documents_error(monkeypatch):
     from app.agents.packs.policy_review.node import PolicyReviewAgent
     from unittest.mock import AsyncMock
 
@@ -993,18 +1171,18 @@ def test_round4_json_policy_review_preserves_explicit_no_documents_error(monkeyp
 
 
 @pytest.mark.parametrize('as_json', [False, True])
-def test_round4_json_policy_review_valid_request_reaches_synthesis(
-    monkeypatch, round4_json_review_payload, as_json
+def test_json_policy_review_valid_request_reaches_synthesis(
+    monkeypatch, review_payload, as_json
 ):
     from app.agents.packs.policy_review.node import PolicyReviewAgent
-    from app.models.base import PolicyDocument, PolicyType
+    from app.models.policy import PolicyDocument, PolicyType
     from unittest.mock import AsyncMock
 
     document = PolicyDocument(title='Policy', source='Government', content='Policy text',
                               doc_type=PolicyType.SUBSIDY)
     payload = {'query': 'policy', 'documents': [document.model_dump(mode='json')]}
     agent = PolicyReviewAgent('review-json', {}, model_client=object())
-    monkeypatch.setattr(agent, '_analyze_document', AsyncMock(return_value=round4_json_review_payload))
+    monkeypatch.setattr(agent, '_analyze_document', AsyncMock(return_value=review_payload))
     result = asyncio.run(agent.process_message(json.dumps(payload) if as_json else payload))
     assert result['success'] is True
     assert result['data']['document_analyses'][0]['document']['title'] == 'Policy'

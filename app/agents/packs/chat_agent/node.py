@@ -9,7 +9,7 @@ from autogen_core import MessageContext
 
 from app.agents.framework.base.base_agent import PolicyAgentBase
 from pydantic import BaseModel, Field
-from app.models.base import AgentType
+from app.models.policy import AgentType
 
 
 class ChatResponse(BaseModel):

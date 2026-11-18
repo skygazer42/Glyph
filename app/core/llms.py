@@ -3,21 +3,25 @@
 from typing import Any
 
 import httpx
-
-from app.config.app_config import settings
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
+from app.config.app_config import settings
 
-def _setup_model_client():
+
+def _create_model_client() -> OpenAIChatCompletionClient:
     """Construct the default model client from Settings."""
     model_settings = settings.model
-    if model_settings.llm_api_key is None:
+    if not model_settings.llm_api_key:
         raise ValueError("LLM_API_KEY is required to construct the model client")
     # AutoGen forwards this supported OpenAI transport option at runtime; its
     # configuration TypedDict omits the extension key in the installed version.
-    transport_options: dict[str, Any] = {"http_client": httpx.AsyncClient(trust_env=False)}
+    client_options: dict[str, Any] = {"http_client": httpx.AsyncClient(trust_env=False)}
+    if model_settings.llm_max_tokens is not None:
+        client_options["max_tokens"] = model_settings.llm_max_tokens
+    if model_settings.llm_timeout is not None:
+        client_options["timeout"] = model_settings.llm_timeout
     return OpenAIChatCompletionClient(
-        **transport_options,
+        **client_options,
         model=model_settings.llm_model_name,
         api_key=model_settings.llm_api_key,
         temperature=model_settings.llm_temperature,
@@ -33,6 +37,6 @@ def _setup_model_client():
     )
 
 
-model_client = _setup_model_client()
+model_client = _create_model_client()
 
 __all__ = ["model_client"]

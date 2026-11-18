@@ -6,8 +6,8 @@
 """
 
 import os
-from typing import List, Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from llama_index.core import (
     Document,
@@ -20,10 +20,11 @@ from llama_index.core.schema import NodeWithScore
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.vector_stores.milvus import MilvusVectorStore
 
-from app.config.app_config import settings
 from llama_index.embeddings.dashscope import DashScopeEmbedding, DashScopeTextEmbeddingModels, DashScopeTextEmbeddingType
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
+
+from app.config.app_config import settings
 
 
 class LlamaIndexHybridRetriever:
@@ -70,6 +71,8 @@ class LlamaIndexHybridRetriever:
             raise ValueError("dim must be positive")
         if not 0 <= alpha <= 1:
             raise ValueError("Alpha must be between 0 and 1")
+        if similarity_top_k <= 0:
+            raise ValueError("similarity_top_k must be positive")
         self.collection_name = collection_name
         self.alpha = alpha
         self.similarity_top_k = similarity_top_k
@@ -131,7 +134,8 @@ class LlamaIndexHybridRetriever:
             self._closed = True
             self.vector_store.client.close()
 
-    def _infer_dim(self) -> int:
+    @staticmethod
+    def _infer_dim() -> int:
         """从 settings 推断向量维度"""
         backend = settings.embedding.backend
 
@@ -141,7 +145,9 @@ class LlamaIndexHybridRetriever:
                 return 3072
             elif "3-small" in model_name:
                 return 1536
-            return 1536
+            if "ada-002" in model_name:
+                return 1536
+            return settings.embedding.dimension
         elif backend == "dashscope":
             # DashScope 默认使用配置的维度
             if settings.embedding.dashscope_dimension is not None:
@@ -151,7 +157,8 @@ class LlamaIndexHybridRetriever:
         # 默认使用 settings 中的配置
         return settings.embedding.dimension
 
-    def _setup_llama_settings(self):
+    @staticmethod
+    def _setup_llama_settings() -> None:
         """配置 LlamaIndex 全局设置"""
         backend = settings.embedding.backend
 
@@ -185,7 +192,8 @@ class LlamaIndexHybridRetriever:
         elif backend == "openai":
             Settings.embed_model = OpenAIEmbedding(
                 model=settings.embedding.openai_model,
-                api_key=settings.embedding.openai_api_key or os.getenv("OPENAI_API_KEY")
+                api_key=settings.embedding.openai_api_key or os.getenv("OPENAI_API_KEY"),
+                api_base=settings.embedding.openai_base_url,
             )
 
             # LLM 配置（使用 ModelSettings）
@@ -201,6 +209,8 @@ class LlamaIndexHybridRetriever:
 
             print(f"  Embedding: OpenAI {settings.embedding.openai_model}")
             print(f"  LLM: {settings.model.llm_model_name}")
+        else:
+            raise ValueError(f"Unsupported embedding backend: {backend}")
 
     def build_index(self, documents: List[Document]):
         """

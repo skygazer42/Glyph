@@ -3,20 +3,21 @@ LlamaIndex 集成模块 - 将分级索引集成到现有系统
 """
 
 
-import tempfile
-from uuid import UUID, NAMESPACE_URL, uuid5
-from typing import List, Dict, Optional, Tuple
-from pathlib import Path
 import asyncio
+import tempfile
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+from uuid import NAMESPACE_URL, UUID, uuid5
+
 import anyio
 
+from app.config.app_config import settings
 from app.knowledge.hierarchical_index import (
     HierarchicalIndexBuilder,
     HierarchicalRetriever,
     ChunkConfig
 )
-from app.config.app_config import settings
-from app.models.base import PolicyDocument, PolicyType
+from app.models.policy import PolicyDocument, PolicyType
 
 
 class LlamaIndexIntegration:
@@ -51,7 +52,7 @@ class LlamaIndexIntegration:
             self._build_index_sync, documents, chunk_size, chunk_overlap,
         )
 
-    def _build_index_sync(self, documents, chunk_size: int, chunk_overlap: int) -> bool:
+    def _build_index_sync(self, documents: List[PolicyDocument], chunk_size: int, chunk_overlap: int) -> bool:
         with tempfile.TemporaryDirectory(prefix="index-md-", dir=self.storage_dir) as temp_dir:
             md_files = []
             document_ids = {}

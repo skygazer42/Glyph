@@ -1,0 +1,4904 @@
+{
+  "files": [
+    {
+      "path": "app/knowledge/__init__.py",
+      "summary": "Read the entire module: a package docstring only, with no definitions or eager imports. Keep direct imports from the owning knowledge modules (NAM-003/DES-003).",
+      "definitions": [],
+      "changes": [],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions."
+      ]
+    },
+    {
+      "path": "app/knowledge/doc_enhanced.py",
+      "summary": "Reviewed all processor methods, nested reader callback, and six provider contracts. Retain the stateful processor and its synchronous worker boundaries; remove repeated input-shape guessing after Pydantic normalization.",
+      "definitions": [
+        {
+          "name": "MinerUEnvelope",
+          "kind": "class",
+          "line": 23,
+          "column": 0,
+          "end": 27,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/FUN-003: retain the explicit provider envelope; nonzero codes are handled before optional data is validated."
+          ]
+        },
+        {
+          "name": "MinerUUploadSlot",
+          "kind": "class",
+          "line": 30,
+          "column": 0,
+          "end": 33,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: batch_id and at least one upload URL are required at the HTTP boundary; retain this separate wire contract."
+          ]
+        },
+        {
+          "name": "MinerUMarkdownContent",
+          "kind": "class",
+          "line": 36,
+          "column": 0,
+          "end": 38,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DES-004: aliases describe the existing provider's actual text fields and are normalized once; optional text permits archive-only results."
+          ]
+        },
+        {
+          "name": "MinerUExtractedFile",
+          "kind": "class",
+          "line": 41,
+          "column": 0,
+          "end": 48,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-002: a pending task may lack text/archive/error fields, while echoed data_id and state are required."
+          ]
+        },
+        {
+          "name": "MinerUBatchFiles",
+          "kind": "class",
+          "line": 51,
+          "column": 0,
+          "end": 53,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: validate every response entry before polling inspects state; an empty list remains a valid pending batch."
+          ]
+        },
+        {
+          "name": "MinerUMetadata",
+          "kind": "class",
+          "line": 56,
+          "column": 0,
+          "end": 59,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "ERR-004: optional metadata is a separate response contract; a failed enrichment is not an empty document extraction."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor",
+          "kind": "class",
+          "line": 62,
+          "column": 0,
+          "end": 334,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "增强文档处理器 - 支持多种文档解析引擎",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the class because enabled parser modes, reader instances, credentials, and timeout settings are shared across methods; no generic factory is needed."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor.__init__",
+          "kind": "function",
+          "line": 65,
+          "column": 4,
+          "end": 90,
+          "parameters": [
+            "self",
+            "config"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/DAT-003: preserve explicit empty configuration, resolve settings at construction, and initialize only enabled readers; removed the invalid DOC-to-DocxReader mapping."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor.extract_text",
+          "kind": "async_function",
+          "line": 92,
+          "column": 4,
+          "end": 103,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "提取文本的统一接口",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/FUN-003: suffix dispatch keeps the str/Path boundary used by API callers; unsupported formats raise, and no extracted text remains Optional[str]."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._extract_from_pdf",
+          "kind": "async_function",
+          "line": 105,
+          "column": 4,
+          "end": 113,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "从PDF提取文本 - 多引擎支持",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-001/DES-004: selected parser failure propagates; retain real MinerU-versus-LlamaIndex modes without silently trying another engine."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._extract_with_mineru",
+          "kind": "async_function",
+          "line": 115,
+          "column": 4,
+          "end": 116,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/ASY-007: this short wrapper is necessary to keep requests, polling sleeps, and ZIP reads off the event loop; to_thread carries caller context."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._extract_with_mineru_sync",
+          "kind": "function",
+          "line": 118,
+          "column": 4,
+          "end": 130,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "使用 MinerU 在线接口：申请上传 → PUT 文件 → 提交解析 → 拉取结果",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: keep the upload-slot, upload, poll, and extract sequence together within one worker; missing credentials/content raise explicitly."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._extract_with_llamaindex",
+          "kind": "async_function",
+          "line": 133,
+          "column": 4,
+          "end": 140,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "使用LlamaIndex提取文档",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/ASY-007: changed run_in_executor/get_event_loop to the existing to_thread pattern so the synchronous reader inherits context."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._extract_with_llamaindex.read_documents",
+          "kind": "function",
+          "line": 135,
+          "column": 8,
+          "end": 138,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/FUN-004: retain the nested worker closure because it captures the selected path/reader; give it a concrete Optional[str] result and use the already-supported suffix directly."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._mineru_headers",
+          "kind": "function",
+          "line": 142,
+          "column": 4,
+          "end": 146,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: retain an instance method because it uses the configured API key; it returns the exact API-header mapping and does not configure signed object-storage requests."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._mineru_request_upload_link",
+          "kind": "function",
+          "line": 148,
+          "column": 4,
+          "end": 168,
+          "parameters": [
+            "self",
+            "file_name"
+          ],
+          "decorators": [],
+          "declared_role": "申请 MinerU 上传地址，返回 (upload_url, batch_id, data_id)。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/RES-001: validate the envelope and upload-slot fields before use, close the response, and return the concrete upload URL/batch/data identifiers."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._mineru_upload_file",
+          "kind": "function",
+          "line": 170,
+          "column": 4,
+          "end": 175,
+          "parameters": [
+            "self",
+            "upload_url",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "上传文件到 MinerU 提供的 OSS 预签名地址。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: both source file and HTTP response have context managers; preserve the signed-upload header restriction."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._mineru_poll_batch_result",
+          "kind": "function",
+          "line": 177,
+          "column": 4,
+          "end": 198,
+          "parameters": [
+            "self",
+            "batch_id",
+            "data_id"
+          ],
+          "decorators": [],
+          "declared_role": "轮询 MinerU 批量任务结果，直到找到对应 data_id。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-001: return the validated MinerUExtractedFile instead of dumping it back into an untyped dict; monotonic polling raises on failure/timeout."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._mineru_extract_markdown",
+          "kind": "function",
+          "line": 200,
+          "column": 4,
+          "end": 208,
+          "parameters": [
+            "self",
+            "payload"
+          ],
+          "decorators": [],
+          "declared_role": "Read the canonical fields already validated at the API boundary.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/DES-004: consume canonical model fields directly; removed duplicate alias probing/isinstance handling after the API boundary has normalized the result."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._mineru_download_md_from_zip",
+          "kind": "function",
+          "line": 210,
+          "column": 4,
+          "end": 223,
+          "parameters": [
+            "self",
+            "zip_url"
+          ],
+          "decorators": [],
+          "declared_role": "下载 MinerU 提供的 zip，并提取 full.md / 任意 .md。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-001: prefer nested full.md, retain the archive's supported Markdown fallback, and decode strictly so damaged UTF-8 is visible."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._extract_from_docx",
+          "kind": "async_function",
+          "line": 225,
+          "column": 4,
+          "end": 230,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "从DOCX提取文本",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/ERR-001: retain the explicit enabled-reader guard and asynchronous worker delegation for DOCX."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._extract_from_text",
+          "kind": "async_function",
+          "line": 233,
+          "column": 4,
+          "end": 240,
+          "parameters": [
+            "file_path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "从TXT/MD提取文本",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/ERR-002/ASY-001: changed to a static async path transform because no processor state is used; only decode failures select the next supported encoding and final failure propagates."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor.extract_with_metadata",
+          "kind": "async_function",
+          "line": 242,
+          "column": 4,
+          "end": 275,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "提取文本和元数据",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/ERR-004: text extraction, file metadata, and optional provider enrichment remain sequential; file stat/enrichment run in workers and HTTP enrichment failure is logged."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._fetch_mineru_metadata",
+          "kind": "function",
+          "line": 277,
+          "column": 4,
+          "end": 287,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-004: retain closed file/response scopes; success=False maps only this optional enrichment to no additional metadata."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._get_extraction_method",
+          "kind": "function",
+          "line": 289,
+          "column": 4,
+          "end": 298,
+          "parameters": [
+            "self",
+            "file_type"
+          ],
+          "decorators": [],
+          "declared_role": "获取使用的提取方法",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/NAM-001: retain an instance method because the PDF label depends on the configured engine; remove the unsupported DOC label."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor.get_supported_formats",
+          "kind": "function",
+          "line": 300,
+          "column": 4,
+          "end": 310,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "获取支持的文件格式",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: derive advertised formats from enabled parsers; DOCX remains supported and binary DOC is no longer advertised as parseable by DocxReader."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor.test_engines",
+          "kind": "function",
+          "line": 312,
+          "column": 4,
+          "end": 320,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "测试各个引擎是否可用",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the explicit diagnostic dictionary; boolean availability is this health interface's result, not a fabricated extraction result."
+          ]
+        },
+        {
+          "name": "EnhancedDocumentProcessor._test_mineru",
+          "kind": "function",
+          "line": 322,
+          "column": 4,
+          "end": 334,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "测试MinerU连接",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-002/RES-001: expected HTTP failures become False only in this named health check, with a bounded request and closed response."
+          ]
+        }
+      ],
+      "changes": [
+        "NAM-003/NAM-005: group standard-library, third-party, and project imports at module scope.",
+        "ASY-007: use asyncio.to_thread for the LlamaIndex reader worker; rename/type the nested callback.",
+        "DAT-001/FUN-004: retain validated MinerUExtractedFile between polling and extraction instead of dumping/reprobing dicts.",
+        "ERR-001/RES-001: read nested full.md preferentially and reject invalid UTF-8 in ZIP text.",
+        "FUN-001: remove unsupported binary DOC advertisement/mapping; DOCX and other actual engines remain.",
+        "CLS-004: make the pure text-file async conversion static."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Binary DOC was already unparseable by DocxReader; these parsers now report only supported formats. Source-workspace upload support is a separate interface and was not removed.",
+        "Provider HTTP behavior and reader execution were not exercised."
+      ],
+      "renamed_definitions": [
+        {
+          "name": "EnhancedDocumentProcessor._extract_with_llamaindex._process_with_llamaindex",
+          "renamed_to": "EnhancedDocumentProcessor._extract_with_llamaindex.read_documents",
+          "original_line": 140,
+          "kind": "function",
+          "review": "reviewed",
+          "notes": [
+            "The nested worker remains a genuine callback; name and Optional[str] contract now describe its actual document-read result."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/knowledge/document_loader.py",
+      "summary": "Reviewed the complete loader facade and every extraction/inference method. Keep the facade's shared format policy; mark pure file/text transformations as static methods and preserve the streaming/list entry points.",
+      "definitions": [
+        {
+          "name": "DocumentLoader",
+          "kind": "class",
+          "line": 20,
+          "column": 0,
+          "end": 417,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Load and process policy documents from various sources.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the established loading facade because directory iteration and single-file ingestion share the supported-format policy and metadata pipeline; flattening it would needlessly change real callers."
+          ]
+        },
+        {
+          "name": "DocumentLoader.__init__",
+          "kind": "function",
+          "line": 23,
+          "column": 4,
+          "end": 25,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Initialize the document loader.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: initialize the supported-format policy; remove binary DOC because no extraction branch supports it."
+          ]
+        },
+        {
+          "name": "DocumentLoader.iter_documents_from_directory",
+          "kind": "function",
+          "line": 27,
+          "column": 4,
+          "end": 50,
+          "parameters": [
+            "self",
+            "directory_path",
+            "limit"
+          ],
+          "decorators": [],
+          "declared_role": "Yield documents from a directory to avoid loading everything into memory.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-004/RES-002: annotate the streaming Iterator[PolicyDocument] contract; preserve lazy iteration and the existing zero-limit no-work behavior."
+          ]
+        },
+        {
+          "name": "DocumentLoader.load_from_directory",
+          "kind": "function",
+          "line": 52,
+          "column": 4,
+          "end": 59,
+          "parameters": [
+            "self",
+            "directory_path",
+            "limit"
+          ],
+          "decorators": [],
+          "declared_role": "Load supported documents from a directory (kept for compatibility).",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DES-004: keep the list adapter because agent_service uses it while import scripts use the streaming iterator; this is a real caller contract."
+          ]
+        },
+        {
+          "name": "DocumentLoader.load_single_file",
+          "kind": "function",
+          "line": 61,
+          "column": 4,
+          "end": 92,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "Load a single document file.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DAT-001: load content, infer metadata, then construct PolicyDocument; missing files/parser errors remain visible while genuinely empty documents return None."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_content",
+          "kind": "function",
+          "line": 94,
+          "column": 4,
+          "end": 104,
+          "parameters": [
+            "self",
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "Extract text content from file.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain instance dispatch to the cohesive extraction methods; unsupported suffixes raise."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_from_pdf",
+          "kind": "function",
+          "line": 107,
+          "column": 4,
+          "end": 120,
+          "parameters": [
+            "file_path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract text from PDF file.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/RES-001: changed to a static method because it only uses the supplied path; preserve the PDF file context and skip pages with no text."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_from_docx",
+          "kind": "function",
+          "line": 123,
+          "column": 4,
+          "end": 143,
+          "parameters": [
+            "file_path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract text from DOCX file.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to a static method; keep paragraph/table extraction in a single file-transform stage."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_from_text",
+          "kind": "function",
+          "line": 146,
+          "column": 4,
+          "end": 149,
+          "parameters": [
+            "file_path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract text from plain text file.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/RES-001: changed to a static method; the file context deterministically closes the source."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_metadata",
+          "kind": "function",
+          "line": 151,
+          "column": 4,
+          "end": 176,
+          "parameters": [
+            "self",
+            "file_path",
+            "content"
+          ],
+          "decorators": [],
+          "declared_role": "Extract metadata from file path and content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain the clear title/dates/departments/groups/regions/images assembly order; a missing inferred title legitimately uses the filename."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_title",
+          "kind": "function",
+          "line": 179,
+          "column": 4,
+          "end": 191,
+          "parameters": [
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract title from content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-002: changed to static; None means this heuristic found no title, not that parsing failed."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_images",
+          "kind": "function",
+          "line": 194,
+          "column": 4,
+          "end": 215,
+          "parameters": [
+            "file_path",
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract image paths from markdown and convert to serve-able URLs.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-004: changed to static; preserve mounted /resources URLs, existing external-path handling, and ordered image-link deduplication."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_dates",
+          "kind": "function",
+          "line": 217,
+          "column": 4,
+          "end": 244,
+          "parameters": [
+            "self",
+            "content"
+          ],
+          "decorators": [],
+          "declared_role": "Extract dates from content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-003: preserve the first successfully parsed value per date field so the less precise month pattern cannot overwrite a full publish date; malformed optional date candidates remain nonfatal heuristics."
+          ]
+        },
+        {
+          "name": "DocumentLoader._parse_chinese_date",
+          "kind": "function",
+          "line": 247,
+          "column": 4,
+          "end": 264,
+          "parameters": [
+            "date_str"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Parse Chinese date string.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-001: changed to static and removed unused format-string tuple elements; parsing still raises for unsupported dates."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_departments",
+          "kind": "function",
+          "line": 267,
+          "column": 4,
+          "end": 282,
+          "parameters": [
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract government departments from content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static; retain the current domain-specific optional metadata heuristics rather than redesigning recognition."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_target_groups",
+          "kind": "function",
+          "line": 285,
+          "column": 4,
+          "end": 309,
+          "parameters": [
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract target groups from content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-007: changed to static; fixed-keyword iteration already yields unique groups, so return the ordered list instead of unnecessarily converting through set."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_regions",
+          "kind": "function",
+          "line": 312,
+          "column": 4,
+          "end": 327,
+          "parameters": [
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract regions from content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static; retain this loader's current heuristic output; the Milvus storage contract does not persist these inferred regions."
+          ]
+        },
+        {
+          "name": "DocumentLoader._extract_keywords",
+          "kind": "function",
+          "line": 330,
+          "column": 4,
+          "end": 372,
+          "parameters": [
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Extract keywords from content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-007: changed to static; fixed-keyword iteration is already unique, so keep its deterministic order."
+          ]
+        },
+        {
+          "name": "DocumentLoader._generate_summary",
+          "kind": "function",
+          "line": 375,
+          "column": 4,
+          "end": 383,
+          "parameters": [
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Generate a summary of the content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static; keep the established first-paragraph/short-excerpt policy and string result."
+          ]
+        },
+        {
+          "name": "DocumentLoader._infer_source",
+          "kind": "function",
+          "line": 386,
+          "column": 4,
+          "end": 399,
+          "parameters": [
+            "file_path"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Infer source from file path.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-005: changed to static; source labels are explicit existing domain heuristics, not generalized permissions or provider fallbacks."
+          ]
+        },
+        {
+          "name": "DocumentLoader._infer_policy_type",
+          "kind": "function",
+          "line": 402,
+          "column": 4,
+          "end": 417,
+          "parameters": [
+            "content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Infer policy type from content.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-001: changed to static; retain the existing ordered classification rules and PolicyType result."
+          ]
+        }
+      ],
+      "changes": [
+        "CLS-004: mark thirteen pure extraction/inference methods static without changing their instance-call syntax.",
+        "FUN-004: add the streaming iterator and constructor return annotations.",
+        "DAT-003: prevent coarse month extraction from overwriting a precise parsed date.",
+        "DES-001: remove unused date-format tuple fields and redundant set conversions for fixed unique keyword lists.",
+        "FUN-001/NAM-005: advertise only implemented extraction formats and group imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "The geographic/department/date extractors are existing heuristics; this audit does not replace them with a new NLP algorithm.",
+        "Legacy .doc input needs a parser that actually supports binary DOC; it is no longer included in this loader's advertised formats."
+      ]
+    },
+    {
+      "path": "app/knowledge/document_workspace.py",
+      "summary": "Read every workspace method and both module functions. No additional source changes: retain the existing source/version comparisons, parse-versus-embed separation, OS lock protocol, exact character offsets, and atomic writes.",
+      "definitions": [
+        {
+          "name": "safe_document_id",
+          "kind": "function",
+          "line": 47,
+          "column": 0,
+          "end": 59,
+          "parameters": [
+            "raw_id"
+          ],
+          "decorators": [],
+          "declared_role": "Reject noncanonical identifiers instead of silently selecting a basename.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-001: keep explicit canonical-name validation, traversal/control-character rejection, and Windows reserved-name rejection at the path boundary."
+          ]
+        },
+        {
+          "name": "atomic_write",
+          "kind": "function",
+          "line": 62,
+          "column": 0,
+          "end": 77,
+          "parameters": [
+            "path",
+            "content"
+          ],
+          "decorators": [],
+          "declared_role": "An interrupted write cannot replace an existing complete preference file.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-003: retain the flushed/fsynced temporary-file replacement and finally cleanup; an interrupted write cannot truncate the previous preference/cache file."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace",
+          "kind": "class",
+          "line": 80,
+          "column": 0,
+          "end": 333,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the class because source/cache/status roots and version/config operations share one containment boundary; it deliberately owns no parser or vector client."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.__init__",
+          "kind": "function",
+          "line": 81,
+          "column": 4,
+          "end": 86,
+          "parameters": [
+            "self",
+            "upload_dir",
+            "parsed_dir",
+            "parsed_status_dir",
+            "embedded_dir"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: preserve explicit path dependencies and derive the processing directory from upload_dir; no new global filesystem side effect is introduced."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.contained_path",
+          "kind": "function",
+          "line": 88,
+          "column": 4,
+          "end": 92,
+          "parameters": [
+            "self",
+            "directory",
+            "filename"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001: retain symlink and resolved-root containment checks before any source/status access."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.source_path",
+          "kind": "function",
+          "line": 94,
+          "column": 4,
+          "end": 98,
+          "parameters": [
+            "self",
+            "doc_id",
+            "must_exist"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/FUN-003: canonicalize the document ID once and keep the real must_exist=False upload mode separate from normal 404 lookup."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.source_version",
+          "kind": "function",
+          "line": 100,
+          "column": 4,
+          "end": 101,
+          "parameters": [
+            "self",
+            "doc_id"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: hash exact source bytes, preserving same-mtime change detection rather than substituting timestamps."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.require_source_version",
+          "kind": "function",
+          "line": 103,
+          "column": 4,
+          "end": 107,
+          "parameters": [
+            "self",
+            "doc_id",
+            "expected"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-007/WEB-001: retain compare-and-swap conflict behavior; None is the established optional expected-version contract."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.parsed_path",
+          "kind": "function",
+          "line": 109,
+          "column": 4,
+          "end": 111,
+          "parameters": [
+            "self",
+            "doc_id"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001: retain canonical ID validation and guarded parsed-cache path construction."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.marker_path",
+          "kind": "function",
+          "line": 113,
+          "column": 4,
+          "end": 115,
+          "parameters": [
+            "self",
+            "directory",
+            "doc_id"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001: retain the shared containment boundary for processing/parse/embed markers."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.parsed_content",
+          "kind": "function",
+          "line": 117,
+          "column": 4,
+          "end": 139,
+          "parameters": [
+            "self",
+            "doc_id",
+            "source_version"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DES-004/ERR-001: preserve the concrete legacy-cache binding migration and hash validation; malformed JSON remains an error while absent/stale/empty caches are unavailable."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.store_parsed",
+          "kind": "function",
+          "line": 141,
+          "column": 4,
+          "end": 150,
+          "parameters": [
+            "self",
+            "doc_id",
+            "text",
+            "source_version",
+            "parser"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-007/RES-001: retain source-version comparison before atomically writing parsed text and its marker; it does not imply embedding."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.embedded",
+          "kind": "function",
+          "line": 152,
+          "column": 4,
+          "end": 162,
+          "parameters": [
+            "self",
+            "doc_id",
+            "source_version"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001: keep explicit source/parsed-version comparisons against the embed marker; absent or stale embedding is a legitimate False state."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.require_parsed_version",
+          "kind": "function",
+          "line": 164,
+          "column": 4,
+          "end": 171,
+          "parameters": [
+            "self",
+            "doc_id",
+            "source_version",
+            "expected"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001: retain the required available text/version checks and 409 conflict result before embedding; optional expected version is a real API contract."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.config",
+          "kind": "function",
+          "line": 173,
+          "column": 4,
+          "end": 178,
+          "parameters": [
+            "self",
+            "doc_id"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-005: preserve the owned default for a document with no saved config; validate persisted config rather than returning a guessed dict."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.validate_config",
+          "kind": "function",
+          "line": 180,
+          "column": 4,
+          "end": 192,
+          "parameters": [
+            "self",
+            "doc_id",
+            "config",
+            "capabilities"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DES-004: keep real parser/format/capability checks and explicit rejection of currently unsupported per-document OCR/hierarchical modes."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.document_lock",
+          "kind": "function",
+          "line": 195,
+          "column": 4,
+          "end": 215,
+          "parameters": [
+            "self",
+            "doc_id",
+            "operation"
+          ],
+          "decorators": [
+            "contextmanager"
+          ],
+          "declared_role": "OS locks guard compare-and-swap across workers and release on exit/crash.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-002/RES-004: retain the contextmanager yield protocol, nonblocking OS lock, and finally unlock across success/failure; it coordinates workers and is not a one-line wrapper to remove."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.save_config",
+          "kind": "function",
+          "line": 217,
+          "column": 4,
+          "end": 233,
+          "parameters": [
+            "self",
+            "doc_id",
+            "request",
+            "capabilities"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-007/FUN-002: validate, lock, compare source/revision, write a new revision, then return; preserve all conflict checks."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.pages",
+          "kind": "function",
+          "line": 235,
+          "column": 4,
+          "end": 260,
+          "parameters": [
+            "self",
+            "doc_id",
+            "source_version"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/FUN-001: PDF handles close around real reading; text-decoding alternatives are limited to the existing source encodings, and unsupported page formats return the established empty page list."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.workspace",
+          "kind": "function",
+          "line": 262,
+          "column": 4,
+          "end": 279,
+          "parameters": [
+            "self",
+            "doc_id",
+            "capabilities"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: keep source/pages/cache/config/version checks in order; page_mapping becomes exact only when exact text concatenation matches."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.page_image",
+          "kind": "function",
+          "line": 281,
+          "column": 4,
+          "end": 294,
+          "parameters": [
+            "self",
+            "doc_id",
+            "number",
+            "expected_version"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/RES-001: retain PDF-only/range validation, bounded document scope, and the post-render version comparison."
+          ]
+        },
+        {
+          "name": "DocumentWorkspace.preview",
+          "kind": "function",
+          "line": 296,
+          "column": 4,
+          "end": 333,
+          "parameters": [
+            "self",
+            "doc_id",
+            "request"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/FUN-002: preserve Unicode character slices, validated chunk bounds/overlap, exact-text page attribution, and the final source-version recheck."
+          ]
+        }
+      ],
+      "changes": [],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "No new workspace behavior was introduced; runtime lock, filesystem, PDF rendering, and CAS scenarios were not exercised."
+      ]
+    },
+    {
+      "path": "app/knowledge/faq_responder.py",
+      "summary": "Reviewed both models/classes and every matcher method. Retain the optional FAQ cache and stateful similarity matcher; validate the external threshold once at construction.",
+      "definitions": [
+        {
+          "name": "FAQEntry",
+          "kind": "class",
+          "line": 20,
+          "column": 0,
+          "end": 26,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: retain strict nonempty question/answer validation, whitespace stripping, and per-instance tags for the external JSON list."
+          ]
+        },
+        {
+          "name": "FAQResponder",
+          "kind": "class",
+          "line": 29,
+          "column": 0,
+          "end": 96,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Simple FAQ matcher that returns canned answers for high-frequency queries.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: retain the class because the loaded entries and match threshold are shared state used by repeated queries."
+          ]
+        },
+        {
+          "name": "FAQResponder.__init__",
+          "kind": "function",
+          "line": 32,
+          "column": 4,
+          "end": 44,
+          "parameters": [
+            "self",
+            "data_path",
+            "threshold"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-005: resolve the existing environment override and reject thresholds outside [0,1], including NaN, rather than silently disabling or broadening matching."
+          ]
+        },
+        {
+          "name": "FAQResponder._load_entries",
+          "kind": "function",
+          "line": 46,
+          "column": 4,
+          "end": 53,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/ERR-004: validate JSON with TypeAdapter; a genuinely absent optional FAQ cache logs a warning, while corrupt data propagates."
+          ]
+        },
+        {
+          "name": "FAQResponder.maybe_answer",
+          "kind": "function",
+          "line": 55,
+          "column": 4,
+          "end": 79,
+          "parameters": [
+            "self",
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "Only answer when当前问题与 FAQ 问法高度一致（≥阈值）。",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: preserve None for no sufficiently close FAQ and FinalAnswer for a hit; confidence and route metadata are populated from the actual match."
+          ]
+        },
+        {
+          "name": "FAQResponder._best_match",
+          "kind": "function",
+          "line": 81,
+          "column": 4,
+          "end": 96,
+          "parameters": [
+            "self",
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DAT-003: keep normalization, a local best-entry/score pair, and the explicit threshold comparison; no request data is stored on the responder."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001: validate FAQ_THRESHOLD/constructor threshold against [0,1]."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Similarity policy and the optional missing-cache behavior are preserved; no provider or query was executed."
+      ]
+    },
+    {
+      "path": "app/knowledge/hierarchical_index.py",
+      "summary": "Read all processor/builder/retriever methods, nested scoring callback/lambda, nested BaseRetriever adapter, and manual demos. Retain distinct shared processor/index/client state and genuine LlamaIndex protocol classes; repair data loss and invalid score integration without inventing ranking scores.",
+      "definitions": [
+        {
+          "name": "ChunkConfig",
+          "kind": "class",
+          "line": 46,
+          "column": 0,
+          "end": 68,
+          "parameters": [],
+          "decorators": [
+            "dataclass"
+          ],
+          "declared_role": "切块配置",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/DAT-006: retain the internal dataclass and per-instance keyword set; add construction-time window bounds rather than per-loop speculative fallbacks."
+          ]
+        },
+        {
+          "name": "ChunkConfig.__post_init__",
+          "kind": "function",
+          "line": 64,
+          "column": 4,
+          "end": 68,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/DAT-003: require positive chunk_size and 0 <= chunk_overlap < chunk_size so simple splitting can advance and all strategies share an honest configuration."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor",
+          "kind": "class",
+          "line": 71,
+          "column": 0,
+          "end": 560,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "分级 Markdown 处理器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: retain shared chunk settings, compiled heading pattern, and optional image indexer; pure helpers remain cohesive within the processor."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor.__init__",
+          "kind": "function",
+          "line": 74,
+          "column": 4,
+          "end": 82,
+          "parameters": [
+            "self",
+            "config",
+            "enable_images"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/DAT-002: the optional config/images switches are real caller modes; initialize the image indexer only when requested."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor.extract_hierarchy",
+          "kind": "function",
+          "line": 84,
+          "column": 4,
+          "end": 181,
+          "parameters": [
+            "self",
+            "text",
+            "doc_id"
+          ],
+          "decorators": [],
+          "declared_role": "提取文档的层级结构",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/ERR-001: keep level-three-and-deeper headings in the current content buffer before flushing, preventing previous subsection text from being overwritten/lost."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor.generate_section_summary",
+          "kind": "function",
+          "line": 183,
+          "column": 4,
+          "end": 227,
+          "parameters": [
+            "self",
+            "section_text",
+            "use_llm"
+          ],
+          "decorators": [],
+          "declared_role": "生成章节摘要",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/DES-004: retain the explicit LLM-versus-excerpt modes; the owned OpenAI client closes and missing model content raises."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor.create_nodes_from_hierarchy",
+          "kind": "function",
+          "line": 229,
+          "column": 4,
+          "end": 341,
+          "parameters": [
+            "self",
+            "hierarchy",
+            "use_llm",
+            "md_path",
+            "md_content"
+          ],
+          "decorators": [],
+          "declared_role": "从层级结构创建 LlamaIndex 节点",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/CLS-003: build document/section/chunk/image nodes with local relationship lists; image records/metadata now use the actual document ID and image nodes are document children."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor._split_into_chunks",
+          "kind": "function",
+          "line": 343,
+          "column": 4,
+          "end": 373,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "将文本切分为块",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-003/DES-001: remove unused section_id/path arguments and update every in-repo call; keep explicit strategies and the existing documented empty-keywords sentence mode."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor._split_simple",
+          "kind": "function",
+          "line": 375,
+          "column": 4,
+          "end": 408,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "简单的字符级滑动窗口切分（原有逻辑）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-008: stop when the final source character is consumed so trailing overlap is not emitted as a duplicate last chunk; keep existing sentence-boundary selection."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor._split_sentence",
+          "kind": "function",
+          "line": 410,
+          "column": 4,
+          "end": 434,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "使用 LlamaIndex SentenceSplitter 进行句子级切分",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain the library SentenceSplitter stage using configured token size/overlap; it has a distinct algorithm responsibility."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor._split_keyword_aware",
+          "kind": "function",
+          "line": 436,
+          "column": 4,
+          "end": 473,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "关键词感知切分",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DES-005: retain the existing sentence-then-keyword flow and current keyword policy; no alternate ranking/splitting framework is introduced."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor._split_by_keywords",
+          "kind": "function",
+          "line": 475,
+          "column": 4,
+          "end": 560,
+          "parameters": [
+            "self",
+            "text"
+          ],
+          "decorators": [],
+          "declared_role": "根据关键词边界切分文本",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-001: emit nonkeyword gaps with the existing simple splitter and retain short nonempty windows/tails instead of silently dropping document text; anchor/grouping rules are otherwise retained."
+          ]
+        },
+        {
+          "name": "HierarchicalMarkdownProcessor._split_by_keywords.<lambda>@490:35",
+          "kind": "lambda",
+          "line": 490,
+          "column": 35,
+          "end": 490,
+          "parameters": [
+            "x"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the local positional sort key; it has no state or external I/O and directly expresses keyword-position ordering."
+          ]
+        },
+        {
+          "name": "HierarchicalIndexBuilder",
+          "kind": "class",
+          "line": 563,
+          "column": 0,
+          "end": 699,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "分级索引构建器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the builder's storage root, processor, and document store as actual shared index-building state."
+          ]
+        },
+        {
+          "name": "HierarchicalIndexBuilder.__init__",
+          "kind": "function",
+          "line": 566,
+          "column": 4,
+          "end": 581,
+          "parameters": [
+            "self",
+            "storage_dir",
+            "embed_model_name"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: local storage creation belongs here; preserve the optional explicit embedding-model override and document store."
+          ]
+        },
+        {
+          "name": "HierarchicalIndexBuilder.build_from_markdown_files",
+          "kind": "function",
+          "line": 583,
+          "column": 4,
+          "end": 691,
+          "parameters": [
+            "self",
+            "file_paths",
+            "use_llm",
+            "enable_images",
+            "document_ids"
+          ],
+          "decorators": [],
+          "declared_role": "从 Markdown 文件构建分级索引",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DAT-001: keep read/parse/node/index/persist stages; include generated image_nodes in the scored chunk vector index instead of only saving unreachable image records; read required node type directly."
+          ]
+        },
+        {
+          "name": "HierarchicalIndexBuilder._save_indices",
+          "kind": "function",
+          "line": 693,
+          "column": 4,
+          "end": 699,
+          "parameters": [
+            "self",
+            "indices"
+          ],
+          "decorators": [],
+          "declared_role": "保存索引到磁盘",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: retain the owned per-index storage-directory/persistence stage; failure propagates instead of reporting an index as saved."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever",
+          "kind": "class",
+          "line": 702,
+          "column": 0,
+          "end": 994,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "分级检索器 - 实现三段式检索",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: retain actual persisted indices, document store, configured reranker, and optional image cache; it is not a stateless Helper container."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.__init__",
+          "kind": "function",
+          "line": 705,
+          "column": 4,
+          "end": 735,
+          "parameters": [
+            "self",
+            "storage_dir",
+            "use_rerank",
+            "enable_images"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/WEB-001: validate the supported reranker choices before resource creation; keep lazy optional image-cache loading and explicit configured reranker initialization."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._rank_by_retrieval_score",
+          "kind": "function",
+          "line": 738,
+          "column": 4,
+          "end": 745,
+          "parameters": [
+            "nodes",
+            "top_k"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "简单的基于分数的重排",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-002: changed to static because the established weighted sort only needs nodes/top_k; keep the local callback instead of adding a strategy abstraction."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._rank_by_retrieval_score.weighted_score",
+          "kind": "function",
+          "line": 740,
+          "column": 8,
+          "end": 743,
+          "parameters": [
+            "node"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DAT-001: keep the callback local to sorting; it reads required retrieval_score and the established node-type weights."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._dashscope_rerank",
+          "kind": "function",
+          "line": 747,
+          "column": 4,
+          "end": 758,
+          "parameters": [
+            "self",
+            "nodes",
+            "query",
+            "top_k"
+          ],
+          "decorators": [],
+          "declared_role": "使用 DashScope 重排",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/ERR-001: consume the actual (index,score,text) reranker contract and preserve provider failure instead of substituting original results."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._load_indices",
+          "kind": "function",
+          "line": 760,
+          "column": 4,
+          "end": 775,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "加载保存的索引",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/DES-004: retain existing optional persisted index directories; required availability is checked by the integration layer and loading errors remain visible."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.retrieve",
+          "kind": "function",
+          "line": 777,
+          "column": 4,
+          "end": 815,
+          "parameters": [
+            "self",
+            "query",
+            "top_k",
+            "use_rerank",
+            "retrieval_mode"
+          ],
+          "decorators": [],
+          "declared_role": "分级检索",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/FUN-001: reject unknown retrieval_mode instead of silently selecting direct mode; retain the supported top_k and optional rerank policies."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._hybrid_retrieve",
+          "kind": "function",
+          "line": 817,
+          "column": 4,
+          "end": 845,
+          "parameters": [
+            "self",
+            "query",
+            "top_k"
+          ],
+          "decorators": [],
+          "declared_role": "混合检索：同时从多个层级检索，然后融合结果",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/ERR-001: use the existing scored section/chunk indices; remove default SummaryIndex list recall, which returns unscored duplicate section nodes and violates _scored_node's numeric-score contract."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._hierarchical_retrieve",
+          "kind": "function",
+          "line": 847,
+          "column": 4,
+          "end": 884,
+          "parameters": [
+            "self",
+            "query",
+            "top_k"
+          ],
+          "decorators": [],
+          "declared_role": "层级检索：先检索章节，再检索该章节下的块",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain the existing section recall followed by related chunks and section context; this review does not replace the specialized retrieval algorithm."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._direct_retrieve",
+          "kind": "function",
+          "line": 886,
+          "column": 4,
+          "end": 898,
+          "parameters": [
+            "self",
+            "query",
+            "top_k"
+          ],
+          "decorators": [],
+          "declared_role": "直接检索：只从块索引检索",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain explicit chunk-only retrieval and normal empty results when this optional index is absent."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever._scored_node",
+          "kind": "function",
+          "line": 901,
+          "column": 4,
+          "end": 906,
+          "parameters": [
+            "result"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-001: retain the static conversion that copies a result node before attaching its required numeric score, avoiding shared index-node mutation."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.close",
+          "kind": "function",
+          "line": 908,
+          "column": 4,
+          "end": 911,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: retain explicit release of this retriever's owned reranker; clear ownership before closing."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.retrieve_with_images",
+          "kind": "function",
+          "line": 913,
+          "column": 4,
+          "end": 960,
+          "parameters": [
+            "self",
+            "query",
+            "top_k",
+            "image_only"
+          ],
+          "decorators": [],
+          "declared_role": "检索并返回图片结果",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DAT-002: retain the real image_only mode and resolution through the optional image cache; generated images now have a reachable vector-index path."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.get_query_engine",
+          "kind": "function",
+          "line": 962,
+          "column": 4,
+          "end": 994,
+          "parameters": [
+            "self",
+            "retrieval_mode",
+            "response_mode"
+          ],
+          "decorators": [],
+          "declared_role": "获取查询引擎",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the framework adapter and response synthesizer assembly; response mode validation is delegated to the actual LlamaIndex enum."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.get_query_engine.CustomRetriever",
+          "kind": "class",
+          "line": 966,
+          "column": 8,
+          "end": 979,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseRetriever"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/FUN-005: retain this nested BaseRetriever subclass because LlamaIndex requires the _retrieve protocol and it owns parent/mode state for this engine."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.get_query_engine.CustomRetriever.__init__",
+          "kind": "function",
+          "line": 967,
+          "column": 12,
+          "end": 970,
+          "parameters": [
+            "self",
+            "parent_retriever",
+            "mode"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/FUN-005: retain the required parent initializer and explicit parent-retriever/mode state."
+          ]
+        },
+        {
+          "name": "HierarchicalRetriever.get_query_engine.CustomRetriever._retrieve",
+          "kind": "function",
+          "line": 972,
+          "column": 12,
+          "end": 979,
+          "parameters": [
+            "self",
+            "query_bundle"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DAT-001: retain the QueryBundle hook and translate actual metadata scores into NodeWithScore; this short framework entry point is necessary."
+          ]
+        },
+        {
+          "name": "build_index_from_directory",
+          "kind": "function",
+          "line": 998,
+          "column": 0,
+          "end": 1017,
+          "parameters": [
+            "data_dir",
+            "storage_dir"
+          ],
+          "decorators": [],
+          "declared_role": "从目录构建索引",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DES-004: retain the existing manual/offline entry point because scripts and documentation reference directory index construction."
+          ]
+        },
+        {
+          "name": "test_retrieval",
+          "kind": "function",
+          "line": 1020,
+          "column": 0,
+          "end": 1056,
+          "parameters": [
+            "storage_dir"
+          ],
+          "decorators": [],
+          "declared_role": "测试检索功能",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/RES-001: retain the explicitly manual diagnostic demo and its finally-close ownership; it was inspected, never invoked by this audit."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001: validate chunk window bounds and configured retrieval/rerank mode names.",
+        "ERR-001: preserve content before nested Markdown headings, keyword gaps, and short keyword chunks.",
+        "DAT-008: avoid duplicate trailing overlap in simple chunking.",
+        "DES-001/FUN-003: remove unused section/path splitter parameters and migrate all three call sites.",
+        "DAT-001: attach image document IDs and parent links consistently, and actually include image nodes in the chunk vector index.",
+        "DAT-001: remove the unscored SummaryIndex list recall while preserving the useful scored section index and saved summary artifact.",
+        "NAM-003/NAM-005: use explicit owner imports and group standard/third-party/project imports.",
+        "CLS-004: make retrieval-score ranking static while retaining its nested sort callback."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Primary source confirmed the score mismatch at the declared lower bound v0.10.0 and in current main; requirements.txt has no upper pin, so this is not a proof about every installable future version.",
+        "SummaryIndex persistence is retained for existing artifacts; this review does not change the storage format or invent default relevance scores.",
+        "The specialized chunking/retrieval algorithms were not executed or benchmarked."
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/run-llama/llama_index/blob/v0.10.0/llama-index-core/llama_index/core/indices/list/base.py",
+          "version": "v0.10.0",
+          "note": "SummaryIndex.as_retriever defaults to DEFAULT list retrieval; similarity_top_k does not select the embedding retriever."
+        },
+        {
+          "url": "https://github.com/run-llama/llama_index/blob/v0.10.0/llama-index-core/llama_index/core/indices/list/retrievers.py",
+          "version": "v0.10.0",
+          "note": "The default SummaryIndexRetriever returns every node without a supplied score."
+        },
+        {
+          "url": "https://github.com/run-llama/llama_index/blob/v0.10.0/llama-index-core/llama_index/core/schema.py",
+          "version": "v0.10.0",
+          "note": "NodeWithScore.score defaults to None, which conflicts with this project's required numeric _scored_node contract."
+        },
+        {
+          "url": "https://github.com/run-llama/llama_index/blob/main/llama-index-core/llama_index/core/indices/list/retrievers.py",
+          "version": "main as read on 2026-11-17",
+          "note": "The same default no-score list-retriever behavior remains present. Source was read over HTTPS; no SDK/application was imported or executed."
+        }
+      ]
+    },
+    {
+      "path": "app/knowledge/hybrid_retrieval.py",
+      "summary": "Reviewed the entire in-memory two-stage BM25 implementation and file factory, including both sorting lambdas. Retain a separate network-free lexical retriever rather than merging it into the Milvus client.",
+      "definitions": [
+        {
+          "name": "HybridRetriever",
+          "kind": "class",
+          "line": 16,
+          "column": 0,
+          "end": 251,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "两阶段混合检索器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the document/chunk corpus and ID lookup as shared retrieval state; this network-free lexical implementation has a different lifecycle from Milvus."
+          ]
+        },
+        {
+          "name": "HybridRetriever.__init__",
+          "kind": "function",
+          "line": 24,
+          "column": 4,
+          "end": 40,
+          "parameters": [
+            "self",
+            "documents",
+            "chunked_documents"
+          ],
+          "decorators": [],
+          "declared_role": "Args:",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/DES-001: construct the ID lookup directly and delete the single-use one-line _build_document_index wrapper."
+          ]
+        },
+        {
+          "name": "HybridRetriever.retrieve",
+          "kind": "function",
+          "line": 42,
+          "column": 4,
+          "end": 111,
+          "parameters": [
+            "self",
+            "query",
+            "top_k_docs",
+            "top_k_chunks",
+            "chunk_strategy"
+          ],
+          "decorators": [],
+          "declared_role": "两阶段检索",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/ERR-001: keep document recall followed by chunk scoring; unsupported/unimplemented strategies fail explicitly, with zero limits as a real no-work result."
+          ]
+        },
+        {
+          "name": "HybridRetriever._recall_documents_bm25",
+          "kind": "function",
+          "line": 113,
+          "column": 4,
+          "end": 139,
+          "parameters": [
+            "self",
+            "query",
+            "top_k"
+          ],
+          "decorators": [],
+          "declared_role": "文档级BM25召回",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain corpus-wide document scoring and positive-score filtering with an explicit list-of-pairs result."
+          ]
+        },
+        {
+          "name": "HybridRetriever._recall_documents_bm25.<lambda>@137:28",
+          "kind": "lambda",
+          "line": 137,
+          "column": 28,
+          "end": 137,
+          "parameters": [
+            "x"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the direct score sort key; no wrapper is needed for a single tuple position."
+          ]
+        },
+        {
+          "name": "HybridRetriever._retrieve_chunks_bm25",
+          "kind": "function",
+          "line": 141,
+          "column": 4,
+          "end": 183,
+          "parameters": [
+            "self",
+            "query",
+            "candidate_chunks",
+            "top_k"
+          ],
+          "decorators": [],
+          "declared_role": "在候选chunks中进行BM25检索",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001: candidate chunks are constructed with required doc_score in retrieve, so read that field directly rather than silently filling zero."
+          ]
+        },
+        {
+          "name": "HybridRetriever._retrieve_chunks_bm25.<lambda>@181:31",
+          "kind": "lambda",
+          "line": 181,
+          "column": 31,
+          "end": 181,
+          "parameters": [
+            "x"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the direct chunk_score key because this method creates that required field immediately before sorting."
+          ]
+        },
+        {
+          "name": "HybridRetriever._extract_keywords",
+          "kind": "function",
+          "line": 186,
+          "column": 4,
+          "end": 209,
+          "parameters": [
+            "query"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "从查询中提取关键词",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static because the n-gram/stopword extraction depends only on the supplied query; the established heuristic is retained."
+          ]
+        },
+        {
+          "name": "HybridRetriever._calculate_bm25_score",
+          "kind": "function",
+          "line": 212,
+          "column": 4,
+          "end": 251,
+          "parameters": [
+            "keywords",
+            "text",
+            "title",
+            "k1"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "计算BM25分数（简化版）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-005: changed to static; keep the explicitly simplified BM25 formula rather than introducing a new scoring dependency or algorithm."
+          ]
+        },
+        {
+          "name": "create_hybrid_retriever_from_files",
+          "kind": "function",
+          "line": 256,
+          "column": 0,
+          "end": 369,
+          "parameters": [
+            "data_dir",
+            "chunking_strategy",
+            "chunk_size",
+            "chunk_overlap"
+          ],
+          "decorators": [],
+          "declared_role": "从Markdown文件创建HybridRetriever",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-001/FUN-002: unreadable Markdown now fails with its path/cause instead of claiming a complete retriever; relative-path document IDs avoid same-stem collisions across directories; updated splitter calls after unused-parameter removal."
+          ]
+        }
+      ],
+      "changes": [
+        "DES-001: inline and delete the single-use _build_document_index method.",
+        "CLS-004/DAT-001: mark pure scoring/tokenization static and use the established candidate doc_score contract directly.",
+        "ERR-001/ERR-003: surface document read failures instead of silently producing a partial corpus.",
+        "DAT-001: use corpus-relative paths as stable unique document IDs instead of colliding filename stems.",
+        "FUN-003/NAM-005: remove obsolete splitter arguments/local variables and group imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "The existing diagnostic prints and simplified BM25 formula remain part of this standalone utility; no retrieval benchmark was run."
+      ],
+      "removed_definitions": [
+        {
+          "name": "HybridRetriever._build_document_index",
+          "original_line": 43,
+          "kind": "function",
+          "review": "reviewed",
+          "notes": [
+            "Only called by the constructor; the one-line ID-map assignment now lives directly in __init__."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/knowledge/image_retrieval.py",
+      "summary": "Read the image data structure, extraction/indexing classes, all helpers, and manual example. Keep data as a dataclass and shared regex/index state as classes; preserve every saved image field across reload.",
+      "definitions": [
+        {
+          "name": "ImageInfo",
+          "kind": "class",
+          "line": 21,
+          "column": 0,
+          "end": 50,
+          "parameters": [],
+          "decorators": [
+            "dataclass"
+          ],
+          "declared_role": "图片信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005: retain the internal dataclass with explicit required identity/path fields and real optional image/QR metadata; it is an internal record, not a Web request model."
+          ]
+        },
+        {
+          "name": "ImageExtractor",
+          "kind": "class",
+          "line": 53,
+          "column": 0,
+          "end": 231,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "从 Markdown 文档中提取图片信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: retain the shared compiled Markdown/caption patterns and the cohesive image-enrichment pipeline."
+          ]
+        },
+        {
+          "name": "ImageExtractor.__init__",
+          "kind": "function",
+          "line": 56,
+          "column": 4,
+          "end": 66,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: prepare the two reusable regex patterns only; no file/network/model operation happens at import or construction."
+          ]
+        },
+        {
+          "name": "ImageExtractor.extract_images_from_markdown",
+          "kind": "function",
+          "line": 68,
+          "column": 4,
+          "end": 121,
+          "parameters": [
+            "self",
+            "md_path",
+            "md_content"
+          ],
+          "decorators": [],
+          "declared_role": "从 Markdown 文件中提取所有图片信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/CLS-003: keep per-call image records local and apply context/caption/file/QR/text enrichment in order; hash IDs are explicitly nonsecurity identities."
+          ]
+        },
+        {
+          "name": "ImageExtractor._extract_context",
+          "kind": "function",
+          "line": 123,
+          "column": 4,
+          "end": 134,
+          "parameters": [
+            "self",
+            "image_info",
+            "content",
+            "position",
+            "context_size"
+          ],
+          "decorators": [],
+          "declared_role": "提取图片前后的文本上下文",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: keep this instance method because it uses the compiled image pattern to find the exact marker end."
+          ]
+        },
+        {
+          "name": "ImageExtractor._extract_caption",
+          "kind": "function",
+          "line": 136,
+          "column": 4,
+          "end": 155,
+          "parameters": [
+            "self",
+            "image_info",
+            "lines",
+            "line_num"
+          ],
+          "decorators": [],
+          "declared_role": "提取图片说明（查找图片下方的\"图：\"说明）",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: stop at any new Markdown image marker, including nonempty alt text, so the next image's caption cannot be stolen."
+          ]
+        },
+        {
+          "name": "ImageExtractor._get_image_metadata",
+          "kind": "function",
+          "line": 158,
+          "column": 4,
+          "end": 178,
+          "parameters": [
+            "image_info"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "获取图片文件的元数据",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/ERR-004/RES-001: changed to static with an explicit None result because it only enriches the supplied record; retain optional dimensions/hash diagnostics and owned file/image scopes."
+          ]
+        },
+        {
+          "name": "ImageExtractor._detect_qrcode",
+          "kind": "function",
+          "line": 181,
+          "column": 4,
+          "end": 202,
+          "parameters": [
+            "image_info"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "检测图片是否包含二维码",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/ERR-004/RES-001: changed to static with an explicit None result; retain optional QR recognition and explicit unreadable/non-UTF-8 diagnostics with closed image scopes."
+          ]
+        },
+        {
+          "name": "ImageExtractor._generate_embedding_text",
+          "kind": "function",
+          "line": 205,
+          "column": 4,
+          "end": 231,
+          "parameters": [
+            "image_info"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "生成用于向量化的文本",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-002: changed to static because the cohesive filename/alt/caption/QR/context conversion only depends on the supplied image record."
+          ]
+        },
+        {
+          "name": "ImageIndexer",
+          "kind": "class",
+          "line": 234,
+          "column": 0,
+          "end": 336,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "图片索引器 - 将图片信息加入到分级索引中",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: retain the extractor and persistent image_id-to-record mapping as real shared index state."
+          ]
+        },
+        {
+          "name": "ImageIndexer.__init__",
+          "kind": "function",
+          "line": 237,
+          "column": 4,
+          "end": 239,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/FUN-004: initialize the extractor and give the shared mapping a concrete Dict[str,ImageInfo] annotation."
+          ]
+        },
+        {
+          "name": "ImageIndexer.process_markdown_with_images",
+          "kind": "function",
+          "line": 241,
+          "column": 4,
+          "end": 274,
+          "parameters": [
+            "self",
+            "md_path",
+            "md_content"
+          ],
+          "decorators": [],
+          "declared_role": "处理 Markdown 文档，提取图片并创建图片节点",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain the conversion from discovered records to image-node content/metadata and store those same records for later image resolution."
+          ]
+        },
+        {
+          "name": "ImageIndexer.get_images_for_nodes",
+          "kind": "function",
+          "line": 276,
+          "column": 4,
+          "end": 288,
+          "parameters": [
+            "self",
+            "retrieved_nodes"
+          ],
+          "decorators": [],
+          "declared_role": "Resolve retrieved image nodes to their stored image information.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001: image nodes created by this module require image_id, so read it directly; an absent optional saved image record remains a normal unresolved cache entry."
+          ]
+        },
+        {
+          "name": "ImageIndexer.format_image_results",
+          "kind": "function",
+          "line": 291,
+          "column": 4,
+          "end": 315,
+          "parameters": [
+            "images"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "格式化图片搜索结果",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/FUN-001: changed to static because formatting only needs the supplied image list; retain optional caption/QR/dimensions and the normal no-image message."
+          ]
+        },
+        {
+          "name": "ImageIndexer.save_index",
+          "kind": "function",
+          "line": 317,
+          "column": 4,
+          "end": 324,
+          "parameters": [
+            "self",
+            "save_path"
+          ],
+          "decorators": [],
+          "declared_role": "保存图片索引到文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/ERR-001: serialize complete dataclass records with asdict so dimensions, alt text, context, hashes, and positions survive persistence."
+          ]
+        },
+        {
+          "name": "ImageIndexer.load_index",
+          "kind": "function",
+          "line": 326,
+          "column": 4,
+          "end": 336,
+          "parameters": [
+            "self",
+            "load_path"
+          ],
+          "decorators": [],
+          "declared_role": "从文件加载图片索引",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DES-004/CLS-003: accept the actual older saved records that omitted section_id/defaulted fields; construct the replacement mapping locally before assigning it so a malformed record cannot clear the current live store."
+          ]
+        }
+      ],
+      "changes": [
+        "FUN-001: recognize every new Markdown image marker as a caption boundary.",
+        "DAT-001/FUN-004: make image IDs required for image nodes and annotate the index mapping.",
+        "CLS-005: use dataclasses.asdict to persist the complete image record, preserving the existing top-level images format.",
+        "ERR-003/DES-004: rebuild the loaded mapping locally and retain compatibility with existing indexes that omitted section_id.",
+        "NAM-005: group imports without changing optional enrichment semantics.",
+        "CLS-004: make stateless image enrichment/text/result transformations static; keep regex/state-dependent operations as instance methods."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Existing saved indexes cannot recover fields they never stored; defaults apply to those specific historical fields.",
+        "Image/QR enrichment remains intentionally optional and logs its failures; no image decoder was invoked."
+      ]
+    },
+    {
+      "path": "app/knowledge/llamaindex_hybrid_retrieval.py",
+      "summary": "Read every public/private retriever method and the manual Milvus example. Retain the actual synchronous client/index lifecycle and the framework settings adapter, while rejecting invalid modes/limits and honoring explicit embedding configuration.",
+      "definitions": [
+        {
+          "name": "LlamaIndexHybridRetriever",
+          "kind": "class",
+          "line": 30,
+          "column": 0,
+          "end": 335,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "基于 LlamaIndex 和 Milvus 的混合检索器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain owned Milvus vector storage, storage context, index, query engine, and alpha state; this resourceful SDK-backed class is separate from the lexical in-memory retriever."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever.__init__",
+          "kind": "function",
+          "line": 41,
+          "column": 4,
+          "end": 129,
+          "parameters": [
+            "self",
+            "collection_name",
+            "uri",
+            "token",
+            "dim",
+            "alpha",
+            "similarity_top_k",
+            "overwrite"
+          ],
+          "decorators": [],
+          "declared_role": "初始化混合检索器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/WEB-001: keep explicit optional connection/dimension inputs and cleanup after storage-context failure; reject nonpositive similarity_top_k before client creation."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever.close",
+          "kind": "function",
+          "line": 131,
+          "column": 4,
+          "end": 135,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Close the synchronous Milvus client owned by this retriever.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: retain the explicit owned synchronous Milvus client close and idempotent closed flag; no unrelated global client is closed."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever._infer_dim",
+          "kind": "function",
+          "line": 138,
+          "column": 4,
+          "end": 158,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "从 settings 推断向量维度",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-005: changed to static because this configuration-derived dimension does not use instance state; retain known provider dimensions and honor configured generic dimensions for other OpenAI models."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever._setup_llama_settings",
+          "kind": "function",
+          "line": 161,
+          "column": 4,
+          "end": 213,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "配置 LlamaIndex 全局设置",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DAT-001: changed to static because the method configures process-wide LlamaIndex Settings; honor the OpenAI embedding base URL and reject unsupported backends instead of retaining stale settings."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever.build_index",
+          "kind": "function",
+          "line": 215,
+          "column": 4,
+          "end": 233,
+          "parameters": [
+            "self",
+            "documents"
+          ],
+          "decorators": [],
+          "declared_role": "从文档构建索引",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain explicit document-to-index construction followed by query-engine creation; SDK failures remain visible."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever.load_index",
+          "kind": "function",
+          "line": 235,
+          "column": 4,
+          "end": 249,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "加载已存在的索引",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the distinct load-existing-index entry point; it assembles its query engine after a successful load."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever._create_query_engine",
+          "kind": "function",
+          "line": 251,
+          "column": 4,
+          "end": 266,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "创建混合检索查询引擎",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002: retain the actual hybrid-retriever/query-engine assembly boundary and required initialized-index guard."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever.query",
+          "kind": "function",
+          "line": 268,
+          "column": 4,
+          "end": 292,
+          "parameters": [
+            "self",
+            "query_str"
+          ],
+          "decorators": [],
+          "declared_role": "执行混合检索查询",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-001: retain the stable response/source_nodes dictionary and initialized-engine requirement; results come from the actual SDK query."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever.retrieve",
+          "kind": "function",
+          "line": 294,
+          "column": 4,
+          "end": 318,
+          "parameters": [
+            "self",
+            "query_str"
+          ],
+          "decorators": [],
+          "declared_role": "仅执行检索，不生成回答",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain retrieval without response synthesis, using this instance's alpha/top_k and returning NodeWithScore objects."
+          ]
+        },
+        {
+          "name": "LlamaIndexHybridRetriever.update_alpha",
+          "kind": "function",
+          "line": 320,
+          "column": 4,
+          "end": 335,
+          "parameters": [
+            "self",
+            "alpha"
+          ],
+          "decorators": [],
+          "declared_role": "更新 alpha 权重参数",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001: retain the bounded [0,1] update and rebuild only the existing engine; invalid values fail visibly."
+          ]
+        },
+        {
+          "name": "load_documents_from_dir",
+          "kind": "function",
+          "line": 338,
+          "column": 0,
+          "end": 360,
+          "parameters": [
+            "data_dir"
+          ],
+          "decorators": [],
+          "declared_role": "从目录加载文档",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/RES-001: retain the existing directory-reader boundary and explicit Markdown/text source types; it serves the manual construction flow."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001: reject nonpositive similarity_top_k before creating a client.",
+        "DAT-005: honor settings.embedding.dimension for custom OpenAI embedding models.",
+        "DAT-001: pass settings.embedding.openai_base_url to OpenAIEmbedding.",
+        "ERR-001: reject unknown embedding backends explicitly.",
+        "NAM-005: keep project imports separate from third-party SDK imports.",
+        "CLS-004: declare configuration-only dimension/settings stages static."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "The project allows broad LlamaIndex/Milvus versions; this audit did not instantiate SDK clients or validate transport behavior.",
+        "Existing process-wide LlamaIndex Settings and alpha/ranker behavior are preserved; no new retrieval weighting algorithm was introduced."
+      ]
+    },
+    {
+      "path": "app/knowledge/llamaindex_integration.py",
+      "summary": "Read all integration/facade methods, both nested/background work callbacks, and the manual demo. Keep persistent-index and optional-agent modes as real responsibilities; make the synchronous build boundary's document type explicit.",
+      "definitions": [
+        {
+          "name": "LlamaIndexIntegration",
+          "kind": "class",
+          "line": 23,
+          "column": 0,
+          "end": 150,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "LlamaIndex 分级索引集成",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-003: retain the storage path, availability state, and owned retriever as one persistent-index integration responsibility."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration.__init__",
+          "kind": "function",
+          "line": 26,
+          "column": 4,
+          "end": 36,
+          "parameters": [
+            "self",
+            "storage_dir"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: resolve the actual optional storage default, create this owner's storage root, and load only an existing index; no reliance on global config mkdir is needed."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration._check_existing_index",
+          "kind": "function",
+          "line": 38,
+          "column": 4,
+          "end": 41,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "检查是否存在索引",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: retain this instance method because it checks the instance storage root; required index directories are an explicit persisted-state protocol."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration._load_retriever",
+          "kind": "function",
+          "line": 43,
+          "column": 4,
+          "end": 45,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: retain this resource-construction stage; loading failure propagates instead of pretending an index is available."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration.build_index_from_documents",
+          "kind": "async_function",
+          "line": 47,
+          "column": 4,
+          "end": 53,
+          "parameters": [
+            "self",
+            "documents",
+            "chunk_size",
+            "chunk_overlap"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001: retain the short anyio worker wrapper because the actual file/index work is synchronous and has a resource lifetime."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration._build_index_sync",
+          "kind": "function",
+          "line": 55,
+          "column": 4,
+          "end": 78,
+          "parameters": [
+            "self",
+            "documents",
+            "chunk_size",
+            "chunk_overlap"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-004/RES-001: annotate the concrete List[PolicyDocument] input; preserve TemporaryDirectory ownership, stable document IDs, ordered build/reload, and closing the replaced retriever."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration.search",
+          "kind": "async_function",
+          "line": 80,
+          "column": 4,
+          "end": 110,
+          "parameters": [
+            "self",
+            "query",
+            "top_k",
+            "threshold",
+            "retrieval_mode"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/DAT-001: keep blocking retrieval in a worker, require real scores, preserve thresholds, and convert actual legacy IDs deterministically; missing image/source metadata remains part of the existing integration contract."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration.close",
+          "kind": "async_function",
+          "line": 112,
+          "column": 4,
+          "end": 117,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-009/RES-001: retain clearing ownership/availability before the bounded shielded retriever close."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration.get_summary",
+          "kind": "async_function",
+          "line": 119,
+          "column": 4,
+          "end": 132,
+          "parameters": [
+            "self",
+            "query"
+          ],
+          "decorators": [],
+          "declared_role": "获取查询的摘要回答",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/FUN-005: retain the worker callback so engine construction/querying stay off the event loop; it captures the current retriever explicitly."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration.get_summary.query_summary",
+          "kind": "function",
+          "line": 126,
+          "column": 8,
+          "end": 130,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: keep the nested callback because it owns one synchronous query-engine operation over the captured retriever; it returns a concrete str."
+          ]
+        },
+        {
+          "name": "LlamaIndexIntegration.get_stats",
+          "kind": "function",
+          "line": 134,
+          "column": 4,
+          "end": 150,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "获取索引统计信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the explicit synchronous filesystem-statistics method and availability/storage fields; no expensive work is hidden in a property."
+          ]
+        },
+        {
+          "name": "EnhancedVectorRetrieverAgent",
+          "kind": "class",
+          "line": 154,
+          "column": 0,
+          "end": 189,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "增强的向量检索代理 - 集成 LlamaIndex",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/DES-004: retain this stateful facade because enabled/disabled LlamaIndex is an existing product mode with distinct search/index behavior, not an unneeded empty Helper."
+          ]
+        },
+        {
+          "name": "EnhancedVectorRetrieverAgent.__init__",
+          "kind": "function",
+          "line": 157,
+          "column": 4,
+          "end": 167,
+          "parameters": [
+            "self",
+            "use_llamaindex",
+            "llamaindex_storage"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/DAT-002: retain the actual optional integration and disabled mode; no mandatory dependency is silently discovered on each call."
+          ]
+        },
+        {
+          "name": "EnhancedVectorRetrieverAgent.search",
+          "kind": "async_function",
+          "line": 170,
+          "column": 4,
+          "end": 180,
+          "parameters": [
+            "self",
+            "query",
+            "top_k",
+            "threshold"
+          ],
+          "decorators": [],
+          "declared_role": "使用 LlamaIndex 进行搜索",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-004/FUN-001: preserve the established no-result behavior only for a disabled/unbuilt optional index; selected enabled-index failures propagate."
+          ]
+        },
+        {
+          "name": "EnhancedVectorRetrieverAgent.add_documents",
+          "kind": "async_function",
+          "line": 182,
+          "column": 4,
+          "end": 185,
+          "parameters": [
+            "self",
+            "documents"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-001: preserve False for the explicitly disabled index and the actual builder result for an enabled index; it does not falsely claim persistence."
+          ]
+        },
+        {
+          "name": "EnhancedVectorRetrieverAgent.close",
+          "kind": "async_function",
+          "line": 187,
+          "column": 4,
+          "end": 189,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/FUN-005: retain lifecycle delegation because this facade owns the optional integration it constructed."
+          ]
+        },
+        {
+          "name": "demo",
+          "kind": "async_function",
+          "line": 193,
+          "column": 0,
+          "end": 206,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "演示集成使用",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/RES-001: retain the manual end-to-end example's worker construction and finally close; it was read but not run."
+          ]
+        }
+      ],
+      "changes": [
+        "FUN-004: declare the synchronous build worker's concrete PolicyDocument list contract.",
+        "NAM-005: group standard-library/third-party/project imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Index building/search/replacement use existing storage/lifecycle semantics; concurrency and provider behavior were not exercised.",
+        "The hierarchy currently stores limited source metadata; strict source/doc_type filters are owned by the Milvus-only branch in KnowledgeService."
+      ]
+    },
+    {
+      "path": "app/knowledge/milvus.py",
+      "summary": "Read the complete vector-store client, three provider wire models, embedding backends, filter builder, and cleanup paths. Keep its owned connection alias and vector schema; resolve defaults only when absent and validate the actual configured model/dimension.",
+      "definitions": [
+        {
+          "name": "DashScopeEmbedding",
+          "kind": "class",
+          "line": 33,
+          "column": 0,
+          "end": 38,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "One finite numeric vector returned for one input text.",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: retain strict finite nonempty numeric vectors at the external HTTP boundary."
+          ]
+        },
+        {
+          "name": "DashScopeEmbeddingOutput",
+          "kind": "class",
+          "line": 41,
+          "column": 0,
+          "end": 46,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Each HTTP request below submits exactly one input text.",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD: retain the exactly-one-vector contract because each DashScope request submits exactly one input text."
+          ]
+        },
+        {
+          "name": "DashScopeEmbeddingResponse",
+          "kind": "class",
+          "line": 49,
+          "column": 0,
+          "end": 54,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Dense embedding output; request IDs and usage remain SDK metadata.",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: retain the required output envelope rather than probing multiple undocumented response shapes."
+          ]
+        },
+        {
+          "name": "MilvusStore",
+          "kind": "class",
+          "line": 57,
+          "column": 0,
+          "end": 396,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Milvus vector database for storing and retrieving policy documents.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/RES-001: retain the owned per-instance connection alias, loaded collection, backend/model configuration, and explicit close lifecycle."
+          ]
+        },
+        {
+          "name": "MilvusStore.__init__",
+          "kind": "function",
+          "line": 60,
+          "column": 4,
+          "end": 92,
+          "parameters": [
+            "self",
+            "model_name",
+            "collection_name",
+            "backend",
+            "host",
+            "port",
+            "user",
+            "password",
+            "db_name"
+          ],
+          "decorators": [],
+          "declared_role": "Initialize the Milvus store.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-003/DAT-005: use settings only when optional arguments are None; an explicit empty model now raises instead of silently selecting a different model, and credentials keep their real empty-string meaning."
+          ]
+        },
+        {
+          "name": "MilvusStore._connect",
+          "kind": "function",
+          "line": 94,
+          "column": 4,
+          "end": 136,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Connect to Milvus and initialize collection.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-003/RES-001: retain cleanup and cause-preserving connection errors; an existing collection without the matching embedding dimension now fails instead of bypassing validation through truthiness."
+          ]
+        },
+        {
+          "name": "MilvusStore._create_collection",
+          "kind": "function",
+          "line": 138,
+          "column": 4,
+          "end": 159,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Create Milvus collection with schema.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DB-001/RES-001: retain the explicit six-field-plus-vector schema, index creation, and load stage; no schema column or migration was introduced."
+          ]
+        },
+        {
+          "name": "MilvusStore.add_documents",
+          "kind": "function",
+          "line": 161,
+          "column": 4,
+          "end": 190,
+          "parameters": [
+            "self",
+            "documents",
+            "upsert"
+          ],
+          "decorators": [],
+          "declared_role": "Add documents, or replace stable primary keys when explicitly requested.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DB-001: retain embed/assemble/insert-or-upsert/flush order; explicit upsert is a real workspace overwrite contract, and empty input is normal no-work."
+          ]
+        },
+        {
+          "name": "MilvusStore.search",
+          "kind": "function",
+          "line": 192,
+          "column": 4,
+          "end": 234,
+          "parameters": [
+            "self",
+            "query",
+            "top_k",
+            "threshold",
+            "filters"
+          ],
+          "decorators": [],
+          "declared_role": "Search for similar documents.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-001: preserve synchronous query embedding, actual Milvus search, threshold filtering, and paired PolicyDocument/score results; closed stores fail."
+          ]
+        },
+        {
+          "name": "MilvusStore._build_filter",
+          "kind": "function",
+          "line": 237,
+          "column": 4,
+          "end": 247,
+          "parameters": [
+            "filters"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Build Milvus filter expression.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static because it only uses filters; preserve JSON-escaped doc_type equality/source substring expressions and do not invent unsupported indexed fields."
+          ]
+        },
+        {
+          "name": "MilvusStore._embed_texts",
+          "kind": "function",
+          "line": 249,
+          "column": 4,
+          "end": 256,
+          "parameters": [
+            "self",
+            "texts"
+          ],
+          "decorators": [],
+          "declared_role": "Generate embeddings for texts.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/ERR-001: retain explicit dispatch between the two real provider backends and reject unknown values."
+          ]
+        },
+        {
+          "name": "MilvusStore._get_model_name_from_backend",
+          "kind": "function",
+          "line": 258,
+          "column": 4,
+          "end": 264,
+          "parameters": [
+            "self",
+            "settings"
+          ],
+          "decorators": [],
+          "declared_role": "根据后端获取模型名称",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: retain the instance method because backend selection is instance state; the settings argument is the existing tested configuration dependency, not arbitrary shape probing."
+          ]
+        },
+        {
+          "name": "MilvusStore._embed_openai",
+          "kind": "function",
+          "line": 266,
+          "column": 4,
+          "end": 280,
+          "parameters": [
+            "self",
+            "texts"
+          ],
+          "decorators": [],
+          "declared_role": "OpenAI embeddings.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: retain owned OpenAI client closure and model-request/result conversion; actual provider failures propagate."
+          ]
+        },
+        {
+          "name": "MilvusStore._embed_dashscope",
+          "kind": "function",
+          "line": 282,
+          "column": 4,
+          "end": 323,
+          "parameters": [
+            "self",
+            "texts"
+          ],
+          "decorators": [],
+          "declared_role": "DashScope embeddings.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "PYD/RES-001: retain configured request options, timeout/response closure, strict provider model validation, and exact dimension check."
+          ]
+        },
+        {
+          "name": "MilvusStore._normalize",
+          "kind": "function",
+          "line": 326,
+          "column": 4,
+          "end": 329,
+          "parameters": [
+            "vecs"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "L2 normalize vectors.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/DES-005: retain the static NumPy L2 conversion and existing epsilon semantics; no replacement numerical policy was invented."
+          ]
+        },
+        {
+          "name": "MilvusStore._infer_dim",
+          "kind": "function",
+          "line": 331,
+          "column": 4,
+          "end": 363,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Infer embedding dimension from backend and model.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-005/ERR-001: keep supported backend/model/dimension rules, remove redundant substring checks, and reject invalid dimensions rather than inventing compatibility fallbacks."
+          ]
+        },
+        {
+          "name": "MilvusStore.get_stats",
+          "kind": "function",
+          "line": 365,
+          "column": 4,
+          "end": 377,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Get store statistics.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain explicit synchronous live-store statistics and a visible error after close."
+          ]
+        },
+        {
+          "name": "MilvusStore.close",
+          "kind": "function",
+          "line": 379,
+          "column": 4,
+          "end": 388,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "Release only the collection and connection owned by this store.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: retain finally-based collection/connection cleanup limited to this instance's alias; the collection is cleared even if release fails."
+          ]
+        },
+        {
+          "name": "MilvusStore.__del__",
+          "kind": "function",
+          "line": 390,
+          "column": 4,
+          "end": 396,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-004: retain best-effort destructor cleanup for partially initialized objects; the guarded getattr has a real construction-lifecycle reason and explicit close remains error-reporting."
+          ]
+        }
+      ],
+      "changes": [
+        "DAT-003/DAT-005: resolve optional constructor defaults only for None and reject an explicit blank model.",
+        "DAT-001: require an existing collection's embedding dimension to match, including the missing-dimension case.",
+        "CLS-004: make the pure filter-expression builder static.",
+        "DES-001/NAM-005: simplify redundant known-model substring checks and group imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Supported filters are exactly doc_type equality and source substring. The current schema does not store PolicyDocument.regions or arbitrary metadata; no migration was performed.",
+        "Milvus/provider compatibility, insertion limits, and search behavior were not executed."
+      ]
+    },
+    {
+      "path": "app/knowledge/mineru_adapter.py",
+      "summary": "Read all seven response contracts, the session/context lifecycle, both provider modes, polling/archive extraction, batch callback, and statistics methods. Retain the asynchronous owned-client adapter and explicit per-file batch failure results.",
+      "definitions": [
+        {
+          "name": "MinerUApiResponse",
+          "kind": "class",
+          "line": 27,
+          "column": 0,
+          "end": 31,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: retain the required provider code with real optional message/data states; callers validate data only after a successful code."
+          ]
+        },
+        {
+          "name": "MinerUUploadData",
+          "kind": "class",
+          "line": 34,
+          "column": 0,
+          "end": 37,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD: retain nonempty batch ID and upload URL list at the API boundary."
+          ]
+        },
+        {
+          "name": "MinerUTaskFile",
+          "kind": "class",
+          "line": 40,
+          "column": 0,
+          "end": 44,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-002: retain pending-versus-complete optional fields and provider extras; completion explicitly requires an archive URL."
+          ]
+        },
+        {
+          "name": "MinerUTaskData",
+          "kind": "class",
+          "line": 47,
+          "column": 0,
+          "end": 50,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-002: retain the genuine empty pending extraction list, not a fallback for a failed completed task."
+          ]
+        },
+        {
+          "name": "MinerULocalFile",
+          "kind": "class",
+          "line": 53,
+          "column": 0,
+          "end": 55,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DES-004: retain actual local-provider Markdown aliases, normalized once to a nonempty string."
+          ]
+        },
+        {
+          "name": "MinerULocalResponse",
+          "kind": "class",
+          "line": 58,
+          "column": 0,
+          "end": 60,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: require a nonempty result mapping before selecting the one requested file."
+          ]
+        },
+        {
+          "name": "MinerUArchiveContent",
+          "kind": "class",
+          "line": 63,
+          "column": 0,
+          "end": 65,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: retain the explicit JSON archive-member content contract rather than probing arbitrary archive objects."
+          ]
+        },
+        {
+          "name": "MinerUAdapter",
+          "kind": "class",
+          "line": 68,
+          "column": 0,
+          "end": 668,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "MinerU 文档解析适配器 - 支持官方 API 和本地服务",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/RES-001: retain mode/config/owned aiohttp session and parsing options as real shared state with an explicit async context-manager lifecycle."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.__init__",
+          "kind": "function",
+          "line": 71,
+          "column": 4,
+          "end": 124,
+          "parameters": [
+            "self",
+            "config",
+            "mode"
+          ],
+          "decorators": [],
+          "declared_role": "初始化 MinerU 适配器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/WEB-001: preserve explicit config and existing auto/official/local modes, but reject unknown modes instead of silently selecting local behavior."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.__aenter__",
+          "kind": "async_function",
+          "line": 126,
+          "column": 4,
+          "end": 129,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "异步上下文管理器入口",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-005: retain the async context-manager entry protocol and owned session creation."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.__aexit__",
+          "kind": "async_function",
+          "line": 131,
+          "column": 4,
+          "end": 133,
+          "parameters": [
+            "self",
+            "exc_type",
+            "exc_val",
+            "exc_tb"
+          ],
+          "decorators": [],
+          "declared_role": "异步上下文管理器出口",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/RES-005: retain the async context-manager exit hook so every managed invocation closes the session."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._get_session",
+          "kind": "async_function",
+          "line": 135,
+          "column": 4,
+          "end": 147,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "获取可用的 HTTP 会话，首次调用时创建",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/DAT-002: retain lazy session creation/recreation only for the actual None/closed lifecycle states, with the configured timeout and authentication."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.close",
+          "kind": "async_function",
+          "line": 149,
+          "column": 4,
+          "end": 154,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "关闭会话",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-009/RES-001: retain ownership clearing and bounded shielded aiohttp closure so cancellation cannot silently skip cleanup."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.health_check",
+          "kind": "async_function",
+          "line": 156,
+          "column": 4,
+          "end": 182,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "健康检查",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-002/FUN-001: health failures become an explicit status/message/details result; this is a health interface, not an empty extraction success."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._health_check_official",
+          "kind": "async_function",
+          "line": 184,
+          "column": 4,
+          "end": 243,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "官方 API 健康检查",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-002/RES-001: retain status-specific authentication/network/timeout diagnostics and response scopes; this existing endpoint submits a provider demo task, a behavior noted as a limitation."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._health_check_local",
+          "kind": "async_function",
+          "line": 245,
+          "column": 4,
+          "end": 290,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "本地服务健康检查",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-002/RES-001: retain bounded OpenAPI endpoint inspection and explicit unhealthy/unavailable states; metadata defaults apply only to optional diagnostic fields."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.extract_document",
+          "kind": "async_function",
+          "line": 292,
+          "column": 4,
+          "end": 360,
+          "parameters": [
+            "self",
+            "file_path",
+            "options"
+          ],
+          "decorators": [],
+          "declared_role": "提取文档内容",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/ERR-004: retain health/path checks and actual official/local extraction; failures inside processing return explicit success=False with file identity/time, matching batch/demo consumers."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._extract_official",
+          "kind": "async_function",
+          "line": 362,
+          "column": 4,
+          "end": 387,
+          "parameters": [
+            "self",
+            "file_path",
+            "options"
+          ],
+          "decorators": [],
+          "declared_role": "使用官方 API 提取文档",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/DAT-001: keep upload, poll, download in order and require the validated completion fields for the success result."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._upload_file_official",
+          "kind": "async_function",
+          "line": 389,
+          "column": 4,
+          "end": 435,
+          "parameters": [
+            "self",
+            "file_path",
+            "options"
+          ],
+          "decorators": [],
+          "declared_role": "上传文件到官方 API 并返回 batch_id",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: preserve API-response/file scopes and the separate unauthenticated signed-upload session; provider bearer tokens must not reach object-storage URLs."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._poll_batch_result",
+          "kind": "async_function",
+          "line": 437,
+          "column": 4,
+          "end": 472,
+          "parameters": [
+            "self",
+            "batch_id",
+            "max_wait_time"
+          ],
+          "decorators": [],
+          "declared_role": "轮询批量任务结果",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-001/RES-001: retain bounded monotonic polling, true pending states, failed-task errors, and required archive URL on completion."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._download_and_extract",
+          "kind": "async_function",
+          "line": 474,
+          "column": 4,
+          "end": 485,
+          "parameters": [
+            "self",
+            "zip_url"
+          ],
+          "decorators": [],
+          "declared_role": "下载并解压结果文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ASY-001: preserve the separate unsigned download session, closed response, and worker-offloaded ZIP processing."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._read_result_archive",
+          "kind": "function",
+          "line": 488,
+          "column": 4,
+          "end": 500,
+          "parameters": [
+            "zip_content"
+          ],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "Read result members without extracting paths or creating temporary files.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004/RES-001: retain static in-memory archive reads and validated JSON content; it never extracts untrusted paths to disk."
+          ]
+        },
+        {
+          "name": "MinerUAdapter._extract_local",
+          "kind": "async_function",
+          "line": 502,
+          "column": 4,
+          "end": 564,
+          "parameters": [
+            "self",
+            "file_path",
+            "options"
+          ],
+          "decorators": [],
+          "declared_role": "使用本地服务提取文档",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-005: resolve the effective backend once and use it for form data, server_url selection, and returned metadata; the configured default VLM backend now receives server_url."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.get_supported_extensions",
+          "kind": "function",
+          "line": 566,
+          "column": 4,
+          "end": 571,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "获取支持的文件扩展名",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: retain an instance method because official and local modes support different actual file types."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.supports_file_type",
+          "kind": "function",
+          "line": 573,
+          "column": 4,
+          "end": 575,
+          "parameters": [
+            "self",
+            "file_ext"
+          ],
+          "decorators": [],
+          "declared_role": "检查是否支持该文件类型",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain this small public query because it applies the mode-dependent extension policy used by demos/consumers."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.batch_extract",
+          "kind": "async_function",
+          "line": 577,
+          "column": 4,
+          "end": 613,
+          "parameters": [
+            "self",
+            "file_paths",
+            "options",
+            "max_concurrent"
+          ],
+          "decorators": [],
+          "declared_role": "批量提取文档",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-006/ERR-004: retain the bounded semaphore and awaited gather owner; each failed file is explicitly identified, and cancellation is not swallowed."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.batch_extract.extract_single",
+          "kind": "async_function",
+          "line": 598,
+          "column": 8,
+          "end": 608,
+          "parameters": [
+            "file_path"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/ERR-004: retain the local coroutine because it owns one semaphore slot and converts that file's failure into the documented batch record."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.get_extraction_stats",
+          "kind": "function",
+          "line": 615,
+          "column": 4,
+          "end": 649,
+          "parameters": [
+            "self",
+            "result"
+          ],
+          "decorators": [],
+          "declared_role": "获取提取统计信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001/DAT-001: consume the adapter's established success/failure result shapes directly and return explicit statistics, without a new normalization wrapper."
+          ]
+        },
+        {
+          "name": "MinerUAdapter.get_info",
+          "kind": "function",
+          "line": 651,
+          "column": 4,
+          "end": 668,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "获取适配器信息",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain a concrete configuration/status snapshot; it reports API-key presence without exposing the key."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001: reject modes outside official/local/auto.",
+        "DAT-003: preserve an explicit configuration mapping instead of truthiness replacement.",
+        "DAT-005: resolve the local backend once so an omitted override still forwards VLM server_url correctly.",
+        "NAM-005: group standard-library, third-party, and project imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "The existing official health check submits a provider demo task; no health/extraction/API call was made during this audit.",
+        "HTTP modes, cancellation, archive handling, and batch behavior were reviewed from source, not executed."
+      ]
+    },
+    {
+      "path": "app/knowledge/rapid_ocr_processor.py",
+      "summary": "Read the exception, stateful OCR processor, all health/model/image/PDF methods, and the unused construction wrapper. Keep the real model/configuration state and resource ownership; remove the unused forwarding factory.",
+      "definitions": [
+        {
+          "name": "OCRException",
+          "kind": "class",
+          "line": 29,
+          "column": 0,
+          "end": 36,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "OCR 处理异常",
+          "bases": [
+            "Exception"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005: retain the domain exception subclass because callers need message/service/status diagnostics and normal exception chaining."
+          ]
+        },
+        {
+          "name": "OCRException.__init__",
+          "kind": "function",
+          "line": 32,
+          "column": 4,
+          "end": 36,
+          "parameters": [
+            "self",
+            "message",
+            "service_name",
+            "status"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/ERR-003: retain explicit diagnostic fields and the parent Exception initializer."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor",
+          "kind": "class",
+          "line": 39,
+          "column": 0,
+          "end": 382,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "RapidOCR 处理器 - 使用 ONNX 模型进行文字识别",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001: retain the shared lazily loaded OCR model, detection threshold, and model-root settings; it is a genuine resource/configuration owner."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.__init__",
+          "kind": "function",
+          "line": 42,
+          "column": 4,
+          "end": 63,
+          "parameters": [
+            "self",
+            "det_box_thresh",
+            "model_dir"
+          ],
+          "decorators": [],
+          "declared_role": "初始化 RapidOCR 处理器",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-004/CLS-002: annotate the actual Optional[RapidOCR] lifecycle instead of Any while retaining the existing model-directory/environment choices."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.get_service_name",
+          "kind": "function",
+          "line": 66,
+          "column": 4,
+          "end": 68,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "获取服务名称",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static because the service identifier is independent of instance state."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.get_supported_extensions",
+          "kind": "function",
+          "line": 71,
+          "column": 4,
+          "end": 73,
+          "parameters": [],
+          "decorators": [
+            "staticmethod"
+          ],
+          "declared_role": "获取支持的文件扩展名",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: changed to static because this supported-format list is invariant for the processor type."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor._get_model_paths",
+          "kind": "function",
+          "line": 75,
+          "column": 4,
+          "end": 83,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "获取模型文件路径",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-004: retain an instance method because it resolves paths against the configured model root."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.check_health",
+          "kind": "function",
+          "line": 85,
+          "column": 4,
+          "end": 153,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "检查 RapidOCR 模型是否可用",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ERR-002/FUN-001: retain explicit unavailable/error/healthy diagnostics for real model prerequisites; this health surface may report failure without raising extraction success."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor._load_model",
+          "kind": "function",
+          "line": 155,
+          "column": 4,
+          "end": 184,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "延迟加载 OCR 模型",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-003: retain lazy shared model loading and cause-preserving OCRException translation; model validation remains owned here rather than replaced by a speculative alternative engine."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.process_image",
+          "kind": "function",
+          "line": 186,
+          "column": 4,
+          "end": 248,
+          "parameters": [
+            "self",
+            "image",
+            "params"
+          ],
+          "decorators": [],
+          "declared_role": "处理单张图像并提取文本",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-003: preserve OCR/no-text distinction, finally-based owned temporary-file cleanup, and visible chained processing failures."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor._create_temp_image_file",
+          "kind": "function",
+          "line": 250,
+          "column": 4,
+          "end": 269,
+          "parameters": [
+            "self",
+            "image"
+          ],
+          "decorators": [],
+          "declared_role": "将图像数据保存为临时文件",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/ERR-003: retain supported PIL/NumPy inputs, owned temporary streams/conversion images, partial-file cleanup, and chained domain errors."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.process_pdf",
+          "kind": "function",
+          "line": 271,
+          "column": 4,
+          "end": 349,
+          "parameters": [
+            "self",
+            "pdf_path",
+            "params"
+          ],
+          "decorators": [],
+          "declared_role": "处理 PDF 文件并提取文本 (流式处理，避免内存占用)",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/FUN-002: retain page-by-page PDF/image scopes and existing zoom/save parameters; model processing stays synchronous under this explicit synchronous API."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.process_file",
+          "kind": "function",
+          "line": 351,
+          "column": 4,
+          "end": 378,
+          "parameters": [
+            "self",
+            "file_path",
+            "params"
+          ],
+          "decorators": [],
+          "declared_role": "处理文件 (PDF 或图像)",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-002/FUN-003: retain the supported-extension boundary and concrete PDF-versus-image dispatch; shared params belongs to this existing processing interface."
+          ]
+        },
+        {
+          "name": "RapidOCRProcessor.supports_file_type",
+          "kind": "function",
+          "line": 380,
+          "column": 4,
+          "end": 382,
+          "parameters": [
+            "self",
+            "file_ext"
+          ],
+          "decorators": [],
+          "declared_role": "检查是否支持指定的文件类型",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-001: retain the explicit public extension query over the processor's invariant supported formats."
+          ]
+        }
+      ],
+      "changes": [
+        "CLS-004: make invariant service-name/extension queries static.",
+        "FUN-004: type the shared OCR model as Optional[RapidOCR].",
+        "DES-001: remove unused create_processor(**kwargs), which only forwarded to the constructor and had no repository callers.",
+        "NAM-005: group imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "No OCR model was loaded and no PDF/image was processed.",
+        "The existing image-processing params keyword is retained as part of the process_file/process_image processing interface; no new parameter behavior was invented."
+      ],
+      "removed_definitions": [
+        {
+          "name": "create_processor",
+          "original_line": 385,
+          "kind": "function",
+          "review": "reviewed",
+          "notes": [
+            "Repository-wide caller search found no use; removed the kwargs-only forwarding wrapper and kept the actual RapidOCRProcessor constructor."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/knowledge/rerank.py",
+      "summary": "Read the three response contracts, both stateful reranker classes, all provider methods, sorting lambdas, framework postprocessing hook, and manual example. Remove redundant logger setup and the ineffective normalization surface.",
+      "definitions": [
+        {
+          "name": "RerankItem",
+          "kind": "class",
+          "line": 14,
+          "column": 0,
+          "end": 20,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DAT-001: retain strict nonnegative external indices and finite relevance scores with the existing provider alias."
+          ]
+        },
+        {
+          "name": "DashscopeRerankResponse",
+          "kind": "class",
+          "line": 23,
+          "column": 0,
+          "end": 26,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DES-004: retain actual DashScope response aliases at the provider boundary rather than probing shapes inside ranking."
+          ]
+        },
+        {
+          "name": "XinferenceRerankResponse",
+          "kind": "class",
+          "line": 29,
+          "column": 0,
+          "end": 30,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [
+            "BaseModel"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "PYD/DES-004: retain actual Xinference result aliases as a distinct wire response contract."
+          ]
+        },
+        {
+          "name": "Reranker",
+          "kind": "class",
+          "line": 33,
+          "column": 0,
+          "end": 140,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/RES-001: retain the configured provider/model/session lifecycle; rename its ambiguous settings field and let the application's logger configuration own handlers."
+          ]
+        },
+        {
+          "name": "Reranker.__init__",
+          "kind": "function",
+          "line": 34,
+          "column": 4,
+          "end": 70,
+          "parameters": [
+            "self",
+            "logger"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "NAM-001/RES-001: rename s to settings, use logging.getLogger(__name__) unless a real logger is injected, and preserve provider-specific credentials/session initialization."
+          ]
+        },
+        {
+          "name": "Reranker.rerank",
+          "kind": "function",
+          "line": 73,
+          "column": 4,
+          "end": 91,
+          "parameters": [
+            "self",
+            "query",
+            "documents",
+            "top_n"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DES-001/FUN-003: remove the ignored normalize keyword and keep the actual query/documents/top_n contract; zero is no-work and unsupported native-only use remains explicit."
+          ]
+        },
+        {
+          "name": "Reranker._call_dashscope",
+          "kind": "function",
+          "line": 94,
+          "column": 4,
+          "end": 112,
+          "parameters": [
+            "self",
+            "query",
+            "docs",
+            "k"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/RES-001: retain provider-specific payload, closed timed response, validated result indices/scores, and actual input-document mapping."
+          ]
+        },
+        {
+          "name": "Reranker._call_dashscope.<lambda>@111:21",
+          "kind": "lambda",
+          "line": 111,
+          "column": 21,
+          "end": 111,
+          "parameters": [
+            "x"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the local tuple-score sort key because it directly expresses provider-result ordering."
+          ]
+        },
+        {
+          "name": "Reranker._call_xinference",
+          "kind": "function",
+          "line": 115,
+          "column": 4,
+          "end": 135,
+          "parameters": [
+            "self",
+            "query",
+            "docs",
+            "k"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "DAT-001/RES-001: retain the separate Xinference wire payload and strict returned-index/finite-score checks; duplication here reflects real provider boundaries."
+          ]
+        },
+        {
+          "name": "Reranker._call_xinference.<lambda>@134:21",
+          "kind": "lambda",
+          "line": 134,
+          "column": 21,
+          "end": 134,
+          "parameters": [
+            "x"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the direct tuple-score sort key without adding another utility abstraction."
+          ]
+        },
+        {
+          "name": "Reranker.close",
+          "kind": "function",
+          "line": 138,
+          "column": 4,
+          "end": 140,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001: close only HTTP sessions created for HTTP backends; the native-only mode does not invent a session."
+          ]
+        },
+        {
+          "name": "LlamaIndexReranker",
+          "kind": "class",
+          "line": 143,
+          "column": 0,
+          "end": 198,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Apply the configured reranker using LlamaIndex's QueryBundle protocol.",
+          "bases": [
+            "BaseNodePostprocessor"
+          ],
+          "review": "reviewed",
+          "notes": [
+            "CLS-005/FUN-005: retain the BaseNodePostprocessor subclass and PrivateAttr state because this is LlamaIndex's real postprocessing protocol."
+          ]
+        },
+        {
+          "name": "LlamaIndexReranker.__init__",
+          "kind": "function",
+          "line": 151,
+          "column": 4,
+          "end": 155,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002: retain the required framework parent initializer, settings, configured logger, and backend preparation."
+          ]
+        },
+        {
+          "name": "LlamaIndexReranker._prepare",
+          "kind": "function",
+          "line": 157,
+          "column": 4,
+          "end": 171,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "NAM-004/DES-004: retain local imports for genuinely optional native model backends and direct construction of the selected backend."
+          ]
+        },
+        {
+          "name": "LlamaIndexReranker._postprocess_nodes",
+          "kind": "function",
+          "line": 173,
+          "column": 4,
+          "end": 194,
+          "parameters": [
+            "self",
+            "nodes",
+            "query_bundle"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005/DAT-001: retain the QueryBundle hook and actual NodeWithScore mapping; remove forwarding of the never-used normalize setting instead of inventing score semantics."
+          ]
+        },
+        {
+          "name": "LlamaIndexReranker.close",
+          "kind": "function",
+          "line": 196,
+          "column": 4,
+          "end": 198,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "RES-001/FUN-005: retain explicit cleanup of the HTTP service owned by this framework adapter."
+          ]
+        }
+      ],
+      "changes": [
+        "NAM-001: rename Reranker.s to the meaningful settings field; notify the test owner about fixtures.",
+        "DES-001/LOG: delete the per-module _log handler-setup wrapper and use the configured Python logger.",
+        "DES-001/FUN-003: remove ignored normalize argument and its adapter/manual-demo call sites; results never depended on it.",
+        "DAT-001: preserve actual boolean configuration rather than redundantly casting it in the provider payload.",
+        "NAM-005: group framework/project imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Root owns removal of the now-inert RerankerSettings.normalize_scores field and documentation references.",
+        "No provider rerank, native model, or logging runtime was executed."
+      ],
+      "removed_definitions": [
+        {
+          "name": "_log",
+          "original_line": 32,
+          "kind": "function",
+          "review": "reviewed",
+          "notes": [
+            "Only leaf-module callers configured duplicate logger handlers; use the application's configured logging.getLogger(__name__) directly."
+          ]
+        }
+      ]
+    },
+    {
+      "path": "app/knowledge/service.py",
+      "summary": "Read every service method, timing property, nested dedupe callback, and sorting lambda. Retain shared owned stores and context-local timing state; keep real supported filters out of an index that cannot enforce them.",
+      "definitions": [
+        {
+          "name": "KnowledgeService",
+          "kind": "class",
+          "line": 19,
+          "column": 0,
+          "end": 147,
+          "parameters": [],
+          "decorators": [],
+          "declared_role": "Gateway for ingesting and querying knowledge assets.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-001/CLS-003: retain owned/injected vector state and optional hierarchical state; timing remains in ContextVar rather than one shared mutable per-request dictionary."
+          ]
+        },
+        {
+          "name": "KnowledgeService.__init__",
+          "kind": "function",
+          "line": 22,
+          "column": 4,
+          "end": 46,
+          "parameters": [
+            "self",
+            "vector_store",
+            "use_hierarchical",
+            "hierarchical_storage"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-002/RES-001: retain explicit dependency ownership and real hierarchical enable/storage defaults; construction failure closes only the vector store this service owns."
+          ]
+        },
+        {
+          "name": "KnowledgeService.last_timings",
+          "kind": "function",
+          "line": 49,
+          "column": 4,
+          "end": 51,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [
+            "property"
+          ],
+          "declared_role": "Timings for the most recent search in the current caller's context.",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-007/ASY-007: retain the cheap copied view of timings for the current caller's context; it performs no I/O and does not pretend worker ContextVar writes propagate back."
+          ]
+        },
+        {
+          "name": "KnowledgeService.index_documents",
+          "kind": "async_function",
+          "line": 53,
+          "column": 4,
+          "end": 60,
+          "parameters": [
+            "self",
+            "documents"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-001/FUN-002: retain the existing vector-worker then optional hierarchical-index sequence, and return an actual count; empty input is a normal no-work operation."
+          ]
+        },
+        {
+          "name": "KnowledgeService.search",
+          "kind": "async_function",
+          "line": 62,
+          "column": 4,
+          "end": 137,
+          "parameters": [
+            "self",
+            "query",
+            "top_k",
+            "threshold",
+            "filters"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "WEB-001/FUN-002: preserve limit/paired-score validation, source ranking, and context-local metrics; doc_type/source restrictions use the Milvus path because hierarchical metadata cannot enforce them."
+          ]
+        },
+        {
+          "name": "KnowledgeService.search._upsert",
+          "kind": "function",
+          "line": 84,
+          "column": 8,
+          "end": 90,
+          "parameters": [
+            "doc",
+            "score",
+            "origin"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "CLS-003/FUN-005: retain the local closure because threshold/deduplication are shared by two source loops; model_copy attaches origin without mutating caller-owned documents."
+          ]
+        },
+        {
+          "name": "KnowledgeService.search.<lambda>@130:35",
+          "kind": "lambda",
+          "line": 130,
+          "column": 35,
+          "end": 130,
+          "parameters": [
+            "item"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "FUN-005: retain the direct tuple-score sort key used after deduplication."
+          ]
+        },
+        {
+          "name": "KnowledgeService.close",
+          "kind": "async_function",
+          "line": 139,
+          "column": 4,
+          "end": 147,
+          "parameters": [
+            "self"
+          ],
+          "decorators": [],
+          "declared_role": "",
+          "bases": [],
+          "review": "reviewed",
+          "notes": [
+            "ASY-009/RES-001: retain bounded shielded hierarchical cleanup and finally-close of only an owned vector store; injected stores remain the caller's responsibility."
+          ]
+        }
+      ],
+      "changes": [
+        "WEB-001/DAT-001: exclude hierarchical retrieval when actual doc_type/source filter restrictions must be honored by Milvus.",
+        "NAM-005: group standard-library and third-party imports."
+      ],
+      "limitations": [
+        "At the user's request, no tests, lint, build, compile, application imports, service starts, browser actions, or application API requests were run. AST parsing was used only to inventory source definitions.",
+        "Milvus currently cannot enforce region filtering; root owns removal of the ineffective region caller argument while retaining query text.",
+        "Runtime search, context propagation, concurrent access, and cancellation cleanup were not exercised."
+      ]
+    }
+  ]
+}

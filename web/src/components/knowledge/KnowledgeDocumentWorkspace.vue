@@ -1,6 +1,6 @@
 <template>
   <section class="knowledge-document-workspace" :aria-busy="loading" aria-label="文档工作区">
-    <el-button class="kdw-back" text :icon="Back" @click="emit('back')">返回文档资料</el-button>
+    <el-button v-if="!workspace" class="kdw-back" text :icon="Back" @click="emit('back')">{{ returnLabel }}</el-button>
 
     <div v-if="loading && !workspace" class="kdw-empty" role="status">
       <el-icon class="is-loading"><Loading /></el-icon>
@@ -15,179 +15,194 @@
 
     <template v-if="workspace">
       <header class="kdw-document-heading">
-        <div>
-          <h1>{{ workspace.name }}</h1>
-          <p>{{ formatLabel }} · {{ formatBytes(workspace.size) }}<template v-if="workspace.page_count"> · {{ workspace.page_count }} 页</template><template v-if="workspace.modified"> · 更新于 {{ formatDate(workspace.modified) }}</template></p>
+        <div class="kdw-heading-identity">
+          <span class="kdw-file-icon" :class="{ 'is-pdf': formatLabel === 'PDF' }" aria-hidden="true"><el-icon><Document /></el-icon></span>
+          <div>
+            <div class="kdw-heading-title"><h1>{{ workspace.name }}</h1><span class="kdw-document-state" :class="{ 'is-ready': workspace.embedded }">{{ workspace.embedded ? '已入库' : '未入库' }}</span></div>
+            <p>{{ formatLabel }} · {{ formatBytes(workspace.size) }}<template v-if="workspace.page_count"> · {{ workspace.page_count }} 页</template><template v-if="workspace.modified"> · 更新于 {{ formatDate(workspace.modified) }}</template></p>
+          </div>
         </div>
-        <el-button v-if="workspace.source_url" tag="a" :href="workspace.source_url" target="_blank" rel="noopener noreferrer" :icon="TopRight">打开原始文件</el-button>
+        <div class="kdw-heading-actions">
+          <el-button v-if="workspace.source_url" tag="a" :href="workspace.source_url" target="_blank" rel="noopener noreferrer" :icon="TopRight">原始文件</el-button>
+          <el-button :icon="Back" @click="emit('back')">{{ returnLabel }}</el-button>
+        </div>
       </header>
-
-      <ol class="kdw-processing-chain" aria-label="文档处理状态">
-        <li v-for="step in processingSteps" :key="step.view">
-          <button type="button" @click="navigate(step.view)"><span>{{ step.number }}</span>{{ step.label }}</button>
-          <small>{{ step.detail }}</small>
-        </li>
-      </ol>
       <p v-if="loadError" class="kdw-error" role="alert">{{ loadError }} <el-button text @click="refreshDocument">重新读取</el-button></p>
 
-      <el-tabs v-model="activeView" class="kdw-tabs">
-        <el-tab-pane v-for="readingView in readingViews" :key="readingView.name" :label="readingView.label" :name="readingView.name">
-          <section v-if="activeView === readingView.name" class="kdw-panel kdw-reading-panel" :aria-label="readingView.label">
-            <div class="kdw-reading-tools">
-              <div class="kdw-page-tools">
-                <el-button :icon="ArrowLeft" :disabled="!previousPage" aria-label="上一页" @click="navigate(activeView, previousPage.number)" />
-                <el-select :model-value="currentPage?.number" aria-label="选择原文页码" :disabled="!pages.length" @update:model-value="navigate(activeView, $event)">
-                  <el-option v-for="sourcePage in pages" :key="sourcePage.number" :label="`第 ${sourcePage.number} 页`" :value="sourcePage.number" />
-                </el-select>
-                <span>/ {{ workspace.page_count || pages.length }} 页</span>
-                <el-button :icon="ArrowRight" :disabled="!nextPage" aria-label="下一页" @click="navigate(activeView, nextPage.number)" />
-              </div>
-              <div v-if="readingView.name === 'source'" class="kdw-page-tools">
-                <el-button :icon="Minus" :disabled="zoom <= 50" aria-label="缩小原文页面" @click="zoom -= 25" />
-                <span>{{ zoom }}%</span>
-                <el-button :icon="Plus" :disabled="zoom >= 175" aria-label="放大原文页面" @click="zoom += 25" />
-                <el-button text @click="zoom = 100">重置缩放</el-button>
-                <el-button text :aria-expanded="sourceInfoOpen" aria-controls="kdw-source-info" @click="sourceInfoOpen = !sourceInfoOpen">{{ sourceInfoOpen ? '收起来源' : '展开来源' }}</el-button>
-              </div>
-              <el-checkbox v-else v-model="compareSource">对照原页</el-checkbox>
-            </div>
-
-            <div v-if="readingView.name === 'source'" class="kdw-source-layout" :class="{ 'is-expanded': !sourceInfoOpen }">
-              <div class="kdw-page-stage">
-                <img v-if="currentPage?.image_url && !imageError" :key="currentPage.image_url" class="kdw-source-image" :style="{ '--kdw-page-zoom': zoom / 100 }" :src="currentPage.image_url" :alt="`${workspace.name}，原文第 ${currentPage.number} 页`" @error="imageError = true">
-                <article v-else-if="currentPage?.text && !currentPage.image_url" class="kdw-source-text" :style="{ fontSize: `${14 * zoom / 100}px` }">{{ currentPage.text }}</article>
-                <div v-else class="kdw-empty">
-                  <el-icon><Document /></el-icon>
-                  <h2>{{ imageError ? '原页图像未能载入' : '此文件没有逐页预览' }}</h2>
-                  <p>可打开原始文件核对，或切换到解析结果查看已提取的正文。</p>
-                  <el-button v-if="imageError" @click="imageError = false">重试原页图像</el-button>
-                </div>
-              </div>
-              <aside v-if="sourceInfoOpen" id="kdw-source-info" class="kdw-source-info">
-                <h2>原文来源</h2>
-                <dl><dt>当前页</dt><dd>{{ currentPage ? `第 ${currentPage.number} / ${workspace.page_count || pages.length} 页` : '无逐页信息' }}</dd><dt>文件</dt><dd>{{ workspace.name }}</dd><dt>格式</dt><dd>{{ formatLabel }}</dd><dt>大小</dt><dd>{{ formatBytes(workspace.size) }}</dd></dl>
-                <h3>核对本页正文</h3>
-                <p>{{ sourceTextSummary }}</p>
-                <el-button text @click="navigate(workspace.parsed?.available ? 'parsed' : 'index')">{{ workspace.parsed?.available ? '查看解析结果' : '核对解析方案' }} <el-icon><ArrowRight /></el-icon></el-button>
-                <el-button v-if="workspace.parsed?.available" text @click="navigate('index')">查看处理方案 <el-icon><ArrowRight /></el-icon></el-button>
-              </aside>
-            </div>
-
-            <div v-else class="kdw-parsed-layout" :class="{ 'is-text-only': !compareSource }">
-              <section class="kdw-parsed-pane" aria-label="解析正文">
-                <div class="kdw-pane-label"><span>{{ exactPageMapping && currentPage ? `解析正文 · 第 ${currentPage.number} 页` : '解析正文 · 完整正文' }}</span><span>{{ characterCount(parsedText) }} 字符</span></div>
-                <p v-if="workspace.parsed?.available && !exactPageMapping" class="kdw-mapping-note">当前解析结果没有可靠的逐页对应，展示完整正文；可开启“对照原页”，独立翻阅核对。</p>
-                <div class="kdw-text-scroll">
-                  <article v-if="parsedText" class="kdw-parsed-text">{{ parsedText }}</article>
-                  <div v-else class="kdw-empty kdw-empty-inline">
-                    <h2>{{ workspace.parsed?.available ? '本页没有可复制文字' : '尚无可用解析正文' }}</h2>
-                    <p>原始文件保留供核对。可先确认解析方式，再主动执行解析。</p>
-                    <el-button @click="navigate('index')">核对解析方案</el-button>
-                    <el-button type="primary" :loading="parsing" :disabled="busy || configDirty" @click="parseDocument">按已保存方案解析</el-button>
-                    <p v-if="configDirty">方案有未保存修改，请先保存。</p>
+      <div class="kdw-workspace-layout">
+        <div class="kdw-reader">
+          <el-tabs v-model="activeView" class="kdw-tabs">
+            <el-tab-pane v-for="readingView in readingViews" :key="readingView.name" :label="readingView.label" :name="readingView.name">
+              <section v-if="activeView === readingView.name" class="kdw-panel kdw-reading-panel" :aria-label="readingView.label">
+                <div class="kdw-reading-tools">
+                  <div v-if="pages.length" class="kdw-page-tools">
+                    <el-button :icon="ArrowLeft" :disabled="!previousPage" aria-label="上一页" @click="navigate(activeView, previousPage.number)" />
+                    <el-select :model-value="currentPage?.number" aria-label="选择原文页码" :disabled="!pages.length" @update:model-value="navigate(activeView, $event)">
+                      <el-option v-for="sourcePage in pages" :key="sourcePage.number" :label="'第 ' + sourcePage.number + ' 页'" :value="sourcePage.number" />
+                    </el-select>
+                    <span>/ {{ workspace.page_count || pages.length }} 页</span>
+                    <el-button :icon="ArrowRight" :disabled="!nextPage" aria-label="下一页" @click="navigate(activeView, nextPage.number)" />
                   </div>
+                  <span v-else class="kdw-subtle">此资料暂无逐页预览</span>
+                  <div v-if="readingView.name === 'source' && currentPage" class="kdw-page-tools">
+                    <el-button :icon="Minus" :disabled="zoom <= 50" aria-label="缩小原文页面" @click="zoom -= 25" />
+                    <span>{{ zoom }}%</span>
+                    <el-button :icon="Plus" :disabled="zoom >= 175" aria-label="放大原文页面" @click="zoom += 25" />
+                    <el-button text @click="zoom = 100">重置缩放</el-button>
+                  </div>
+                  <el-checkbox v-if="readingView.name === 'parsed'" v-model="compareSource">对照原页</el-checkbox>
                 </div>
-                <footer class="kdw-parsed-footer"><span>{{ parserLabel }}<template v-if="exactPageMapping && currentPage"> · 第 {{ currentPage.number }} 页</template></span><el-button text :disabled="!workspace.parsed?.available" @click="navigate('chunks')">{{ exactPageMapping ? '查看本页切块' : '查看切块预览' }} <el-icon><ArrowRight /></el-icon></el-button></footer>
-              </section>
-              <section v-if="compareSource" class="kdw-compare-pane" aria-label="原页对照">
-                <div class="kdw-pane-label">原始文件<template v-if="currentPage"> · 第 {{ currentPage.number }} 页</template></div>
-                <div class="kdw-page-stage">
-                  <img v-if="currentPage?.image_url && !imageError" :key="currentPage.image_url" class="kdw-compare-image" :src="currentPage.image_url" :alt="`${workspace.name}，原文第 ${currentPage.number} 页`" @error="imageError = true">
-                  <article v-else-if="currentPage?.text && !currentPage.image_url" class="kdw-source-text">{{ currentPage.text }}</article>
-                  <div v-else class="kdw-empty"><p>{{ imageError ? '原页图像未能载入，请打开原始文件核对。' : '此文件没有逐页图像。' }}</p><el-button v-if="imageError" @click="imageError = false">重试原页图像</el-button></div>
-                </div>
-              </section>
-            </div>
-          </section>
-        </el-tab-pane>
 
-        <el-tab-pane label="切块预览" name="chunks">
-          <section v-if="activeView === 'chunks'" class="kdw-panel" aria-label="切块预览">
-            <div v-if="!previewValid && preview" class="kdw-stale" role="status"><span>正文或切块参数已改变，旧预览已失效。重新生成后可继续核对正文与来源。</span><el-button :loading="previewLoading" :disabled="!canPreview" @click="generatePreview">重新生成预览</el-button></div>
-            <div class="kdw-chunks-layout">
-              <section class="kdw-chunk-config" :class="{ 'is-collapsed': !chunkConfigOpen }" aria-label="切块配置">
-                <button type="button" class="kdw-mobile-config-toggle" :aria-expanded="chunkConfigOpen" aria-controls="kdw-chunk-config-form" @click="chunkConfigOpen = !chunkConfigOpen"><span><strong>切块配置</strong><small>目标 {{ config.size ?? '—' }} · 重叠 {{ config.overlap ?? '—' }} 字符</small></span><span>{{ chunkConfigOpen ? '收起' : '调整' }} <el-icon><component :is="chunkConfigOpen ? ArrowUp : ArrowDown" /></el-icon></span></button>
-                <form id="kdw-chunk-config-form" class="kdw-chunk-config-form" novalidate @submit.prevent="generatePreview">
-                <h2>切块配置</h2><p class="kdw-subtle">按正文字符试切，检查条款边界和重叠内容。</p>
-                <el-form :model="config" label-position="top" tag="div">
-                  <el-form-item label="切分边界" label-for="kdw-boundary"><el-select id="kdw-boundary" v-model="config.boundary"><el-option label="优先句末 / 换行" value="sentence" /><el-option label="固定字符长度" value="fixed" /></el-select></el-form-item>
-                  <el-form-item label="目标长度（字符）" label-for="kdw-size"><el-input-number id="kdw-size" v-model="config.size" :min="100" :max="3000" :step="1" :precision="0" controls-position="right" /><small>100–3,000 个 Unicode 字符</small></el-form-item>
-                  <el-form-item label="重叠长度（字符）" label-for="kdw-overlap"><el-input-number id="kdw-overlap" v-model="config.overlap" :min="0" :max="1000" :step="1" :precision="0" controls-position="right" /><small>须小于目标长度，且不超过 1,000</small></el-form-item>
-                </el-form>
-                <el-button class="kdw-wide-button" type="primary" native-type="submit" :icon="Refresh" :loading="previewLoading" :disabled="!workspace.parsed?.available || busy">生成切块预览</el-button>
-                <p v-if="configError" class="kdw-error" role="alert">{{ configError }}</p>
-                <p v-if="previewError" class="kdw-error" role="alert">{{ previewError }}</p>
-                <div class="kdw-config-summary"><p>预览按字符计算，用于核对正文与来源。预览块数不代表已写入的向量记录数。</p><el-button text @click="navigate('index')">查看索引方案 <el-icon><ArrowRight /></el-icon></el-button></div>
-                </form>
-              </section>
-
-              <section class="kdw-chunk-list-pane" aria-label="预览切块列表" :aria-busy="previewLoading">
-                <div class="kdw-chunk-list-tools"><el-input v-model="chunkQuery" :prefix-icon="Search" clearable placeholder="搜索块内正文" aria-label="搜索切块正文" :disabled="!previewValid" /><p><span>{{ previewValid ? `${filteredChunks.length} / ${preview.total} 个预览块` : previewLoading ? '正在生成…' : '待生成预览' }}</span><el-button v-if="chunkQuery" text @click="chunkQuery = ''">清除</el-button></p><div class="kdw-mobile-chunk-select"><el-select :model-value="selectedChunk?.id" aria-label="选择切块" :disabled="!previewValid || !filteredChunks.length" :placeholder="previewValid && !filteredChunks.length ? '没有匹配的切块' : '选择切块'" @update:model-value="selectChunkById"><el-option v-for="chunk in filteredChunks" :key="chunk.id" :label="`块 ${String(chunk.number).padStart(2, '0')} · ${pageLabel(chunk)} · ${characterCount(chunk.text)} 字符`" :value="chunk.id" /></el-select></div></div>
-                <div ref="chunkListElement" class="kdw-chunk-list">
-                  <template v-if="previewValid && filteredChunks.length"><button v-for="chunk in filteredChunks" :key="chunk.id" type="button" class="kdw-chunk-row" :data-chunk-id="chunk.id" :aria-pressed="selectedChunk?.id === chunk.id" @click="selectChunk(chunk)"><span><strong>块 {{ String(chunk.number).padStart(2, '0') }}</strong><small>{{ pageLabel(chunk) }}</small></span><p>{{ chunk.text }}</p></button></template>
-                  <div v-else class="kdw-empty kdw-empty-inline"><p>{{ previewLoading ? '正在读取服务端切块结果…' : previewValid ? '没有匹配的切块。' : '生成预览后显示实际切块。' }}</p><el-button v-if="chunkQuery && previewValid" @click="chunkQuery = ''">恢复全部切块</el-button></div>
-                </div>
-              </section>
-
-              <section class="kdw-chunk-detail" aria-label="选中切块正文">
-                <template v-if="previewValid && selectedChunk">
-                  <header class="kdw-chunk-detail-head"><div><h2>块 {{ String(selectedChunk.number).padStart(2, '0') }} · 正文</h2><span class="kdw-tag">{{ selectedChunk.overlap ? `含重叠 ${selectedChunk.overlap} 字符` : selectedChunk.number === 1 ? '首块' : '无重叠' }}</span></div><p class="kdw-chunk-meta"><span>{{ characterCount(selectedChunk.text) }} 字符</span><span>{{ pageLabel(selectedChunk) }}</span><span>偏移 {{ selectedChunk.start }}–{{ selectedChunk.end }}（左闭右开）</span></p><p v-if="selectedChunk.overlap" class="kdw-overlap-key"><span aria-hidden="true" />浅蓝底为与上一块重复的内容，竖线后为新增正文。</p></header>
-                  <div class="kdw-text-scroll"><article class="kdw-chunk-text"><template v-if="selectedChunk.overlap"><mark class="kdw-chunk-overlap">{{ selectedChunkText.overlap }}</mark><span class="kdw-overlap-divider" aria-hidden="true" /></template>{{ selectedChunkText.body }}</article></div>
-                  <footer class="kdw-chunk-footer"><el-button v-if="selectedChunk.pages?.length" text @click="navigate('source', selectedChunk.pages[0])">原文第 {{ selectedChunk.pages[0] }} 页 <el-icon><TopRight /></el-icon></el-button><span v-else class="kdw-subtle">来源页码未可靠映射</span><el-button text @click="navigate('parsed', selectedChunk.pages?.[0] || currentPage?.number)">解析正文 <el-icon><ArrowRight /></el-icon></el-button></footer>
+                <template v-if="readingView.name === 'source'">
+                  <div class="kdw-page-stage">
+                    <img v-if="currentPage?.image_url && !imageError" :key="currentPage.image_url" class="kdw-source-image" :style="{ '--kdw-page-zoom': zoom / 100 }" :src="currentPage.image_url" :alt="workspace.name + '，原文第 ' + currentPage.number + ' 页'" @error="imageError = true">
+                    <article v-else-if="currentPage?.text && !currentPage.image_url" class="kdw-source-text" :style="{ '--kdw-page-zoom': zoom / 100 }">{{ currentPage.text }}</article>
+                    <div v-else class="kdw-empty">
+                      <el-icon><Document /></el-icon>
+                      <h2>{{ imageError ? '原页图像未能载入' : '此文件没有逐页预览' }}</h2>
+                      <p>可打开原始文件核对，或切换到解析正文查看已提取的完整内容。</p>
+                      <el-button v-if="imageError" @click="imageError = false">重试原页图像</el-button>
+                    </div>
+                  </div>
+                  <footer class="kdw-source-footer"><p>{{ sourceTextSummary }}</p><el-button text @click="navigate(workspace.parsed?.available ? 'parsed' : 'index')">{{ workspace.parsed?.available ? '查看解析正文' : '核对解析方案' }} <el-icon><ArrowRight /></el-icon></el-button></footer>
                 </template>
-                <div v-else class="kdw-empty"><el-icon><component :is="previewLoading ? Loading : Document" :class="{ 'is-loading': previewLoading }" /></el-icon><h2>{{ previewLoading ? '正在生成切块预览' : !workspace.parsed?.available ? '请先核对解析正文' : preview && !previewValid ? '预览需要更新' : previewValid ? '没有匹配正文' : '开始核对切块边界' }}</h2><p>{{ !workspace.parsed?.available ? '当前没有可用于切块的解析正文。' : previewError ? '生成失败，配置和阅读位置已保留，可重新生成。' : '按当前配置生成服务端预览，再选择切块查看正文与来源。' }}</p><el-button v-if="!workspace.parsed?.available" @click="navigate('parsed')">查看解析结果</el-button></div>
-              </section>
-            </div>
-          </section>
-        </el-tab-pane>
 
-        <el-tab-pane label="索引信息" name="index">
-          <section v-if="activeView === 'index'" class="kdw-panel kdw-index-layout" aria-label="索引与处理方案">
-            <div class="kdw-index-main">
-              <h2>选择文档的索引方案</h2><p class="kdw-subtle">方案决定内容的组织层级。保存方案后，可继续核对正文与预览切块。</p>
-              <el-radio-group v-model="config.index" class="kdw-index-options" aria-label="索引层级">
-                <div class="kdw-index-option" :class="{ 'is-selected': config.index === 'document' }"><el-radio value="document" label="document">文档级索引</el-radio><p>将标题与整篇正文作为一个检索单元，适合先确认整份资料的相关性。</p><small>按整份文档建立检索内容</small></div>
-                <div class="kdw-index-option" :class="{ 'is-selected': config.index === 'hierarchical', 'is-unavailable': !capabilities.hierarchical_index }"><el-radio value="hierarchical" label="hierarchical" :disabled="!capabilities.hierarchical_index">分级索引 <span v-if="!capabilities.hierarchical_index" class="kdw-unavailable-label">当前不可用</span></el-radio><p>按文档、章节、切块与摘要组织内容，便于不同粒度的定位。</p><small>{{ capabilities.hierarchical_index ? '文档 / 章节 / 切块 / 摘要' : '当前文档处理接口未开放分级构建' }}</small></div>
-              </el-radio-group>
-              <section class="kdw-index-section">
-                <h2>解析与文字识别方案</h2>
-                <el-form :model="config" class="kdw-processing-form" label-position="top" @submit.prevent="saveConfig">
-                  <el-form-item label="解析方式" label-for="kdw-parser"><el-select id="kdw-parser" v-model="config.parser"><el-option v-for="parser in capabilities.parsers || []" :key="parser.value" :label="`${parser.label}${parser.available ? '' : '（不可用）'}`" :value="parser.value" :disabled="!parser.available" /></el-select></el-form-item>
-                  <el-form-item label="OCR 文字识别" label-for="kdw-ocr"><el-select id="kdw-ocr" v-model="config.ocr"><el-option label="随解析方式处理" value="auto" /><el-option label="启用 OCR（扫描件）" value="on" :disabled="!capabilities.ocr" /><el-option label="不使用 OCR（文本件）" value="off" :disabled="!capabilities.ocr" /></el-select></el-form-item>
-                </el-form>
-                <p class="kdw-subtle">{{ capabilities.ocr ? 'OCR 选项按当前解析服务能力执行。' : 'OCR 用于识别扫描页中的文字。当前服务不支持独立控制 OCR，仅可随解析方式处理。' }}</p>
+                <div v-else class="kdw-parsed-layout" :class="{ 'is-text-only': !compareSource }">
+                  <section class="kdw-parsed-pane" aria-label="解析正文">
+                    <div class="kdw-pane-label"><span>{{ exactPageMapping && currentPage ? '解析正文 · 第 ' + currentPage.number + ' 页' : '解析正文 · 完整正文' }}</span><span>{{ characterCount(parsedText) }} 字符</span></div>
+                    <p v-if="workspace.parsed?.available && !exactPageMapping" class="kdw-mapping-note">当前解析结果没有可靠的逐页对应，展示完整正文；可开启“对照原页”，独立翻阅核对。</p>
+                    <div class="kdw-text-scroll">
+                      <article v-if="parsedText" class="kdw-parsed-text">{{ parsedText }}</article>
+                      <div v-else class="kdw-empty kdw-empty-inline">
+                        <h2>{{ workspace.parsed?.available ? '本页没有可复制文字' : '尚无可用解析正文' }}</h2>
+                        <p>原始文件保留供核对。请在处理方案中确认解析方式，再执行解析。</p>
+                        <el-button @click="navigate('index')">核对解析方案</el-button>
+                      </div>
+                    </div>
+                    <footer class="kdw-parsed-footer"><span>解析方式：{{ parserLabel }}<template v-if="exactPageMapping && currentPage"> · 第 {{ currentPage.number }} 页</template></span><el-button text :disabled="!workspace.parsed?.available" @click="navigate('chunks')">{{ exactPageMapping ? '查看本页切块' : '查看切块预览' }} <el-icon><ArrowRight /></el-icon></el-button></footer>
+                  </section>
+                  <section v-if="compareSource" class="kdw-compare-pane" aria-label="原页对照">
+                    <div class="kdw-pane-label">原始文件<template v-if="currentPage"> · 第 {{ currentPage.number }} 页</template></div>
+                    <div class="kdw-page-stage">
+                      <img v-if="currentPage?.image_url && !imageError" :key="currentPage.image_url" class="kdw-compare-image" :src="currentPage.image_url" :alt="workspace.name + '，原文第 ' + currentPage.number + ' 页'" @error="imageError = true">
+                      <article v-else-if="currentPage?.text && !currentPage.image_url" class="kdw-source-text">{{ currentPage.text }}</article>
+                      <div v-else class="kdw-empty"><p>{{ imageError ? '原页图像未能载入，请打开原始文件核对。' : '此文件没有逐页图像。' }}</p><el-button v-if="imageError" @click="imageError = false">重试原页图像</el-button></div>
+                    </div>
+                  </section>
+                </div>
               </section>
-              <section class="kdw-index-section"><h3>处理范围与边界</h3><p>文档级方案以当前资料的完整正文建立检索内容。切块预览用于核对正文与来源，不代表实际入库记录或向量数量。</p><p>保存处理方案、执行解析和写入知识库为独立动作。请确认方案后主动执行。</p></section>
-              <section class="kdw-index-section"><h3>当前切块参数</h3><p>{{ config.boundary === 'sentence' ? '优先句末 / 换行' : '固定字符长度' }} · 目标 {{ config.size ?? '未填写' }} 字符 · 重叠 {{ config.overlap ?? '未填写' }} 字符。<el-button text @click="navigate('chunks')">调整并核对预览 <el-icon><ArrowRight /></el-icon></el-button></p></section>
+            </el-tab-pane>
+
+            <el-tab-pane label="切块预览" name="chunks">
+              <section v-if="activeView === 'chunks'" class="kdw-panel kdw-chunks-panel" aria-label="切块预览">
+                <div v-if="!previewValid && preview" class="kdw-stale" role="status"><span>正文或切块参数已改变，旧预览已失效。重新生成后可继续核对正文与来源。</span><el-button :loading="previewLoading" :disabled="!canPreview" @click="generatePreview">重新生成预览</el-button></div>
+                <div class="kdw-chunks-layout">
+                  <section class="kdw-chunk-list-pane" aria-label="预览切块列表" :aria-busy="previewLoading">
+                    <div class="kdw-chunk-list-tools">
+                      <el-input v-model="chunkQuery" :prefix-icon="Search" clearable placeholder="搜索块内正文" aria-label="搜索切块正文" :disabled="!previewValid" />
+                      <p><span>{{ previewValid ? filteredChunks.length + ' / ' + preview.total + ' 个预览块' : previewLoading ? '正在生成…' : '待生成预览' }}</span><el-button v-if="chunkQuery" text @click="chunkQuery = ''">清除</el-button></p>
+                      <div class="kdw-mobile-chunk-select"><el-select :model-value="selectedChunk?.id" aria-label="选择切块" :disabled="!previewValid || !filteredChunks.length" :placeholder="previewValid && !filteredChunks.length ? '没有匹配的切块' : '选择切块'" @update:model-value="selectChunkById"><el-option v-for="chunk in filteredChunks" :key="chunk.id" :label="'块 ' + String(chunk.number).padStart(2, '0') + ' · ' + pageLabel(chunk) + ' · ' + characterCount(chunk.text) + ' 字符'" :value="chunk.id" /></el-select></div>
+                    </div>
+                    <div ref="chunkListElement" class="kdw-chunk-list">
+                      <template v-if="previewValid && filteredChunks.length"><button v-for="chunk in filteredChunks" :key="chunk.id" type="button" class="kdw-chunk-row" :data-chunk-id="chunk.id" :aria-pressed="selectedChunk?.id === chunk.id" @click="selectChunk(chunk)"><span><strong>块 {{ String(chunk.number).padStart(2, '0') }}</strong><small>{{ pageLabel(chunk) }}</small></span><p>{{ chunk.text }}</p></button></template>
+                      <div v-else class="kdw-empty kdw-empty-inline"><p>{{ previewLoading ? '正在读取服务端切块结果…' : previewValid ? '没有匹配的切块。' : '使用处理参数生成预览后显示实际切块。' }}</p><el-button v-if="chunkQuery && previewValid" @click="chunkQuery = ''">恢复全部切块</el-button></div>
+                    </div>
+                  </section>
+                  <section class="kdw-chunk-detail" aria-label="选中切块正文">
+                    <template v-if="previewValid && selectedChunk">
+                      <header class="kdw-chunk-detail-head"><div><h2>块 {{ String(selectedChunk.number).padStart(2, '0') }} · 正文</h2><span class="kdw-tag">{{ selectedChunk.overlap ? '含重叠 ' + selectedChunk.overlap + ' 字符' : selectedChunk.number === 1 ? '首块' : '无重叠' }}</span></div><p class="kdw-chunk-meta"><span>{{ characterCount(selectedChunk.text) }} 字符</span><span>{{ pageLabel(selectedChunk) }}</span><span>偏移 {{ selectedChunk.start }}–{{ selectedChunk.end }}（左闭右开）</span></p><p v-if="selectedChunk.overlap" class="kdw-overlap-key"><span aria-hidden="true" />浅蓝底为与上一块重复的内容，竖线后为新增正文。</p></header>
+                      <div class="kdw-text-scroll"><article class="kdw-chunk-text"><template v-if="selectedChunk.overlap"><mark class="kdw-chunk-overlap">{{ selectedChunkText.overlap }}</mark><span class="kdw-overlap-divider" aria-hidden="true" /></template>{{ selectedChunkText.body }}</article></div>
+                      <footer class="kdw-chunk-footer"><el-button v-if="selectedChunk.pages?.length" text @click="navigate('source', selectedChunk.pages[0])">原文第 {{ selectedChunk.pages[0] }} 页 <el-icon><TopRight /></el-icon></el-button><span v-else class="kdw-subtle">来源页码未可靠映射</span><el-button text @click="navigate('parsed', selectedChunk.pages?.[0] || currentPage?.number)">解析正文 <el-icon><ArrowRight /></el-icon></el-button></footer>
+                    </template>
+                    <div v-else class="kdw-empty"><el-icon><component :is="previewLoading ? Loading : Document" :class="{ 'is-loading': previewLoading }" /></el-icon><h2>{{ previewLoading ? '正在生成切块预览' : !workspace.parsed?.available ? '请先核对解析正文' : preview && !previewValid ? '预览需要更新' : previewValid ? '没有匹配正文' : '开始核对切块边界' }}</h2><p>{{ !workspace.parsed?.available ? '当前没有可用于切块的解析正文。' : previewError ? '生成失败，配置和阅读位置已保留，可重新生成。' : '按处理参数生成预览，再选择切块查看完整正文与来源。' }}</p><el-button v-if="!workspace.parsed?.available" @click="navigate('parsed')">查看解析正文</el-button></div>
+                  </section>
+                </div>
+              </section>
+            </el-tab-pane>
+
+            <el-tab-pane label="处理方案" name="index">
+              <section v-if="activeView === 'index'" class="kdw-panel kdw-index-main" aria-label="索引与处理方案">
+                <h2>索引方案</h2><p class="kdw-subtle">核对内容的组织方式，保存后再主动执行解析或入库。</p>
+                <el-radio-group v-model="config.index" class="kdw-index-options" aria-label="索引层级">
+                  <div class="kdw-index-option" :class="{ 'is-selected': config.index === 'document' }"><el-radio value="document" label="document">文档级索引</el-radio><p>将标题与整篇正文作为一个检索单元。</p><small>按整份文档建立检索内容</small></div>
+                  <div class="kdw-index-option" :class="{ 'is-selected': config.index === 'hierarchical', 'is-unavailable': !capabilities.hierarchical_index }"><el-radio value="hierarchical" label="hierarchical" :disabled="!capabilities.hierarchical_index">分级索引 <span v-if="!capabilities.hierarchical_index" class="kdw-unavailable-label">当前不可用</span></el-radio><p>按文档、章节、切块与摘要组织内容。</p><small>{{ capabilities.hierarchical_index ? '文档 / 章节 / 切块 / 摘要' : '当前文档处理接口未开放分级构建' }}</small></div>
+                </el-radio-group>
+                <section class="kdw-index-section">
+                  <h2>解析与文字识别</h2>
+                  <el-form :model="config" class="kdw-processing-form" label-position="top" @submit.prevent="saveConfig">
+                    <el-form-item label="解析方式" label-for="kdw-parser"><el-select id="kdw-parser" v-model="config.parser"><el-option v-for="parser in capabilities.parsers || []" :key="parser.value" :label="parser.label + (parser.available ? '' : '（不可用）')" :value="parser.value" :disabled="!parser.available" /></el-select></el-form-item>
+                    <el-form-item label="OCR 文字识别" label-for="kdw-ocr"><el-select id="kdw-ocr" v-model="config.ocr"><el-option label="随解析方式处理" value="auto" /><el-option label="启用 OCR（扫描件）" value="on" :disabled="!capabilities.ocr" /><el-option label="不使用 OCR（文本件）" value="off" :disabled="!capabilities.ocr" /></el-select></el-form-item>
+                  </el-form>
+                  <p class="kdw-subtle">{{ capabilities.ocr ? 'OCR 选项按当前解析服务能力执行。' : '当前服务不支持独立控制 OCR，仅可随解析方式处理。' }}</p>
+                </section>
+                <section class="kdw-index-section"><h3>处理范围</h3><p>文档级方案以当前资料的完整正文建立检索内容。字符切块预览用于核对正文与来源，不代表实际入库记录或向量数量。</p><p>保存处理方案、执行解析和写入知识库分别操作。修改参数后请先保存，再执行文档处理。</p></section>
+                <section class="kdw-index-section"><h3>当前切块参数</h3><p>{{ config.boundary === 'sentence' ? '优先句末 / 换行' : '固定字符长度' }} · 目标 {{ config.size ?? '未填写' }} 字符 · 重叠 {{ config.overlap ?? '未填写' }} 字符。</p><el-button text :disabled="!canPreview" @click="previewChunks">查看切块预览 <el-icon><ArrowRight /></el-icon></el-button></section>
+              </section>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <aside class="kdw-processing-side" aria-label="正文处理与资料状态">
+          <details class="kdw-parameters" :open="activeView === 'chunks' || activeView === 'index' || configDirty || !!saveError || !!configError || !!previewError">
+            <summary><h2>正文处理参数</h2><span>{{ configDirty ? '有未保存修改' : workspace.saved_at ? '已保存' : '尚未保存' }}</span></summary>
+            <p class="kdw-subtle">用于解析正文的字符切块预览。</p>
+            <el-form :model="config" class="kdw-parameter-form" label-position="top" @submit.prevent="saveConfig">
+              <el-form-item label="切块字符数" label-for="kdw-size"><el-input-number id="kdw-size" v-model="config.size" :min="100" :max="3000" :step="1" :precision="0" controls-position="right" /></el-form-item>
+              <el-form-item label="重叠字符数" label-for="kdw-overlap"><el-input-number id="kdw-overlap" v-model="config.overlap" :min="0" :max="1000" :step="1" :precision="0" controls-position="right" /></el-form-item>
+              <el-form-item class="kdw-boundary-field" label="切分边界" label-for="kdw-boundary"><el-select id="kdw-boundary" v-model="config.boundary"><el-option label="优先句末 / 换行" value="sentence" /><el-option label="固定字符长度" value="fixed" /></el-select></el-form-item>
+            </el-form>
+            <div class="kdw-parameter-actions">
+              <el-button :loading="previewLoading" :disabled="!canPreview" @click="previewChunks">预览切块</el-button>
+              <el-button type="primary" :icon="Check" :loading="saving" :disabled="busy || !!configError || (!configDirty && !!workspace.saved_at)" @click="saveConfig">保存配置</el-button>
             </div>
-            <aside class="kdw-index-side">
-              <h2>当前文档方案</h2>
-              <dl><dt>资料</dt><dd>{{ formatLabel }}<template v-if="workspace.page_count"> · {{ workspace.page_count }} 页</template></dd><dt>正文</dt><dd>{{ workspace.parsed?.available ? `${characterCount(workspace.parsed.text)} 字符` : '尚未解析' }}</dd><dt>字符预览</dt><dd>{{ previewValid ? `${preview.total} 块` : '待生成 / 更新' }}</dd><dt>预览参数</dt><dd>{{ config.size ?? '—' }} / {{ config.overlap ?? '—' }} 字符</dd><dt>索引层级</dt><dd>{{ config.index === 'hierarchical' ? '分级索引' : '文档级索引' }}</dd><dt>入库状态</dt><dd>{{ workspace.embedded ? '已入库' : '尚未入库' }}</dd></dl>
-              <div class="kdw-index-actions"><el-button class="kdw-wide-button" type="primary" :icon="Check" :loading="saving" :disabled="busy || (!configDirty && !!workspace.saved_at)" @click="saveConfig">保存处理方案</el-button><p class="kdw-save-status" role="status">{{ configDirty ? '方案有修改，等待保存' : workspace.saved_at ? `已保存 · ${formatDate(workspace.saved_at)}` : '方案尚未保存' }}</p><p v-if="saveMessage" class="kdw-subtle" role="status">{{ saveMessage }}</p><p v-if="saveError || configError" class="kdw-error" role="alert">{{ saveError || configError }}</p></div>
-              <div class="kdw-index-actions"><h3>执行文档处理</h3><p class="kdw-subtle">使用已保存方案。修改选项后请先保存；解析不会自动入库。</p><el-button class="kdw-wide-button" :icon="Refresh" :loading="parsing" :disabled="busy || configDirty" @click="parseDocument">{{ workspace.parsed?.available ? '重新解析文档' : '解析文档' }}</el-button><el-button class="kdw-wide-button" :icon="Upload" :loading="embedding" :disabled="busy || configDirty || !workspace.parsed?.available || !!workspace.embedded" @click="embedDocument">{{ workspace.embedded ? '已写入知识库' : '执行入库' }}</el-button><el-button text :disabled="busy" @click="refreshDocument">刷新处理状态</el-button><p v-if="operationMessage" class="kdw-subtle" role="status">{{ operationMessage }}</p><p v-if="operationError" class="kdw-error" role="alert">{{ operationError }}</p></div>
-            </aside>
+            <p class="kdw-save-status" role="status">{{ configDirty ? '方案有修改，等待保存' : workspace.saved_at ? '已保存 · ' + formatDate(workspace.saved_at) : '方案尚未保存' }}</p>
+            <p v-if="saveMessage" class="kdw-subtle" role="status">{{ saveMessage }}</p>
+            <p v-if="saveError || configError" class="kdw-error" role="alert">{{ saveError || configError }}</p>
+            <p v-if="previewError" class="kdw-error" role="alert">{{ previewError }}</p>
+          </details>
+
+          <section class="kdw-side-section">
+            <h2>资料状态</h2>
+            <dl class="kdw-document-facts">
+              <div><dt>正文状态</dt><dd :class="{ 'is-ready': workspace.parsed?.available }">{{ workspace.parsed?.available ? '正文已提取' : '待解析' }}</dd></div>
+              <div><dt>入库状态</dt><dd :class="{ 'is-ready': workspace.embedded }">{{ workspace.embedded ? '已入库' : '待入库' }}</dd></div>
+              <div><dt>文件格式</dt><dd>{{ formatLabel }}<template v-if="workspace.page_count"> · {{ workspace.page_count }} 页</template></dd></div>
+              <div><dt>完整正文</dt><dd>{{ workspace.parsed?.available ? characterCount(workspace.parsed.text) + ' 字符' : '尚未解析' }}</dd></div>
+              <div><dt>字符预览</dt><dd>{{ previewValid ? preview.total + ' 块' : '待生成 / 更新' }}</dd></div>
+              <div><dt>索引层级</dt><dd>{{ config.index === 'hierarchical' ? '分级索引' : '文档级索引' }}</dd></div>
+            </dl>
+            <p class="kdw-side-note">字符切块用于核对文本，与实际入库的向量分块分别处理。</p>
           </section>
-        </el-tab-pane>
-      </el-tabs>
-      <p v-if="activeView !== 'index' && operationError" class="kdw-error" role="alert">{{ operationError }}</p>
-      <p v-if="activeView !== 'index' && operationMessage" class="kdw-subtle" role="status">{{ operationMessage }}</p>
+
+          <section class="kdw-side-section kdw-processing-actions">
+            <h2>执行文档处理</h2>
+            <p class="kdw-subtle">按已保存方案执行；解析完成后仍需单独入库。</p>
+            <p v-if="operationError" ref="operationFeedback" class="kdw-error" role="alert">{{ operationError }}</p>
+            <el-button class="kdw-wide-button" :icon="Refresh" :loading="parsing" :disabled="busy || configDirty" @click="parseDocument">{{ workspace.parsed?.available ? '重新解析文档' : '解析文档' }}</el-button>
+            <el-button class="kdw-wide-button" :icon="Upload" :loading="embedding" :disabled="busy || configDirty || !workspace.parsed?.available || !!workspace.embedded" @click="embedDocument">{{ workspace.embedded ? '已写入知识库' : '执行入库' }}</el-button>
+            <el-button text :disabled="busy" @click="refreshDocument">刷新处理状态</el-button>
+            <p v-if="operationMessage" class="kdw-subtle" role="status">{{ operationMessage }}</p>
+          </section>
+        </aside>
+      </div>
     </template>
   </section>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Back, Check, Document, Loading, Minus, Plus, Refresh, Search, TopRight, Upload, Warning } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Back, Check, Document, Loading, Minus, Plus, Refresh, Search, TopRight, Upload, Warning } from '@element-plus/icons-vue'
 import { knowledgeApi } from '@/api'
 import '@/styles/knowledge-workspace.css'
 
 const props = defineProps({
   docId: { type: String, required: true },
   view: { type: String, default: 'source' },
-  page: { type: Number, default: 1 }
+  page: { type: Number, default: 1 },
+  returnLabel: { type: String, default: '返回资料列表' }
 })
 const emit = defineEmits(['back', 'navigate', 'updated'])
-const readingViews = [{ name: 'source', label: '原文预览' }, { name: 'parsed', label: '解析结果' }]
+const readingViews = [{ name: 'source', label: '原始文件' }, { name: 'parsed', label: '解析正文' }]
 const configKeys = ['size', 'overlap', 'boundary', 'index', 'parser', 'ocr']
 const workspace = ref(null)
 const config = reactive({ size: 800, overlap: 100, boundary: 'sentence', index: 'document', parser: 'auto', ocr: 'auto' })
@@ -199,17 +214,16 @@ const saveMessage = ref('')
 const parsing = ref(false)
 const embedding = ref(false)
 const operationError = ref('')
+const operationFeedback = ref(null)
 const operationMessage = ref('')
 const preview = ref(null)
 const previewLoading = ref(false)
 const previewError = ref('')
 const chunkQuery = ref('')
-const chunkConfigOpen = ref(true)
 const selectedChunkId = ref(null)
 const chunkListElement = ref(null)
 const zoom = ref(100)
-const sourceInfoOpen = ref(true)
-const compareSource = ref(typeof window === 'undefined' || !window.matchMedia('(max-width: 699px)').matches)
+const compareSource = ref(false)
 const imageError = ref(false)
 let documentGeneration = 0
 let loadController = null
@@ -235,7 +249,7 @@ const parsedText = computed(() => {
 })
 const parserLabel = computed(() => capabilities.value.parsers?.find(parser => parser.value === workspace.value?.parsed?.parser)?.label || workspace.value?.parsed?.parser || '尚未解析')
 const sourceTextSummary = computed(() => {
-  if (!currentPage.value?.has_text) return '本页没有可复制文字。原页仍可查阅，解析能力与文字识别选项可在索引方案中核对。'
+  if (!currentPage.value?.has_text) return '本页没有可复制文字。原页仍可查阅，解析能力与文字识别选项可在处理方案中核对。'
   const text = `原页含 ${characterCount(currentPage.value.text)} 字符的可复制文字`
   return workspace.value?.parsed?.available ? `${text}，可与解析正文对照。` : `${text}；处理正文尚待解析。`
 })
@@ -260,13 +274,6 @@ const selectedChunkText = computed(() => {
   const overlap = selectedChunk.value?.overlap || 0
   return { overlap: characters.slice(0, overlap).join(''), body: characters.slice(overlap).join('') }
 })
-const processingSteps = computed(() => [
-  { number: '01', view: 'source', label: '原始资料', detail: `${workspace.value?.page_count ? `${workspace.value.page_count} 页 · ` : ''}${formatLabel.value} · ${formatBytes(workspace.value?.size)}` },
-  { number: '02', view: 'parsed', label: '解析正文', detail: workspace.value?.parsed?.available ? `${characterCount(workspace.value.parsed.text)} 字符 · ${exactPageMapping.value ? '可核对原页' : '完整正文'}` : '等待解析 · 原文保留' },
-  { number: '03', view: 'chunks', label: '切块预览', detail: previewValid.value ? `${preview.value.total} 块 · 按正文试切` : '待生成 / 更新预览' },
-  { number: '04', view: 'index', label: '索引方案', detail: `${config.index === 'hierarchical' ? '分级索引' : '文档级索引'} · ${configDirty.value ? '有未保存修改' : workspace.value?.saved_at ? '方案已保存' : '待确认方案'}` }
-])
-
 function navigate(view, page = currentPage.value?.number || props.page) {
   emit('navigate', { view, page: Number(page) || 1 })
 }
@@ -334,7 +341,6 @@ async function loadDocument() {
   selectedChunkId.value = null
   readingAnchor = null
   chunkQuery.value = ''
-  chunkConfigOpen.value = true
   loading.value = true
   loadError.value = ''
   saveError.value = ''
@@ -413,7 +419,6 @@ async function generatePreview() {
     selectedChunkId.value = selected?.id || null
     if (selected) readingAnchor = anchor ?? selected.start
     chunkQuery.value = ''
-    chunkConfigOpen.value = false
     await nextTick()
     if (currentDocument(generation, docId) && requestGeneration === previewGeneration) chunkListElement.value?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest' })
   } catch (error) {
@@ -421,6 +426,12 @@ async function generatePreview() {
   } finally {
     if (currentDocument(generation, docId) && requestGeneration === previewGeneration) previewLoading.value = false
   }
+}
+
+function previewChunks() {
+  if (!canPreview.value) return
+  navigate('chunks')
+  return generatePreview()
 }
 
 async function saveConfig() {
@@ -482,7 +493,11 @@ async function runDocumentOperation(operation) {
   } catch (error) {
     if (currentDocument(generation, docId)) {
       operationMessage.value = ''
-      operationError.value = errorMessage(error, '处理失败，原文、配置和当前内容已保留。')
+      const action = operation === 'parse' ? '解析' : '入库'
+      const detail = error?.response?.status === 404 ? '文档处理服务暂不可用，请稍后重试。' : errorMessage(error, '原文、配置和当前内容已保留，请重试或刷新处理状态。')
+      operationError.value = `${action}未完成：${detail}`
+      await nextTick()
+      operationFeedback.value?.scrollIntoView({ block: 'nearest' })
     }
   } finally {
     if (currentDocument(generation, docId)) running.value = false

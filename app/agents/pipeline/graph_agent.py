@@ -11,7 +11,7 @@ from autogen_core import MessageContext, AgentId, TopicId, CancellationToken
 from autogen_core.models import UserMessage
 
 from app.core.llms import model_client
-from app.models.base import FinalAnswer, PolicyDocument
+from app.models.policy import FinalAnswer, PolicyDocument
 from .knowledge_agent import KnowledgeAgent
 
 from app.agents.packs.graph_retriever.node import GraphRetrieverAgent
@@ -20,7 +20,7 @@ from app.agents.packs.graph_retriever.node import GraphRetrieverAgent
 class GraphAgent:
     """Answer relation questions with LightRAG; search knowledge when no graph evidence exists."""
 
-    def __init__(self, knowledge_agent: KnowledgeAgent):
+    def __init__(self, knowledge_agent: KnowledgeAgent) -> None:
         self.knowledge_agent = knowledge_agent
         self.logger = logging.getLogger(__name__)
         self._graph_agent = GraphRetrieverAgent()
@@ -83,7 +83,8 @@ class GraphAgent:
     async def close(self) -> None:
         await self._graph_agent.close()
 
-    def _build_message_context(self) -> MessageContext:
+    @staticmethod
+    def _build_message_context() -> MessageContext:
         """Create a minimal MessageContext for AutoGen graph agents."""
         return MessageContext(
             sender=AgentId("graph_agent", "router"),
@@ -93,7 +94,8 @@ class GraphAgent:
             message_id=str(uuid4()),
         )
 
-    def _strip_markdown_headings(self, text: str) -> str:
+    @staticmethod
+    def _strip_markdown_headings(text: str) -> str:
         """Remove markdown heading markers (#, ##, ###) to keep responses clean."""
         if not text:
             return ""

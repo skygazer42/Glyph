@@ -1,6 +1,6 @@
 <template>
   <div class="code-editor">
-    <div class="editor-header">
+    <div v-if="showHeader" class="editor-header">
       <div class="editor-title">
         <slot name="title">
           <span>{{ title }}</span>
@@ -26,6 +26,7 @@
         :model-value="modelValue"
         @update:modelValue="$emit('update:modelValue', $event)"
         type="textarea"
+        resize="none"
         :rows="rows"
         :placeholder="placeholder"
         :aria-label="title || placeholder || '代码内容'"
@@ -94,6 +95,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  showHeader: {
+    type: Boolean,
+    default: true
+  },
   disabled: {
     type: Boolean,
     default: false
@@ -149,7 +154,7 @@ const handleCopy = async () => {
 .editor-body :deep(.el-textarea__inner) {
   border: none;
   border-radius: 0;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -164,7 +169,7 @@ const handleCopy = async () => {
 
 .code-display pre {
   margin: 0;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;

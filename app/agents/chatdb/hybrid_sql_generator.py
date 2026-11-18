@@ -8,6 +8,7 @@ from autogen_agentchat.agents import AssistantAgent
 from app.config.app_config import settings
 from app.schemas.text2sql import AnalysisMessage, SqlMessage
 from .base import BaseAgent
+from .sql_generator import SqlGeneratorAgent
 from .types import AgentTypes, AGENT_NAMES, TopicTypes
 
 
@@ -23,38 +24,14 @@ class HybridSqlGeneratorAgent(BaseAgent):
             db_type: 数据库类型
         """
         super().__init__(
-            agent_id="hybrid_sql_generator_agent",
+            description="hybrid_sql_generator_agent",
             agent_name=AGENT_NAMES[AgentTypes.SQL_GENERATOR.value],
             model_client_instance=model_client_instance,
             db_type=db_type
         )
 
         # 构建基础提示模板
-        self._prompt_template = self._build_prompt_template()
-
-    @staticmethod
-    def _build_prompt_template() -> str:
-        """构建提示模板"""
-        return """
-        你是一名专业的SQL转换专家。你的任务是基于上下文信息及SQL命令生成报告，将用户的自然语言查询转换为精确的SQL语句。
-
-        ## 生成SQL的指导原则：
-
-        1.  **严格遵循报告中的分析：** 仔细阅读并理解上述的SQL命令生成报告，包括查询意图、需要使用的表和字段、连接方式、筛选条件、分组和排序要求。
-        2.  **生成有效的SQL语句：** 仅输出符合 {db_type} 数据库语法的有效SQL语句，不要添加任何额外的解释或说明。
-        3.  **准确表达筛选条件：** 报告中如有筛选条件描述，务必在生成的SQL语句中准确实现。
-        4.  **正确使用表连接：** 按照报告中"需要的表连接描述"进行表连接，并确保连接条件正确。
-        5.  **实现分组和聚合：** 如果报告中指示需要进行分组（GROUP BY）或聚合操作（例如 SUM, COUNT, AVG），请在SQL语句中正确实现。
-        6.  **实现排序：** 按照报告中"排序描述"的要求，使用 ORDER BY 子句对结果进行排序。
-        7.  **考虑数据库特性：** 生成的SQL语句应符合 {db_type} 数据库的特定语法和函数。
-        8.  **SQL格式规范：** 使用清晰可读的SQL格式，适当添加换行和缩进，以提高可读性。
-        9.  **避免使用不支持的语法：** 不要使用 {db_type} 数据库不支持的特殊语法或函数。
-        10. **仅生成SQL：** 最终输出结果必须是纯粹的SQL查询语句，没有任何额外的文本。
-        11. **注意值映射：** 如果提供了值映射信息，请根据映射关系在SQL中使用正确的数据库值。
-        12. **避免重复字段和语句：** 确保生成的SQL语句中不包含重复的字段名称或重复的SQL子句，如重复的FROM子句。例如，避免生成如 `SELECT field1, field1` 或 `FROM table1 FROM table1` 这样的语句。
-        13. **检查语法错误：** 在生成SQL语句后，仔细检查是否有语法错误，如拼写错误、缺失逗号或括号不匹配等。确保生成的SQL语句是完整的，不包含多余的关键字或缺失必要的关键字。
-
-        """
+        self._prompt_template = SqlGeneratorAgent.PROMPT_TEMPLATE
 
     @message_handler
     async def handle_analysis_message(self, message: AnalysisMessage, ctx: MessageContext) -> None:

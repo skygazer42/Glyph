@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.persistence.db.session import SessionLocal
-from app.persistence import crud
+from app.persistence.crud.db_connection import db_connection as db_connection_crud
 
 
 class DBConnectionInfo(BaseModel):
@@ -31,7 +31,7 @@ def list_connections() -> List[DBConnectionInfo]:
     """List all registered DB connections (for Text2SQL etc.)."""
     db = SessionLocal()
     try:
-        connections = db.query(crud.db_connection.model).all()
+        connections = db.query(db_connection_crud.model).all()
         return [
             DBConnectionInfo(
                 id=connection.id,
@@ -52,7 +52,7 @@ def get_connection(connection_id: int) -> DBConnectionInfo:
     """Get a single DB connection by id."""
     db = SessionLocal()
     try:
-        connection = crud.db_connection.get(db, id=connection_id)
+        connection = db_connection_crud.get(db, id=connection_id)
         if connection is None:
             raise HTTPException(status_code=404, detail="DB connection not found")
         return DBConnectionInfo(

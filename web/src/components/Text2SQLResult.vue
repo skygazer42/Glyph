@@ -286,7 +286,8 @@ const chartConfig = computed(() => {
   left: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #6366f1, #22c55e);
+  background: var(--wb-blue-soft);
+  border-right: 2px solid var(--wb-blue);
   transition: width 0.3s ease;
 }
 
@@ -295,8 +296,9 @@ const chartConfig = computed(() => {
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 11px;
-  color: #111827;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--wb-ink);
 }
 </style>
 

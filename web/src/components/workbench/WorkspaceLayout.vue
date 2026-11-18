@@ -1,100 +1,150 @@
 <template>
-  <div class="policy-workbench module-workbench evidence-collapsed" :class="{ 'navigation-collapsed': navigationCollapsed }">
-    <WorkbenchSidebar
-      v-if="!isMobile"
-      :collapsed="navigationCollapsed"
-      :sessions="[]"
-      :show-recent="false"
-      action-label="进入智能问答"
-      @create="router.push('/agent')"
-    >
-      <template #profile-action>
-        <el-tooltip :content="isDark ? '切换为浅色' : '切换为深色'" placement="right">
-          <button type="button" class="workbench-icon" :aria-label="isDark ? '切换为浅色' : '切换为深色'" @click="toggleTheme">
-            <el-icon><component :is="isDark ? Sunny : Moon" /></el-icon>
-          </button>
-        </el-tooltip>
-      </template>
-    </WorkbenchSidebar>
-    <header class="workbench-header">
-      <el-tooltip :content="isMobile ? '打开功能导航' : navigationCollapsed ? '展开功能导航' : '收起功能导航'" placement="bottom">
-        <button
-          type="button"
-          class="workbench-icon"
-          :aria-label="isMobile ? '打开功能导航' : navigationCollapsed ? '展开功能导航' : '收起功能导航'"
-          :aria-expanded="isMobile ? mobileNavigationVisible : !navigationCollapsed"
-          @click="toggleNavigation"
-        >
-          <el-icon><component :is="navigationCollapsed || isMobile ? Expand : Fold" /></el-icon>
-        </button>
-      </el-tooltip>
-      <div class="consultation-heading">
-        <h1>{{ currentModule.title }}</h1>
-        <span>{{ currentModule.context }}</span>
-      </div>
-      <div class="workbench-header-actions">
-        <el-tooltip content="使用说明" placement="bottom">
-          <button type="button" class="workbench-icon" aria-label="使用说明" @click="helpVisible = true">
-            <el-icon><QuestionFilled /></el-icon>
-          </button>
-        </el-tooltip>
-        <router-link class="module-consult-link" to="/agent">
-          <el-icon><ChatDotSquare /></el-icon><span>智能问答</span>
+  <div class="module-workbench" :class="{ 'is-navigation-collapsed': navigationCollapsed }">
+    <aside id="workspace-sidebar" class="workspace-sidebar">
+      <router-link to="/knowledge" class="workspace-brand" aria-label="政策知识服务平台工作台">
+        <PlatformMark class="workspace-platform-symbol" width="32" height="32" />
+        <span class="workspace-brand-name">政策知识服务平台</span>
+      </router-link>
+      <p class="workspace-nav-caption">工作区</p>
+      <nav class="workspace-topnav" aria-label="后台功能导航">
+        <router-link v-for="item in navigation" :key="item.path" :to="item.path"
+          :class="{ 'is-current': route.path === item.path }"
+          :title="item.label"
+          :aria-current="route.path === item.path ? 'page' : undefined">
+          <el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span>
+          <span v-if="item.path === '/knowledge' && documents.length" class="workspace-nav-count">{{ documents.length }}</span>
         </router-link>
+      </nav>
+      <div class="workspace-sidebar-bottom">
+        <router-link to="/agent" class="workspace-public-link" title="公众咨询"><el-icon><ChatDotRound /></el-icon><span>公众咨询</span><el-icon><TopRight /></el-icon></router-link>
+      </div>
+    </aside>
+    <header class="workspace-header">
+      <div class="workspace-breadcrumb" aria-label="当前位置">
+        <button type="button" class="workspace-icon workspace-nav-toggle" :aria-label="navigationCollapsed ? '展开导航' : '收起导航'" :aria-expanded="!navigationCollapsed" aria-controls="workspace-sidebar" @click="navigationCollapsed = !navigationCollapsed"><el-icon><component :is="navigationCollapsed ? Expand : Fold" /></el-icon></button>
+        <span class="workspace-mobile-title"><PlatformMark class="workspace-platform-symbol" width="26" height="26" />政策知识服务平台</span>
+        <router-link :to="breadcrumb.parentPath">{{ breadcrumb.parent }}</router-link>
+        <el-icon aria-hidden="true"><Right /></el-icon>
+        <span>{{ breadcrumb.current }}</span>
+      </div>
+      <div class="workspace-header-tools">
+        <span v-if="route.path === '/knowledge' || route.path === '/workbench'" class="workspace-context-label"><el-icon><FolderOpened /></el-icon>{{ documents.length ? documents.length + ' 份政策资料' : '政策知识服务' }}</span>
+        <el-tooltip :content="isDark ? '切换浅色界面' : '切换深色界面'" placement="bottom">
+          <button type="button" class="workspace-icon" :aria-label="isDark ? '切换浅色界面' : '切换深色界面'" @click="toggleTheme"><el-icon><component :is="isDark ? Sunny : Moon" /></el-icon></button>
+        </el-tooltip>
+        <button type="button" class="workspace-help-link" aria-label="当前模块使用说明" @click="helpVisible = true"><el-icon><QuestionFilled /></el-icon><span>使用说明</span></button>
+        <router-link to="/agent" class="workspace-mobile-public">公众咨询 <el-icon><TopRight /></el-icon></router-link>
+        <div class="workspace-account">
+          <span class="workspace-account-name" :title="staffDisplayName">{{ staffDisplayName }}</span>
+          <el-button class="workspace-logout" link :loading="loggingOut" :disabled="loggingOut" aria-label="退出登录" @click="logout">
+            <el-icon v-if="!loggingOut" aria-hidden="true"><SwitchButton /></el-icon><span>退出</span>
+          </el-button>
+        </div>
       </div>
     </header>
-    <main id="module-content" class="module-content" :class="{ 'is-graph': route.path === '/graph', 'is-knowledge': route.path === '/knowledge' }">
+    <main id="module-content" ref="contentElement" class="module-content" :class="{ 'is-graph': route.path === '/graph', 'is-chat': route.path === '/workbench', 'is-knowledge': route.path === '/knowledge' }">
+      <el-alert v-if="logoutError" class="workspace-logout-error" type="error" :title="logoutError" show-icon @close="logoutError = ''" />
       <slot />
     </main>
-    <el-drawer v-model="mobileNavigationVisible" direction="ltr" size="260px" :with-header="false" class="glyph-dialog module-navigation-drawer" aria-label="功能导航">
-      <WorkbenchSidebar :sessions="[]" :show-recent="false" action-label="进入智能问答" @create="router.push('/agent')">
-        <template #profile-action>
-          <el-tooltip :content="isDark ? '切换为浅色' : '切换为深色'" placement="top">
-            <button type="button" class="workbench-icon" :aria-label="isDark ? '切换为浅色' : '切换为深色'" @click="toggleTheme"><el-icon><component :is="isDark ? Sunny : Moon" /></el-icon></button>
-          </el-tooltip>
-          <button type="button" class="workbench-icon" aria-label="关闭功能导航" @click="mobileNavigationVisible = false"><el-icon><Close /></el-icon></button>
-        </template>
-      </WorkbenchSidebar>
-    </el-drawer>
-    <el-dialog v-model="helpVisible" :title="currentModule.title + '使用说明'" width="480px" class="glyph-dialog">
-      <p class="module-help">{{ currentModule.help }}</p>
+    <el-dialog v-model="helpVisible" :title="route.meta.title + '使用说明'" width="480px" class="glyph-dialog">
+      <p class="module-help">{{ helpText }}</p>
       <template #footer><el-button type="primary" @click="helpVisible = false">知道了</el-button></template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChatDotSquare, Close, Expand, Fold, Moon, QuestionFilled, Sunny } from '@element-plus/icons-vue'
-import WorkbenchSidebar from './WorkbenchSidebar.vue'
+import { ChatDotRound, Connection, DocumentChecked, Expand, Fold, FolderOpened, Moon, QuestionFilled, Right, Sunny, SwitchButton, TopRight } from '@element-plus/icons-vue'
+import PlatformMark from '@/components/workbench/PlatformMark.vue'
+import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
-import '@/styles/workbench.css'
+import { clearStaffConversationCache } from '@/composables/useLocalStorage'
 import '@/styles/modules.css'
 
 const route = useRoute()
 const router = useRouter()
+const appStore = useAppStore()
+const authStore = useAuthStore()
 const { isDark, toggleTheme } = useTheme()
-const mobileQuery = window.matchMedia('(max-width: 699px)')
-const isMobile = ref(mobileQuery.matches)
-const navigationCollapsed = ref(window.innerWidth < 1100)
-const mobileNavigationVisible = ref(false)
 const helpVisible = ref(false)
-const modules = {
-  '/knowledge': { title: '政策知识库', context: '资料处理与知识检索', help: '导入资料后，在文档工作区核对原文与解析正文，调整切块边界并保存处理方案。入库由你手动确认；完成后可在知识检索中查找内容并返回来源文档。' },
-  '/dsl': { title: 'DSL 规则', context: '政策规则工作区', help: '粘贴政策文本后生成规则，核对输出内容，再保存或使用输入参数测试。下方规则库保留已保存的规则及其状态。' },
-  '/graph': { title: '知识图谱', context: '政策实体与关联', help: '搜索政策实体，并调整关联层级聚焦局部关系。可拖动画布、缩放查看；清除筛选回到完整图谱。' }
+const navigationCollapsed = ref(false)
+const loggingOut = ref(false)
+const logoutError = ref('')
+const staffDisplayName = computed(() => authStore.staffUser?.full_name.trim() || authStore.staffUser?.username || '')
+const contentElement = ref(null)
+const documents = computed(() => appStore.kbState.documents)
+const navigation = [
+  { path: '/workbench', label: '智能问答', icon: ChatDotRound },
+  { path: '/knowledge', label: '知识库', icon: FolderOpened },
+  { path: '/graph', label: '知识图谱', icon: Connection },
+  { path: '/dsl', label: '规则管理', icon: DocumentChecked }
+]
+const breadcrumbs = {
+  '/workbench': { parent: '问答', parentPath: '/workbench', current: '政策咨询' },
+  '/knowledge': { parent: '知识库', parentPath: '/knowledge', current: '政策资料' },
+  '/graph': { parent: '知识库', parentPath: '/knowledge', current: '知识图谱' },
+  '/dsl': { parent: '规则', parentPath: '/dsl', current: '规则管理' }
 }
-const currentModule = computed(() => modules[route.path] || modules['/knowledge'])
-const updateMobileLayout = (event) => {
-  isMobile.value = event.matches
-  mobileNavigationVisible.value = false
+const breadcrumb = computed(() => route.path === '/knowledge' && route.query.doc
+  ? { parent: '知识库', parentPath: route.query.tab === 'search' ? '/knowledge?tab=search' : '/knowledge', current: '文档工作区' }
+  : breadcrumbs[route.path])
+const helpByPath = {
+  '/workbench': '描述政策问题后提交咨询，可上传附件或填写测算条件。后台问答支持选择数据库连接；公众咨询入口使用独立页面。答复中的引用编号可打开对应政策依据。',
+  '/knowledge': '先导入政策资料，再打开文档核对原文与解析正文。切块预览与处理配置可单独调整和保存；解析与入库需要明确执行，不会因查看文档自动开始。',
+  '/graph': '搜索政策实体并调整关联层级，可聚焦局部关系。点击实体查看说明、相邻关系和来源标识；复位恢复当前视图，查看全图返回完整图谱。',
+  '/dsl': '粘贴政策文本生成规则，核对规则后保存并使用输入参数测试。测试结果使用接口返回值；历史政策需核对适用范围。'
 }
-const toggleNavigation = () => {
-  if (isMobile.value) mobileNavigationVisible.value = !mobileNavigationVisible.value
-  else navigationCollapsed.value = !navigationCollapsed.value
+const helpText = computed(() => helpByPath[route.path])
+
+async function logout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  logoutError.value = ''
+  const username = authStore.staffUser.username
+  let reason
+  try {
+    await authStore.logout()
+  } catch (error) {
+    if (error.status !== 401) {
+      logoutError.value = error.message
+      loggingOut.value = false
+      return
+    }
+    authStore.invalidate()
+    reason = 'expired'
+  }
+  try {
+    appStore.resetPrivateState()
+    await clearStaffConversationCache(username)
+  } catch (error) {
+    console.error('已退出登录，但本地会话清理失败:', error)
+    reason = 'cache-clear-failed'
+  }
+  await router.replace({ path: '/login', query: reason ? { reason } : {} })
+  loggingOut.value = false
 }
-mobileQuery.addEventListener('change', updateMobileLayout)
-onBeforeUnmount(() => mobileQuery.removeEventListener('change', updateMobileLayout))
-watch(() => route.path, () => { mobileNavigationVisible.value = false; helpVisible.value = false })
+
+watch(() => route.path, () => {
+  helpVisible.value = false
+  contentElement.value.scrollTop = 0
+}, { flush: 'post' })
 </script>
+
+<style scoped>
+.workspace-account { display: flex; align-items: center; gap: 12px; min-width: 0; padding-left: 14px; border-left: 1px solid var(--wb-line); }
+.workspace-account-name { display: block; max-width: 140px; overflow: hidden; color: var(--wb-ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-logout { gap: 5px; min-height: 36px; padding: 0 2px; color: var(--wb-muted); font: 13px var(--wb-font); }
+.workspace-logout:not(:disabled):hover { color: var(--wb-blue); }
+.workspace-logout-error { flex-shrink: 0; margin-bottom: 16px; color: var(--wb-error); background: var(--wb-tint); }
+@media (max-width: 760px) {
+  .module-workbench { grid-template-rows: auto minmax(0, 1fr) auto; }
+  .workspace-header { flex-wrap: wrap; padding-top: 12px; padding-bottom: 10px; }
+  .workspace-header-tools { width: 100%; gap: 12px; }
+  .workspace-account { gap: 10px; margin-left: auto; padding-left: 12px; }
+  .workspace-account-name { max-width: clamp(64px, 24vw, 120px); }
+  .workspace-logout { min-height: 44px; }
+}
+</style>

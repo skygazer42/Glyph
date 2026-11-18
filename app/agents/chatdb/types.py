@@ -45,16 +45,5 @@ AGENT_NAMES: Dict[str, str] = {
     AgentTypes.VISUALIZATION_RECOMMENDER.value: "可视化推荐智能体"
 }
 
-# 主题类型映射
-TOPIC_TYPES: Dict[str, str] = {
-    "sql_generator": TopicTypes.SQL_GENERATOR.value,
-    "sql_explainer": TopicTypes.SQL_EXPLAINER.value,
-    "sql_executor": TopicTypes.SQL_EXECUTOR.value,
-    "visualization_recommender": TopicTypes.VISUALIZATION_RECOMMENDER.value,
-    "stream_output": TopicTypes.STREAM_OUTPUT.value,
-    "query_analyzer": TopicTypes.QUERY_ANALYZER.value,
-    "schema_retriever": TopicTypes.SCHEMA_RETRIEVER.value,
-}
-
 # 默认数据库类型
 DEFAULT_DB_TYPE = DatabaseTypes.MYSQL.value

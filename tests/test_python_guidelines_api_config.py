@@ -38,20 +38,17 @@ def load_module(monkeypatch):
     for name in ("app", "app.api", "app.api.endpoints", "app.core", "app.domains", "app.models"):
         stub(name)
 
-    class ModuleLoader:
-        def __call__(self, path, *, name=None):
-            module_name = name or "_api_audit_" + path.replace("/", "_").replace(".", "_")
-            spec = importlib.util.spec_from_file_location(module_name, ROOT / path)
-            assert spec is not None and spec.loader is not None
-            module = importlib.util.module_from_spec(spec)
-            monkeypatch.setitem(sys.modules, module_name, module)
-            spec.loader.exec_module(module)
-            return module
+    def load(path, *, name=None):
+        module_name = name or "_api_audit_" + path.replace("/", "_").replace(".", "_")
+        spec = importlib.util.spec_from_file_location(module_name, ROOT / path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, module_name, module)
+        spec.loader.exec_module(module)
+        return module
 
-        def stub(self, name, **attributes):
-            return stub(name, **attributes)
-
-    return ModuleLoader()
+    load.stub = stub
+    return load
 
 
 def test_zero_token_lifetime_is_not_replaced_by_default(load_module):
@@ -171,15 +168,28 @@ def test_environment_aliases_honor_false_and_zero(load_module, monkeypatch):
     assert settings.ModelSettings().llm_temperature == 0
 
 
-def test_legacy_config_environment_and_serialization(load_module, monkeypatch):
+def test_config_import_does_not_create_runtime_directories(load_module, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    create_directory = Mock(side_effect=AssertionError("configuration import must stay read only"))
+    monkeypatch.setattr(Path, "mkdir", create_directory)
+    module = load_module("app/config/app_config.py")
+    assert isinstance(module.settings, module.Settings)
+    create_directory.assert_not_called()
+
+
+def test_agent_service_config_environment_and_serialization(load_module, monkeypatch):
     monkeypatch.setenv("LLM_MODEL_NAME", "offline-model")
     monkeypatch.setenv("LLM_TEMPERATURE", "0")
-    module = load_module("app/utils/config.py")
-    config = module.Config(_env_file=None)
+    module = load_module("app/config/agent_config.py")
+    config = module.AgentServiceConfig(_env_file=None)
     assert config.model.model_name == "offline-model"
     assert config.model.temperature == 0
-    assert config.embedding_model == config.vector_store.model_name
-    assert config.to_dict()["model"]["model_name"] == "offline-model"
+    assert config.model_dump()["model"]["model_name"] == "offline-model"
+
+
+def test_agent_config_accepts_disabled_conversation_history(load_module):
+    module = load_module("app/config/agent_config.py")
+    assert module.ConversationConfig(history_window=0).history_window == 0
 
 
 @pytest.mark.parametrize("configured_value", ["", "configured-value"])
@@ -191,7 +201,7 @@ def test_optional_tool_configuration_has_explicit_unconfigured_values(
         "API_KEY", "BASE_URL", "TAVILY_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
-    module = load_module("app/utils/config.py")
+    module = load_module("app/config/agent_config.py")
     assert module.VisionConfig().api_key is None
     assert module.VisionConfig().base_url is None
     assert module.WebSearchConfig().tavily_api_key is None
@@ -203,7 +213,7 @@ def test_optional_tool_configuration_has_explicit_unconfigured_values(
         encoding="utf-8",
     )
 
-    config = module.Config(_env_file=environment_file)
+    config = module.AgentServiceConfig(_env_file=environment_file)
 
     expected = None if configured_value == "" else configured_value
     assert config.vision.api_key == expected
@@ -280,6 +290,17 @@ def test_prompt_catalog_rejects_non_mapping_configuration(load_module, monkeypat
 
 
 def _stub_api_dependencies(load_module):
+    class ChatAccess:
+        is_staff = True
+        namespace = "staff:offline-owner:"
+
+    load_module.stub(
+        "app.core.access", ChatAccess=ChatAccess, ChatSessionKey=SimpleNamespace,
+        get_chat_access=ChatAccess, require_staff=ChatAccess,
+        resolve_chat_session=lambda access, client_id, **kwargs: SimpleNamespace(
+            storage_id="offline-session", client_id="offline-session"
+        ),
+    )
     names = {
         "app.agents.dsl_generator.dsl_extractor": "DSLExtractor",
         "app.agents.dsl_generator.dsl_generator": "DSLGenerator",
@@ -398,7 +419,7 @@ def test_lifespan_stops_session_manager_after_error(load_module):
     for name in ("agent", "dsl", "knowledge", "uploads", "knowledge_graph", "db_connections"):
         from fastapi import APIRouter
         load_module.stub("app.api.endpoints." + name, router=APIRouter())
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     load_module("app/api/schemas.py", name="app.api.schemas")
     manager = SimpleNamespace(start=Mock(), stop=AsyncMock())
     close_dependencies = AsyncMock()
@@ -419,7 +440,7 @@ def test_lifespan_stops_session_manager_after_error(load_module):
 def _load_knowledge_api(load_module, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     _stub_api_dependencies(load_module)
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     load_module("app/api/schemas.py", name="app.api.schemas")
     load_module.stub("app.api.deps", get_enhanced_doc_processor=lambda: None,
                      get_knowledge_service=lambda: None)
@@ -521,8 +542,71 @@ def test_search_rejects_misaligned_documents_and_scores(load_module, monkeypatch
     asyncio.run(check())
 
 
+@pytest.mark.parametrize("route", ["chat", "stream"])
+@pytest.mark.parametrize("location", ["outside", "missing"])
+def test_chat_rejects_unowned_attachment_paths_before_session_or_stream(load_module, monkeypatch, tmp_path, route, location):
+    monkeypatch.chdir(tmp_path)
+    _stub_api_dependencies(load_module)
+    load_module("app/models/policy.py", name="app.models.policy")
+    load_module("app/api/schemas.py", name="app.api.schemas")
+    load_module.stub("app.api.deps", get_session_manager=lambda: None, get_agent_service=lambda: None)
+    uploads = load_module("app/api/endpoints/uploads.py", name="app.api.endpoints.uploads")
+    uploads.ATTACHMENT_DIR.mkdir(parents=True)
+    outside = tmp_path / "private.png"
+    outside.write_bytes(b"private")
+    path = outside if location == "outside" else uploads.ATTACHMENT_DIR / "missing.png"
+    module = load_module("app/api/endpoints/agent.py")
+    threads = []
+    original_validate = module._validate_uploaded_attachment_paths
+
+    def validate(attachments, access):
+        threads.append(threading.get_ident())
+        return original_validate(attachments, access)
+
+    monkeypatch.setattr(module, "_validate_uploaded_attachment_paths", validate)
+    manager = SimpleNamespace(get_or_create_session=Mock(), add_message=Mock())
+    service = SimpleNamespace(process_query=AsyncMock(), process_query_stream=Mock())
+    request_type = module.ChatRequest if route == "chat" else module.ChatStreamRequest
+    request = request_type(message="policy", attachments=[module.Attachment(path=str(path))])
+    handler = module.agent_chat if route == "chat" else module.agent_chat_stream
+
+    async def invoke():
+        access = module.ChatAccess()
+        prepare = module._prepare_chat_request if route == "chat" else module._prepare_stream_request
+        key = await prepare(request, access)
+        return await handler(request, access, key, manager, service)
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(invoke())
+
+    assert error.value.status_code == 400
+    assert threads and threads[0] != threading.get_ident()
+    manager.get_or_create_session.assert_not_called()
+    manager.add_message.assert_not_called()
+    service.process_query.assert_not_awaited()
+    service.process_query_stream.assert_not_called()
+
+
+def test_attachment_validation_accepts_real_uploads_and_remote_urls(load_module, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _stub_api_dependencies(load_module)
+    load_module("app/models/policy.py", name="app.models.policy")
+    load_module("app/api/schemas.py", name="app.api.schemas")
+    load_module.stub("app.api.deps", get_session_manager=lambda: None, get_agent_service=lambda: None)
+    uploads = load_module("app/api/endpoints/uploads.py", name="app.api.endpoints.uploads")
+    directory = uploads.attachment_directory(uploads.ChatAccess())
+    directory.mkdir(parents=True)
+    path = directory / "uploaded.png"
+    path.write_bytes(b"image")
+    module = load_module("app/api/endpoints/agent.py")
+    assert module._validate_uploaded_attachment_paths([
+        module.Attachment(path=str(path)), module.Attachment(url="https://example.test/image.png"),
+    ], module.ChatAccess()) is None
+
+
 def test_attachment_download_rejects_parent_paths(load_module, monkeypatch, tmp_path):
     _load_knowledge_api(load_module, monkeypatch, tmp_path)
+    _stub_api_dependencies(load_module)
     module = load_module("app/api/endpoints/uploads.py")
     (tmp_path / "outside.txt").write_text("private", encoding="utf-8")
     application = FastAPI()
@@ -535,7 +619,7 @@ def test_attachment_download_rejects_parent_paths(load_module, monkeypatch, tmp_
 @pytest.mark.parametrize("route", ["chat", "stream", "agentchat_stream"])
 def test_chat_history_operations_run_off_event_loop(load_module, monkeypatch, route):
     _stub_api_dependencies(load_module)
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     load_module("app/api/schemas.py", name="app.api.schemas")
     load_module.stub("app.api.deps", get_session_manager=lambda: None, get_agent_service=lambda: None)
     module = load_module("app/api/endpoints/agent.py")
@@ -559,15 +643,16 @@ def test_chat_history_operations_run_off_event_loop(load_module, monkeypatch, ro
         yield {"type": "final", "answer": answer}
 
     service = SimpleNamespace(process_query=AsyncMock(return_value=answer),
-                              process_query_stream=stream, _agentchat_team_enabled=True)
+                              process_query_stream=stream, agentchat_streaming_enabled=True)
     monkeypatch.setenv("AGENTCHAT_STREAM_ENABLED", "true" if route == "agentchat_stream" else "false")
 
     async def check():
+        key = module.ChatSessionKey(storage_id="offline-session", client_id="offline-session")
         if route == "chat":
-            response = await module.agent_chat(module.ChatRequest(message="Policy?"), manager, service)
+            response = await module.agent_chat(module.ChatRequest(message="Policy?"), module.ChatAccess(), key, manager, service)
             assert response.message == "Answer"
         else:
-            response = await module.agent_chat_stream(module.ChatStreamRequest(message="Policy?"), manager, service)
+            response = await module.agent_chat_stream(module.ChatStreamRequest(message="Policy?"), module.ChatAccess(), key, manager, service)
             events = [event async for event in response.body_iterator]
             assert events[-1]["event"] == "done"
 
@@ -584,7 +669,7 @@ def test_sse_early_close_finishes_owned_stream_in_consumer_context(
     import anyio
 
     _stub_api_dependencies(load_module)
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     load_module("app/api/schemas.py", name="app.api.schemas")
     load_module.stub("app.api.deps", get_session_manager=lambda: None, get_agent_service=lambda: None)
     module = load_module("app/api/endpoints/agent.py")
@@ -607,8 +692,9 @@ def test_sse_early_close_finishes_owned_stream_in_consumer_context(
 
     async def check():
         inner = stream()
-        service = SimpleNamespace(_agentchat_team_enabled=True, process_query_stream=lambda *a, **kw: inner)
-        response = await module.agent_chat_stream(module.ChatStreamRequest(message="Policy?"), manager, service)
+        service = SimpleNamespace(agentchat_streaming_enabled=True, process_query_stream=lambda *a, **kw: inner)
+        key = module.ChatSessionKey(storage_id="offline-session", client_id="offline-session")
+        response = await module.agent_chat_stream(module.ChatStreamRequest(message="Policy?"), module.ChatAccess(), key, manager, service)
         try:
             assert (await anext(response.body_iterator))["event"] == "session"
             assert (await anext(response.body_iterator))["event"] == "message"
@@ -680,11 +766,117 @@ def test_owned_resource_close_survives_parent_cancellation_and_has_budget(load_m
     anyio.run(check)
 
 
+@pytest.mark.parametrize("max_tokens,timeout", [(None, None), (123, 3.5)])
+def test_shared_client_forwards_only_configured_optional_model_limits(load_module, max_tokens, timeout):
+    transport = Mock(return_value=object())
+    constructor = Mock(return_value=object())
+    load_module.stub("httpx", AsyncClient=transport)
+    load_module.stub("autogen_ext.models.openai", OpenAIChatCompletionClient=constructor)
+    load_module.stub("app.config.app_config", settings=SimpleNamespace(model=SimpleNamespace(
+        llm_model_name="offline-model", llm_api_key="offline-key", llm_temperature=0,
+        llm_base_url="https://model.invalid/v1", llm_max_tokens=max_tokens, llm_timeout=timeout,
+    )))
+    module = load_module("app/core/llms.py")
+    assert module.model_client is constructor.return_value
+    actual = constructor.call_args.kwargs
+    for name, value in (("max_tokens", max_tokens), ("timeout", timeout)):
+        if value is None:
+            assert name not in actual
+        else:
+            assert actual[name] == value
+    assert actual["temperature"] == 0
+    transport.assert_called_once_with(trust_env=False)
+
+
+@pytest.mark.parametrize("api_key", [None, ""])
+def test_shared_client_rejects_missing_credentials_before_opening_transport(load_module, api_key):
+    transport = Mock(side_effect=AssertionError("missing credentials must not open a transport"))
+    constructor = Mock()
+    load_module.stub("httpx", AsyncClient=transport)
+    load_module.stub("autogen_ext.models.openai", OpenAIChatCompletionClient=constructor)
+    load_module.stub("app.config.app_config", settings=SimpleNamespace(model=SimpleNamespace(llm_api_key=api_key)))
+    with pytest.raises(ValueError, match="LLM_API_KEY"):
+        load_module("app/core/llms.py")
+    transport.assert_not_called()
+    constructor.assert_not_called()
+
+
+@pytest.mark.parametrize("service_import_fails", [False, True])
+def test_cli_applies_yaml_model_options_before_client_import_and_registers_cleanup(load_module, monkeypatch, tmp_path, service_import_fails):
+    import argparse
+    import builtins
+    from contextlib import AsyncExitStack
+    from test_python_guidelines_tooling import load_definitions
+
+    monkeypatch.chdir(tmp_path)
+    for name in ("LLM_MODEL_NAME", "LLM_API_KEY", "LLM_BASE_URL", "LLM_TEMPERATURE", "LLM_MAX_TOKENS", "LLM_TIMEOUT"):
+        monkeypatch.delenv(name, raising=False)
+    config_file = tmp_path / "model.yaml"
+    config_file.write_text(
+        "model:\n  model_name: yaml-model\n  api_key: yaml-key\n  base_url: https://yaml.invalid/v1\n"
+        "  temperature: 0\n  max_tokens: 123\n  timeout: 3\n", encoding="utf-8",
+    )
+    load_module("app/config/agent_config.py", name="app.config.agent_config")
+    expected = {"llm_model_name": "yaml-model", "llm_api_key": "yaml-key", "llm_base_url": "https://yaml.invalid/v1",
+                "llm_temperature": 0, "llm_max_tokens": 123, "llm_timeout": 3}
+    copied_model = SimpleNamespace(**expected)
+    copy_model = Mock(return_value=copied_model)
+    settings = SimpleNamespace(model=SimpleNamespace(model_copy=copy_model))
+    load_module.stub("app.config.app_config", settings=settings)
+    events = []
+    client = SimpleNamespace(close=AsyncMock(side_effect=lambda: events.append("client-close")))
+    service = SimpleNamespace(aclose=AsyncMock(side_effect=lambda: events.append("service-close")), initialize=AsyncMock())
+    construct_client, construct_service = Mock(return_value=client), Mock(return_value=service)
+    load_module.stub("httpx", AsyncClient=Mock(return_value=object()))
+    load_module.stub("autogen_ext.models.openai", OpenAIChatCompletionClient=construct_client)
+    load_module.stub("app.agents.service.agent_service", AgentService=construct_service)
+    load_module("app/utils/lifecycle.py", name="app.utils.lifecycle")
+    metrics = Mock()
+    namespace = load_definitions(
+        "scripts/unified_cli.py", {"main"}, argparse=argparse, asyncio=asyncio, Path=Path, sys=sys,
+        AsyncExitStack=AsyncExitStack, metrics_mode=metrics,
+        logging=SimpleNamespace(DEBUG=10, INFO=20, basicConfig=Mock(), getLogger=Mock(return_value=Mock())),
+    )
+    original_import = builtins.__import__
+
+    def configured_import(name, *args, **kwargs):
+        if name == "app.core.llms":
+            events.append("client-import")
+            assert settings.model is copied_model
+            copy_model.assert_called_once_with(update=expected)
+            return load_module("app/core/llms.py", name="app.core.llms")
+        if name == "app.agents.service.agent_service":
+            events.append("service-import")
+            if service_import_fails:
+                raise RuntimeError("service import failed")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", configured_import)
+    monkeypatch.setattr(sys, "argv", ["unified_cli", "--config", str(config_file), "--metrics"])
+    if service_import_fails:
+        with pytest.raises(SystemExit) as error:
+            asyncio.run(namespace["main"]())
+        assert error.value.code == 1
+        construct_service.assert_not_called()
+        assert events == ["client-import", "service-import", "client-close"]
+    else:
+        asyncio.run(namespace["main"]())
+        metrics.assert_called_once_with(service)
+        service.initialize.assert_not_awaited()
+        assert events == ["client-import", "service-import", "service-close", "client-close"]
+    actual = construct_client.call_args.kwargs
+    assert {key: actual[key] for key in ("model", "api_key", "base_url", "temperature", "max_tokens", "timeout")} == {
+        "model": "yaml-model", "api_key": "yaml-key", "base_url": "https://yaml.invalid/v1",
+        "temperature": 0, "max_tokens": 123, "timeout": 3,
+    }
+
+
 def test_real_autogen_transport_is_owned_without_mutating_proxy_environment(load_module, monkeypatch):
     monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:8080")
     load_module.stub("app.config.app_config", settings=SimpleNamespace(model=SimpleNamespace(
         llm_model_name="offline-model", llm_api_key="offline-key", llm_temperature=0,
         llm_base_url="http://model.invalid/v1",
+        llm_max_tokens=None, llm_timeout=None,
     )))
     module = load_module("app/core/llms.py")
     http = module.model_client._client._client
@@ -727,9 +919,9 @@ def test_lightweight_error_boundary_logs_original_traceback(
 
 
 @pytest.mark.parametrize("route", ["chat", "stream"])
-def test_chat_required_service_fields_are_not_silently_replaced(load_module, monkeypatch, route):
+def test_chat_required_service_fields_are_not_silently_replaced(load_module, monkeypatch, caplog, route):
     _stub_api_dependencies(load_module)
-    load_module("app/models/base.py", name="app.models.base")
+    load_module("app/models/policy.py", name="app.models.policy")
     load_module("app/api/schemas.py", name="app.api.schemas")
     load_module.stub("app.api.deps", get_session_manager=lambda: None, get_agent_service=lambda: None)
     module = load_module("app/api/endpoints/agent.py")
@@ -742,20 +934,23 @@ def test_chat_required_service_fields_are_not_silently_replaced(load_module, mon
         yield {"content": "missing required event type"}
 
     service = SimpleNamespace(
-        process_query=AsyncMock(return_value=SimpleNamespace(answer="Answer", confidence=0.0, metadata={})),
-        process_query_stream=invalid_stream, _agentchat_team_enabled=True,
+        process_query=AsyncMock(return_value=SimpleNamespace(answer="Answer", metadata={})),
+        process_query_stream=invalid_stream, agentchat_streaming_enabled=True,
     )
     monkeypatch.setenv("AGENTCHAT_STREAM_ENABLED", "true")
 
     async def check():
+        key = module.ChatSessionKey(storage_id="offline-session", client_id="offline-session")
         if route == "chat":
             with pytest.raises(HTTPException) as error:
-                await module.agent_chat(module.ChatRequest(message="Policy?"), manager, service)
-            assert isinstance(error.value.__cause__, KeyError)
+                await module.agent_chat(module.ChatRequest(message="Policy?"), module.ChatAccess(), key, manager, service)
+            assert isinstance(error.value.__cause__, AttributeError)
         else:
-            response = await module.agent_chat_stream(module.ChatStreamRequest(message="Policy?"), manager, service)
+            response = await module.agent_chat_stream(module.ChatStreamRequest(message="Policy?"), module.ChatAccess(), key, manager, service)
             events = [event async for event in response.body_iterator]
             assert events[-1]["event"] == "error"
-            assert "type" in events[-1]["data"]
+            assert "咨询服务暂时不可用" in events[-1]["data"]
+            assert "type" not in events[-1]["data"]
+            assert any(record.exc_info and record.exc_info[0] is KeyError for record in caplog.records)
 
     asyncio.run(check())

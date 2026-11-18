@@ -1,35 +1,32 @@
-"""Simple password hashing helpers for database connection secrets."""
+"""Password hashing for configured API accounts."""
 
 from __future__ import annotations
 
 import hashlib
 import hmac
 import os
-from typing import Tuple
 
-_HASH_DELIMITER = "$"
-
-
-def _split_hash(hash_value: str) -> Tuple[str, str]:
-    try:
-        salt, digest = hash_value.split(_HASH_DELIMITER, 1)
-    except ValueError as exc:
-        raise ValueError("Invalid hash format; expected '<salt>$<digest>'") from exc
-    return salt, digest
+_PBKDF2_ITERATIONS = 600_000
 
 
 def get_password_hash(password: str, *, salt: str | None = None) -> str:
-    """Hash a password with a random salt using SHA-256."""
+    """Hash a password with a random salt using PBKDF2-HMAC-SHA256."""
     if salt is None:
         salt = os.urandom(16).hex()
-    digest = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
-    return f"{salt}{_HASH_DELIMITER}{digest}"
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), _PBKDF2_ITERATIONS
+    ).hex()
+    return f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${salt}${digest}"
 
 
 def verify_password(password: str, hashed_password: str) -> bool:
     """Verify ``password`` against ``hashed_password``."""
-    salt, digest = _split_hash(hashed_password)
-    check = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
+    algorithm, iterations, salt, digest = hashed_password.split("$")
+    if algorithm != "pbkdf2_sha256":
+        raise ValueError("Unsupported password hash algorithm")
+    check = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), int(iterations)
+    ).hex()
     return hmac.compare_digest(check, digest)
 
 

@@ -31,20 +31,17 @@ class QueryAnalyzerAgent(BaseAgent):
             input_func: 用户输入函数
         """
         super().__init__(
-            agent_id="query_analyzer_agent",
+            description="query_analyzer_agent",
             agent_name=AGENT_NAMES[AgentTypes.QUERY_ANALYZER.value],
             model_client_instance=model_client_instance,
             db_type=db_type
         )
         # 用户输入函数，用于交互式分析
         self.input_func = input_func
-        self._system_message = self._build_system_message()
-        self._task_template = self._build_task_template()
+        self._system_message = self.SYSTEM_MESSAGE
+        self._task_template = self.TASK_TEMPLATE
 
-    @staticmethod
-    def _build_system_message() -> str:
-        """构建系统消息 - 定义角色和能力"""
-        return """你是一名专业的数据库查询分析专家，具备以下核心能力：
+    SYSTEM_MESSAGE = """你是一名专业的数据库查询分析专家，具备以下核心能力：
 
 **角色定位：**
 - 深度理解自然语言查询意图
@@ -69,10 +66,7 @@ class QueryAnalyzerAgent(BaseAgent):
 - 保持专业性和准确性
 - 确保分析结果可操作性强"""
 
-    @staticmethod
-    def _build_task_template() -> str:
-        """构建任务模板 - 具体的分析任务"""
-        return """请基于以下信息生成SQL命令分析报告：
+    TASK_TEMPLATE = """请基于以下信息生成SQL命令分析报告：
 **数据库环境：**
 - 数据库类型：{db_type}
 - 数据库结构：

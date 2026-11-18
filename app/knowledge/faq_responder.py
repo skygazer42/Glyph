@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from app.models.base import FinalAnswer
+from app.models.policy import FinalAnswer
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,8 @@ class FAQResponder:
         self.data_path = Path(data_path)
         # allow env override: FAQ_THRESHOLD（默认 0.95，高相似度命中）
         self.threshold = float(os.getenv("FAQ_THRESHOLD", str(threshold)))
+        if not 0 <= self.threshold <= 1:
+            raise ValueError("FAQ threshold must be between 0 and 1")
         self.entries: List[FAQEntry] = []
         self._load_entries()
 

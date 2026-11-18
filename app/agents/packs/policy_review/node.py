@@ -5,14 +5,39 @@ Policy analysis agent for analyzing retrieved policy documents.
 import logging
 import anyio
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.agents.framework.common.model_client import create_openai_client
 from autogen_core.models import SystemMessage, UserMessage
 from app.agents.framework.base.types import MessageTypes
-from app.models.base import PolicyDocument
+from app.models.policy import PolicyDocument
+
+
+POLICY_REVIEW_SYSTEM_MESSAGE = """您是政策分析专员，专门分析政府政策文档。
+
+您的任务：
+1. 阅读并理解政策文档
+2. 提取关键政策信息
+3. 识别资格标准
+4. 确定补贴金额或支持水平
+5. 识别申请流程和截止日期
+6. 检查政策冲突或互补性
+7. 评估政策与用户查询的相关性
+
+需要提取的关键信息：
+- 政策名称和发布机构
+- 生效日期和截止日期
+- 目标受益人
+- 资格要求
+- 补贴金额/支持细节
+- 申请流程
+- 所需材料
+- 联系信息
+- 相关政策
+
+始终提供结构化分析和置信度评分。"""
 
 
 class ReviewRequest(BaseModel):
@@ -63,41 +88,13 @@ class PolicyReviewAgent:
         self.name = name
         self.llm_config = llm_config
         self.logger = logging.getLogger(f"{__name__}.{name}")
-        self.system_message = self._get_default_system_message()
+        self.system_message = POLICY_REVIEW_SYSTEM_MESSAGE
         self._owns_model_client = model_client is None
         self.model_client = create_openai_client(llm_config=llm_config) if model_client is None else model_client
-
-    def _get_default_system_message(self) -> str:
-        """Get the default system message."""
-        return """您是政策分析专员，专门分析政府政策文档。
-
-您的任务：
-1. 阅读并理解政策文档
-2. 提取关键政策信息
-3. 识别资格标准
-4. 确定补贴金额或支持水平
-5. 识别申请流程和截止日期
-6. 检查政策冲突或互补性
-7. 评估政策与用户查询的相关性
-
-需要提取的关键信息：
-- 政策名称和发布机构
-- 生效日期和截止日期
-- 目标受益人
-- 资格要求
-- 补贴金额/支持细节
-- 申请流程
-- 所需材料
-- 联系信息
-- 相关政策
-
-始终提供结构化分析和置信度评分。"""
 
     async def process_message(
         self,
         message: str | Dict[str, Any],
-        sender: Optional[Any] = None,
-        context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process and analyze policy documents."""
         try:
@@ -120,7 +117,7 @@ class PolicyReviewAgent:
                 })
 
             # Synthesize overall analysis
-            synthesis = await self._synthesize_analysis(request.query, analyzed_documents)
+            synthesis = self._synthesize_analysis(analyzed_documents)
 
             return {"success": True, "data": {
                     "query": request.query,
@@ -195,9 +192,8 @@ Focus on information directly relevant to answering the user's question.
             # Fallback: simple keyword-based analysis
             return self._simple_analysis(document, query)
 
-    async def _synthesize_analysis(
+    def _synthesize_analysis(
         self,
-        query: str,
         analyzed_documents: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Synthesize analysis from multiple documents."""

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      :root { --platform-mark-primary: #89CBD3; --platform-mark-secondary: #E1E7EF; }
+    }
+  </style>
+  <defs>
+    <g id="platform-mark">
+      <path d="M25 5H14a9 9 0 0 0-9 9v11h8V14a1 1 0 0 1 1-1h11V5Z" fill="var(--platform-mark-primary, #237F92)"/>
+      <path d="M15 35h11a9 9 0 0 0 9-9V15h-8v11a1 1 0 0 1-1 1H15v8Z" fill="var(--platform-mark-secondary, #254956)"/>
+      <path d="M17 17h6v6h-6z" fill="var(--platform-mark-primary, #237F92)"/>
+    </g>
+  </defs>
+  <use href="#platform-mark"/>
+</svg>

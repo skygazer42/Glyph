@@ -25,7 +25,7 @@ from autogen_core.logging import (
 
 class UTF8JsonFormatter(logging.Formatter):
     """自定义格式化器:将日志消息中的JSON转换为UTF-8可读格式"""
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         formatted = super().format(record)
         parts = formatted.split(" - ", 3)
         if len(parts) != 4:

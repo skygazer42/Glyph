@@ -39,25 +39,22 @@ def load_module(monkeypatch):
         stub(name)
     stub("app.core.llms", model_client=Mock())
 
-    class ModuleLoader:
-        def __call__(self, path, *, name=None):
-            module_name = name or "_persistence_audit_" + path.replace("/", "_").replace(".", "_")
-            spec = importlib.util.spec_from_file_location(module_name, ROOT / path)
-            assert spec is not None and spec.loader is not None
-            module = importlib.util.module_from_spec(spec)
-            monkeypatch.setitem(sys.modules, module_name, module)
-            spec.loader.exec_module(module)
-            return module
+    def load(path, *, name=None):
+        module_name = name or "_persistence_audit_" + path.replace("/", "_").replace(".", "_")
+        spec = importlib.util.spec_from_file_location(module_name, ROOT / path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, module_name, module)
+        spec.loader.exec_module(module)
+        return module
 
-        def stub(self, name, **attributes):
-            return stub(name, **attributes)
-
-    return ModuleLoader()
+    load.stub = stub
+    return load
 
 
 @pytest.fixture
 def dbaccess(load_module):
-    return load_module("app/persistence/db/dbaccess.py")
+    return load_module("app/persistence/db/access.py")
 
 
 def connection_double():
@@ -166,15 +163,14 @@ def test_duckdb_download_has_timeout_and_closes_response(dbaccess, load_module, 
 @pytest.fixture
 def orm(load_module):
     base = load_module("app/models/base.py", name="app.models.base")
-    modules = {}
-    for entity in ("db_connection", "schema_table", "schema_column", "schema_relationship", "value_mapping", "chat_history"):
-        modules[entity] = load_module(f"app/models/{entity}.py", name=f"app.models.{entity}")
+    database = load_module("app/models/database.py", name="app.models.database")
+    chat_history = load_module("app/models/chat_history.py", name="app.models.chat_history")
     engine = create_engine("sqlite://")
     try:
         event.listen(engine, "connect", lambda connection, _: connection.execute("PRAGMA foreign_keys=ON"))
         base.Base.metadata.create_all(engine)
         with Session(engine) as session:
-            yield SimpleNamespace(base=base, session=session, **modules)
+            yield SimpleNamespace(base=base, database=database, chat_history=chat_history, session=session)
     finally:
         engine.dispose()
 
@@ -221,29 +217,33 @@ def test_native_orm_mapping_preserves_existing_metadata_and_dialects(orm):
 def test_native_orm_relationships_preserve_orphan_cascades_and_primary_keys(orm, load_module):
     crud = load_module("app/persistence/crud/base.py", name="app.persistence.crud.base")
     connection = add_connection(orm)
-    table = orm.schema_table.SchemaTable(connection_id=connection.id, table_name="items")
-    column = orm.schema_column.SchemaColumn(column_name="value", data_type="integer")
-    mapping = orm.value_mapping.ValueMapping(nl_term="zero", db_value="0")
+    table = orm.database.SchemaTable(connection_id=connection.id, table_name="items")
+    column = orm.database.SchemaColumn(column_name="value", data_type="integer")
+    mapping = orm.database.ValueMapping(nl_term="zero", db_value="0")
     column.value_mappings.append(mapping)
     table.columns.append(column)
     session = orm.chat_history.ChatSession(id="session", title="Offline")
     message = orm.chat_history.ChatMessage(message_type="user_query", content="q", order_index=0)
+    snapshot = orm.chat_history.ChatHistorySnapshot(query="q", response_data={"answer": "a"})
     session.messages.append(message)
+    session.snapshots.append(snapshot)
     orm.session.add_all([table, session])
     orm.session.commit()
     assert column.table is table and mapping.column is column and message.session is session
+    assert snapshot.id is not None and snapshot.session is session
     assert crud.CRUDBase(orm.chat_history.ChatSession).get(orm.session, "session") is session
-    assert crud.CRUDBase(orm.db_connection.DBConnection).get(orm.session, connection.id) is connection
+    assert crud.CRUDBase(orm.database.DBConnection).get(orm.session, connection.id) is connection
     orm.session.delete(table)
     orm.session.delete(session)
     orm.session.commit()
-    assert orm.session.query(orm.schema_column.SchemaColumn).count() == 0
-    assert orm.session.query(orm.value_mapping.ValueMapping).count() == 0
+    assert orm.session.query(orm.database.SchemaColumn).count() == 0
+    assert orm.session.query(orm.database.ValueMapping).count() == 0
     assert orm.session.query(orm.chat_history.ChatMessage).count() == 0
+    assert orm.session.query(orm.chat_history.ChatHistorySnapshot).count() == 0
 
 
 def add_connection(orm):
-    connection = orm.db_connection.DBConnection(
+    connection = orm.database.DBConnection(
         name="test", db_type="mysql", host="host", port=3306,
         username="user", password_encrypted="old", database_name="db",
     )
@@ -255,9 +255,9 @@ def add_connection(orm):
 def test_connection_update_preserves_empty_password_and_input(orm, load_module):
     load_module.stub("app.config.app_config", settings=SimpleNamespace(database=SimpleNamespace(use_neo4j=False)))
     load_module.stub("app.core.security", get_password_hash=Mock(), verify_password=Mock())
-    load_module("app/schemas/db_connection.py", name="app.schemas.db_connection")
+    load_module("app/schemas/database.py", name="app.schemas.database")
     load_module("app/persistence/crud/base.py", name="app.persistence.crud.base")
-    module = load_module("app/persistence/crud/crud_db_connection.py")
+    module = load_module("app/persistence/crud/db_connection.py")
     connection = add_connection(orm)
     update = {"password": "", "name": "updated"}
     module.db_connection.update(orm.session, db_obj=connection, obj_in=update)
@@ -268,13 +268,13 @@ def test_connection_update_preserves_empty_password_and_input(orm, load_module):
 def test_schema_refresh_removes_value_mappings_before_columns(orm, load_module, monkeypatch):
     module = load_module("app/persistence/db/schema_introspector.py")
     connection = add_connection(orm)
-    table = orm.schema_table.SchemaTable(connection_id=connection.id, table_name="old")
+    table = orm.database.SchemaTable(connection_id=connection.id, table_name="old")
     orm.session.add(table)
     orm.session.flush()
-    column = orm.schema_column.SchemaColumn(table_id=table.id, column_name="id", data_type="int")
+    column = orm.database.SchemaColumn(table_id=table.id, column_name="id", data_type="int")
     orm.session.add(column)
     orm.session.flush()
-    orm.session.add(orm.value_mapping.ValueMapping(column_id=column.id, nl_term="zero", db_value="0"))
+    orm.session.add(orm.database.ValueMapping(column_id=column.id, nl_term="zero", db_value="0"))
     orm.session.commit()
     raw_connection = Mock()
     monkeypatch.setattr(module, "_open_mysql_connection", Mock(return_value=raw_connection))
@@ -282,15 +282,15 @@ def test_schema_refresh_removes_value_mappings_before_columns(orm, load_module, 
     monkeypatch.setattr(module, "_load_mysql_columns", Mock(return_value={}))
     monkeypatch.setattr(module, "_load_mysql_relationships", Mock(return_value=[]))
     module.refresh_mysql_schema_metadata(orm.session, connection)
-    assert orm.session.query(orm.value_mapping.ValueMapping).count() == 0
-    assert orm.session.query(orm.schema_table.SchemaTable).count() == 0
+    assert orm.session.query(orm.database.ValueMapping).count() == 0
+    assert orm.session.query(orm.database.SchemaTable).count() == 0
     raw_connection.close.assert_called_once()
 
 
 def test_schema_refresh_failure_rolls_back_prior_metadata(orm, load_module, monkeypatch):
     module = load_module("app/persistence/db/schema_introspector.py")
     connection = add_connection(orm)
-    table = orm.schema_table.SchemaTable(connection_id=connection.id, table_name="old")
+    table = orm.database.SchemaTable(connection_id=connection.id, table_name="old")
     orm.session.add(table)
     orm.session.commit()
     monkeypatch.setattr(module, "_open_mysql_connection", Mock(return_value=Mock()))
@@ -299,7 +299,7 @@ def test_schema_refresh_failure_rolls_back_prior_metadata(orm, load_module, monk
     monkeypatch.setattr(module, "_load_mysql_relationships", Mock(return_value=[]))
     with pytest.raises(KeyError):
         module.refresh_mysql_schema_metadata(orm.session, connection)
-    assert orm.session.query(orm.schema_table.SchemaTable).one().table_name == "old"
+    assert orm.session.query(orm.database.SchemaTable).one().table_name == "old"
 
 
 def test_collector_flushes_explicit_empty_result(load_module):
@@ -379,9 +379,9 @@ def test_unconfigured_hybrid_agent_generates_sql_without_claiming_retrieval(load
     assert not any("正在使用混合检索引擎查找" in text for text in progress)
 
 
-def test_sql_error_is_propagated_to_visualization_and_run_off_loop(load_module):
+def test_sql_error_is_propagated_to_visualization_and_run_off_loop(load_module, text2sql_module):
     load_module.stub("app.agents.chatdb.base", BaseAgent=FakeAgent)
-    load_module("app/persistence/db/dbaccess.py", name="app.persistence.db.dbaccess")
+    load_module("app/persistence/db/access.py", name="app.persistence.db.access")
     schemas = load_module("app/schemas/text2sql.py", name="app.schemas.text2sql")
     load_module("app/agents/chatdb/types.py", name="app.agents.chatdb.types")
     module = load_module("app/agents/chatdb/sql_executor.py", name="app.agents.chatdb.sql_executor")
@@ -401,10 +401,36 @@ def test_sql_error_is_propagated_to_visualization_and_run_off_loop(load_module):
     assert called_threads and called_threads[0] != event_loop_thread
 
 
+@pytest.mark.parametrize("sql,allowed", [
+    ("UPDATE policies SET value = 1", False),
+    ("SELECT value INTO OUTFILE 'export.txt' FROM policies", False),
+    ("SELECT 1; SELECT 2", False),
+    ("SELECT 0", True),
+])
+def test_sql_executor_rejects_writes_before_accessing_the_driver(load_module, text2sql_module, sql, allowed):
+    load_module.stub("app.agents.chatdb.base", BaseAgent=FakeAgent)
+    load_module("app/persistence/db/access.py", name="app.persistence.db.access")
+    load_module("app/schemas/text2sql.py", name="app.schemas.text2sql")
+    load_module("app/agents/chatdb/types.py", name="app.agents.chatdb.types")
+    module = load_module("app/agents/chatdb/sql_executor.py", name="app.agents.chatdb.sql_executor")
+    run_sql = Mock(return_value=pd.DataFrame([{"value": 0}]))
+    agent = module.SqlExecutorAgent(db_access=SimpleNamespace(run_sql=run_sql))
+
+    results, error = asyncio.run(agent._execute_sql(sql))
+
+    assert text2sql_module.validate_sql(sql) is allowed
+    if allowed:
+        assert results == [{"value": 0}] and error is None
+        run_sql.assert_called_once_with(sql)
+    else:
+        assert results == [] and "read-only SELECT" in error
+        run_sql.assert_not_called()
+
+
 @pytest.mark.parametrize("fail", [False, True])
 def test_execute_query_closes_owned_access(load_module, monkeypatch, fail):
-    load_module.stub("app.models.db_connection", DBConnection=object)
-    load_module("app/persistence/db/dbaccess.py", name="app.persistence.db.dbaccess")
+    load_module.stub("app.models.database", DBConnection=object)
+    load_module("app/persistence/db/access.py", name="app.persistence.db.access")
     module = load_module("app/agents/chatdb/db_service.py")
     access = Mock()
     access.run_sql.return_value = pd.DataFrame([{"value": 0}])
@@ -429,6 +455,14 @@ def test_sql_value_mapping_uses_literal_terms_and_values(load_module):
     assert module.process_sql_with_value_mappings(
         "SELECT * FROM t WHERE city = 'capital'", {"t.city": {"capital": "O'Brien"}},
     ) == "SELECT * FROM t WHERE city = 'O''Brien'"
+    assert module.process_sql_with_value_mappings(
+        "SELECT t.metadata::text FROM t WHERE city = 'capital'", {"t.city": {"capital": "0"}},
+        db_type="postgresql",
+    ) == "SELECT t.metadata::text FROM t WHERE city = '0'"
+    assert module.process_sql_with_value_mappings(
+        "SELECT t.metadata::text FROM t WHERE city = 'capital'", {"t.city": {"capital": "0"}},
+        db_type="mysql",
+    ) == "SELECT CAST(t.metadata AS CHAR) FROM t WHERE city = '0'"
 
 
 def test_domain_month_window_includes_last_day_and_keeps_zero(load_module):
@@ -439,6 +473,8 @@ def test_domain_month_window_includes_last_day_and_keeps_zero(load_module):
     assert previous.end == date(2024, 3, 31)
     zero = module.parse_time_window("近0月", today=date(2024, 3, 31))
     assert zero.start == zero.end == date(2024, 3, 31)
+    quarter = module.parse_time_window("本季度", today=date(2024, 5, 20))
+    assert quarter.start == date(2024, 4, 1) and quarter.end == date(2024, 5, 20)
 
 
 def test_schema_retrieval_failure_is_visible(load_module):
@@ -479,7 +515,7 @@ def test_crud_commit_failure_leaves_session_usable(orm, load_module):
         password_encrypted: str = ""
         database_name: str = "db"
 
-    repository = module.CRUDBase(orm.db_connection.DBConnection)
+    repository = module.CRUDBase(orm.database.DBConnection)
     with pytest.raises(IntegrityError):
         repository.create(orm.session, obj_in=ConnectionCreate())
     assert repository.create(orm.session, obj_in=ConnectionCreate(name="next")).name == "next"
@@ -491,10 +527,10 @@ def test_chat_message_and_session_activity_commit_atomically(orm, load_module, a
 
     load_module("app/schemas/chat_history.py", name="app.schemas.chat_history")
     load_module("app/persistence/crud/base.py", name="app.persistence.crud.base")
-    load_module("app/persistence/crud/crud_chat_history.py", name="app.persistence.crud.crud_chat_history")
+    load_module("app/persistence/crud/chat_history.py", name="app.persistence.crud.chat_history")
     engine = orm.session.get_bind()
     load_module.stub("app.persistence.db.session", SessionLocal=lambda: Session(engine))
-    load_module.stub("app.persistence.crud.crud_db_connection", db_connection=Mock())
+    load_module.stub("app.persistence.crud.db_connection", db_connection=Mock())
     store_module = load_module("app/agents/service/chat_history_store.py")
     previous_activity = datetime(2020, 1, 1)
     orm.session.add(orm.chat_history.ChatSession(id="atomic-session", title="Offline", updated_at=previous_activity))
@@ -556,10 +592,10 @@ def test_connection_settings_snapshot_does_not_read_orm_in_worker(load_module):
             if threading.get_ident() != owner_thread:
                 raise RuntimeError("ORM values must be read on their owning thread")
             return super().__getattribute__(name)
-    load_module.stub("app.models.db_connection", DBConnection=Connection)
+    load_module.stub("app.models.database", DBConnection=Connection)
     access = Mock()
     access.run_sql.return_value = pd.DataFrame([{"value": 0}])
-    load_module.stub("app.persistence.db.dbaccess", DBAccess=Mock(return_value=access))
+    load_module.stub("app.persistence.db.access", DBAccess=Mock(return_value=access))
     module = load_module("app/agents/chatdb/db_service.py")
     settings = module.ConnectionSettings.from_connection(Connection())
     async def query():
@@ -582,11 +618,11 @@ def test_text2sql_owned_session_closes_before_llm_and_keeps_io_off_loop(load_mod
         def __exit__(self, *args):
             assert threading.get_ident() != owner
             events.append("close")
-    load_module.stub("app.models.db_connection", DBConnection=SimpleNamespace)
-    load_module.stub("app.persistence.db.dbaccess", DBAccess=Mock())
+    load_module.stub("app.models.database", DBConnection=SimpleNamespace)
+    load_module.stub("app.persistence.db.access", DBAccess=Mock())
     load_module("app/agents/chatdb/db_service.py", name="app.agents.chatdb.db_service")
     load_module.stub("app.persistence.db.session", SessionLocal=OwnedSession)
-    load_module.stub("app.persistence.crud", db_connection=SimpleNamespace(get=Mock(return_value=connection)))
+    load_module.stub("app.persistence.crud.db_connection", db_connection=SimpleNamespace(get=Mock(return_value=connection)))
     schema = {"tables": [{"id": 1, "name": "t", "description": None}], "columns": [], "relationships": []}
     async def select(snapshot, query):
         assert threading.get_ident() == owner
@@ -594,12 +630,12 @@ def test_text2sql_owned_session_closes_before_llm_and_keeps_io_off_loop(load_mod
         return snapshot
     load_module.stub("app.agents.chatdb.text2sql_utils", snapshot_schema=Mock(return_value=schema), select_relevant_schema=select,
                      retrieve_relevant_schema=AsyncMock(), get_value_mappings=Mock(return_value={}), format_schema_for_prompt=Mock(return_value="t"),
-                     process_sql_with_value_mappings=lambda sql, mappings: sql, validate_sql=lambda sql: True,
+                     process_sql_with_value_mappings=lambda sql, mappings, *, db_type="mysql": sql, validate_sql=lambda sql: True,
                      extract_sql_from_llm_response=lambda response: response)
     if fail:
         sys.modules["app.agents.chatdb.text2sql_utils"].snapshot_schema.side_effect = ValueError("metadata unavailable")
-    load_module("app/schemas/query.py", name="app.schemas.query")
     load_module("app/agents/chatdb/domain_zh_gov.py", name="app.agents.chatdb.domain_zh_gov")
+    load_module("app/schemas/text2sql.py", name="app.schemas.text2sql")
     module = load_module("app/agents/chatdb/text2sql_service.py", name="app.agents.chatdb.text2sql_service")
     async def llm(prompt):
         assert threading.get_ident() == owner
@@ -783,7 +819,7 @@ def test_chatdb_send_failure_closes_model_stream_before_handler_returns(load_mod
 
 
 @pytest.fixture
-def round4_text2sql(load_module):
+def text2sql_module(load_module):
     load_module.stub("app.config.app_config", settings=SimpleNamespace(performance=SimpleNamespace(cache_ttl=0)))
     load_module("app/agents/chatdb/domain_zh_gov.py", name="app.agents.chatdb.domain_zh_gov")
     return load_module("app/agents/chatdb/text2sql_utils.py", name="app.agents.chatdb.text2sql_utils")
@@ -794,10 +830,10 @@ def round4_text2sql(load_module):
     {"likely_aggregations": "count"}, {"time_related": "false"},
     {"comparison_related": None},
 ])
-def test_round4_text2sql_invalid_analysis_uses_visible_keyword_strategy(
-    round4_text2sql, monkeypatch, caplog, change
+def test_text2sql_invalid_analysis_uses_visible_keyword_strategy(
+    text2sql_module, monkeypatch, caplog, change
 ):
-    module = round4_text2sql
+    module = text2sql_module
     payload = {"entities": [], "relationships": [], "query_intent": "find policy",
                "likely_aggregations": [], "time_related": False, "comparison_related": False}
     payload.update(change)
@@ -808,8 +844,8 @@ def test_round4_text2sql_invalid_analysis_uses_visible_keyword_strategy(
     assert any(record.exc_info and "using keyword analysis" in record.message for record in caplog.records)
 
 
-def test_round4_text2sql_valid_analysis_preserves_empty_lists_false_and_cache(round4_text2sql, monkeypatch):
-    module = round4_text2sql
+def test_text2sql_valid_analysis_preserves_empty_lists_false_and_cache(text2sql_module, monkeypatch):
+    module = text2sql_module
     payload = {"entities": [], "relationships": [], "query_intent": "find policy",
                "likely_aggregations": [], "time_related": False, "comparison_related": False}
     create = AsyncMock(return_value=SimpleNamespace(content=json.dumps(payload)))
@@ -828,10 +864,10 @@ def test_round4_text2sql_valid_analysis_preserves_empty_lists_false_and_cache(ro
     {"table_id": 7, "relevance_score": 8, "reasoning": {}},
     {"table_id": 999, "relevance_score": 8, "reasoning": "not an available table"},
 ])
-def test_round4_text2sql_invalid_ranking_uses_visible_keyword_strategy(
-    round4_text2sql, monkeypatch, caplog, row
+def test_text2sql_invalid_ranking_uses_visible_keyword_strategy(
+    text2sql_module, monkeypatch, caplog, row
 ):
-    module = round4_text2sql
+    module = text2sql_module
     monkeypatch.setattr(module, "model_client", SimpleNamespace(create=AsyncMock(
         return_value=SimpleNamespace(content=json.dumps([row])))))
     fallback = Mock(return_value=[(7, 4.0)])
@@ -848,10 +884,10 @@ def test_round4_text2sql_invalid_ranking_uses_visible_keyword_strategy(
     ([{"table_id": 0, "relevance_score": 0, "reasoning": "unrelated"}], []),
     ([{"table_id": 0, "relevance_score": 8, "reasoning": "relevant"}], [(0, 8)]),
 ])
-def test_round4_text2sql_valid_ranking_keeps_empty_zero_and_integer_ids(
-    round4_text2sql, monkeypatch, ranking, expected
+def test_text2sql_valid_ranking_keeps_empty_zero_and_integer_ids(
+    text2sql_module, monkeypatch, ranking, expected
 ):
-    module = round4_text2sql
+    module = text2sql_module
     monkeypatch.setattr(module, "model_client", SimpleNamespace(create=AsyncMock(
         return_value=SimpleNamespace(content=json.dumps(ranking)))))
     fallback = Mock(side_effect=AssertionError("valid ranking must not enter fallback"))
@@ -859,3 +895,15 @@ def test_round4_text2sql_valid_ranking_keeps_empty_zero_and_integer_ids(
     assert asyncio.run(module.find_relevant_tables_semantic(
         "details", {}, [{"id": 0, "name": "documents", "description": "policy"}])) == expected
     fallback.assert_not_called()
+
+
+def test_text2sql_domain_boost_is_sorted_before_schema_selection(text2sql_module, monkeypatch):
+    module = text2sql_module
+    ranking = [{"table_id": 0, "relevance_score": 6, "reasoning": "general"},
+               {"table_id": 1, "relevance_score": 4, "reasoning": "domain"}]
+    monkeypatch.setattr(module, "model_client", SimpleNamespace(create=AsyncMock(
+        return_value=SimpleNamespace(content=json.dumps(ranking)))))
+    monkeypatch.setattr(module, "candidate_tables_from_query", Mock(return_value=["applications"]))
+    tables = [{"id": 0, "name": "documents", "description": "general"},
+              {"id": 1, "name": "applications", "description": "domain"}]
+    assert asyncio.run(module.find_relevant_tables_semantic("details", {}, tables)) == [(1, 8.5), (0, 6)]

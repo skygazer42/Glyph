@@ -22,17 +22,14 @@ class SqlGeneratorAgent(BaseAgent):
             db_type: 数据库类型
         """
         super().__init__(
-            agent_id="sql_generator_agent",
+            description="sql_generator_agent",
             agent_name=AGENT_NAMES[AgentTypes.SQL_GENERATOR.value],
             model_client_instance=model_client_instance,
             db_type=db_type
         )
-        self._prompt_template = self._build_prompt_template()
+        self._prompt_template = self.PROMPT_TEMPLATE
 
-    @staticmethod
-    def _build_prompt_template() -> str:
-        """构建提示模板"""
-        return """
+    PROMPT_TEMPLATE = """
         你是一名专业的SQL转换专家。你的任务是基于上下文信息及SQL命令生成报告，将用户的自然语言查询转换为精确的SQL语句。
 
         ## 生成SQL的指导原则：

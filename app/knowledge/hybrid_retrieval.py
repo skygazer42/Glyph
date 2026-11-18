@@ -4,12 +4,11 @@
 Two-Stage Retrieval: Document-level Recall + Chunk-level Retrieval
 """
 
-from typing import List, Dict, Any, Tuple
-from pathlib import Path
-import logging
-import re
 import io
+import re
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 from app.knowledge.hierarchical_index import ChunkConfig, HierarchicalMarkdownProcessor
 
@@ -38,10 +37,6 @@ class HybridRetriever:
         """
         self.documents = documents
         self.chunked_documents = chunked_documents
-        self._build_document_index()
-
-    def _build_document_index(self):
-        """构建文档索引（用于快速查找）"""
         self.doc_id_to_doc = {doc['doc_id']: doc for doc in self.documents}
 
     def retrieve(
@@ -173,7 +168,7 @@ class HybridRetriever:
 
             # 融合文档级分数（可选）
             # 给文档级分数一个权重，确保在高相关文档中的chunks优先
-            doc_score = chunk.get('doc_score', 0)
+            doc_score = chunk['doc_score']
             combined_score = chunk_score * 0.8 + doc_score * 0.2
 
             if combined_score > 0:
@@ -187,7 +182,8 @@ class HybridRetriever:
 
         return scored_chunks[:top_k]
 
-    def _extract_keywords(self, query: str) -> List[str]:
+    @staticmethod
+    def _extract_keywords(query: str) -> List[str]:
         """
         从查询中提取关键词
 
@@ -212,8 +208,8 @@ class HybridRetriever:
 
         return keywords
 
+    @staticmethod
     def _calculate_bm25_score(
-        self,
         keywords: List[str],
         text: str,
         title: str = '',
@@ -294,11 +290,11 @@ def create_hybrid_retriever_from_files(
                         'text': content,
                         'title': md_file.stem,
                         'file': md_file.name,
-                        'doc_id': md_file.stem,
+                        'doc_id': md_file.relative_to(data_dir).as_posix(),
                         'size': len(content)
                     })
-        except Exception as e:
-            logging.getLogger(__name__).warning("Cannot read %s: %s", md_file, e, exc_info=True)
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ValueError(f"Cannot read Markdown document: {md_file}") from exc
 
     print(f"  ✓ 成功读取 {len(documents)} 个文档")
 
@@ -331,12 +327,7 @@ def create_hybrid_retriever_from_files(
 
             # 对section内容进行切块
             if section_content.strip():
-                section_path = section['path']
-                section_chunks = processor._split_into_chunks(
-                    section_content,
-                    section_id=f"{doc_id}_section_{len(chunks)}",
-                    path=section_path
-                )
+                section_chunks = processor._split_into_chunks(section_content)
 
                 for chunk_text in section_chunks:
                     chunks.append({
@@ -353,12 +344,7 @@ def create_hybrid_retriever_from_files(
                 subsection_content = subsection['content']
 
                 if subsection_content.strip():
-                    subsection_path = subsection.get('path', f"{section_title} > {subsection_title}")
-                    subsection_chunks = processor._split_into_chunks(
-                        subsection_content,
-                        section_id=f"{doc_id}_subsection_{len(chunks)}",
-                        path=subsection_path
-                    )
+                    subsection_chunks = processor._split_into_chunks(subsection_content)
 
                     for chunk_text in subsection_chunks:
                         chunks.append({
