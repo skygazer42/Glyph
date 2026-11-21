@@ -2,7 +2,7 @@
   <h1><img src="./web/src/assets/platform-mark.svg" alt="Glyph Logo" width="40" height="40" align="absmiddle"> Glyph</h1>
 
   <p>
-    <strong>面向政务服务的多智能体协作平台</strong><br>
+    <strong>企业级多智能体协作平台</strong><br>
     基于 AutoGen 编排知识、图谱、规则与数据查询智能体，协同完成政策咨询与补贴测算
   </p>
 
