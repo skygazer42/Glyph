@@ -158,7 +158,7 @@ class MilvusStore:
         self.collection.create_index(field_name="embedding", index_params=index_params)
         self.collection.load()
 
-    def add_documents(self, documents: List["PolicyDocument"], *, upsert: bool = False):
+    def add_documents(self, documents: List["PolicyDocument"], *, upsert: bool = False, flush: bool = True):
         """Add documents, or replace stable primary keys when explicitly requested."""
         if not documents:
             return
@@ -187,7 +187,8 @@ class MilvusStore:
             self.collection.upsert(entities)
         else:
             self.collection.insert(entities)
-        self.collection.flush()
+        if flush:
+            self.collection.flush()
 
     def search(
         self,
@@ -205,7 +206,14 @@ class MilvusStore:
         query_emb = self._embed_texts([query])[0]
 
         # Search params
-        search_params = {"metric_type": "IP", "params": {"nprobe": 10}}
+        search_params: Dict[str, Any] = {"metric_type": "IP", "params": {}}
+        for index in self.collection.indexes:
+            nlist = index.params.get("params", {}).get("nlist")
+            if nlist is not None:
+                # A title filter can leave a single matching guide in any IVF
+                # partition. Probe all partitions rather than silently omitting it.
+                search_params["params"]["nprobe"] = int(nlist) if filters else min(int(nlist), 128)
+                break
 
         # Build filter expression
         expr = self._build_filter(filters) if filters else None
@@ -243,6 +251,15 @@ class MilvusStore:
 
         if "source" in filters:
             expressions.append(f'source like {json.dumps("%" + str(filters["source"]) + "%", ensure_ascii=False)}')
+
+        if "title" in filters:
+            expressions.append(f'title like {json.dumps("%" + str(filters["title"]) + "%", ensure_ascii=False)}')
+
+        if "coverage_year" in filters:
+            expressions.append(f'content like {json.dumps("%保障年度：" + str(filters["coverage_year"]) + "%", ensure_ascii=False)}')
+
+        if "content" in filters:
+            expressions.append(f'content like {json.dumps("%" + str(filters["content"]) + "%", ensure_ascii=False)}')
 
         return " && ".join(expressions) if expressions else None
 
@@ -377,15 +394,11 @@ class MilvusStore:
         }
 
     def close(self) -> None:
-        """Release only the collection and connection owned by this store."""
-        try:
-            if self.collection is not None:
-                self.collection.release()
-        finally:
-            self.collection = None
-            if self._connected:
-                connections.disconnect(self._connection_alias)
-                self._connected = False
+        """Disconnect this store's alias without unloading the shared server collection."""
+        self.collection = None
+        if self._connected:
+            connections.disconnect(self._connection_alias)
+            self._connected = False
 
     def __del__(self):
         # Explicit close reports errors. Destruction is best effort, including partial init.

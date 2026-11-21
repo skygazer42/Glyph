@@ -1,0 +1,130 @@
+rule_id: Rule_Changzhou_PropertyFee_2026
+name: 常州物业费公积金提取试算
+version: '1.0'
+description: 江苏省常州市官方政策金额试算；资格、材料及可提余额/官方房源库须先核实，CALCULATED不代表审批通过。
+region: 江苏省常州市
+keywords:
+- 常州物业费
+- 物业费提取
+- 电梯费
+- 物业公积金
+policy_source:
+  title: 关于提取住房公积金支付物业费和装修自住住房的通知
+  url: https://www.changzhou.gov.cn/gi_news/312178969370166
+  document_number: 常公积金委〔2026〕5号
+  raw_path: resources/data/raw/changzhou_20261121/housing/01.web.json
+  body_sha256: 9220c0969c8d8967a86643a93817ecb56f4656cf7f42b67b6ebe41213bbf8266
+  published_date: '2026-09-18'
+  issued_date: '2026-09-11'
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_20261121/housing/01.md
+  clause: 一、支付物业费；三、其他；官方解读自然年度及跨年发票口径
+  raw_format: official_page_web_provider_json
+  supporting_sources:
+  - title: 《关于提取住房公积金支付物业费和装修自住住房的通知》政策解读
+    url: https://www.changzhou.gov.cn/ns_news/783178969498604
+    issuer: 常州市住房公积金管理中心
+    published_date: '2026-09-18'
+    issued_date: null
+    document_number: null
+    scope: 江苏省常州市
+    region: 江苏省常州市
+    topic: 公积金提取解读
+    raw_path: resources/data/raw/changzhou_20261121/housing/02.web.json
+    markdown_path: resources/data/process/changzhou_20261121/housing/02.md
+    body_sha256: 0bca812a9fb68cb2f707f56325e0f32081f5dabec8232106f5213135ca55aa2f
+    retrieved_date: '2026-11-21'
+    document_kind: official_policy_explanation
+    status: source_collected_validity_not_certified
+    completeness: official_published_text
+    source_publisher: 常州市人民政府
+    publication_date_basis: 官方页面可见公开日期/发布日期；与正文成文/施行日期分列
+    publication_note: 原始HTML直连返回403；raw为官方URL经网页检索服务正常open返回的逐行原始JSON快照，不伪称原始HTML。仅删除页面导航/关联链接/扫码提示，未改政策正文。
+    effective_date: '2026-09-20'
+    expires_date: null
+    raw_format: official_page_web_provider_json
+    body_han_characters: 1612
+valid_period:
+  start: '2026-09-20'
+  end: null
+inputs:
+- name: claim_time
+  label: 申请日期
+  type: string
+  required: true
+  description: 本次业务申请日期，YYYY-MM-DD；用于判断政策施行期和自然年度。
+- name: eligibility_confirmed
+  label: 资格已核实
+  type: bool
+  required: true
+  description: 仅完整事实资格已由主管部门核实时选择是；只试算金额，不查询产权/社保/审批数据库。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: unsettled_provident_loan
+  label: 有未结清公贷
+  type: bool
+  required: true
+  description: 申请时按本业务核验口径，在常州是否存在未还清的住房公积金贷款（含公转商贷款）；须据主管部门核实事实填写。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: invoice_year
+  label: 费用归属年份
+  type: int
+  required: true
+  description: 发票对应费用经核实分摊后的自然年度，必须与申请日期年份相同。
+- name: invoice_amount_for_year
+  label: 本年物业票额
+  type: float
+  required: true
+  description: 本年度对应的物业费及电梯费发票金额合计，元；跨年发票必须先核实分摊，不能直接填全部跨年总额。例5000元覆盖24个月、其中本年12个月，填2500。
+- name: available_balance
+  label: 核定可提余额
+  type: float
+  required: true
+  description: 本次本人/配偶按规定可提取的账户余额合计，元，已考虑应保留余额等约束；不是未经核实的总余额。
+- name: personal_claimed_this_year
+  label: 本人本年已提
+  type: bool
+  required: true
+  description: 本人在本自然年是否已就名下一套自住住房办理物业费提取；其他产权人已提金额另填同套已提。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: home_withdrawn_this_year
+  label: 同套本年已提
+  type: float
+  required: true
+  description: 同套住房所有提取人本自然年度已提物业/电梯费金额合计，元；每套年度上限3000元，不是每人3000元。
+calc:
+  result: dsl_helpers.changzhou_property_fee_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '{{ calc.result.reason }}'
+example_inputs:
+  claim_time: '2026-11-21'
+  eligibility_confirmed: true
+  unsettled_provident_loan: false
+  invoice_year: 2026
+  invoice_amount_for_year: 2500
+  available_balance: 10000
+  personal_claimed_this_year: false
+  home_withdrawn_this_year: 0
+example_expected:
+  status: CALCULATED
+  amount: 2500.0
+expected_amount: 2500.0
+limitations:
+- 只对明确已核实资格的事实试算，不代表审批、实时余额或房源库核验。
+- 金额单位元，按分向下取整仅为保守展示，不宣称官方统一舍入规则。
+- 只用申请自然年对应物业/电梯费发票金额，跨年分摊金额先经核实，不补提2025及以前，不结转。
+- 每人每年一套一次；同套所有提取人年度共享3000元发票限额；无未清公积金/公转商贷款。

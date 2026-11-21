@@ -1,0 +1,90 @@
+rule_id: Rule_Changzhou_ProvidentRent_2026
+name: 常州个人租房公积金可提额度
+version: '1.0'
+description: 常州官方依据的金额试算；说明金额性质和适用时间，不默认资格和账户事实，实际以主管部门审核/银行合同为准。
+region: 江苏省常州市
+keywords:
+- 租房公积金
+- 租房提取
+- 租房能提多少
+- 房租提取
+- 公积金租房
+- 房租公积金
+policy_source:
+  title: 关于调整我市提取住房公积金支付房租政策的通知
+  url: https://www.changzhou.gov.cn/gi_news/255168800394712
+  raw_path: resources/data/raw/changzhou_finance_20261121/provident/batch3.web.json
+  body_sha256: 1925c2654bc128e26130602b7b4f00f109953ede16ac0ecf81a637cb49f2d1e5
+  published_date: '2023-06-29'
+  issued_date: '2023-06-21'
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_finance_20261121/provident/08.md
+  clause: 见原文及supporting_sources中的额度、期限、利率、限额和舍入条款
+  supporting_sources:
+  - title: 《关于调整我市提取住房公积金支付房租政策的通知》政策解读
+    url: https://www.changzhou.gov.cn/gi_news/371168800330633
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/09.md
+    body_sha256: 389855ec77f627449396a84471d0d370c9e9a6d6c88acf4649b7c1d17e5ad504
+  - title: 关于印发《常州市住房公积金缴存管理实施细则》《常州市住房公积金提取管理实施细则》《常州市住房公积金个人住房贷款管理实施细则》的通知
+    url: https://www.changzhou.gov.cn/gi_news/472177500750450
+    markdown_path: resources/data/process/changzhou_20261121/housing/09.md
+    body_sha256: 8a6f4b0481e1bf3e288b773e73174b9b26ef9ed6bf31b25d5fd7661bdcb33d7e
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: claim_time
+  label: 业务日期
+  type: string
+  required: true
+  description: 明确业务日期，YYYY-MM-DD；不由模型推断，不改变真实申请或交易时间。
+- name: eligibility_confirmed
+  label: 相关事实已核实
+  type: bool
+  required: true
+  description: 仅用户明确核实该场景全部资格、真实材料、历史记录及账户事实时填是；未知填否转人工核实。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: multi_child_eligible
+  label: 多孩提高限额资格已核实
+  type: bool
+  required: true
+  description: 按官方生育时间和抚养权材料认定，不能只按家庭儿童数量推断；普通15000元/年，多孩18000元/年。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: available_withdrawable_balance
+  label: 本人可提净余额
+  type: float
+  required: true
+  description: 已扣应保留余额且符合租房材料条件的本人可提净余额，配偶单独核算。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: withdrawn_this_year
+  label: 本人自然年已提租房款
+  type: float
+  required: true
+  description: 包含本年度全部租房提取，按自然年累计，未提填0。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+calc:
+  result: dsl_helpers.changzhou_provident_rent_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  trace_template: '{{ calc.result.reason }}
+
+    {% if calc.result.status == ''CALCULATED'' %}金额（元）：{{ calc.result.amount }}；性质：本人本自然年度剩余租房提取额{% else %}本次未给出成功金额，须补充或核实相关条件{% endif %}'
+example_inputs:
+  claim_time: '2026-11-21'
+  eligibility_confirmed: true
+  multi_child_eligible: true
+  available_withdrawable_balance: 20000
+  withdrawn_this_year: 5000
+example_expected:
+  status: CALCULATED
+  amount: 13000.0
+limitations:
+- 模型仅选择公式及用户明确输入的事实，不补造资格、政策身份、交易日期、余额或历史次数。
+- 金额均为人民币元，计算性质见追踪；利率及后续调息、银行舍入和真实审批需以合同/中心核定为准。

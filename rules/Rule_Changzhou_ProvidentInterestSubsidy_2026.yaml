@@ -1,0 +1,69 @@
+rule_id: Rule_Changzhou_ProvidentInterestSubsidy_2026
+name: 常州补充公积金与灵活就业利息补贴
+version: '1.0'
+description: 常州官方依据的金额试算；说明金额性质和适用时间，不默认资格和账户事实，实际以主管部门审核/银行合同为准。
+region: 江苏省常州市
+keywords:
+- 缴存利息补贴
+- 补充公积金补贴
+- 灵活就业利息
+- 结息补贴
+policy_source:
+  title: 关于调整优化住房公积金缴存使用政策的通知
+  url: https://www.changzhou.gov.cn/gi_news/698174364173714
+  raw_path: resources/data/raw/changzhou_finance_20261121/provident/batch2.web.json
+  body_sha256: 2468440ce837202063de346e0a656f1f22b534dfa82f1b6eb916232904eb68a7
+  published_date: '2025-04-03'
+  issued_date: '2025-04-03'
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_finance_20261121/provident/05.md
+  clause: 见原文及supporting_sources中的额度、期限、利率、限额和舍入条款
+  supporting_sources: []
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: claim_time
+  label: 业务日期
+  type: string
+  required: true
+  description: 明确业务日期，YYYY-MM-DD；不由模型推断，不改变真实申请或交易时间。
+- name: eligibility_confirmed
+  label: 相关事实已核实
+  type: bool
+  required: true
+  description: 仅用户明确核实该场景全部资格、真实材料、历史记录及账户事实时填是；未知填否转人工核实。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: settled_interest_this_event
+  label: 本次符合条件资金结息额
+  type: float
+  required: true
+  description: 仅个人补充公积金/灵活就业按月缴存资金的本次年度或销户结息，不能把本金、普通职工全部利息当基数。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: subsidy_paid_this_settlement_year
+  label: 同结算年度已获利息补贴
+  type: float
+  required: true
+  description: 结算年度按7月至次年6月核对，非自然年；未领取填0。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+calc:
+  result: dsl_helpers.changzhou_provident_interest_subsidy_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  trace_template: '{{ calc.result.reason }}
+
+    {% if calc.result.status == ''CALCULATED'' %}金额（元）：{{ calc.result.amount }}；性质：本次符合条件资金的额外利息补贴{% else %}本次未给出成功金额，须补充或核实相关条件{% endif %}'
+example_inputs:
+  claim_time: '2026-11-21'
+  eligibility_confirmed: true
+  settled_interest_this_event: 3000
+  subsidy_paid_this_settlement_year: 1000
+example_expected:
+  status: CALCULATED
+  amount: 1500.0
+limitations:
+- 模型仅选择公式及用户明确输入的事实，不补造资格、政策身份、交易日期、余额或历史次数。
+- 金额均为人民币元，计算性质见追踪；利率及后续调息、银行舍入和真实审批需以合同/中心核定为准。

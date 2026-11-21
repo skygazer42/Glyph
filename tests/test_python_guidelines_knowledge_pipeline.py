@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
+from threading import RLock
 import re
 import runpy
 import tempfile
@@ -64,7 +65,7 @@ def test_graph_query_failure_does_not_fabricate_a_knowledge_answer():
 @pytest.mark.parametrize('text', ['invalid', '[{"question": "q"}]'])
 def test_invalid_faq_data_does_not_silently_disable_faq(tmp_path, text):
     cls = load_subject_definitions('app/knowledge/faq_responder.py', 'FAQEntry', 'FAQResponder',
-                      dataclass=dataclass, SequenceMatcher=SequenceMatcher, os=os,
+                      dataclass=dataclass, SequenceMatcher=SequenceMatcher, os=os, RLock=RLock,
                       logger=logging.getLogger('test'))['FAQResponder']
     path = tmp_path / 'faq.json'
     path.write_text(text, encoding='utf-8')
@@ -100,9 +101,13 @@ def test_invalid_template_amount_is_not_silently_replaced(amount):
 
 
 def load_subject_definitions(path, *names, **extra):
+    from app.agents.service.progress import emit_progress, progress_step, progress_tool, source_references
+
     return load_definitions(path, names, asyncio=asyncio, Path=Path,
                             logging=logging, json=json, re=re,
-                            ContextVar=ContextVar, anyio=anyio, **extra)
+                            ContextVar=ContextVar, anyio=anyio,
+                            emit_progress=emit_progress, progress_step=progress_step,
+                            progress_tool=progress_tool, source_references=source_references, **extra)
 
 
 def test_knowledge_search_failure_is_distinct_from_no_results():
@@ -131,7 +136,7 @@ def test_enabled_hierarchical_search_failure_is_visible():
 
 
 def test_document_processor_keeps_parse_failure_visible_and_accepts_short_text():
-    cls = load_subject_definitions('app/knowledge/doc_enhanced.py', 'EnhancedDocumentProcessor')['EnhancedDocumentProcessor']
+    cls = load_subject_definitions('app/knowledge/document_processor.py', 'EnhancedDocumentProcessor')['EnhancedDocumentProcessor']
     processor = object.__new__(cls)
     processor.logger = logging.getLogger('test')
     processor.mineru_enabled = False
@@ -197,13 +202,14 @@ def test_rule_agent_coercion_keeps_invalid_numeric_values_visible_to_engine(tmp_
         assert float(result['final_result']) == 0
 
 
-def test_qualified_rule_is_reported_as_verified():
+def test_qualified_reviewed_rule_is_reported_as_verified():
     ns = load_subject_definitions('app/agents/pipeline/rule_agent.py', 'RuleEngineAgent',
                      PolicyEngine=lambda **kwargs: None, FinalAnswer=FinalAnswer, uuid4=__import__('uuid').uuid4)
     agent = ns['RuleEngineAgent']()
     agent.engine = SimpleNamespace(rules={'r': {}}, get_rule_info=lambda key: {},
-                                   execute=lambda *args: {'status': 'QUALIFIED', 'final_result': 0})
-    agent._collect_rules = lambda: [{'rule_id': 'r'}]
+                                   execute=lambda *args: {'status': 'QUALIFIED', 'final_result': 0,
+                                                          'verification': {'status': 'verified_for_estimate', 'reviewed_on': '2026-11-21'}})
+    agent._collect_rules = lambda: [{'rule_id': 'r', 'keywords': ['policy']}]
 
     async def plan(*args):
         return ns['RuleExecutionPlan'](rule_id='r', inputs={})
@@ -442,7 +448,7 @@ def test_milvus_close_disconnects_only_its_alias():
     store._connected = True
     store.close()
     store.close()
-    assert disconnected == ['owned'] and released == [True]
+    assert disconnected == ['owned'] and released == []
 
 
 def test_failed_index_build_cleans_all_temporary_markdown(tmp_path):
@@ -946,7 +952,7 @@ def test_milvus_stats_rejects_closed_collection():
 
 
 def test_text_decoder_reports_exhausted_supported_encodings(tmp_path):
-    cls = load_subject_definitions('app/knowledge/doc_enhanced.py', 'EnhancedDocumentProcessor')['EnhancedDocumentProcessor']
+    cls = load_subject_definitions('app/knowledge/document_processor.py', 'EnhancedDocumentProcessor')['EnhancedDocumentProcessor']
     processor = object.__new__(cls)
     path = tmp_path / 'invalid.txt'
     path.write_bytes(b'\x81')
@@ -957,7 +963,7 @@ def test_text_decoder_reports_exhausted_supported_encodings(tmp_path):
 @pytest.mark.parametrize('extra', [{'tags': 'tag'}, {'source': 42}])
 def test_faq_rejects_invalid_external_field_types(tmp_path, extra):
     cls = load_subject_definitions('app/knowledge/faq_responder.py', 'FAQEntry', 'FAQResponder',
-                      dataclass=dataclass, SequenceMatcher=SequenceMatcher, os=os,
+                      dataclass=dataclass, SequenceMatcher=SequenceMatcher, os=os, RLock=RLock,
                       logger=logging.getLogger('test'))['FAQResponder']
     path = tmp_path / 'faq.json'
     path.write_text(json.dumps([{'question': ' q ', 'answer': ' a ', **extra}]), encoding='utf-8')
@@ -1040,7 +1046,7 @@ def test_mineru_sync_rejects_invalid_external_rows(row):
             pass
         def json(self):
             return {"code": 0, "data": {"extract_result": [row]}}
-    ns = load_subject_definitions("app/knowledge/doc_enhanced.py", "EnhancedDocumentProcessor", requests=SimpleNamespace(get=lambda *a, **kw: Response()), time=__import__("time"))
+    ns = load_subject_definitions("app/knowledge/document_processor.py", "EnhancedDocumentProcessor", requests=SimpleNamespace(get=lambda *a, **kw: Response()), time=__import__("time"))
     processor = object.__new__(ns["EnhancedDocumentProcessor"])
     processor.mineru_poll_timeout, processor.mineru_timeout, processor.mineru_poll_interval = .02, 1, 0
     processor.mineru_base_url, processor.mineru_api_key = "offline", "token"
@@ -1058,7 +1064,7 @@ def test_mineru_sync_upload_validates_batch_identifier():
             pass
         def json(self):
             return {"code": 0, "data": {"batch_id": 42, "file_urls": ["signed"]}}
-    ns = load_subject_definitions("app/knowledge/doc_enhanced.py", "EnhancedDocumentProcessor", requests=SimpleNamespace(post=lambda *a, **kw: Response()), uuid4=lambda: "d")
+    ns = load_subject_definitions("app/knowledge/document_processor.py", "EnhancedDocumentProcessor", requests=SimpleNamespace(post=lambda *a, **kw: Response()), uuid4=lambda: "d")
     processor = object.__new__(ns["EnhancedDocumentProcessor"])
     processor.mineru_model_version, processor.mineru_timeout = "pipeline", 1
     processor.mineru_base_url, processor.mineru_api_key = "offline", "token"
@@ -1155,7 +1161,10 @@ def test_milvus_connection_preserves_explicit_empty_credentials(
 ):
     connected: list[dict[str, object]] = []
     disconnected: list[str] = []
-    collection = SimpleNamespace(schema=SimpleNamespace(fields=[]), load=lambda: None, release=lambda: None)
+    collection = SimpleNamespace(
+        schema=SimpleNamespace(fields=[SimpleNamespace(name='embedding', params={'dim': 1536})]),
+        load=lambda: None, release=lambda: None,
+    )
     database = SimpleNamespace(milvus_host='offline', milvus_port=19530,
                                milvus_user='configured-user', milvus_password='configured-password',
                                milvus_db_name='default', milvus_collection_name='policies')

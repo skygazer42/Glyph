@@ -1,0 +1,167 @@
+rule_id: Rule_National_Appliance_2026
+name: 2026年全国家电以旧换新补贴测算
+version: '1.0'
+keywords:
+- 2026家电
+- 家电以旧换新
+- 冰箱
+- 洗衣机
+- 电视
+- 空调
+- 热水器
+- 电脑
+policy_source:
+  title: 商务部等5部门办公厅（室）关于做好2026年家电以旧换新、数码和智能产品购新补贴工作的通知
+  url: https://www.mofcom.gov.cn/zfxxgk/fdzdgknr/ztfl/gnmygl/art/2025/art_b0f88c7df21c4d7aa74d7408e84f8860.html
+  doc_id: 商办流通函2025年第469号
+  document_number: 商办流通函2025年第469号
+  clause: 第一、四、五条：6类家电、1级能效/水效、15%、1500元封顶、每人每类1件、身份及实名单件发票。金额小数分位四舍五入仅作展示，原文未设全国统一分位舍入规则。
+  source_path: resources/data/process/official_calculations_2026/national/appliance_digital.md
+  raw_path: resources/data/raw/official_calculations_2026/national/appliance_digital.html
+  body_sha256: 9a72fe80a604c595d29b73bcd9da8c207ab7394a637ab224ca809ff2478f52ab
+  published_date: '2025-12-31'
+  issued_date: '2025-12-31'
+  completeness: official_published_text
+  publication_note: 官方公开正文。
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: price
+  label: 最终销售价
+  type: float
+  required: true
+  description: 元，扣除商家等所有优惠后的政府补贴前单件最终销售价，不是补贴后实付金额；须大于零
+- name: claim_time
+  label: 申领日期
+  type: string
+  required: true
+  description: 本试算限定2026年内，跨年申请截止按地方细则另核，格式YYYY-MM-DD
+- name: purchase_date
+  label: 购买日期
+  type: string
+  required: true
+  description: 实际商品购买日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: invoice_date
+  label: 发票日期
+  type: string
+  required: true
+  description: 实名发票开具日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: individual_consumer
+  label: 个人消费
+  type: bool
+  required: true
+  description: 是否为个人消费者购买
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: participating_merchant
+  label: 参与商家
+  type: bool
+  required: true
+  description: 商家是否在当地当期政策参与经营主体名单中，须自行核实，不连接实时名单
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: new_product
+  label: 全新商品
+  type: bool
+  required: true
+  description: 是否为全新补贴商品，排除二手、翻新、以旧充新
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: identity_consistent
+  label: 身份一致
+  type: bool
+  required: true
+  description: 补贴资格申领人、付款人及收货人是否为同一人
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: real_name_single_item_invoice
+  label: 实名单件发票
+  type: bool
+  required: true
+  description: 是否已开具实名正规发票且抬头为申领人、单张发票仅对应本件补贴商品
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: prior_category_claims
+  label: 同类已享次数
+  type: int
+  required: true
+  description: 本人2026年全国同品类已核销且未退货恢复资格的次数；每类仅1件，含其他渠道/地区，须核实后填写
+- name: category
+  label: 家电品类
+  type: string
+  required: true
+  description: 全国统一支持的6类家电
+  options:
+  - label: 冰箱
+    value: refrigerator
+  - label: 洗衣机
+    value: washing_machine
+  - label: 电视
+    value: tv
+  - label: 空调
+    value: air_conditioner
+  - label: 热水器
+    value: water_heater
+  - label: 电脑
+    value: computer
+- name: energy_level
+  label: 能效水效等级
+  type: int
+  required: true
+  description: 该产品适用的能效或水效等级，国家2026标准仅支持1级
+  options:
+  - label: 1级
+    value: 1
+  - label: 2级
+    value: 2
+  - label: 其他等级或无标识
+    value: 0
+calc:
+  result: dsl_helpers.appliance_subsidy_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '- 试算状态：{{ calc.result.status }}
+
+    - 试算金额（元）：{{ calc.result.amount }}
+
+    - {{ calc.result.reason }}
+
+    - 金额试算，不代表审批通过；产品、车辆、次数、地方预算及截止日期须由受理平台核验。'
+example_inputs:
+  price: 3999.99
+  category: refrigerator
+  energy_level: 1
+  claim_time: '2026-11-21'
+  purchase_date: '2026-11-20'
+  invoice_date: '2026-11-20'
+  individual_consumer: true
+  participating_merchant: true
+  new_product: true
+  identity_consistent: true
+  real_name_single_item_invoice: true
+  prior_category_claims: 0
+example_expected:
+  status: CALCULATED
+  amount: 600.0
+limitations:
+- 仅依据用户明确填写的事实进行全国标准金额试算，不连接实时资格、预算、产品或车辆数据库
+- 本规则只覆盖2026年内交易及申请；地方跨年受理期限、补正及资金安排另核
+- 不核验证件照片真伪、实际退货/产权交易或平台记录；未知事实不得默认满足资格

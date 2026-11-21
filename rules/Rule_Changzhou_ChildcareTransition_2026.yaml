@@ -1,0 +1,127 @@
+rule_id: Rule_Changzhou_ChildcareTransition_2026
+name: 常州2026年度育儿补贴（2023至2024年出生）
+version: '1.0'
+description: 官方公开标准的条件试算，未核实资格不得默认满足；CALCULATED不代表审批或到账。人才最高标准仅供参考，amount为0表示待核验，不表示没有补贴。
+region: 江苏省常州市
+keywords:
+- 育儿补贴按月折算
+- 2023出生2026补贴
+policy_source:
+  title: 育儿补贴制度的补贴对象是谁？标准是多少？（国家卫健委对照表转载）
+  url: https://www.xlgl.gov.cn/xlgl/zw/zwgk/zcwdk/sy/2025121209135088159/index.html
+  document_number: null
+  raw_path: resources/data/raw/changzhou_finance_20261121/benefits/child_table.web.json
+  body_sha256: b58ff5170e43574014692d5c238d9bbae083d63875129a96672f3ea3b194c648
+  published_date: '2025-08-05'
+  issued_date: null
+  completeness: official_published_text
+  raw_format: official_page_web_provider_json
+  source_path: resources/data/process/changzhou_finance_20261121/benefits/child_table.md
+  clause: 2022—2024年各月份出生婴幼儿申领育儿补贴金额对照表
+  national_standard_reprint: true
+  supporting_sources:
+  - title: 2025年民生实事完成情况系列（三）新闻发布会发布实录
+    url: https://www.changzhou.gov.cn/ns_news/504176776471710
+    source_path: resources/data/process/changzhou_finance_20261121/benefits/child_local.md
+    raw_path: resources/data/raw/changzhou_finance_20261121/benefits/child_local.web.json
+    body_sha256: 7a02b0ffb7ba4db796b3a17c0bba6e17ef702fb6e37f6b8b8af25aef9aa7d32d
+    clause: 常州户籍申领、补贴标准及程序
+  - title: 育儿补贴制度的补贴对象是谁？标准是多少？
+    url: https://www.js.gov.cn/art/2025/8/8/art_90838_6974.html
+    source_path: resources/data/process/changzhou_finance_20261121/benefits/child_js.md
+    raw_path: resources/data/raw/changzhou_finance_20261121/benefits/child_js.web.json
+    body_sha256: 940300bd00e3ec29176e34089ce8fdebb3f4c6e0602af162791a9d38d5328d56
+    clause: 国籍要求及未满三周岁折算依据
+  - title: 育儿补贴制度实施方案
+    url: https://chinajob.mohrss.gov.cn/c/2025-07-29/443555.shtml
+    source_path: resources/data/process/changzhou_finance_20261121/benefits/child_national.md
+    raw_path: resources/data/raw/changzhou_finance_20261121/benefits/child_national.web.json
+    body_sha256: c1e097b534b41052383f63fbbb9ff2a6bb38367b758b7d410531266854f49fc4
+    clause: 国家制度实施时间、对象及基本标准
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: claim_time
+  label: 申请日期
+  type: string
+  required: true
+  description: 实际本次申请日期，YYYY-MM-DD；不能以计算日期替代历史申请日期。
+- name: birth_date
+  label: 婴幼儿出生日期
+  type: string
+  required: true
+  description: 出生医学证明日期YYYY-MM-DD；特殊死亡、收养跨年度情形需主管部门复核。
+- name: eligibility_confirmed
+  label: 申领资格已核实
+  type: bool
+  required: true
+  description: 主管部门已核实完整资格、材料及监护/困难身份等；不得默认是，试算不代替审核。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: changzhou_household_confirmed
+  label: 常州户籍已核实
+  type: bool
+  required: true
+  description: 孩子户籍登记在常州，由户籍地受理，不凭父母工作地或居住地认定。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: chinese_nationality_confirmed
+  label: 中国国籍已核实
+  type: bool
+  required: true
+  description: 补贴对象须具有中华人民共和国国籍。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: already_received
+  label: 本项已经领取
+  type: bool
+  required: true
+  description: 育儿填归属2026年度这一次是否已领；求职填此前任何学段是否已享受该一次性补贴。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: annual_entitlement_confirmed
+  label: 2026年度资格已核实
+  type: bool
+  required: true
+  description: 须经办部门确认本次补贴归属2026年度，首次与续领资格有效；不自动追补2025年金额。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+calc:
+  result: dsl_helpers.changzhou_childcare_transition_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '{{ calc.result.reason }}'
+example_inputs:
+  claim_time: '2026-11-21'
+  birth_date: '2023-06-30'
+  eligibility_confirmed: true
+  changzhou_household_confirmed: true
+  chinese_nationality_confirmed: true
+  already_received: false
+  annual_entitlement_confirmed: true
+example_expected:
+  status: CALCULATED
+  amount: 1800.0
+expected_amount: 1800.0
+limitations:
+- 金额单位元；只计算单个申请对象本次金额，不查询社保、学籍、户籍、历史发放或审批数据库。
+- 不得将两类育儿规则相加，同一孩子同一归属年度不重复；月数折算不代表按月打款。
+- 对照表来源为锡林郭勒盟官方转载国家卫健委全国标准，不使用其地方政策；常州适用性由本目录常州2026新闻发布会正文交叉确认。

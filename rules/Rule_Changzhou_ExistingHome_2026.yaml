@@ -1,0 +1,152 @@
+rule_id: Rule_Changzhou_ExistingHome_2026
+name: 常州存量房工薪购房资助试算
+version: '1.0'
+description: 江苏省常州市官方政策金额试算；资格、材料及可提余额/官方房源库须先核实，CALCULATED不代表审批通过。
+region: 江苏省常州市
+keywords:
+- 常州二手房购房资助
+- 存量商品住房
+- 二手房15%
+- 房源B库
+policy_source:
+  title: 进一步资助住房困难工薪群体购买商品住房公告
+  url: https://www.zhonglou.gov.cn/html/czzl/2025/NLLKPQAP_1208/385650.html
+  document_number: null
+  raw_path: resources/data/raw/changzhou_20261121/housing/08.web.json
+  body_sha256: 1583d8ac24774d330ec4c10e6aeabb9664df1ab7770104ebcd16dc99ed01c4e1
+  published_date: '2025-12-05'
+  issued_date: '2025-12-01'
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_20261121/housing/08.md
+  clause: 一（一）至（四）、三、其他事项；不含卖方180日改善购房场景
+  raw_format: official_page_web_provider_json
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: claim_time
+  label: 申请日期
+  type: string
+  required: true
+  description: 本次业务申请日期，YYYY-MM-DD；用于判断政策施行期和自然年度。
+- name: eligibility_confirmed
+  label: 资格已核实
+  type: bool
+  required: true
+  description: 仅完整事实资格已由主管部门核实时选择是；只试算金额，不查询产权/社保/审批数据库。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: completion_date
+  label: 办理完成日期
+  type: string
+  required: true
+  description: 新建房填商品房买卖合同网签备案完成日；存量房填不动产转移登记完成日，须2026年内，YYYY-MM-DD。仅覆盖已完成并核实的测算。
+- name: contract_price
+  label: 备案合同总价
+  type: float
+  required: true
+  description: 新建房商品房买卖合同/存量房买卖合同网签备案的购房款，元，大于0；不是首付款、贷款额或税费。
+- name: household_existing_area
+  label: 家庭已有面积
+  type: float
+  required: true
+  description: 申请人及配偶在常州已有商品住房建筑面积合计，平方米；无房填0，须不超过75平方米，夫妻应共同核查。
+- name: purchased_area
+  label: 所购住房面积
+  type: float
+  required: true
+  description: A库新房须140平方米及以下；B库存量成套住房须75平方米以上。
+- name: voucher_confirmed
+  label: 资格凭证已获
+  type: bool
+  required: true
+  description: 是否经属地住建部门审核取得有效购房资助资格凭证，不是工具自行认定。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: eligible_library_confirmed
+  label: 官方房源库已核
+  type: bool
+  required: true
+  description: 新房须在常州住房APP房源A库，存量房须在B库；库外住房不能仅凭面积获得资助。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: voucher_already_used
+  label: 凭证已经使用
+  type: bool
+  required: true
+  description: 该购房资助资格凭证是否已用过；一张只能一次，一套房只用一张。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: expropriation_voucher_used
+  label: 使用征收房票
+  type: bool
+  required: true
+  description: 是否凭征收房票购房；此情形不享受本公告工薪购房资助。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: guarantee_agreement_confirmed
+  label: 资助担保已核
+  type: bool
+  required: true
+  description: 已核实与市住房保障中心、担保机构签订资助协议及反担保、抵押等条件；不能将金额当无条件现金。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: funds_supervision_confirmed
+  label: 交易全额监管
+  type: bool
+  required: false
+  description: 存量房必填：买卖双方是否同意将交易资金全额纳入资金监管。新房不适用本字段。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+calc:
+  result: dsl_helpers.changzhou_home_purchase_2026(inputs, 'existing')
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '{{ calc.result.reason }}'
+example_inputs:
+  claim_time: '2026-11-21'
+  completion_date: '2026-10-01'
+  contract_price: 2000000
+  eligibility_confirmed: true
+  household_existing_area: 75
+  purchased_area: 100
+  voucher_confirmed: true
+  eligible_library_confirmed: true
+  voucher_already_used: false
+  expropriation_voucher_used: false
+  guarantee_agreement_confirmed: true
+  funds_supervision_confirmed: true
+example_expected:
+  status: CALCULATED
+  amount: 180000.0
+expected_amount: 180000.0
+limitations:
+- 只对明确已核实资格的事实试算，不代表审批、实时余额或房源库核验。
+- 金额单位元，按分向下取整仅为保守展示，不宣称官方统一舍入规则。
+- 资助为抵扣购房款，不直接向获得者付现，后续上市交易或在常州另购商品住房须全额无息归还。
+- 仅已核实A/B库工薪购房者2026年申请并完成网签/转移登记的场景，不计算卖方180日改善购房。
+- 已婚须夫妻共同申请，凭证一次一套，不得转让抵押；征收房票不叠加。
+- 原2025年4月3日现房公告已被本2026年公告替代，不沿用旧现房限制。

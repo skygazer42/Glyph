@@ -1,0 +1,85 @@
+rule_id: Rule_Changzhou_ProvidentPurchaseWithdrawal_2026
+name: 常州购房公积金提取与贷款合并限额
+version: '1.0'
+description: 常州官方依据的金额试算；说明金额性质和适用时间，不默认资格和账户事实，实际以主管部门审核/银行合同为准。
+region: 江苏省常州市
+keywords:
+- 购房提取
+- 买房提取
+- 首付提取
+- 购房公积金
+policy_source:
+  title: 关于印发《常州市住房公积金缴存管理实施细则》《常州市住房公积金提取管理实施细则》《常州市住房公积金个人住房贷款管理实施细则》的通知
+  url: https://www.changzhou.gov.cn/gi_news/472177500750450
+  raw_path: resources/data/raw/changzhou_20261121/housing/09.web.json
+  body_sha256: 8a6f4b0481e1bf3e288b773e73174b9b26ef9ed6bf31b25d5fd7661bdcb33d7e
+  published_date: '2026-04-01'
+  issued_date: '2026-03-31'
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_20261121/housing/09.md
+  clause: 见原文及supporting_sources中的额度、期限、利率、限额和舍入条款
+  supporting_sources:
+  - title: 关于调整优化住房公积金缴存使用政策的通知
+    url: https://www.changzhou.gov.cn/gi_news/698174364173714
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/05.md
+    body_sha256: 2468440ce837202063de346e0a656f1f22b534dfa82f1b6eb916232904eb68a7
+valid_period:
+  start: '2026-04-01'
+  end: '2026-12-31'
+inputs:
+- name: claim_time
+  label: 业务日期
+  type: string
+  required: true
+  description: 明确业务日期，YYYY-MM-DD；不由模型推断，不改变真实申请或交易时间。
+- name: eligibility_confirmed
+  label: 相关事实已核实
+  type: bool
+  required: true
+  description: 仅用户明确核实该场景全部资格、真实材料、历史记录及账户事实时填是；未知填否转人工核实。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: available_withdrawable_balance
+  label: 本人购房可提净余额
+  type: float
+  required: true
+  description: 已核实材料签发时点限制、账户应留余额及一房一次资格后的可提净余额。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: home_price
+  label: 同房购房总价
+  type: float
+  required: true
+  description: 已核实房屋购房总价，大于0。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: home_already_withdrawn
+  label: 同房所有人已提购房公积金
+  type: float
+  required: true
+  description: 累计所有提取人本房购房提取，不只本人。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: planned_provident_loan
+  label: 本房拟贷公积金金额
+  type: float
+  required: true
+  description: 按本次真实融资计划/核定贷款输入，无贷款填0，不能为提高可提额虚填0。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+calc:
+  result: dsl_helpers.changzhou_provident_purchase_withdrawal_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  trace_template: '{{ calc.result.reason }}
+
+    {% if calc.result.status == ''CALCULATED'' %}金额（元）：{{ calc.result.amount }}；性质：本人同一住房本次可提净额{% else %}本次未给出成功金额，须补充或核实相关条件{% endif %}'
+example_inputs:
+  claim_time: '2026-11-21'
+  eligibility_confirmed: true
+  available_withdrawable_balance: 900000
+  home_price: 1000000
+  home_already_withdrawn: 100000
+  planned_provident_loan: 700000
+example_expected:
+  status: CALCULATED
+  amount: 200000.0
+limitations:
+- 模型仅选择公式及用户明确输入的事实，不补造资格、政策身份、交易日期、余额或历史次数。
+- 金额均为人民币元，计算性质见追踪；利率及后续调息、银行舍入和真实审批需以合同/中心核定为准。

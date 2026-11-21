@@ -1,0 +1,268 @@
+rule_id: Rule_Changzhou_ProvidentLoan_2026
+name: 常州公积金可贷额度与人才多孩支持
+version: '1.0'
+description: 常州官方依据的金额试算；说明金额性质和适用时间，不默认资格和账户事实，实际以主管部门审核/银行合同为准。
+region: 江苏省常州市
+keywords:
+- 公积金贷款
+- 贷款额度
+- 可贷额度
+- 能贷多少
+- 硕士公积金
+- 博士公积金
+- 多孩贷款
+- 绿色建筑
+- 能贷
+- 公积金额度
+- 可贷
+policy_source:
+  title: 关于印发《常州市住房公积金缴存管理实施细则》《常州市住房公积金提取管理实施细则》《常州市住房公积金个人住房贷款管理实施细则》的通知
+  url: https://www.changzhou.gov.cn/gi_news/472177500750450
+  raw_path: resources/data/raw/changzhou_20261121/housing/09.web.json
+  body_sha256: 8a6f4b0481e1bf3e288b773e73174b9b26ef9ed6bf31b25d5fd7661bdcb33d7e
+  published_date: '2026-04-01'
+  issued_date: '2026-03-31'
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_20261121/housing/09.md
+  clause: 见原文及supporting_sources中的额度、期限、利率、限额和舍入条款
+  supporting_sources:
+  - title: 住房公积金贷款可贷额度怎么计算？
+    url: https://www.changzhou.gov.cn/ns_news/248174798913163
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/03.md
+    body_sha256: 76a4b35b51cf60f489170dac495538aadeb97dc0642140cf23b14a69ff8634f4
+  - title: 每万元住房公积金贷款还本付息对照表
+    url: https://gjj.changzhou.gov.cn/html/gjj/2026/LPQCMPQB_1116/14578.html
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/04.md
+    body_sha256: a843d8f73109db3155234274ac7a795d9c93ff3872994b1a2659f98a87adae64
+  - title: 关于调整优化住房公积金缴存使用政策的通知
+    url: https://www.changzhou.gov.cn/gi_news/698174364173714
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/05.md
+    body_sha256: 2468440ce837202063de346e0a656f1f22b534dfa82f1b6eb916232904eb68a7
+  - title: 关于调整住房公积金提取使用业务相关规定的通知
+    url: https://www.changzhou.gov.cn/gi_news/554178356272138
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/06.md
+    body_sha256: 4794a5b71e4c360ef5a453b80be0d47b6af0dc13d0f07e6141d3dcc5a6fad639
+  - title: 《关于调整住房公积金提取使用业务相关规定的通知》政策解读
+    url: https://www.changzhou.gov.cn/ns_news/468178356811883
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/07.md
+    body_sha256: f544da02264201fa9e0ec8a79e4990caf1ba809a9526512f7ab9cdba173b8051
+  - title: 元旦起，常州住房公积金迎来两项新调整 优化贷款政策，扩展提取范围
+    url: https://www.changzhou.gov.cn/ns_news/720176698627082
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/10.md
+    body_sha256: db3fc3f56ee8a1d97d698a097dc566ff8fd04539335e6d18c4abc89b4c5b47d9
+  - title: 关于调整住房公积金贷款相关规定的通知
+    url: https://www.changzhou.gov.cn/gi_news/726176697730432
+    markdown_path: resources/data/process/changzhou_20261121/housing/04.md
+    body_sha256: b4067ddd41ba929294bde0a97630bbb8a0e24870adebcdcf94aa72f1f430323d
+valid_period:
+  start: '2026-04-01'
+  end: '2026-12-31'
+inputs:
+- name: claim_time
+  label: 业务日期
+  type: string
+  required: true
+  description: 明确业务日期，YYYY-MM-DD；不由模型推断，不改变真实申请或交易时间。
+- name: eligibility_confirmed
+  label: 相关事实已核实
+  type: bool
+  required: true
+  description: 仅用户明确核实该场景全部资格、真实材料、历史记录及账户事实时填是；未知填否转人工核实。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: qualified_borrowers
+  label: 满足条件借款人数
+  type: int
+  required: true
+  description: 共济人不自动增加借款人人数，按借款人及配偶真实资格选择。
+  options:
+  - label: 1人
+    value: 1
+  - label: 2人及以上
+    value: 2
+- name: first_loan_average_balance
+  label: 无贷款记录组月均余额合计
+  type: float
+  required: true
+  description: 仅本市无公积金/公转商记录借款人，按往前60个月月末余额计算，不满60月也除60；租房提取还原由中心确认。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: repeat_loan_average_balance
+  label: 有贷款记录组月均余额合计
+  type: float
+  required: true
+  description: 仅本市有公积金/公转商记录借款人，按官方60个月月均余额合计，勿与无记录组重复。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: supplementary_balance
+  label: 补充公积金余额
+  type: float
+  required: true
+  description: 经核实参与本次计算的补充账户余额，勿与正常月均组重复。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: external_balance
+  label: 异地缴存账户余额
+  type: float
+  required: true
+  description: 参与本次常州贷款的异地账户申请时余额，勿与本市及补充组重复。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: family_cooperative_quota
+  label: 父母子女可共济额度
+  type: float
+  required: true
+  description: 仅已由中心确认可共济的可贷额度，不是父母子女账户余额；未使用填0，使用后会锁定其贷款/住房提取。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: support_type
+  label: 已核实的额度支持类别
+  type: string
+  required: true
+  description: 六类身份支持互斥，只可选一类；多孩须符合生育政策，毕业/退役年限、引进及认定证明均须真实。
+  options:
+  - label: 普通借款人
+    value: none
+  - label: 二孩家庭
+    value: two_children
+  - label: 三孩家庭
+    value: three_children
+  - label: 青春留常首次缴存补贴且毕业5年内
+    value: local_graduate
+  - label: 退役5年内
+    value: veteran
+  - label: 现役军人配偶
+    value: military_spouse
+  - label: 引进35岁以下硕士
+    value: master_under35
+  - label: 引进博士或人才礼遇认定对象
+    value: doctor_or_recognized_talent
+- name: high_quality_home
+  label: 高品质住宅已认定
+  type: bool
+  required: true
+  description: 仅常州住建部门证明的新建高品质住宅选是，可增50万元；不是自行判断装修品质。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: green_home
+  label: 二星级及以上住宅绿色建筑已认定
+  type: bool
+  required: true
+  description: 仅常州住建部门评定的新建二星级以上住宅绿色建筑选是；2026-08-01起可增30万元。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: home_price
+  label: 已核实购房总价
+  type: float
+  required: true
+  description: 实际核定购房总价，大于0。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: purchase_withdrawn
+  label: 同房所有人已提购房公积金
+  type: float
+  required: true
+  description: 包含本人、配偶及所有父母子女已用的购房提取；与本次贷款合计不得超房价。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: housing_aid_voucher
+  label: 工薪购房资助凭证和适用房源已核实
+  type: bool
+  required: true
+  description: 仅真实获得2026工薪购房资助凭证并适用相应房源、面积及用途者选是，适用15%最低首付；其他20%。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: income_monthly
+  label: 已核实家庭月收入
+  type: float
+  required: true
+  description: 用于月供不得超过家庭月收入50%的约束，大于0。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: term_years
+  label: 贷款年限
+  type: int
+  required: true
+  description: 以整年填写1至30；一年期为到期还本付息，不是每月摊还。
+- name: rate_class
+  label: 官方核定利率档
+  type: string
+  required: true
+  description: 按常州中心核定档次选择；不是自行用房产套数或60/30配贷系数推断。
+  options:
+  - label: 第一档（首套）
+    value: first
+  - label: 第二档（二套）
+    value: second
+- name: repayment_method
+  label: 还款方式
+  type: string
+  required: true
+  description: 等额本金按首期最高月供核算还款能力。
+  options:
+  - label: 等额本息
+    value: annuity
+  - label: 等额本金
+    value: equal_principal
+- name: borrower_age
+  label: 主借款人足岁年龄
+  type: int
+  required: true
+  description: 业务日期时真实足岁年龄，不小于18；到期不超过68周岁。
+- name: home_type
+  label: 房屋类别
+  type: string
+  required: true
+  description: 仅存量房适用土地剩余年限约束。
+  options:
+  - label: 新建商品住房
+    value: new
+  - label: 存量商品住房
+    value: existing
+- name: remaining_land_years
+  label: 土地剩余完整年数
+  type: int
+  required: true
+  description: 存量房据有效材料核定剩余完整年数，新建住房填0表示该约束不适用。
+calc:
+  result: dsl_helpers.changzhou_provident_loan_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  trace_template: '{{ calc.result.reason }}
+
+    {% if calc.result.status == ''CALCULATED'' %}金额（元）：{{ calc.result.amount }}；性质：可贷本金估算，非审批结论{% else %}本次未给出成功金额，须补充或核实相关条件{% endif %}
+
+    账户支持额度：{{ calc.result.get(''account_quota'', ''未核算'') }}
+
+    身份及房屋支持额度：{{ calc.result.get(''policy_quota'', ''未核算'') }}
+
+    最低首付：{{ calc.result.get(''minimum_downpayment'', ''未核算'') }}
+
+    收入约束额度：{{ calc.result.get(''income_quota'', ''未核算'') }}
+
+    预计首期还款：{{ calc.result.get(''estimated_first_payment'', ''未核算'') }}'
+example_inputs:
+  claim_time: '2026-11-21'
+  eligibility_confirmed: true
+  qualified_borrowers: 1
+  first_loan_average_balance: 10000
+  repeat_loan_average_balance: 0
+  supplementary_balance: 10000
+  external_balance: 0
+  family_cooperative_quota: 0
+  support_type: none
+  high_quality_home: false
+  green_home: false
+  home_price: 2000000
+  purchase_withdrawn: 0
+  housing_aid_voucher: false
+  income_monthly: 20000
+  term_years: 20
+  rate_class: first
+  repayment_method: annuity
+  borrower_age: 35
+  remaining_land_years: 60
+  home_type: new
+example_expected:
+  status: CALCULATED
+  amount: 660000.0
+limitations:
+- 模型仅选择公式及用户明确输入的事实，不补造资格、政策身份、交易日期、余额或历史次数。
+- 金额均为人民币元，计算性质见追踪；利率及后续调息、银行舍入和真实审批需以合同/中心核定为准。

@@ -11,7 +11,7 @@ from contextlib import AsyncExitStack
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, TypedDict
 from uuid import uuid4
@@ -27,6 +27,7 @@ from app.agents.pipeline.text2sql_agent import answer_text2sql_query
 from app.agents.pipeline.workflow_agent import WorkflowAgent
 from app.agents.service.agentchat_router import AgentChatRouter, agentchat_enabled
 from app.agents.service.agentchat_team import AgentChatTeam, agentchat_team_enabled
+from app.agents.service.progress import emit_progress, progress_step, progress_tool, source_references
 from app.agents.service.tools import (
     IntentDetectionTool,
     KnowledgeTool,
@@ -66,6 +67,8 @@ def _configure_logging_once() -> None:
 
 
 class _TraceMark(TypedDict):
+    """请求阶段耗时记录，累计与增量均以毫秒计。"""
+
     stage: str
     total_ms: float
     delta_ms: float
@@ -111,6 +114,8 @@ class _PerfTrace:
 
 @dataclass
 class _RequestState:
+    """由请求 ContextVar 持有的连接、附件、来源及追踪状态，供同次工具调用汇总。"""
+
     connection_id: int | None = None
     attachments: List[Attachment] = field(default_factory=list)
     sources: List[PolicyDocument] = field(default_factory=list)
@@ -158,6 +163,10 @@ class AgentService:
         config: Optional[AgentServiceConfig] = None,
         knowledge_service: Optional[KnowledgeService] = None,
     ) -> None:
+        """组装本服务的代理与工具，配置缺省时读取服务配置。
+
+        注入的 knowledge_service 由调用方拥有；未注入时知识工具负责延迟创建和关闭服务。模型客户端沿用共享实例，请求状态与会话附件缓存分别持有。
+        """
         _configure_logging_once()
         self.config = AgentServiceConfig() if config is None else config
         self.intent_tool = IntentDetectionTool()
@@ -332,6 +341,7 @@ class AgentService:
         return current
 
     async def initialize(self) -> None:
+        """在初始化锁内按需播种 LightRAG，成功后登记本服务已初始化。"""
         if self._initialized:
             return
         async with self._init_lock:
@@ -341,6 +351,10 @@ class AgentService:
             self._initialized = True
 
     async def _maybe_seed_lightrag(self) -> None:
+        """按文件清单判断是否需要导入种子文档，分批写图库后才保存清单。
+
+        目录缺失、无有效文档或导入失败仅记录日志；导入非事务，失败前已写批次不会回滚。
+        """
         seed_dir = self.config.lightrag_seed_data_dir
         if not seed_dir:
             return
@@ -397,7 +411,7 @@ class AgentService:
         configured = os.getenv("LIGHTRAG_WORKDIR")
         if configured:
             return Path(configured)
-        return Path("resources/data/lightrag")
+        return Path("resources/data/lightrag_changzhou_20261121")
 
     def _collect_seed_manifest(self, seed_path: Path) -> Dict[str, Dict[str, int]]:
         manifest: Dict[str, Dict[str, int]] = {}
@@ -451,6 +465,7 @@ class AgentService:
         force_text2sql: bool = False,
         allow_private_tools: bool = True,
     ) -> FinalAnswer:
+        """建立请求局部状态，结合会话、附件与意图路由并返回统一答案；公众模式拒绝私有连接及档案参数。"""
         token = self._request_state.set(_RequestState(allow_private_tools=allow_private_tools))
         try:
             if not allow_private_tools and (force_text2sql or connection_id is not None or user_id is not None):
@@ -459,22 +474,23 @@ class AgentService:
             start = time.perf_counter()
             trace = _PerfTrace(self._trace_latency, self._slow_log_ms)
             # 初始化工具耗时记录（agentchat 工具使用）
-            await self.initialize()
-            trace.mark("initialize")
-            attachments = attachments or []
+            with progress_step("context", "正在理解咨询问题"):
+                await self.initialize()
+                trace.mark("initialize")
+                attachments = attachments or []
 
-            # 尝试解析默认 connection_id（例如 Policy Demo MySQL）
-            if allow_private_tools:
-                connection_id = await asyncio.to_thread(self._resolve_connection_id, connection_id)
-            self._request.connection_id = connection_id
+                # 尝试解析默认 connection_id（例如 Policy Demo MySQL）
+                if allow_private_tools:
+                    connection_id = await asyncio.to_thread(self._resolve_connection_id, connection_id)
+                self._request.connection_id = connection_id
 
-            (
-                session_id,
-                effective_query,
-                conversation_context,
-                history_used,
-            ) = await self._prepare_conversation_context(session_id, user_id, query)
-            trace.mark("conversation_context")
+                (
+                    session_id,
+                    effective_query,
+                    conversation_context,
+                    history_used,
+                ) = await self._prepare_conversation_context(session_id, user_id, query)
+                trace.mark("conversation_context")
 
             # 基于会话缓存解析附件：支持“根据上传的发票/图片”这类后续追问自动复用上一轮附件
             attachments = self._resolve_session_attachments(session_id, query, attachments)
@@ -511,7 +527,8 @@ class AgentService:
                 )
 
             # 1) FAQ 短路：优先用原始问题命中即可返回
-            faq_final = self.faq_responder.maybe_answer(query)
+            with progress_step("faq", "正在核对已验证问答"):
+                faq_final = self.faq_responder.maybe_answer(query)
             trace.mark("faq_check")
             if faq_final:
                 logging_manager.info(
@@ -554,7 +571,8 @@ class AgentService:
                 if self._agentchat_team_enabled:
                     assert self._agentchat_team is not None
                     try:
-                        team_final, team_meta = await self._agentchat_team.run(session_id, effective_query)
+                        with progress_step("agent", "正在处理咨询问题"):
+                            team_final, team_meta = await self._agentchat_team.run(session_id, effective_query)
                     except Exception as exc:  # 防御性：AgentChat Team 失败时允许回退
                         logging_manager.warning("AgentChat Team 调用失败，将尝试回退: %s", exc, exc_info=True)
                         team_final, team_meta = None, {"error": str(exc)}
@@ -582,7 +600,8 @@ class AgentService:
                 if (not agentchat_used) and self._agentchat_enabled:
                     assert self._agentchat_router is not None
                     try:
-                        agentchat_final, ac_meta = await self._agentchat_router.run(session_id, effective_query)
+                        with progress_step("agent", "正在处理咨询问题"):
+                            agentchat_final, ac_meta = await self._agentchat_router.run(session_id, effective_query)
                     except Exception as exc:  # 防御性：Router 失败时允许回退
                         logging_manager.warning("AgentChat Router 调用失败，将尝试回退: %s", exc, exc_info=True)
                         agentchat_final, ac_meta = None, {"error": str(exc)}
@@ -633,11 +652,12 @@ class AgentService:
                     intent_result = {"intent": "knowledge_fallback", "from_agentchat": True}
                     rewritten_for_metadata = effective_query
                     domain_context = None
-                    final = await self.knowledge_agent.answer(
-                        effective_query,
-                        intent=intent_result,
-                        domain_context=domain_context,
-                    )
+                    with progress_step("knowledge", "正在检索政策与整理依据"):
+                        final = await self.knowledge_agent.answer(
+                            effective_query,
+                            intent=intent_result,
+                            domain_context=domain_context,
+                        )
                     trace.mark("agent:knowledge_fallback")
                     return await self._finalize_answer(
                         final=final,
@@ -654,10 +674,11 @@ class AgentService:
                         start_time=start,
                     )
             else:
-                rewritten_query = await self.rewrite_agent.rewrite(
-                    effective_query,
-                    context=conversation_context,
-                )
+                with progress_step("rewrite", "正在确认问题与查询条件"):
+                    rewritten_query = await self.rewrite_agent.rewrite(
+                        effective_query,
+                        context=conversation_context,
+                    )
                 trace.mark("rewrite")
                 logging_manager.info(
                     "[AgentService] 改写结果: %s -> %s",
@@ -697,7 +718,8 @@ class AgentService:
                         route = fast_route
                     else:
                         logging_manager.info("[AgentService] FastPath 未命中，调用意图检测")
-                        intent_result = await self.intent_tool.detect(rewritten_query)
+                        with progress_step("intent", "正在选择政策查询方式"):
+                            intent_result = await self.intent_tool.detect(rewritten_query)
                         trace.mark("intent_detection")
                         # 保存原始查询供路由逻辑使用
                         intent_result["raw_query"] = query
@@ -725,32 +747,39 @@ class AgentService:
                     combined_query = rewritten_query
                     if query and query not in combined_query:
                         combined_query = f"{rewritten_query}\n\n用户补充信息：{query}"
-                    final = await self.rule_agent.compute(combined_query, intent=intent_result)
-                    trace.mark("agent:rule_engine")
+                    final = await self._compute_with_knowledge_fallback(
+                        combined_query, intent=intent_result, domain_context=domain_context
+                    )
+                    route = final.metadata["route"]
+                    trace.mark(f"agent:{route}")
                 elif route == "text2sql":
                     if not self._request.allow_private_tools:
                         raise PermissionError("公众咨询不能访问业务数据库。")
                     # 强制 text2sql 时不再进入 AgentChat 包装，直接运行 Text2SQLAgent
-                    final = await answer_text2sql_query(query, connection_id=connection_id)
+                    with progress_step("text2sql", "正在查询结构化政策数据"):
+                        final = await answer_text2sql_query(query, connection_id=connection_id)
                     rewritten_for_metadata = query
                     trace.mark("agent:text2sql")
                 elif route == "graph":
-                    final = await self.graph_agent.answer(rewritten_query, intent=intent_result)
+                    with progress_step("graph", "正在查询政策关系"):
+                        final = await self.graph_agent.answer(rewritten_query, intent=intent_result)
                     trace.mark("agent:graph")
                 elif route == "workflow":
-                    final = await self.workflow_agent.answer(
-                        rewritten_query,
-                        attachments=attachments,
-                        intent=intent_result,
-                        allow_user_profile=self._request.allow_private_tools,
-                    )
+                    with progress_step("workflow", "正在处理附件与政策任务"):
+                        final = await self.workflow_agent.answer(
+                            rewritten_query,
+                            attachments=attachments,
+                            intent=intent_result,
+                            allow_user_profile=self._request.allow_private_tools,
+                        )
                     trace.mark("agent:workflow")
                 else:  # knowledge 默认
-                    final = await self.knowledge_agent.answer(
-                        rewritten_query,
-                        intent=intent_result,
-                        domain_context=domain_context,
-                    )
+                    with progress_step("knowledge", "正在检索政策与整理依据"):
+                        final = await self.knowledge_agent.answer(
+                            rewritten_query,
+                            intent=intent_result,
+                            domain_context=domain_context,
+                        )
                     trace.mark("agent:knowledge")
 
             return await self._finalize_answer(
@@ -771,6 +800,7 @@ class AgentService:
             self._request_state.reset(token)
 
     async def ingest_paths(self, paths: List[str]) -> Dict[str, int]:
+        """分批加载路径文档并依次追加向量库和图库，返回三项计数；中途失败不承诺撤回已写入批次。"""
         total_loaded = 0
         total_indexed = 0
         total_rag_indexed = 0
@@ -793,7 +823,7 @@ class AgentService:
                 iterator = self._loader.iter_documents_from_directory(path)
             else:
                 doc = self._loader.load_single_file(path)
-                iterator = (doc,) if doc is not None else tuple()
+                iterator = iter((doc,)) if doc is not None else iter(())
 
             for doc in iterator:
                 batch.append(doc)
@@ -818,6 +848,25 @@ class AgentService:
             query, top_k=top_k, threshold=threshold, filters=filters
         )
 
+    async def _compute_with_knowledge_fallback(
+        self,
+        query: str,
+        *,
+        intent: Dict[str, Any],
+        domain_context: Optional[PolicyDomainContext] = None,
+    ) -> FinalAnswer:
+        """未匹配到规则时检索真实条款；已选规则的缺项和拒绝结果继续由规则引擎返回。"""
+        with progress_step("rule", "正在核对政策与测算规则"):
+            result = await self.rule_agent.compute(query, intent=intent)
+        if result.metadata.get("rule_id") is not None:
+            return result
+        with progress_step("knowledge", "正在检索匹配的政策依据"):
+            answer = await self.knowledge_agent.answer(
+                query, intent=intent, domain_context=domain_context, emphasis="rule_unmatched"
+            )
+        answer.metadata["fallback_from"] = "rule_engine"
+        return answer
+
     def _resolve_route(
         self,
         intent_result: Dict[str, Any],
@@ -825,6 +874,7 @@ class AgentService:
         connection_id: Optional[int],
         attachments: List[Attachment],
     ) -> str:
+        """按附件、显式意图和关键词优先级选择路由，并重置、记录当前请求的路由依据。"""
         self._request.routing_debug = []  # collect reasons for the final metadata
         intent = intent_result["intent"]
         sub_intent = intent_result.get("sub_intent")
@@ -863,6 +913,18 @@ class AgentService:
         if self._looks_like_sql_question(rewritten_query) and connection_id is not None:
             self._request.routing_debug.append("sql_keywords + has_connection_id=>text2sql")
             return "text2sql"
+
+        amount_request = any(
+            phrase in original_query
+            for phrase in ("能领多少", "可领多少", "能拿多少", "能提多少", "能贷多少", "帮我算", "试算")
+        )
+        financial_topic = any(
+            topic in original_query or topic in rewritten_query
+            for topic in ("公积金", "贴息", "购房资助", "育儿补贴", "求职补贴", "购置税", "以旧换新")
+        )
+        if intent == "policy_inquiry" and amount_request and financial_topic:
+            self._request.routing_debug.append("personal_amount_request=>rule_engine")
+            return "rule_engine"
 
         if self._needs_clarification(original_query, rewritten_query, domain_meta):
             self._request.routing_debug.append("needs_clarification_heuristic=>clarify")
@@ -944,7 +1006,7 @@ class AgentService:
         return any(keyword in q for keyword in self.SQL_KEYWORDS)
 
     def _looks_like_calculation(self, query: str) -> bool:
-        """Rudimentary check whether the query asks for numeric subsidy calculation."""
+        """识别金额、贷款、缴存和税款试算线索；缺项由具体规则明确返回。"""
         q = query.lower()
         money_keywords = [
             "多少钱",
@@ -961,6 +1023,16 @@ class AgentService:
             "rmb",
             "price",
             "cost",
+            "计算",
+            "试算",
+            "月供",
+            "利息",
+            "可贷额度",
+            "贷款额度",
+            "缴存额",
+            "应缴税",
+            "应纳税",
+            "能提多少",
         ]
         has_number = bool(re.search(r"[0-9]+", q))
         return has_number or any(kw in q for kw in money_keywords)
@@ -995,8 +1067,7 @@ class AgentService:
 
     def _looks_like_graph_question(self, query: str, sub_intent: Optional[str] = None) -> bool:
         """
-        Detect questions that ask for relationships, responsible parties, or process linkage,
-        which are better answered by LightRAG.
+        识别关系和跨部门流程联动；单事项的材料、步骤查询使用原文检索。
         """
         graph_keywords = [
             "关系",
@@ -1005,31 +1076,14 @@ class AgentService:
             "梳理",
             "脉络",
             "负责",
-        ]
-        process_keywords = [
-            "流程",
-            "环节",
-            "节点",
-            "链路",
-            "步骤",
+            "跨部门",
+            "流程图",
+            "流程衔接",
+            "办理链路",
             "分工",
-            "材料",
-            "怎么操作",
-            "如何操作",
-            "怎么办理",
-            "如何办理",
         ]
         q_lower = query.lower()
-        if any(kw in query or kw in q_lower for kw in graph_keywords):
-            return True
-        # 带明显流程/材料关键词的问题，也优先尝试用 Graph/流程视角来回答
-        if any(kw in query or kw in q_lower for kw in process_keywords):
-            return True
-        if sub_intent in {"process", "documents"} and any(
-            kw in query or kw in q_lower for kw in process_keywords
-        ):
-            return True
-        return False
+        return any(kw in query or kw in q_lower for kw in graph_keywords)
 
     def _looks_like_policy_content_question(
         self,
@@ -1077,6 +1131,7 @@ class AgentService:
         domain_meta: Dict[str, Any],
     ) -> Optional[str]:
         # Attachments（尤其是发票/票据/图片等）优先走 workflow，多模态/档案协作统一由 WorkflowAgent 处理
+        """按固定启发式优先级尝试直接路由；None 表示仍需后续意图判断，不表示无答案。"""
         if attachments:
             return "workflow"
         # SQL keywords → text2sql
@@ -1106,6 +1161,7 @@ class AgentService:
         rewritten_query: str,
         domain_meta: Dict[str, Any],
     ) -> bool:
+        """针对资格询问按产品、能效和金额线索判断是否追问；这是启发式槽位判断，不执行资格校验。"""
         text = f"{original_query} {rewritten_query}"
         triggers = [
             "是否符合",
@@ -1210,6 +1266,7 @@ class AgentService:
             final.answer = self._to_plain_text(final.answer)
 
     def _format_citation_block(self, final: FinalAnswer) -> Optional[str]:
+        """无结构化来源时生成最多三条文档引用，或回退到规则及路由来源；无需额外文本时返回 None。"""
         meta = final.metadata
         meta_sources = meta.get("sources")
         # Structured references are already displayed by the frontend.
@@ -1264,95 +1321,105 @@ class AgentService:
     # ========== AgentChat 工具封装 ==========
 
     async def _tool_agentchat_knowledge(self, query: str) -> str:
-        started_at = time.perf_counter()
-        try:
-            final = await self.knowledge_agent.answer(query)
-            # 记录最近一次 AgentChat 调用中使用的文档，供 _finalize_answer 回收
-            self._request.sources = final.sources
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "knowledge_tool", "duration_ms": elapsed})
-            return final.answer
-        except Exception as exc:
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "knowledge_tool", "duration_ms": elapsed, "error": str(exc)})
-            logging_manager.warning("AgentChat knowledge tool failed: %s", exc, exc_info=True)
-            raise
+        """检索政策知识并返回答复文本，将来源与耗时登记到当前请求状态；失败继续抛出。"""
+        with progress_tool("knowledge_tool", "正在检索政策与整理依据"):
+            started_at = time.perf_counter()
+            try:
+                final = await self.knowledge_agent.answer(query)
+                # 记录最近一次 AgentChat 调用中使用的文档，供 _finalize_answer 回收
+                self._request.sources = final.sources
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "knowledge_tool", "duration_ms": elapsed})
+                return final.answer
+            except Exception as exc:
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "knowledge_tool", "duration_ms": elapsed, "error": str(exc)})
+                logging_manager.warning("AgentChat knowledge tool failed: %s", exc, exc_info=True)
+                raise
 
     async def _tool_agentchat_graph(self, query: str) -> str:
-        started_at = time.perf_counter()
-        try:
-            final = await self.graph_agent.answer(query)
-            self._request.sources = final.sources
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "graph_tool", "duration_ms": elapsed})
-            return final.answer
-        except Exception as exc:
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "graph_tool", "duration_ms": elapsed, "error": str(exc)})
-            logging_manager.warning("AgentChat graph tool failed: %s", exc, exc_info=True)
-            raise
+        """查询政策关系并返回文本，将来源与耗时留给当前请求的最终答复汇总。"""
+        with progress_tool("graph_tool", "正在查询政策关系"):
+            started_at = time.perf_counter()
+            try:
+                final = await self.graph_agent.answer(query)
+                self._request.sources = final.sources
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "graph_tool", "duration_ms": elapsed})
+                return final.answer
+            except Exception as exc:
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "graph_tool", "duration_ms": elapsed, "error": str(exc)})
+                logging_manager.warning("AgentChat graph tool failed: %s", exc, exc_info=True)
+                raise
 
     async def _tool_agentchat_rule(self, query: str) -> str:
-        started_at = time.perf_counter()
-        try:
-            if not self._looks_like_calculation(query):
-                # 缺少金额/数字类关键词，直接改走知识库回答
-                self._request.tool_metrics.append(
-                    {"tool": "rule_tool", "duration_ms": 0.0, "note": "fallback_to_knowledge"}
-                )
-                kb_final = await self.knowledge_agent.answer(query)
-                self._request.sources = kb_final.sources
-                return kb_final.answer
-            final = await self.rule_agent.compute(query, intent={"intent": "calculation"})
-            self._request.sources = final.sources
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed})
-            return final.answer
-        except Exception as exc:
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed, "error": str(exc)})
-            logging_manager.warning("AgentChat rule tool failed: %s", exc, exc_info=True)
-            raise
+        """根据问题计算规则结果；缺少计算线索时转为知识问答，返回文本并保留请求追踪。"""
+        with progress_tool("rule_tool", "正在核对测算规则"):
+            started_at = time.perf_counter()
+            try:
+                if not self._looks_like_calculation(query):
+                    # 缺少金额/数字类关键词，直接改走知识库回答
+                    self._request.tool_metrics.append(
+                        {"tool": "rule_tool", "duration_ms": 0.0, "note": "fallback_to_knowledge"}
+                    )
+                    kb_final = await self.knowledge_agent.answer(query)
+                    self._request.sources = kb_final.sources
+                    return kb_final.answer
+                final = await self._compute_with_knowledge_fallback(query, intent={"intent": "calculation"})
+                self._request.sources = final.sources
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed})
+                return final.answer
+            except Exception as exc:
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "rule_tool", "duration_ms": elapsed, "error": str(exc)})
+                logging_manager.warning("AgentChat rule tool failed: %s", exc, exc_info=True)
+                raise
 
     async def _tool_agentchat_text2sql(self, query: str) -> str:
+        """使用当前私有请求的数据库连接回答查询；公众模式拒绝执行，结果以文本返回。"""
         if not self._request.allow_private_tools:
             raise PermissionError("公众咨询不能访问业务数据库。")
-        started_at = time.perf_counter()
-        try:
-            conn_id = self._request.connection_id
-            if conn_id is None:
-                conn_id = await asyncio.to_thread(self._resolve_connection_id, None)
-            final = await answer_text2sql_query(query, connection_id=conn_id)
-            self._request.sources = final.sources
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "text2sql_tool", "duration_ms": elapsed})
-            return final.answer
-        except Exception as exc:
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "text2sql_tool", "duration_ms": elapsed, "error": str(exc)})
-            logging_manager.warning("AgentChat text2sql tool failed: %s", exc, exc_info=True)
-            raise
+        with progress_tool("text2sql_tool", "正在查询结构化政策数据"):
+            started_at = time.perf_counter()
+            try:
+                conn_id = self._request.connection_id
+                if conn_id is None:
+                    conn_id = await asyncio.to_thread(self._resolve_connection_id, None)
+                final = await answer_text2sql_query(query, connection_id=conn_id)
+                self._request.sources = final.sources
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "text2sql_tool", "duration_ms": elapsed})
+                return final.answer
+            except Exception as exc:
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "text2sql_tool", "duration_ms": elapsed, "error": str(exc)})
+                logging_manager.warning("AgentChat text2sql tool failed: %s", exc, exc_info=True)
+                raise
 
     async def _tool_agentchat_workflow(self, query: str) -> str:
-        started_at = time.perf_counter()
-        try:
-            final = await self.workflow_agent.answer(
-                query,
-                # AgentChat 工具目前只能接受文本参数，这里复用当前请求挂载的附件，
-                # 以便在“上传发票/图片”场景下，workflow_tool 能够真正看到附件内容。
-                attachments=self._request.attachments,
-                intent={"intent": "workflow"},
-                allow_user_profile=self._request.allow_private_tools,
-            )
-            self._request.sources = final.sources
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "workflow_tool", "duration_ms": elapsed})
-            return final.answer
-        except Exception as exc:
-            elapsed = round((time.perf_counter() - started_at) * 1000, 2)
-            self._request.tool_metrics.append({"tool": "workflow_tool", "duration_ms": elapsed, "error": str(exc)})
-            logging_manager.warning("AgentChat workflow tool failed: %s", exc, exc_info=True)
-            raise
+        """复用当前请求附件执行多模态工作流，档案访问服从请求权限，返回文本并登记来源。"""
+        with progress_tool("workflow_tool", "正在处理附件与政策任务"):
+            started_at = time.perf_counter()
+            try:
+                final = await self.workflow_agent.answer(
+                    query,
+                    # AgentChat 工具目前只能接受文本参数，这里复用当前请求挂载的附件，
+                    # 以便在“上传发票/图片”场景下，workflow_tool 能够真正看到附件内容。
+                    attachments=self._request.attachments,
+                    intent={"intent": "workflow"},
+                    allow_user_profile=self._request.allow_private_tools,
+                )
+                self._request.sources = final.sources
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "workflow_tool", "duration_ms": elapsed})
+                return final.answer
+            except Exception as exc:
+                elapsed = round((time.perf_counter() - started_at) * 1000, 2)
+                self._request.tool_metrics.append({"tool": "workflow_tool", "duration_ms": elapsed, "error": str(exc)})
+                logging_manager.warning("AgentChat workflow tool failed: %s", exc, exc_info=True)
+                raise
 
     async def _finalize_answer(
         self,
@@ -1371,164 +1438,150 @@ class AgentService:
         start_time: float,
         agentchat_meta: Optional[Dict[str, Any]] = None,
     ) -> FinalAnswer:
-        session_store.add_answer(session_id, final)
-        # 同步写入 AutoGen Memory
-        if session_id:
-            try:
-                await autogen_memory_store.add_assistant_message(session_id, final.answer)
-            except Exception:
-                logging_manager.warning("AutoGen memory 记录助手回答失败", exc_info=True)
+        """记录回答并补齐路由、来源和耗时元数据；本地会话写入与 AutoGen 记忆同步不是跨存储事务。"""
+        with progress_step("answer_finalize", "正在整理答复与政策依据"):
+            session_store.add_answer(session_id, final)
+            # 同步写入 AutoGen Memory
+            if session_id:
+                try:
+                    await autogen_memory_store.add_assistant_message(session_id, final.answer)
+                except Exception:
+                    logging_manager.warning("AutoGen memory 记录助手回答失败", exc_info=True)
 
-        metadata = dict(final.metadata)
-        metadata.update(
-            {
-                "route": route,
-                "route_chain": [
-                    {"key": seg, "label": self.ROUTE_LABELS.get(seg, seg)}
-                    for seg in route.split("+")
-                ],
-                "intent": intent_result,
-                "routing_debug": self._request.routing_debug,
-                "agentchat_meta": agentchat_meta if agentchat_meta else None,
-                "agentchat_flags": {
-                    "team_enabled": self._agentchat_team_enabled,
-                    "router_enabled": self._agentchat_enabled,
-                    "memory_key": session_id,
-                },
-                "rewritten_query": rewritten_query,
-                "session_id": session_id,
-                "user_id": user_id,
-                "connection_id": connection_id,
-                "conversation_context": conversation_context,
-                "domain_context": domain_context.to_metadata()
-                if domain_context is not None
-                else None,
-            }
-        )
-        if agentchat_meta:
-            # 附加工具级耗时
-            if self._request.tool_metrics:
-                agentchat_meta["tool_metrics"] = self._request.tool_metrics
-            metadata["agentchat_meta"] = agentchat_meta
-        if attachments:
-            metadata.setdefault("attachments", [att.model_dump() for att in attachments])
+            metadata = dict(final.metadata)
+            metadata.update(
+                {
+                    "route": route,
+                    "route_chain": [
+                        {"key": seg, "label": self.ROUTE_LABELS.get(seg, seg)}
+                        for seg in route.split("+")
+                    ],
+                    "intent": intent_result,
+                    "routing_debug": self._request.routing_debug,
+                    "agentchat_meta": agentchat_meta if agentchat_meta else None,
+                    "agentchat_flags": {
+                        "team_enabled": self._agentchat_team_enabled,
+                        "router_enabled": self._agentchat_enabled,
+                        "memory_key": session_id,
+                    },
+                    "rewritten_query": rewritten_query,
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "connection_id": connection_id,
+                    "conversation_context": conversation_context,
+                    "domain_context": domain_context.to_metadata()
+                    if domain_context is not None
+                    else None,
+                }
+            )
+            if agentchat_meta:
+                # 附加工具级耗时
+                if self._request.tool_metrics:
+                    agentchat_meta["tool_metrics"] = self._request.tool_metrics
+                metadata["agentchat_meta"] = agentchat_meta
+            if attachments:
+                metadata.setdefault("attachments", [att.model_dump() for att in attachments])
 
-        # AgentChat tools retain the documents when their final text omits sources.
-        documents = final.sources if final.sources else self._request.sources
-        sources = [
-            {"title": doc.title,
-             "path": doc.metadata.get("path") or doc.metadata.get("origin") or "",
-             "origin": doc.source, "chunk_idx": doc.metadata.get("chunk_idx")}
-            for doc in documents[:5]
-        ]
-        if sources:
-            # 去重：按 (title, origin, path) 维度
-            unique = []
-            seen = set()
-            for s in sources:
-                source_key = (
-                    s["title"],
-                    s["origin"],
-                    s["path"],
-                )
-                if source_key in seen:
-                    continue
-                seen.add(source_key)
-                unique.append(s)
-            metadata["sources"] = unique[:5]
+            # AgentChat tools retain the documents when their final text omits sources.
+            documents = final.sources if final.sources else self._request.sources
+            sources = source_references(documents)
+            if sources:
+                metadata["sources"] = sources
+            if metadata.get("sources"):
+                emit_progress("sources", sources=metadata["sources"])
 
-        # 轻量化工具轨迹（高层能力说明）
-        tools_used: list[str] = []
-        agentchat_metadata = {} if agentchat_meta is None else agentchat_meta
+            # 轻量化工具轨迹（高层能力说明）
+            tools_used: list[str] = []
+            agentchat_metadata = {} if agentchat_meta is None else agentchat_meta
 
-        def add_tool_label(label: str) -> None:
-            if label and label not in tools_used:
-                tools_used.append(label)
+            def add_tool_label(label: str) -> None:
+                if label and label not in tools_used:
+                    tools_used.append(label)
 
-        # 1) 优先根据 AgentChat 选择的 primary_tool 判断
-        primary_tool = (
-            metadata.get("agentchat_tool")
-            or metadata.get("primary_tool")
-            or agentchat_metadata.get("primary_tool")
-        )
-        if isinstance(primary_tool, str):
-            key = primary_tool.lower()
-            if "knowledge" in key:
-                add_tool_label("知识库检索")
-            elif "graph" in key:
-                add_tool_label("知识图谱推理")
-            elif "rule" in key:
-                add_tool_label("规则计算")
-            elif "text2sql" in key or "sql" in key:
-                add_tool_label("Text2SQL 查询")
-            elif "workflow" in key:
-                add_tool_label("多模态工作流")
-
-        # 1.5) 结合工具耗时记录（tool_metrics）进一步还原能力类型
-        tool_metrics = agentchat_metadata.get("tool_metrics", [])
-        if tool_metrics:
-            for item in tool_metrics:
-                key = item["tool"].lower()
-                if "knowledge_tool" in key:
+            # 1) 优先根据 AgentChat 选择的 primary_tool 判断
+            primary_tool = (
+                metadata.get("agentchat_tool")
+                or metadata.get("primary_tool")
+                or agentchat_metadata.get("primary_tool")
+            )
+            if isinstance(primary_tool, str):
+                key = primary_tool.lower()
+                if "knowledge" in key:
                     add_tool_label("知识库检索")
-                elif "graph_tool" in key:
+                elif "graph" in key:
                     add_tool_label("知识图谱推理")
-                elif "rule_tool" in key:
+                elif "rule" in key:
                     add_tool_label("规则计算")
-                elif "text2sql_tool" in key:
+                elif "text2sql" in key or "sql" in key:
                     add_tool_label("Text2SQL 查询")
-                elif "workflow_tool" in key:
+                elif "workflow" in key:
                     add_tool_label("多模态工作流")
 
-        # 2) 结合路由链补全（非 AgentChat 主路径时更明确）
-        route_text = route
-        if "knowledge" in route_text:
-            add_tool_label("知识库检索")
-        if "graph" in route_text:
-            add_tool_label("知识图谱推理")
-        if "rule_engine" in route_text:
-            add_tool_label("规则计算")
-        if "text2sql" in route_text:
-            add_tool_label("Text2SQL 查询")
-        if "workflow" in route_text:
-            add_tool_label("多模态工作流")
+            # 1.5) 结合工具耗时记录（tool_metrics）进一步还原能力类型
+            tool_metrics = agentchat_metadata.get("tool_metrics", [])
+            if tool_metrics:
+                for item in tool_metrics:
+                    key = item["tool"].lower()
+                    if "knowledge_tool" in key:
+                        add_tool_label("知识库检索")
+                    elif "graph_tool" in key:
+                        add_tool_label("知识图谱推理")
+                    elif "rule_tool" in key:
+                        add_tool_label("规则计算")
+                    elif "text2sql_tool" in key:
+                        add_tool_label("Text2SQL 查询")
+                    elif "workflow_tool" in key:
+                        add_tool_label("多模态工作流")
 
-        # 3) 若只看到 AgentChat，而没有具体能力，标明协作式推理
-        if (self._agentchat_team_enabled or self._agentchat_enabled) and "agentchat" in route_text and not tools_used:
-            add_tool_label("AgentChat 协作")
+            # 2) 结合路由链补全（非 AgentChat 主路径时更明确）
+            route_text = route
+            if "knowledge" in route_text:
+                add_tool_label("知识库检索")
+            if "graph" in route_text:
+                add_tool_label("知识图谱推理")
+            if "rule_engine" in route_text:
+                add_tool_label("规则计算")
+            if "text2sql" in route_text:
+                add_tool_label("Text2SQL 查询")
+            if "workflow" in route_text:
+                add_tool_label("多模态工作流")
 
-        # 4) 兜底：至少说明是对话生成
-        if not tools_used:
-            add_tool_label("对话生成")
+            # 3) 若只看到 AgentChat，而没有具体能力，标明协作式推理
+            if (self._agentchat_team_enabled or self._agentchat_enabled) and "agentchat" in route_text and not tools_used:
+                add_tool_label("AgentChat 协作")
 
-        metadata["tools_used"] = tools_used
-        # 基于工具推导人类可读的主路由标签
-        metadata["route_display"] = " + ".join(tools_used)
+            # 4) 兜底：至少说明是对话生成
+            if not tools_used:
+                add_tool_label("对话生成")
 
-        timing = trace.summary()
-        if timing:
-            metadata["timings_ms"] = timing
+            metadata["tools_used"] = tools_used
+            # 基于工具推导人类可读的主路由标签
+            metadata["route_display"] = " + ".join(tools_used)
 
-        final.metadata = metadata
-        final.total_processing_time = time.perf_counter() - start_time
-        self._append_citations(final)
+            timing = trace.summary()
+            if timing:
+                metadata["timings_ms"] = timing
 
-        if timing and timing["total_ms"] >= trace.slow_threshold_ms:
-            logging_manager.info(
-                "[AgentService] 慢请求 %.1f ms route=%s stages=%s",
-                timing["total_ms"],
-                route,
-                timing["stages"],
-            )
-        elif timing and self._log_timing_breakdown:
-            logging_manager.info(
-                "[AgentService] 请求耗时 %.1f ms route=%s stages=%s",
-                timing["total_ms"],
-                route,
-                timing["stages"],
-            )
+            final.metadata = metadata
+            final.total_processing_time = time.perf_counter() - start_time
+            self._append_citations(final)
 
-        return final
+            if timing and timing["total_ms"] >= trace.slow_threshold_ms:
+                logging_manager.info(
+                    "[AgentService] 慢请求 %.1f ms route=%s stages=%s",
+                    timing["total_ms"],
+                    route,
+                    timing["stages"],
+                )
+            elif timing and self._log_timing_breakdown:
+                logging_manager.info(
+                    "[AgentService] 请求耗时 %.1f ms route=%s stages=%s",
+                    timing["total_ms"],
+                    route,
+                    timing["stages"],
+                )
+
+            return final
 
     async def process_query_stream(
         self,
@@ -1540,7 +1593,7 @@ class AgentService:
         attachments: Optional[List[Attachment]] = None,
         force_text2sql: bool = False,
         allow_private_tools: bool = True,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Streamed processing via AgentChat Team/Router when enabled.
         Yields dicts: {"type": "chunk", "content": "..."} or {"type": "final", "answer": FinalAnswer, "meta": {...}}.
@@ -1563,37 +1616,39 @@ class AgentService:
 
             start = time.perf_counter()
             trace = _PerfTrace(self._trace_latency, self._slow_log_ms)
-            await self.initialize()
-            if allow_private_tools:
-                connection_id = await asyncio.to_thread(self._resolve_connection_id, connection_id)
-            self._request.connection_id = connection_id
-            sid, effective_query, context, history_used = await self._prepare_conversation_context(
-                session_id, user_id, query,
-            )
+            with progress_step("context", "正在理解咨询问题"):
+                await self.initialize()
+                if allow_private_tools:
+                    connection_id = await asyncio.to_thread(self._resolve_connection_id, connection_id)
+                self._request.connection_id = connection_id
+                sid, effective_query, context, history_used = await self._prepare_conversation_context(
+                    session_id, user_id, query,
+                )
             # The selected backend owns tool execution; never replay it to recover a final answer.
             backend = self._agentchat_team if self._agentchat_team_enabled else self._agentchat_router
             assert backend is not None
-            stream = backend.run_stream(sid, effective_query)
-            try:
-                async for event in stream:
-                    if event["type"] == "final":
-                        final = event["answer"]
-                        trace.mark("agentchat_stream")
-                        final = await self._finalize_answer(
-                            final=final, route=final.metadata["route"],
-                            intent_result={"intent": "agentchat"}, rewritten_query=effective_query,
-                            session_id=sid, user_id=user_id, connection_id=connection_id,
-                            conversation_context={"history_used": history_used,
-                                                  "history_turns": len(context["history"]),
-                                                  "is_new_session": context["is_new_session"]},
-                            domain_context=None, attachments=attachments,
-                            trace=trace, start_time=start, agentchat_meta=event["meta"],
-                        )
-                        event = {"type": "final", "answer": final, "meta": final.metadata}
-                    yield event
-            finally:
-                # Keep generator cleanup in this task/context even under ASGI cancellation.
-                await close_with_timeout(stream.aclose)
+            with progress_step("agent", "正在处理咨询问题"):
+                stream = backend.run_stream(sid, effective_query)
+                try:
+                    async for event in stream:
+                        if event["type"] == "final":
+                            final = event["answer"]
+                            trace.mark("agentchat_stream")
+                            final = await self._finalize_answer(
+                                final=final, route=final.metadata["route"],
+                                intent_result={"intent": "agentchat"}, rewritten_query=effective_query,
+                                session_id=sid, user_id=user_id, connection_id=connection_id,
+                                conversation_context={"history_used": history_used,
+                                                      "history_turns": len(context["history"]),
+                                                      "is_new_session": context["is_new_session"]},
+                                domain_context=None, attachments=attachments,
+                                trace=trace, start_time=start, agentchat_meta=event["meta"],
+                            )
+                            event = {"type": "final", "answer": final, "meta": final.metadata}
+                        yield event
+                finally:
+                    # Keep generator cleanup in this task/context even under ASGI cancellation.
+                    await close_with_timeout(stream.aclose)
         finally:
             self._request_state.reset(token)
 

@@ -1,0 +1,136 @@
+rule_id: Rule_Changzhou_EmploymentJobsearch_2026
+name: 江苏2027届困难毕业生一次性求职补贴（常州适用）
+version: '1.0'
+description: 官方公开标准的条件试算，未核实资格不得默认满足；CALCULATED不代表审批或到账。人才最高标准仅供参考，amount为0表示待核验，不表示没有补贴。
+region: 江苏省常州市
+keywords:
+- 一次性求职补贴
+- 困难毕业生1500元
+policy_source:
+  title: 9月1日起开放申报 困难毕业生可申领一次性求职补贴
+  url: https://www.changzhou.gov.cn/ns_news/423178830957774
+  document_number: null
+  raw_path: resources/data/raw/changzhou_finance_20261121/benefits/job.web.json
+  body_sha256: 05570c0adbb31443618069522c7b86d9eeeb18278a3f44039728c78cf7ef48a5
+  published_date: '2026-09-02'
+  issued_date: null
+  completeness: official_published_text
+  raw_format: official_page_web_provider_json
+  source_path: resources/data/process/changzhou_finance_20261121/benefits/job.md
+  clause: 补贴对象、标准及两次申报窗口
+valid_period:
+  start: '2026-09-01'
+  end: '2027-05-31'
+inputs:
+- name: claim_time
+  label: 申请日期
+  type: string
+  required: true
+  description: 实际本次申请日期，YYYY-MM-DD；不能以计算日期替代历史申请日期。
+- name: eligibility_confirmed
+  label: 申领资格已核实
+  type: bool
+  required: true
+  description: 主管部门已核实完整资格、材料及监护/困难身份等；不得默认是，试算不代替审核。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: graduation_year
+  label: 毕业届别
+  type: int
+  required: true
+  description: 仅2027届，本文件于2026年发布；不适用于所有毕业生。
+- name: jiangsu_school_confirmed
+  label: 江苏院校已核实
+  type: bool
+  required: true
+  description: 江苏省内普通高校、技工、中职、特殊教育院校职业教育类专业，非仅常州户籍。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: fulltime_nondirected_confirmed
+  label: 全日制非定向培养
+  type: bool
+  required: true
+  description: 须全日制非定向培养，在毕业学年申领。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: jobseeking_confirmed
+  label: 毕业学年有求职意愿
+  type: bool
+  required: true
+  description: 处于毕业学年且有求职意愿。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: hardship_category
+  label: 已核实困难类别
+  type: string
+  required: true
+  description: 多重困难身份仅选一种，不叠加。
+  options:
+  - label: 城乡低保对象
+    value: minimum_living
+  - label: 零就业或农村零转移家庭
+    value: zero_employment
+  - label: 孤儿或事实无人抚养儿童持续享受民政生活补贴
+    value: orphan
+  - label: 持证残疾人
+    value: disabled
+  - label: 毕业学年获得国家助学贷款
+    value: national_student_loan
+  - label: 特困人员
+    value: extreme_poverty
+- name: already_received
+  label: 本项已经领取
+  type: bool
+  required: true
+  description: 育儿填归属2026年度这一次是否已领；求职填此前任何学段是否已享受该一次性补贴。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: financial_card_confirmed
+  label: 金融社保卡已开通
+  type: bool
+  required: true
+  description: 本人江苏省社会保障卡已开通金融功能。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+calc:
+  result: dsl_helpers.changzhou_employment_jobsearch_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '{{ calc.result.reason }}'
+example_inputs:
+  claim_time: '2026-09-15'
+  graduation_year: 2027
+  eligibility_confirmed: true
+  jiangsu_school_confirmed: true
+  fulltime_nondirected_confirmed: true
+  jobseeking_confirmed: true
+  hardship_category: national_student_loan
+  already_received: false
+  financial_card_confirmed: true
+example_expected:
+  status: CALCULATED
+  amount: 1500.0
+expected_amount: 1500.0
+limitations:
+- 金额单位元；只计算单个申请对象本次金额，不查询社保、学籍、户籍、历史发放或审批数据库。
+- 人才最高标准不等于个人应得金额；求职多种困难身份不叠加。

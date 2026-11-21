@@ -52,6 +52,7 @@ def api(monkeypatch, tmp_path):
     load("app.models.policy", "app/models/policy.py")
     schemas = load("app.schemas.knowledge", "app/schemas/knowledge.py")
     workspace_module = load("app.knowledge.document_workspace", "app/knowledge/document_workspace.py")
+    load("app.knowledge.document_catalog", "app/knowledge/document_catalog.py")
     processors = []
 
     class Processor:
@@ -67,12 +68,14 @@ def api(monkeypatch, tmp_path):
     dependency_calls = Mock(side_effect=AssertionError("vector service must stay lazy"))
     deps = stub("app.api.deps", get_knowledge_service=dependency_calls,
                 get_enhanced_doc_processor=lambda: processor)
-    stub("app.knowledge.doc_enhanced", EnhancedDocumentProcessor=Processor)
+    stub("app.knowledge.document_processor", EnhancedDocumentProcessor=Processor)
     stub("app.knowledge.service", KnowledgeService=type("KnowledgeService", (), {}))
     router = load("_knowledge_workspace_api", "app/api/endpoints/knowledge.py")
     router.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     app = FastAPI()
     app.include_router(router.router, prefix="/api/knowledge")
+    for directory in (router.PARSED_DIR, router.PARSED_STATUS_DIR, router.EMBED_STATUS_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
     with TestClient(app, raise_server_exceptions=False) as client:
         yield SimpleNamespace(client=client, router=router, workspace=router._workspace(),
                               schemas=schemas, module=workspace_module, root=tmp_path,
@@ -208,6 +211,91 @@ def test_cached_markdown_is_real_and_legacy_cache_remains_compatible(api):
     assert documents[0]["content_length"] == len(current["parsed"]["text"])
 
 
+def test_repeated_document_lists_reuse_verified_metadata_without_rereading_bodies(api, monkeypatch):
+    cached(api)
+    reads = []
+    read_bytes, read_text = Path.read_bytes, Path.read_text
+
+    def bytes_read(path):
+        if path.suffix in {".txt", ".md"}:
+            reads.append(path)
+        return read_bytes(path)
+
+    def text_read(path, *args, **kwargs):
+        if path.suffix in {".txt", ".md"}:
+            reads.append(path)
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", bytes_read)
+    monkeypatch.setattr(Path, "read_text", text_read)
+    first = api.client.get("/api/knowledge/documents")
+    assert first.status_code == 200
+    assert reads
+    reads.clear()
+    second = api.client.get("/api/knowledge/documents")
+    assert second.status_code == 200
+    assert second.json() == first.json()
+    assert reads == []
+    api.router._catalogs.clear()
+    restored = api.client.get("/api/knowledge/documents")
+    assert restored.json() == first.json()
+    assert reads == []
+
+
+def test_catalog_rechecks_changed_documents_and_tracks_additions_and_deletions(api):
+    first, _ = cached(api, "first.txt", "first body")
+    cached(api, "second.txt", "second body")
+    assert api.client.get("/api/knowledge/documents").json()["total"] == 2
+    first.write_text("replacement source", encoding="utf-8")
+    changed = api.client.get("/api/knowledge/documents").json()
+    assert next(doc for doc in changed["documents"] if doc["id"] == first.name)["parsed"] is False
+    assert changed["summary"]["parsed"] == 1
+    source(api, "third.txt")
+    assert api.client.get("/api/knowledge/documents").json()["total"] == 3
+    first.unlink()
+    assert {doc["id"] for doc in api.client.get("/api/knowledge/documents").json()["documents"]} == {"second.txt", "third.txt"}
+
+
+def test_invalid_persisted_catalog_is_rebuilt_from_verified_files(api):
+    cached(api)
+    expected = api.client.get("/api/knowledge/documents").json()
+    snapshot = api.router._catalog()._snapshot_path
+    snapshot.write_text('{"version": "invalid"}', encoding="utf-8")
+    api.router._catalogs.clear()
+    assert api.client.get("/api/knowledge/documents").json() == expected
+
+
+def test_document_list_pagination_filters_and_global_counts(api):
+    for index in range(25):
+        path = source(api, name=f"policy-{index:02d}.txt")
+        os.utime(path, (1000 + index, 1000 + index))
+    for index in (0, 1):
+        name = f"policy-{index:02d}.txt"
+        api.workspace.store_parsed(name, "已解析正文", api.workspace.source_version(name), "text")
+    version = api.workspace.source_version("policy-00.txt")
+    parsed = api.workspace.parsed_content("policy-00.txt", version)
+    api.router._mark_embedded("policy-00.txt", version, parsed.version, "stable-vector")
+    response = api.client.get("/api/knowledge/documents", params={"page": 2, "page_size": 10})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 25
+    assert data["page"] == 2
+    assert data["page_size"] == 10
+    assert [item["name"] for item in data["documents"]] == [f"policy-{index:02d}.txt" for index in range(14, 4, -1)]
+    assert data["summary"] == {"total": 25, "parsed": 2, "embedded": 1}
+    filtered = api.client.get("/api/knowledge/documents", params={"page": 1, "query": "POLICY-0", "parsed": "parsed", "indexed": "pending", "sort": "oldest"}).json()
+    assert filtered["total"] == 1
+    assert filtered["documents"][0]["id"] == "policy-01.txt"
+    assert filtered["summary"] == data["summary"]
+    assert api.client.get("/api/knowledge/documents", params={"page": 9}).json()["documents"] == []
+
+
+@pytest.mark.parametrize("params", [{"page": 0}, {"page_size": 101}, {"parsed": "unknown"}, {"indexed": "unknown"}, {"sort": "unknown"}])
+def test_document_list_rejects_invalid_queries_before_file_access(api, params, monkeypatch):
+    monkeypatch.setattr(api.router, "_catalog", Mock(side_effect=AssertionError("invalid query must not scan files")))
+    assert api.client.get("/api/knowledge/documents", params=params).status_code == 422
+
+
 @pytest.mark.parametrize("legacy", [False, True])
 def test_source_hash_invalidates_cache_and_preview_even_with_same_mtime(api, legacy):
     path = source(api, text="A" * 120)
@@ -216,6 +304,7 @@ def test_source_hash_invalidates_cache_and_preview_even_with_same_mtime(api, leg
     else:
         api.workspace.store_parsed(path.name, "A" * 120, api.workspace.source_version(path.name), "text")
     current = workspace(api)
+    assert api.client.get("/api/knowledge/documents").json()["documents"][0]["parsed"] is True
     stamp = path.stat()
     path.write_text("B" * 120, encoding="utf-8")
     os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
@@ -297,9 +386,11 @@ def test_failed_atomic_save_preserves_previous_file_and_revision(api, monkeypatc
 
 def test_concurrent_config_updates_have_one_winner(api):
     _, current = cached(api)
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(lambda value: save(api, current, size=value).status_code, (320, 640)))
-    assert sorted(results) == [200, 409]
+    for _ in range(5):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(lambda value: save(api, current, size=value), (320, 640)))
+        assert sorted(response.status_code for response in responses) == [200, 409], [response.json() for response in responses]
+        current = workspace(api)
 
 
 @pytest.mark.parametrize("changes", [{"ocr": "on"}, {"ocr": "off"}, {"index": "hierarchical"}, {"parser": "mineru"}])

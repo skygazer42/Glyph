@@ -156,7 +156,21 @@ resources/data/neo4j/
 volumes/neo4j/
 
 # LightRAG
-# resources/data/lightrag/
+/resources/data/lightrag*/
+
+# 本地采集资料：原件、解析件、检索证据和导出快照不提交
+/resources/data/raw/
+/resources/data/process/
+/resources/data/research/
+/resources/data/exports/
+/resources/data/graph_seed/
+/resources/data/guize/
+/resources/data/local-inventory.json
+/resources/data/policy_catalog/**
+!/resources/data/policy_catalog/*.md
+/resources/archive/
+/resources/faq/*.json
+/uploads/
 
 # ============================================
 # LlamaIndex & AI Models

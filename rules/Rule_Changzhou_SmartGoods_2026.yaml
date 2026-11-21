@@ -1,0 +1,246 @@
+rule_id: Rule_Changzhou_SmartGoods_2026
+name: 常州2026地方自主品类智能商品补贴试算
+version: '1.0'
+region: 江苏省常州市
+description: 仅已核实的平台本期细分品类试算，独立于全国六类家电和四类数码；不含电动自行车。未知资格、重复或预算转人工。
+keywords:
+- 常州智能商品补贴
+- 常州地方自主品类
+- 智能门锁
+- 电动轮椅补贴
+- 智能家居补贴
+- 智能空气净化器
+- 智能灯具
+- 智能吸油烟机
+- 智能燃气灶
+- 智能微蒸烤一体机
+- 智能料理机
+- 咖啡机
+- 智能洗碗机
+- 智能净水机
+- 智能干衣机
+- 智能马桶
+- 智能扫地机
+- 数码相机
+- 智能音箱
+- 智能耳机
+- 具身智能机器人
+- 智能打印机
+- 智能按摩椅
+- 智能监测仪
+- 电动轮椅
+policy_source:
+  title: 关于优化调整常州市2026年消费品以旧换新地方自主品类补贴政策的通告
+  url: https://swj.changzhou.gov.cn/html/swj/2026/BHDBKPHH_0901/21885.html
+  issuer: 常州市商务局
+  published_date: '2026-09-01'
+  issued_date: null
+  source_path: resources/data/process/changzhou_official_followup_20261121/smart_goods.md
+  raw_path: resources/data/raw/changzhou_official_followup_20261121/core.web.json
+  body_sha256: 7a8984274496013ce55b5b9660f42c42091d8a3c507781e911e0b4333c80fd94
+  completeness: official_published_text
+  clause: 一、政策实施时间；二（一）十类产品及（二）标准；三、参与方式
+valid_period:
+  start: '2026-08-29'
+  end: '2026-12-31'
+inputs:
+- name: price
+  label: 优惠后补贴前销售价
+  type: float
+  required: true
+  description: 元，扣除商家等各环节优惠后、政府补贴前的最终销售价格，须大于零；不要填政府补贴后实付价。
+- name: category
+  label: 平台确认细分品类
+  type: string
+  required: true
+  description: 原文20个主要产品项；括号子产品必须经平台确认映射后选择对应主项，不根据名称自动推断。
+  options:
+  - label: 智能门锁
+    value: smart_door_lock
+  - label: 智能空气净化器
+    value: smart_air_purifier
+  - label: 智能灯具
+    value: smart_lighting
+  - label: 智能吸油烟机
+    value: smart_range_hood
+  - label: 智能燃气灶
+    value: smart_gas_stove
+  - label: 智能微蒸烤一体机
+    value: smart_steam_microwave_oven
+  - label: 智能料理机
+    value: smart_food_processor
+  - label: 智能洗碗机
+    value: smart_dishwasher
+  - label: 智能净水机
+    value: smart_water_purifier
+  - label: 智能干衣机
+    value: smart_dryer
+  - label: 智能马桶
+    value: smart_toilet
+  - label: 智能扫地机
+    value: smart_cleaning_robot
+  - label: 数码相机
+    value: digital_camera
+  - label: 智能音箱
+    value: smart_speaker
+  - label: 智能耳机
+    value: smart_headphones
+  - label: 具身智能机器人
+    value: embodied_robot
+  - label: 智能打印机
+    value: smart_printer
+  - label: 智能按摩椅
+    value: smart_massage_chair
+  - label: 智能监测仪
+    value: smart_monitor
+  - label: 电动轮椅
+    value: electric_wheelchair
+- name: claim_time
+  label: 业务申请日期
+  type: string
+  required: true
+  description: YYYY-MM-DD，本入口仅支持2026-08-29至12-31内办理；不代表官方承诺跨年申请或余额。
+- name: purchase_date
+  label: 实际购买日期
+  type: string
+  required: true
+  description: YYYY-MM-DD，须2026-08-29至12-31内且不晚于业务日期；不能拿旧交易套新轮。
+- name: product_code
+  label: 统一国标商品码
+  type: string
+  required: true
+  description: 13位半角数字文本，须对应真实商品备案；格式校验不替代平台商品编码核验。
+- name: individual_consumer
+  label: 个人资格已核实
+  type: bool
+  required: true
+  description: 本人作为个人消费者的申领身份、付款及相关平台资格已核实，不默认满足。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: participating_merchant
+  label: 参与商家已核实
+  type: bool
+  required: true
+  description: 商户或电商平台实际属于本期参与名单；未知选择否，转人工。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: platform_category_confirmed
+  label: 细分归类已核实
+  type: bool
+  required: true
+  description: 平台确认本商品属于所选细分品类；含洗烘套装、无人机等括号子产品时需明确映射，不能按名称推定。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: current_round_product_confirmed
+  label: 本期商品备案已核实
+  type: bool
+  required: true
+  description: 商品码与实际产品一致并经平台确认在本轮地方自主品类范围，含本期需核实资格；仅有13位数字不够。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: claims_history_confirmed
+  label: 跨渠道历史已核实
+  type: bool
+  required: true
+  description: 已核实本期该细分品类所有渠道/平台已享次数、退货退款资格是否真正恢复；不能自行按新轮清零。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: prior_category_claims
+  label: 本期细分类已享次数
+  type: int
+  required: true
+  description: 本人本期同一细分品类已核销且未恢复资格次数；全国及地方跨渠道记录按平台核实口径，非每家商户各一次。
+- name: no_duplicate_subsidy_confirmed
+  label: 重复补贴排除已核实
+  type: bool
+  required: true
+  description: 平台已确认本件商品及套装不与全国六类、其他地方或其他渠道重复享受；套装不可拆分双算，跨政策不明选否。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: budget_status
+  label: 本次受理预算状态
+  type: string
+  required: true
+  description: 必须依据本次平台真实状态，资金限额用完即止；未核实或用完转人工。
+  options:
+  - label: 已核实本次可受理
+    value: available
+  - label: 尚未核实
+    value: unknown
+  - label: 资金已用完
+    value: exhausted
+- name: has_efficiency_label
+  label: 是否具有能效水效标识
+  type: bool
+  required: true
+  description: 须查实际产品是否具有能效或水效标识；无标识不要求机械填写一级，有标识才触发以下两项。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: efficiency_level
+  label: 能效或水效等级
+  type: int
+  required: false
+  description: 仅具有能效或水效标识时必填；须中国能效或水效一级。
+- name: efficiency_registered
+  label: 标识网备案已核实
+  type: bool
+  required: false
+  description: 仅具有能效或水效标识时必填；须在相应标识网备案，未核实转人工。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+calc:
+  result: dsl_helpers.changzhou_smart_goods_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '{{ calc.result.reason }}{% if calc.result.status == ''CALCULATED'' %}；本件地方自主品类补贴试算金额（元）：{{ calc.result.amount }}{% else %}；本次未给出成功金额，须补充或核实相关条件{% endif %}'
+example_inputs:
+  price: 3999.99
+  category: smart_door_lock
+  claim_time: '2026-11-21'
+  purchase_date: '2026-11-20'
+  product_code: '1234567890123'
+  individual_consumer: true
+  participating_merchant: true
+  platform_category_confirmed: true
+  current_round_product_confirmed: true
+  claims_history_confirmed: true
+  prior_category_claims: 0
+  no_duplicate_subsidy_confirmed: true
+  budget_status: available
+  has_efficiency_label: false
+example_expected:
+  status: CALCULATED
+  amount: 600.0
+limitations:
+- 地方自主十类20个主要产品项是全国统一品类之外的补充，不将全国六类或电动自行车迁入。
+- 括号子产品归属和商品细分码表须平台确认；洗烘套装等不能同时计全国洗衣机及地方干衣机补贴。
+- 本期每人每细分品类1件，跨渠道、退款恢复、跨全国地方重复及历史使用须平台核实，不推定新轮重置。
+- 仅本轮期间购买及办理的明确场景；资金限额，用完即止，不能保证截至12月31日始终可受理。
+- 13位商品码只校验数字格式，产品备案、标识真实性、参与商家、身份、次数和实际支付由平台复核。
+- 展示分位四舍五入不是官方统一金额舍入标准；不含政府补贴后实付价反算。

@@ -16,6 +16,12 @@ from jinja2.sandbox import SandboxedEnvironment
 import yaml
 
 import app.agents.dsl_generator.subsidy_calculations as subsidy_calculations
+import app.agents.dsl_generator.trade_in_calculations as trade_in_calculations
+import app.agents.dsl_generator.housing_calculations as housing_calculations
+import app.agents.dsl_generator.provident_fund_calculations as provident_calculations
+import app.agents.dsl_generator.changzhou_vehicle_calculations as vehicle_calculations
+import app.agents.dsl_generator.changzhou_benefit_calculations as benefit_calculations
+from app.agents.dsl_generator.rule_verification import RuleVerificationRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +59,7 @@ class PolicyEngine:
 
     def _load_all_rules(self):
         """加载所有规则文件"""
+        self.review_registry = RuleVerificationRegistry()
         if self.rule_dir is None:
             return
         rules: Dict[str, Dict[str, Any]] = {}
@@ -97,18 +104,52 @@ class PolicyEngine:
                 'rule_id': rule_id
             }
 
-        return self.execute_rule(self.rules[rule_id], inputs, user_state)
+        rule = self.rules[rule_id]
+        review = self.review_registry.review(rule)
+        if review['status'] == 'needs_review':
+            return {
+                'status': 'MANUAL_REVIEW',
+                'message': review['message'],
+                'rule_id': rule_id,
+                'policy_source': rule.get('policy_source', {}),
+                'verification': review,
+            }
+        return self.execute_rule(rule, inputs, user_state)
 
     def execute_rule(self, rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """执行已解析的规则，不写入规则目录或改变已加载规则。"""
+        """试算给定版本并标注核验状态；编辑草稿不能继承旧版本的核验结论。"""
+        result = self._execute_rule(rule, inputs, user_state)
+        review = self.review_registry.review(rule)
+        if review['status'] == 'manual_only' and result['status'] in {'CALCULATED', 'QUALIFIED', 'SUCCESS', 'VALID'}:
+            result = {
+                'rule_id': rule['rule_id'],
+                'status': 'MANUAL_REVIEW',
+                'message': '此入口仅核实公开条件，个人金额依据尚不完整，暂不提供金额。',
+                'policy_source': rule.get('policy_source', {}),
+            }
+        result['verification'] = review
+        return result
+
+    def _execute_rule(self, rule: Dict[str, Any], inputs: Dict[str, Any], user_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """校验业务日期及输入后计算，不写入规则目录或改变已加载规则。"""
         rule_id = rule['rule_id']
 
         try:
+            try:
+                self._extract_reference_date(inputs)
+            except ValueError as error:
+                return {
+                    'status': 'INVALID_INPUT',
+                    'message': '业务日期缺失或格式错误',
+                    'errors': [str(error)],
+                    'rule_id': rule_id,
+                    'policy_source': rule.get('policy_source', {}),
+                }
             # 检查规则有效期
             if not self._is_valid_period(rule, inputs):
                 return {
                     'status': 'EXPIRED',
-                    'message': '政策已过期',
+                    'message': '业务日期不在所选规则的适用期内',
                     'rule_id': rule_id,
                     'policy_source': rule.get('policy_source', {})
                 }
@@ -171,9 +212,9 @@ class PolicyEngine:
             if isinstance(value, str):
                 parsed = self._parse_date_string(value)
                 if parsed is None:
-                    raise ValueError(f"Invalid reference date: {key}")
+                    raise ValueError(f"参数 {key} 应为有效的ISO日期或时间")
                 return parsed
-            raise ValueError(f"Invalid reference date type: {key}")
+            raise ValueError(f"参数 {key} 应为日期、时间或ISO日期文本")
         return None
 
     @staticmethod
@@ -283,6 +324,7 @@ class PolicyEngine:
         return self._evaluate_node(node, context)
 
     def _evaluate_node(self, node: ast.AST, context: Dict[str, Any]) -> Any:
+        """递归解释已支持的表达式节点和显式函数表；不支持的 AST 结构由本方法拒绝。"""
         functions: Dict[str, Callable[..., Any]] = {'min': min, 'max': max, 'abs': abs, 'round': round,
                      'len': len, 'sum': sum, 'int': int, 'float': float,
                      'str': str, 'bool': bool}
@@ -350,6 +392,27 @@ class PolicyEngine:
                         'appliance_subsidy': subsidy_calculations.appliance_subsidy,
                         'auto_subsidy': subsidy_calculations.auto_subsidy,
                         'consumer_coupon': subsidy_calculations.consumer_coupon,
+                        'appliance_subsidy_2026': trade_in_calculations.appliance_subsidy_2026,
+                        'digital_subsidy_2026': trade_in_calculations.digital_subsidy_2026,
+                        'changzhou_smart_goods_2026': trade_in_calculations.changzhou_smart_goods_2026,
+                        'auto_trade_in_2026': trade_in_calculations.auto_trade_in_2026,
+                        'changzhou_renovation_2026': housing_calculations.changzhou_renovation_2026,
+                        'changzhou_property_fee_2026': housing_calculations.changzhou_property_fee_2026,
+                        'changzhou_home_purchase_2026': housing_calculations.changzhou_home_purchase_2026,
+                        'changzhou_provident_contribution_2026': provident_calculations.changzhou_provident_contribution_2026,
+                        'changzhou_provident_loan_2026': provident_calculations.changzhou_provident_loan_2026,
+                        'changzhou_provident_repayment_2026': provident_calculations.changzhou_provident_repayment_2026,
+                        'changzhou_provident_interest_subsidy_2026': provident_calculations.changzhou_provident_interest_subsidy_2026,
+                        'changzhou_provident_hardship_subsidy_2026': provident_calculations.changzhou_provident_hardship_subsidy_2026,
+                        'changzhou_provident_rent_2026': provident_calculations.changzhou_provident_rent_2026,
+                        'changzhou_provident_purchase_withdrawal_2026': provident_calculations.changzhou_provident_purchase_withdrawal_2026,
+                        'changzhou_auto_trade_in_2026': vehicle_calculations.changzhou_auto_trade_in_2026,
+                        'changzhou_nev_purchase_tax_2026': vehicle_calculations.changzhou_nev_purchase_tax_2026,
+                        'changzhou_electric_bicycle_2026': vehicle_calculations.changzhou_electric_bicycle_2026,
+                        'changzhou_childcare_annual_2026': benefit_calculations.changzhou_childcare_annual_2026,
+                        'changzhou_childcare_transition_2026': benefit_calculations.changzhou_childcare_transition_2026,
+                        'changzhou_employment_jobsearch_2026': benefit_calculations.changzhou_employment_jobsearch_2026,
+                        'changzhou_talent_support_2026': benefit_calculations.changzhou_talent_support_2026,
                     }
                     if node.func.attr not in helpers:
                         raise ValueError(f'Unsupported DSL helper: {node.func.attr}')
@@ -465,10 +528,11 @@ class PolicyEngine:
         for rule_id, rule in self.rules.items():
             rules_list.append({
                 'rule_id': rule_id,
-                'title': rule.get('policy_source', {}).get('title', '未命名'),
+                'title': rule.get('name') or rule.get('policy_source', {}).get('title', '未命名'),
                 'doc_id': rule.get('policy_source', {}).get('doc_id', ''),
                 'valid_period': rule.get('valid_period', {}),
-                'is_active': self._is_valid_period(rule, inputs={})
+                'is_active': self._is_valid_period(rule, inputs={}),
+                'verification': self.review_registry.review(rule),
             })
         return rules_list
 
@@ -477,5 +541,6 @@ class PolicyEngine:
         if rule_id in self.rules:
             rule = self.rules[rule_id].copy()
             rule['is_active'] = self._is_valid_period(rule, inputs={})
+            rule['verification'] = self.review_registry.review(rule)
             return rule
         return None

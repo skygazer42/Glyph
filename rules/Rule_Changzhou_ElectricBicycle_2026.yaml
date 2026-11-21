@@ -1,0 +1,80 @@
+rule_id: Rule_Changzhou_ElectricBicycle_2026
+name: 2026年常州电动自行车补贴核验（金额待确认）
+version: '1.0'
+region: 江苏省常州市
+keywords:
+- 常州电动自行车补贴
+- 常州电瓶车以旧换新
+- 电动自行车以旧换新
+- 电动自行车补贴
+- 电瓶车补贴
+- 2026电动自行车现金补贴
+policy_source:
+  title: 需要满足什么条件才能申请电动自行车购置补贴？
+  url: https://www.changzhou.gov.cn/ns_news/517176956560444
+  issuer: 常州市人民政府网站（页面未署具体来源部门）
+  source_publisher: 常州市人民政府网站（页面未署具体来源部门）
+  published_date: '2026-01-23'
+  issued_date: null
+  scope: 江苏省常州市
+  topic: 车辆补贴与购置税
+  raw_path: resources/data/raw/changzhou_finance_20261121/vehicles/ebike.source.json
+  markdown_path: resources/data/process/changzhou_finance_20261121/vehicles/ebike.md
+  body_sha256: 644caa0f7cfa2c438459dfcbea33ee50b693680177f1ab4076c28f516f0015c2
+  retrieved_date: '2026-11-21'
+  completeness: official_published_text
+  status: source_collected_validity_not_certified
+  document_kind: official_faq
+  document_number: null
+  publication_date_basis: 页面可见发布日期；成文日期单列；未显示日期不从URL推断
+  source_access_method: official_page_via_web_tool
+  raw_format: web_tool_extraction_json
+  publication_note: 页面没有2026有效金额或活动日期，不能据此计算现金补贴。
+  source_path: resources/data/process/changzhou_finance_20261121/vehicles/ebike.md
+  supporting_sources:
+  - title: 国家发展改革委 财政部关于2026年实施大规模设备更新和消费品以旧换新政策的通知
+    url: https://www.ndrc.gov.cn/xxgk/zcfb/tz/202512/t20251230_1402851.html
+    document_number: 发改环资〔2025〕1745号
+    published_date: '2025-12-30'
+    issued_date: '2025-12-29'
+    source_path: resources/data/process/changzhou_final_gaps_20261121/ebike/national_scope.md
+    raw_path: resources/data/raw/changzhou_final_gaps_20261121/ebike/eb_national.web.json
+    body_sha256: 99f0db597830ccdee387d77b8aa36ef413962ed29578d26c0731f905595f26d7
+    clause: 第七至十一条全国统一消费品领域与第十九条地方自主补贴空间；不能据全国枚举推断常州无地方补贴
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: price
+  label: 新车销售价格
+  type: float
+  required: true
+  description: 元，扣除商家优惠后的最终销售价格；本入口不以该价格套用旧年补贴比例
+- name: purchase_date
+  label: 购买日期
+  type: string
+  required: true
+  description: YYYY-MM-DD，仅核验2026购车请求；活动有效期尚未取得正式金额细则
+calc:
+  result: dsl_helpers.changzhou_electric_bicycle_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '状态：{{ calc.result.status }}
+
+    金额尚未确定，须核实本期正式金额标准及活动期限。
+
+    {{ calc.result.reason }}
+
+    本结果仅为核验状态，不构成审批结果。'
+example_inputs:
+  price: 3000
+  purchase_date: '2026-11-21'
+example_expected:
+  status: MANUAL_REVIEW
+  amount: 0
+limitations:
+- 这是缺少有效金额依据时的人工核验入口，不列为已实现现金金额计算。
+- 2026官方问答只列部分条件，未列金额或活动期；不能迁移2025年30%最高1000元。
+- valid_period仅为本入口接受的请求年份，不代表已确认补贴活动覆盖全年。

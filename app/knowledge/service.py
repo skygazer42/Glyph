@@ -51,6 +51,7 @@ class KnowledgeService:
         return dict(self._last_timings.get({}))
 
     async def index_documents(self, documents: List[PolicyDocument]) -> int:
+        """依次写入向量库及可选分级索引，返回输入文档数；后续失败不会回滚已完成的写入。"""
         if not documents:
             return 0
         await asyncio.to_thread(self.vector_store.add_documents, documents)
@@ -67,6 +68,7 @@ class KnowledgeService:
         threshold: float = 0.6,
         filters: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[PolicyDocument], List[float]]:
+        """合并满足阈值的检索结果并按文档 ID 保留最高分，返回等长文档与分数列表；零数量返回两个空列表。"""
         if top_k < 0:
             raise ValueError("top_k must not be negative")
         self._last_timings.set({})
@@ -90,7 +92,7 @@ class KnowledgeService:
                 combined[doc_id] = (doc.model_copy(update={"retrieval_origin": origin}), float(score))
 
         # 1. 尝试使用分级索引
-        has_vector_filters = bool(filters and {"doc_type", "source"}.intersection(filters))
+        has_vector_filters = bool(filters and {"doc_type", "source", "title", "coverage_year", "content"}.intersection(filters))
         # Hierarchical nodes do not retain the fields needed for Milvus filters.
         if self.hierarchical_store and self.hierarchical_store.has_index and not has_vector_filters:
             t_h = time.perf_counter()
@@ -137,6 +139,7 @@ class KnowledgeService:
         return docs, scores
 
     async def close(self) -> None:
+        """限时关闭分级检索资源，并在 finally 中关闭自建向量库；借入向量库仍由调用方管理。"""
         try:
             if self.hierarchical_store is not None:
                 with anyio.fail_after(5, shield=True):

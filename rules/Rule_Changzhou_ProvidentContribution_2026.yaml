@@ -1,0 +1,89 @@
+rule_id: Rule_Changzhou_ProvidentContribution_2026
+name: 常州公积金月缴存额与工资扣款
+version: '1.0'
+description: 常州官方依据的金额试算；说明金额性质和适用时间，不默认资格和账户事实，实际以主管部门审核/银行合同为准。
+region: 江苏省常州市
+keywords:
+- 公积金计算
+- 公积金缴存
+- 月缴存额
+- 缴存计算
+- 工资扣款
+- 月缴存
+- 缴存
+- 公积金月缴存
+- 缴存比例
+- 缴存基数
+policy_source:
+  title: 关于开展常州市2026年度住房公积金缴存基数调整的通知
+  url: https://www.changzhou.gov.cn/gi_news/787178269536789
+  raw_path: resources/data/raw/changzhou_finance_20261121/provident/batch4.web.json
+  body_sha256: 60b3d931fc076238dc3bd98e658eef3001b2c3505c3669385d6d054a8f2e1cfa
+  published_date: '2026-06-29'
+  issued_date: '2026-06-25'
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_finance_20261121/provident/01.md
+  clause: 见原文及supporting_sources中的额度、期限、利率、限额和舍入条款
+  supporting_sources:
+  - title: 《关于开展常州市2026年度住房公积金缴存基数调整的通知》政策解读
+    url: https://www.changzhou.gov.cn/ns_news/36178270553557
+    markdown_path: resources/data/process/changzhou_finance_20261121/provident/02.md
+    body_sha256: 4ab829c7a34fe1bdec5029e5c0e8ceced6c9f8a5f77375223a806f2b58e7bafa
+  - title: 关于印发《常州市住房公积金缴存管理实施细则》《常州市住房公积金提取管理实施细则》《常州市住房公积金个人住房贷款管理实施细则》的通知
+    url: https://www.changzhou.gov.cn/gi_news/472177500750450
+    markdown_path: resources/data/process/changzhou_20261121/housing/09.md
+    body_sha256: 8a6f4b0481e1bf3e288b773e73174b9b26ef9ed6bf31b25d5fd7661bdcb33d7e
+valid_period:
+  start: '2026-07-01'
+  end: '2027-06-30'
+inputs:
+- name: claim_time
+  label: 业务日期
+  type: string
+  required: true
+  description: 明确业务日期，YYYY-MM-DD；不由模型推断，不改变真实申请或交易时间。
+- name: monthly_salary
+  label: 核定工资基数口径金额
+  type: float
+  required: true
+  description: 普通单位职工年度调基为上年度工资总额除实际发放月数，新入职/调入须先确认口径。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: rate_percent
+  label: 单位和个人一致缴存比例
+  type: int
+  required: true
+  description: 5至12的整数百分比，例如12代表12%；困难企业特别审批不适用。
+- name: standard_employee_confirmed
+  label: 普通职工适用口径已核实
+  type: bool
+  required: true
+  description: 已确认普通单位职工工资基数、身份和双方一致比例；灵活就业、困难企业降比/缓缴转人工。
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+calc:
+  result: dsl_helpers.changzhou_provident_contribution_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  trace_template: '{{ calc.result.reason }}
+
+    {% if calc.result.status == ''CALCULATED'' %}金额（元）：{{ calc.result.amount }}；性质：本次每月单位加个人缴存总额，非现金补贴{% else %}本次未给出成功金额，须补充或核实相关条件{% endif %}
+
+    个人月缴存：{{ calc.result.get(''employee_monthly'', ''未核算'') }}
+
+    单位月缴存：{{ calc.result.get(''employer_monthly'', ''未核算'') }}
+
+    全年12个月不变估计：{{ calc.result.get(''annual_projection'', ''未核算'') }}'
+example_inputs:
+  claim_time: '2026-11-21'
+  monthly_salary: 8761
+  rate_percent: 12
+  standard_employee_confirmed: true
+example_expected:
+  status: CALCULATED
+  amount: 2104.0
+limitations:
+- 模型仅选择公式及用户明确输入的事实，不补造资格、政策身份、交易日期、余额或历史次数。
+- 金额均为人民币元，计算性质见追踪；利率及后续调息、银行舍入和真实审批需以合同/中心核定为准。

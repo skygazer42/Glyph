@@ -1,0 +1,71 @@
+rule_id: Rule_Changzhou_TalentSupport_2026
+name: 常州人才生活租房及专属房票最高标准核验
+version: '1.0'
+description: 官方公开标准的条件试算，未核实资格不得默认满足；CALCULATED不代表审批或到账。人才最高标准仅供参考，amount为0表示待核验，不表示没有补贴。
+region: 江苏省常州市
+keywords:
+- 人才生活居住双资助
+- 人才房票
+- 人才专属房票
+- 人才购房补贴
+- 人才租房补贴
+- 人才生活补贴
+- 青年人才生活居住双资助
+- 生活居住双资助
+- 龙城英才2026
+policy_source:
+  title: 关于推进高能级创新型城市建设的若干措施
+  url: https://www.changzhou.gov.cn/gi_news/575178824994368
+  document_number: 常委科发〔2026〕5号
+  raw_path: resources/data/raw/changzhou_finance_20261121/benefits/talent.web.json
+  body_sha256: ecb6c82db357cbfed7fa9a9351b21e06c54a310bca6e18dab4d9dec9f9517f84
+  published_date: '2026-09-01'
+  issued_date: null
+  completeness: official_published_text
+  raw_format: official_page_web_provider_json
+  source_path: resources/data/process/changzhou_finance_20261121/benefits/talent.md
+  clause: 第五部分第12项及文末有效期
+  supporting_sources:
+  - title: 坚持“投资于人”——“龙城英才计划”再优化
+    url: https://zg.changzhou.gov.cn/html/czzg/2026/CIBKBPQB_0528/59915.html
+    source_path: resources/data/process/changzhou_finance_20261121/benefits/talent_change.md
+    raw_path: resources/data/raw/changzhou_finance_20261121/benefits/talent_change.web.json
+    body_sha256: e47d5b6ea9839f65ac2583c168bea2bfa3adca36f765f98176275c7d1c48fc97
+    clause: 2026年5月优化双资助实施范围和资助周期，未列新分档及周期数值
+valid_period:
+  start: '2026-10-01'
+  end: '2030-12-31'
+inputs:
+- name: claim_time
+  label: 申请日期
+  type: string
+  required: true
+  description: 实际本次申请日期，YYYY-MM-DD；不能以计算日期替代历史申请日期。
+- name: support_kind
+  label: 人才支持类型
+  type: string
+  required: true
+  description: 仅展示正式措施最高标准；个人应得金额须查现行细则、主管部门认定及新旧衔接。
+  options:
+  - label: 生活与租房合计最高标准
+    value: living_rent
+  - label: 人才专属房票最高标准
+    value: housing_voucher
+calc:
+  result: dsl_helpers.changzhou_talent_support_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '{{ calc.result.reason }}'
+example_inputs:
+  claim_time: '2026-11-21'
+  support_kind: housing_voucher
+example_expected:
+  status: MANUAL_REVIEW
+  amount: 0.0
+expected_amount: 0.0
+limitations:
+- 金额单位元；只计算单个申请对象本次金额，不查询社保、学籍、户籍、历史发放或审批数据库。
+- 人才最高标准不等于个人应得金额；求职多种困难身份不叠加。
+- 2026年5月官方已说明优化范围和周期；未核实现行学历档位，不套用旧版10/5/3万、30/8/5万或旧三年周期，不承诺废止衔接日期。

@@ -1,0 +1,150 @@
+rule_id: Rule_Changzhou_VehiclePurchaseTax_2026
+name: 2026年常州新能源乘用车购置税测算（全国税制）
+version: '1.0'
+keywords:
+- 常州新能源购置税
+- 2026购置税减半
+- 新能源车要交多少税
+- 1.5万元减税
+policy_source:
+  title: 关于延续和优化新能源汽车车辆购置税减免政策的公告
+  url: https://hq.mof.gov.cn/tongzhitonggao/202307/t20230704_3894319.htm
+  issuer: 财政部、税务总局、工业和信息化部
+  source_publisher: 财政部海南监管局
+  published_date: '2023-07-04'
+  issued_date: '2023-06-19'
+  scope: 全国（含江苏省常州市）
+  topic: 车辆补贴与购置税
+  raw_path: resources/data/raw/changzhou_finance_20261121/vehicles/tax.source.json
+  markdown_path: resources/data/process/changzhou_finance_20261121/vehicles/tax.md
+  body_sha256: eea38df7016cdde812cb884191782448364e76ae268221d3ed405d2472bb4084
+  retrieved_date: '2026-11-21'
+  completeness: official_published_text
+  status: source_collected_validity_not_certified
+  document_kind: official_policy
+  document_number: 财政部 税务总局 工业和信息化部公告2023年第10号
+  publication_date_basis: 页面可见发布日期；成文日期单列；未显示日期不从URL推断
+  source_access_method: official_page_via_web_tool
+  raw_format: web_tool_extraction_json
+  source_path: resources/data/process/changzhou_finance_20261121/vehicles/tax.md
+  supporting_sources:
+  - title: 中华人民共和国车辆购置税法
+    url: https://fgk.chinatax.gov.cn/zcfgk/c100009/c5193038/content.html
+    issuer: 全国人民代表大会常务委员会
+    source_publisher: 国家税务总局
+    published_date: null
+    issued_date: '2018-12-29'
+    scope: 全国（含江苏省常州市）
+    topic: 车辆补贴与购置税
+    raw_path: resources/data/raw/changzhou_finance_20261121/vehicles/tax_law.source.json
+    markdown_path: resources/data/process/changzhou_finance_20261121/vehicles/tax_law.md
+    body_sha256: 2e670f85f03ff8004dba3af1d1f46201c77a8b5fcd30343a91445e3b24369d22
+    retrieved_date: '2026-11-21'
+    completeness: official_published_text
+    status: source_collected_validity_not_certified
+    document_kind: official_policy
+    document_number: 中华人民共和国主席令第十九号
+    publication_date_basis: 页面可见发布日期；成文日期单列；未显示日期不从URL推断
+    source_access_method: official_page_via_web_tool
+    raw_format: web_tool_extraction_json
+    source_path: resources/data/process/changzhou_finance_20261121/vehicles/tax_law.md
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: price_ex_vat
+  label: 车身不含税价
+  type: float
+  required: true
+  description: 元。境内购买自用车辆发票载明的不含增值税价，不要填写价税合计。换电车分别核算并单独开票时填不含电池车身不含税价
+- name: purchase_date
+  label: 购置凭证日期
+  type: string
+  required: true
+  description: YYYY-MM-DD，机动车销售统一发票或有效购置凭证的开具日期；本测算入口仅2026年
+- name: new_passenger_car
+  label: 新能源乘用新车
+  type: bool
+  required: true
+  description: 是否为包括驾驶员不超过9座的新能源乘用新车；其他车辆须税务核定
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: nev_in_current_catalog
+  label: 有效减免税目录
+  type: bool
+  required: true
+  description: 车型是否列入购置时适用的减免车辆购置税新能源汽车车型目录，不能只凭绿牌判断
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: tax_exemption_mark_verified
+  label: 减免税标识已核验
+  type: bool
+  required: true
+  description: 车辆电子信息减免税标识是否经核验；换电车还须符合换电技术要求并核验换电模式标识。未核验转人工
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: domestic_purchase_for_own_use
+  label: 境内购买自用
+  type: bool
+  required: true
+  description: 是否为境内购买自用；进口、自产、受赠等计税基础不同，转人工核定
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: battery_invoice_separate
+  label: 电池单独核算开票
+  type: bool
+  required: true
+  description: 是否为符合要求的换电车型，且电池与不含电池车身分别核算销售额并分别开具发票；是时价格不含电池
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+calc:
+  result: dsl_helpers.changzhou_nev_purchase_tax_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '状态：{{ calc.result.status }}
+
+    金额（元）：{{ calc.result.amount }}
+
+    {{ calc.result.reason }}
+
+    非审批结果，MANUAL_REVIEW/INVALID_INPUT/INELIGIBLE金额0不代表实际补贴或税款为0。
+
+    本金额为应缴购置税；不是现金补贴。
+
+    {% if calc.result.status == "CALCULATED" %}优惠前税额（元）：{{ calc.result.normal_tax
+    }}
+
+    减税额（元）：{{ calc.result.tax_reduction }}{% endif %}'
+example_inputs:
+  price_ex_vat: 200000
+  purchase_date: '2026-11-21'
+  new_passenger_car: true
+  nev_in_current_catalog: true
+  tax_exemption_mark_verified: true
+  domestic_purchase_for_own_use: true
+  battery_invoice_separate: false
+example_expected:
+  status: CALCULATED
+  amount: 10000.0
+limitations:
+- amount为应缴车辆购置税，不是可领取现金；税款=不含税价×10%−min(不含税价×5%,15000元)。
+- 2024—2025免税最高3万元已不适用于2026；2026—2027减税最高1.5万元，本规则仅开放2026年输入。
+- 不查询实时车型目录或电子标识；资格须用户明确确认并由税务机关核验。
+- 分位四舍五入只作金额展示；实际纳税额以税务核定为准。

@@ -1,0 +1,175 @@
+rule_id: Rule_Changzhou_ProvidentHardshipSubsidy_2026
+name: 常州困难家庭公积金贷款年度贴息
+version: '1.0'
+description: 按上年度实际支付的合规公积金贷款利息试算；非申即享，试算不代表困难资格认定、联合审核或到账。
+region: 江苏省常州市
+keywords:
+- 贷款贴息
+- 年度贴息
+- 困难家庭公积金
+- 困难家庭贷款贴息
+- 低保边缘
+- 低保贷款
+- 公积金贷款贴息
+- 困难家庭贷款利息补贴
+- 低保公积金贷款
+- 特困贷款贴息
+- 低保边缘贷款贴息
+- 刚性支出困难贴息
+policy_source:
+  source_id: loan_subsidy
+  title: 关于印发《常州市困难家庭住房公积金个人住房贷款贴息实施办法》的通知
+  url: https://www.changzhou.gov.cn/gi_news/114178280753699
+  issuer: 常州市住房公积金管理委员会
+  source_publisher: 常州市住房公积金管理中心
+  published_date: '2026-06-30'
+  issued_date: '2026-06-29'
+  scope: 江苏省常州市
+  document_kind: official_policy
+  document_number: 常公积金委〔2026〕3号
+  topic: 困难家庭公积金贷款贴息
+  effective_date: '2026-07-01'
+  expires_date: '2031-06-30'
+  retrieved_date: '2026-11-21'
+  raw_path: resources/data/raw/changzhou_financial_accuracy_20261121/loan_subsidy.web.json
+  raw_sha256: da83239a8cfcfa6044013352941b5f6ac1439ca03f795880bf865e0f569a57f7
+  markdown_path: resources/data/process/changzhou_financial_accuracy_20261121/loan_subsidy.md
+  body_sha256: 20681e3c57230bd3aa74c93bc22796c4539bb0ba15a087b40f7b55bdbd0218bd
+  raw_format: official_page_web_provider_snapshot_json
+  completeness: official_published_text
+  status: source_collected_validity_not_certified
+  source_path: resources/data/process/changzhou_financial_accuracy_20261121/loan_subsidy.md
+  clause: 第三至七条、第十条；官方解读明确取消旧6000元上限
+  supporting_sources:
+  - source_id: loan_subsidy_explanation
+    title: 《常州市困难家庭住房公积金个人住房贷款贴息实施办法》政策解读
+    url: https://www.changzhou.gov.cn/ns_news/421178280962476
+    issuer: 常州市住房公积金管理中心
+    source_publisher: 常州市住房公积金管理中心
+    published_date: '2026-06-30'
+    issued_date: null
+    scope: 江苏省常州市
+    document_kind: official_policy_explanation
+    document_number: null
+    topic: 困难家庭公积金贷款贴息
+    effective_date: '2026-07-01'
+    expires_date: '2031-06-30'
+    retrieved_date: '2026-11-21'
+    raw_path: resources/data/raw/changzhou_financial_accuracy_20261121/loan_subsidy.web.json
+    raw_sha256: da83239a8cfcfa6044013352941b5f6ac1439ca03f795880bf865e0f569a57f7
+    markdown_path: resources/data/process/changzhou_financial_accuracy_20261121/loan_subsidy_explanation.md
+    body_sha256: c2608c4770203d420a2ab5e0f8b58cad965074b0db028afae47099b2f1189840
+    raw_format: official_page_web_provider_snapshot_json
+    completeness: official_published_text
+    status: source_collected_validity_not_certified
+    source_path: resources/data/process/changzhou_financial_accuracy_20261121/loan_subsidy_explanation.md
+valid_period:
+  start: '2026-07-01'
+  end: '2031-06-30'
+inputs:
+- name: claim_time
+  label: 办理日期
+  type: string
+  required: true
+  description: 年度贴息办理日期YYYY-MM-DD；每年审核上年度情况，不是直接申报窗口或利息发生日。
+- name: eligibility_confirmed
+  label: 困难家庭等资格已核实
+  type: bool
+  required: true
+  description: 用户明确已由本市民政/总工会核实上年度困难资格与贷款事实；未知选否。
+  options: &id001
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: recognition_year
+  label: 困难认定年度
+  type: int
+  required: true
+  description: 须为办理上一个自然年度；由本市民政/总工会认定，不推断个人身份。
+- name: interest_year
+  label: 利息支付年度
+  type: int
+  required: true
+  description: 须为办理上一个自然年度，与困难认定年度一致；不是贷款所有年份合计。
+- name: difficulty_class
+  label: 就高适用困难类型
+  type: string
+  required: true
+  description: 同年度同时符合多类按最高比例，不得累加；须使用官方认定结果。
+  options:
+  - label: 特困人员（职工）
+    value: extreme
+  - label: 最低生活保障
+    value: minimum
+  - label: 最低生活保障边缘
+    value: minimum_edge
+  - label: 一般困难
+    value: general
+  - label: 刚性支出困难
+    value: rigid_expense
+  - label: 不符合以上困难类型
+    value: none
+- name: highest_class_confirmed
+  label: 就高类型已核实
+  type: bool
+  required: true
+  description: 确认已核实本年度最高适用类别；未知不能以低档直接估计。
+  options: *id001
+- name: eligible_interest_paid_previous_year
+  label: 上年度实付合规贷款利息
+  type: float
+  required: true
+  description: 人民币元，有限非负数；仅该笔公积金贷款上年度实际支付利息，不含逾期复利、罚息，不是月供、本金或预计利息。
+- name: interest_basis_confirmed
+  label: 利息基数已核实
+  type: bool
+  required: true
+  description: 确认输入已排除逾期复利罚息，且为真实上年度实付利息；未知选否。
+  options: *id001
+- name: loan_issued_in_changzhou
+  label: 贷款由常州本市发放
+  type: bool
+  required: true
+  description: 仅本市发放的公积金个人住房贷款适用；异地或商业贷款不得冒用。
+  options: *id001
+- name: loan_currently_overdue
+  label: 贴息时贷款处于逾期
+  type: bool
+  required: true
+  description: 以贴息时状态为准；历史曾逾期并非直接永久排除，但其复利罚息不计入。
+  options: *id001
+- name: subsidy_already_received_for_year
+  label: 同年度已享受本项贴息
+  type: bool
+  required: true
+  description: 同一自然年度不重复享受；工具不查询实际发放或追回/补发信息。
+  options: *id001
+calc:
+  result: dsl_helpers.changzhou_provident_hardship_subsidy_2026(inputs)
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  trace_template: '{{ calc.result.reason }}{% if calc.result.status == ''CALCULATED'' %}；利息所属年度：{{ calc.result.interest_year
+    }}；贴息比例：{{ calc.result.subsidy_rate_percent }}%；本次年度贷款贴息试算（元）：{{ calc.result.amount }}{% endif %}'
+example_inputs:
+  claim_time: '2026-11-21'
+  eligibility_confirmed: true
+  recognition_year: 2025
+  interest_year: 2025
+  difficulty_class: minimum_edge
+  highest_class_confirmed: true
+  eligible_interest_paid_previous_year: 12000
+  interest_basis_confirmed: true
+  loan_issued_in_changzhou: true
+  loan_currently_overdue: false
+  subsidy_already_received_for_year: false
+example_expected:
+  status: CALCULATED
+  amount: 9600.0
+limitations:
+- 先还后贴、年度审核、动态管理；一般二季度审核上年度、三季度发放，不能承诺具体到账日。
+- 本市民政/总工会上年度困难认定及贷款状态须核实，不由对话模型生成。
+- 现行办法已取消旧单笔每年6000元上限；不与50%且5000元上限的缴存结息补贴混用。
+- 同年度就高不重复；已领取后的补发、追回、争议由主管部门核验。
+- 金额按分向下取整仅作保守展示，未宣称官方统一舍入；实际核定和发放以主管部门为准。

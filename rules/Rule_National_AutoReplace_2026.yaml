@@ -1,0 +1,218 @@
+rule_id: Rule_National_AutoReplace_2026
+name: 2026年全国汽车置换更新补贴测算
+version: '1.0'
+keywords:
+- 2026汽车置换
+- 置换更新
+- 卖旧买新汽车
+- 二手车转让
+- 汽车置换补贴
+policy_source:
+  title: 商务部等8部门办公厅关于印发《2026年汽车以旧换新补贴实施细则》的通知
+  url: https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_2a65998b79af47eaaf2115ef1ce234f9.html
+  doc_id: 商办消费函〔2025〕467号
+  document_number: 商办消费函〔2025〕467号
+  clause: 第四至六条、第十条、第二十二至二十三条；新能源8%最高1.5万元、燃油6%最高1.3万元，向上取整整元。官方问答第8—15题补充：转让须为售卖、票证和名下日期、两类补贴合计1次、2026-01-01起实施。
+  source_path: resources/data/process/official_calculations_2026/national/auto.md
+  raw_path: resources/data/raw/official_calculations_2026/national/auto.html
+  body_sha256: 90088740f4e9172a594b4de10f802fef53068f5d2ae16e63fec2ac3c6cc8ed40
+  published_date: '2025-12-30'
+  issued_date: '2025-12-30'
+  completeness: official_published_abridged_text
+  publication_note: 机关公开发布的删减版，不代表未公开全文；仅据公开条款进行条件和金额试算。
+  supporting_source:
+    title: 2026年汽车以旧换新补贴问答手册
+    url: https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_3fbdd57f4f1b4ab78c2d9457f3517569.html
+    document_number: null
+    issuer: 商务部消费促进司
+    published_date: '2025-12-30'
+    issued_date: null
+    source_publisher: 中华人民共和国商务部
+    publication_date_basis: 可见页面发布日期；CMS隐藏PubDate可能为重建/更新时间，未混作成文日期
+    raw_path: resources/data/raw/official_calculations_2026/national/auto_faq.html
+    markdown_path: resources/data/process/official_calculations_2026/national/auto_faq.md
+    body_sha256: 2b2292c6e6f306894a038bbd97e1508959632975859b7d4be6f413c7378eb031
+    retrieved_date: '2026-11-21'
+    document_kind: official_policy_explanation
+    status: source_collected_validity_not_certified
+    completeness: official_published_text
+    publication_note: 官方公开正文。
+    scope: 全国
+    topic: 2026消费品以旧换新
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: price
+  label: 新车含税价
+  type: float
+  required: true
+  description: 机动车销售统一发票价税合计金额，元，须大于零
+- name: claim_time
+  label: 申领日期
+  type: string
+  required: true
+  description: 本规则限2026年内提交；地方跨年申请截止日期未统一，须另核，格式YYYY-MM-DD
+- name: old_owned_since
+  label: 旧车名下日期
+  type: string
+  required: true
+  description: 旧车当前连续所有权登记至申请人本人名下日期，须不晚于2025-01-08；不能填写曾经持有但已转出前的历史登记日期，格式YYYY-MM-DD
+- name: new_fuel
+  label: 新车类型
+  type: string
+  required: true
+  description: 目录内新能源，或排量2.0升及以下燃油乘用车
+  options:
+  - label: 新能源
+    value: nev
+  - label: 燃油
+    value: fuel
+- name: nev_in_catalog
+  label: 新能源目录
+  type: bool
+  required: false
+  description: 新车是否列入工信部减免车辆购置税的新能源汽车车型目录；选新能源时必填
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: displacement_liters
+  label: 新车排量
+  type: float
+  required: false
+  description: 升，燃油新车必填且须大于零、不超过2.0；新能源无需填写
+- name: individual_consumer
+  label: 个人消费者
+  type: bool
+  required: true
+  description: 申请人是否为个人消费者
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: old_passenger_car
+  label: 旧车为乘用车
+  type: bool
+  required: true
+  description: 是否为公安交管登记的小型或微型载客汽车
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: new_passenger_car
+  label: 新车为乘用车
+  type: bool
+  required: true
+  description: 是否为公安交管登记的小型或微型载客汽车
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: same_owner
+  label: 新旧车主一致
+  type: bool
+  required: true
+  description: 参与补贴的旧车所有人和新购车所有人是否为同一个人消费者
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: new_owned_during_review
+  label: 审核仍在名下
+  type: bool
+  required: true
+  description: 新车是否在整个申请审核期间登记在申请人本人名下
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: same_province
+  label: 新车票证同省
+  type: bool
+  required: true
+  description: 新车发票所载主管税务机关与机动车登记机关是否在同一省级地区
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: documents_valid
+  label: 完整有效凭证
+  type: bool
+  required: true
+  description: 身份、本人境内一类银行借记卡及相应车辆原件照片/扫描件是否完整有效，尚需平台核验
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: prior_auto_claims
+  label: 本年汽车已享次数
+  type: int
+  required: true
+  description: 2026年全国汽车报废更新与置换更新合计已享次数，每人两者合计只能选1次
+- name: new_invoice_date
+  label: 新车发票日
+  type: string
+  required: true
+  description: 机动车销售统一发票日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: new_registration_date
+  label: 新车登记日
+  type: string
+  required: true
+  description: 新车机动车登记证书注册日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: transfer_invoice_date
+  label: 二手车发票日
+  type: string
+  required: true
+  description: 通过售卖方式转让旧车的二手车销售统一发票日期，须在2026年，格式YYYY-MM-DD
+- name: transfer_registration_date
+  label: 旧车转让登记日
+  type: string
+  required: true
+  description: 旧车机动车登记证书最近一次转让登记日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+calc:
+  result: dsl_helpers.auto_trade_in_2026(inputs, mode='replace')
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '- 试算状态：{{ calc.result.status }}
+
+    - 试算金额（元）：{{ calc.result.amount }}
+
+    - {{ calc.result.reason }}
+
+    - 金额试算，不代表审批通过；产品、车辆、次数、地方预算及截止日期须由受理平台核验。'
+example_inputs:
+  price: 100000
+  claim_time: '2026-11-21'
+  old_owned_since: '2025-01-08'
+  new_fuel: nev
+  nev_in_catalog: true
+  individual_consumer: true
+  old_passenger_car: true
+  new_passenger_car: true
+  same_owner: true
+  new_owned_during_review: true
+  same_province: true
+  documents_valid: true
+  prior_auto_claims: 0
+  new_invoice_date: '2026-01-01'
+  new_registration_date: '2026-01-02'
+  transfer_invoice_date: '2026-01-01'
+  transfer_registration_date: '2026-01-02'
+example_expected:
+  status: CALCULATED
+  amount: 8000.0
+limitations:
+- 仅依据用户明确填写的事实进行全国标准金额试算，不连接实时资格、预算、产品或车辆数据库
+- 本规则只覆盖2026年内交易及申请；地方跨年受理期限、补正及资金安排另核
+- 不核验证件照片真伪、实际退货/产权交易或平台记录；未知事实不得默认满足资格

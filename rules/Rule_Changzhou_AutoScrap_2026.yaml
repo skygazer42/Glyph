@@ -1,0 +1,362 @@
+rule_id: Rule_Changzhou_AutoScrap_2026
+name: 2026年常州汽车报废更新补贴测算（全国标准本地办理）
+version: '1.0'
+region: 江苏省常州市
+keywords:
+- 常州汽车报废补贴
+- 常州新能源车补贴
+- 常州旧车报废
+policy_source:
+  title: 2026年汽车以旧换新（报废更新）补贴政策的补贴标准
+  url: https://swj.changzhou.gov.cn/html/swj/2026/BHDBKPHH_0130/21587.html
+  issuer: 常州市商务局
+  source_publisher: 常州市商务局
+  published_date: '2026-01-30'
+  issued_date: null
+  scope: 江苏省常州市
+  topic: 车辆补贴与购置税
+  raw_path: resources/data/raw/changzhou_finance_20261121/vehicles/scrap_rate.source.json
+  markdown_path: resources/data/process/changzhou_finance_20261121/vehicles/scrap_rate.md
+  body_sha256: d9bfd0d9cb7961be3dd5d401c44a4244c8e4b296ed089539139c9feeec93cbaa
+  retrieved_date: '2026-11-21'
+  completeness: official_published_text
+  status: source_collected_validity_not_certified
+  document_kind: official_faq
+  document_number: null
+  publication_date_basis: 页面可见发布日期；成文日期单列；未显示日期不从URL推断
+  source_access_method: official_page_via_web_tool
+  raw_format: web_tool_extraction_json
+  source_path: resources/data/process/changzhou_finance_20261121/vehicles/scrap_rate.md
+  national_basis:
+    title: 商务部等8部门办公厅关于印发《2026年汽车以旧换新补贴实施细则》的通知
+    url: https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_2a65998b79af47eaaf2115ef1ce234f9.html
+    doc_id: 商办消费函〔2025〕467号
+    document_number: 商办消费函〔2025〕467号
+    clause: 第一至三条、第十条、第二十二至二十三条；新能源12%最高2万元、燃油10%最高1.5万元，向上取整整元。官方问答第1—7及15题补充：禁止新能源旧车换燃油、票证和名下日期及次数、起始日含2026-01-01。
+    source_path: resources/data/process/official_calculations_2026/national/auto.md
+    raw_path: resources/data/raw/official_calculations_2026/national/auto.html
+    body_sha256: 90088740f4e9172a594b4de10f802fef53068f5d2ae16e63fec2ac3c6cc8ed40
+    published_date: '2025-12-30'
+    issued_date: '2025-12-30'
+    completeness: official_published_abridged_text
+    publication_note: 机关公开发布的删减版，不代表未公开全文；仅据公开条款进行条件和金额试算。
+    supporting_source:
+      title: 2026年汽车以旧换新补贴问答手册
+      url: https://www.mofcom.gov.cn/zwgk/zcfb/art/2025/art_3fbdd57f4f1b4ab78c2d9457f3517569.html
+      document_number: null
+      issuer: 商务部消费促进司
+      published_date: '2025-12-30'
+      issued_date: null
+      source_publisher: 中华人民共和国商务部
+      publication_date_basis: 可见页面发布日期；CMS隐藏PubDate可能为重建/更新时间，未混作成文日期
+      raw_path: resources/data/raw/official_calculations_2026/national/auto_faq.html
+      markdown_path: resources/data/process/official_calculations_2026/national/auto_faq.md
+      body_sha256: 2b2292c6e6f306894a038bbd97e1508959632975859b7d4be6f413c7378eb031
+      retrieved_date: '2026-11-21'
+      document_kind: official_policy_explanation
+      status: source_collected_validity_not_certified
+      completeness: official_published_text
+      publication_note: 官方公开正文。
+      scope: 全国
+      topic: 2026消费品以旧换新
+  supporting_sources:
+  - title: 2026年汽车以旧换新（报废更新）补贴政策的实施时间和范围
+    url: https://swj.changzhou.gov.cn/html/swj/2026/BHDBKPHH_0130/21586.html
+    issuer: 常州市商务局
+    source_publisher: 常州市商务局
+    published_date: '2026-01-30'
+    issued_date: null
+    scope: 江苏省常州市
+    topic: 车辆补贴与购置税
+    raw_path: resources/data/raw/changzhou_finance_20261121/vehicles/scrap_scope.source.json
+    markdown_path: resources/data/process/changzhou_finance_20261121/vehicles/scrap_scope.md
+    body_sha256: 70f8b19e1552f1ce9470f76856e4c0db67f38c706d0c32514e193e116ec9f60b
+    retrieved_date: '2026-11-21'
+    completeness: official_published_text
+    status: source_collected_validity_not_certified
+    document_kind: official_faq
+    document_number: null
+    publication_date_basis: 页面可见发布日期；成文日期单列；未显示日期不从URL推断
+    source_access_method: official_page_via_web_tool
+    raw_format: web_tool_extraction_json
+    source_path: resources/data/process/changzhou_finance_20261121/vehicles/scrap_scope.md
+  - title: 2026年汽车以旧换新（报废更新）补贴申请方式和申请材料
+    url: https://swj.changzhou.gov.cn/html/swj/2026/BHDBKPHH_0130/21588.html
+    issuer: 常州市商务局
+    source_publisher: 常州市商务局
+    published_date: '2026-01-30'
+    issued_date: null
+    scope: 江苏省常州市
+    topic: 车辆补贴与购置税
+    raw_path: resources/data/raw/changzhou_finance_20261121/vehicles/scrap_apply.source.json
+    markdown_path: resources/data/process/changzhou_finance_20261121/vehicles/scrap_apply.md
+    body_sha256: aeef1b229339ea943853f8edb1d2997082065ba1a7940844ca0d1cb7ddba2a87
+    retrieved_date: '2026-11-21'
+    completeness: official_published_text
+    status: source_collected_validity_not_certified
+    document_kind: official_faq
+    document_number: null
+    publication_date_basis: 页面可见发布日期；成文日期单列；未显示日期不从URL推断
+    source_access_method: official_page_via_web_tool
+    raw_format: web_tool_extraction_json
+    source_path: resources/data/process/changzhou_finance_20261121/vehicles/scrap_apply.md
+  clause: 全国补贴比例与封顶金额，无额外常州加成；常州开票、江苏登记，资金限额管理。
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: price
+  label: 新车含税价
+  type: float
+  required: true
+  description: 机动车销售统一发票价税合计金额，元，须大于零
+- name: claim_time
+  label: 申领日期
+  type: string
+  required: true
+  description: 本规则限2026年内提交；地方跨年申请截止日期未统一，须另核，格式YYYY-MM-DD
+- name: old_owned_since
+  label: 旧车名下日期
+  type: string
+  required: true
+  description: 旧车当前连续所有权登记至申请人本人名下日期，须不晚于2025-01-08；不能填写曾经持有但已转出前的历史登记日期，格式YYYY-MM-DD
+- name: new_fuel
+  label: 新车类型
+  type: string
+  required: true
+  description: 目录内新能源，或排量2.0升及以下燃油乘用车
+  options:
+  - label: 新能源
+    value: nev
+  - label: 燃油
+    value: fuel
+- name: nev_in_catalog
+  label: 新能源目录
+  type: bool
+  required: false
+  description: 新车是否列入工信部减免车辆购置税的新能源汽车车型目录；选新能源时必填
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: displacement_liters
+  label: 新车排量
+  type: float
+  required: false
+  description: 升，燃油新车必填且须大于零、不超过2.0；新能源无需填写
+- name: individual_consumer
+  label: 个人消费者
+  type: bool
+  required: true
+  description: 申请人是否为个人消费者
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: old_passenger_car
+  label: 旧车为乘用车
+  type: bool
+  required: true
+  description: 是否为公安交管登记的小型或微型载客汽车
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: new_passenger_car
+  label: 新车为乘用车
+  type: bool
+  required: true
+  description: 是否为公安交管登记的小型或微型载客汽车
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: same_owner
+  label: 新旧车主一致
+  type: bool
+  required: true
+  description: 参与补贴的旧车所有人和新购车所有人是否为同一个人消费者
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: new_owned_during_review
+  label: 审核仍在名下
+  type: bool
+  required: true
+  description: 新车是否在整个申请审核期间登记在申请人本人名下
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: same_province
+  label: 新车票证同省
+  type: bool
+  required: true
+  description: 新车发票所载主管税务机关与机动车登记机关是否在同一省级地区
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: documents_valid
+  label: 完整有效凭证
+  type: bool
+  required: true
+  description: 身份、本人境内一类银行借记卡及相应车辆原件照片/扫描件是否完整有效，尚需平台核验
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: prior_auto_claims
+  label: 本年汽车已享次数
+  type: int
+  required: true
+  description: 2026年全国汽车报废更新与置换更新合计已享次数，每人两者合计只能选1次
+- name: new_invoice_date
+  label: 新车发票日
+  type: string
+  required: true
+  description: 机动车销售统一发票日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: new_registration_date
+  label: 新车登记日
+  type: string
+  required: true
+  description: 新车机动车登记证书注册日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: old_fuel
+  label: 旧车燃料
+  type: string
+  required: true
+  description: 汽油/柴油及其他燃料/新能源对应不同首次注册门槛；新能源旧车不能换燃油新车
+  options:
+  - label: 汽油
+    value: gasoline
+  - label: 柴油
+    value: diesel
+  - label: 其他燃料
+    value: other
+  - label: 新能源
+    value: nev
+- name: old_registration_date
+  label: 旧车首次注册日
+  type: string
+  required: true
+  description: 旧车首次注册登记日期；汽油≤2013-06-30，柴油及其他燃料≤2015-06-30，新能源≤2019-12-31，均含当天，格式YYYY-MM-DD
+- name: qualified_scrapper
+  label: 合格回收企业
+  type: bool
+  required: true
+  description: 回收证明是否由有资质的报废机动车回收拆解企业开具
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: scrap_certificate_date
+  label: 回收证明日期
+  type: string
+  required: true
+  description: 报废机动车回收证明实际取得日期，须在2026年且不晚于申领日；另填其所载实际交车日期，格式YYYY-MM-DD
+- name: deregistration_date
+  label: 旧车注销日期
+  type: string
+  required: true
+  description: 机动车注销证明所载实际注销日期，须在2026年且不晚于申领日；另填注销证明取得日期，格式YYYY-MM-DD
+- name: scrap_delivery_date
+  label: 旧车交车日期
+  type: string
+  required: true
+  description: 回收证明所载实际交车日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: deregistration_certificate_date
+  label: 注销证明取得日
+  type: string
+  required: true
+  description: 机动车注销证明实际取得日期，须在2026年且不晚于申领日，格式YYYY-MM-DD
+- name: invoice_city
+  label: 新车开票城市
+  type: string
+  required: true
+  description: 新车机动车销售统一发票开具地，须为常州市
+- name: registration_province
+  label: 新车登记省份
+  type: string
+  required: true
+  description: 新车注册登记地，须为江苏省
+- name: local_new_car_subsidy_claimed
+  label: 已申报纯购补贴
+  type: bool
+  required: true
+  description: 是否已经申报地方个人纯购新车补贴；是则需平台核查重复申领或核减，不自动叠加
+  options:
+  - label: 是
+    value: true
+  - label: 否
+    value: false
+- name: quota_status
+  label: 平台受理额度
+  type: string
+  required: true
+  description: 按本次申请平台实时情况明确填写；未知或已耗尽转人工核验
+  options:
+  - label: 当前可受理
+    value: available
+  - label: 尚未核实
+    value: unknown
+  - label: 额度已用完
+    value: exhausted
+calc:
+  result: dsl_helpers.changzhou_auto_trade_in_2026(inputs, mode='scrap')
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  reason: '{{ calc.result.reason }}'
+  trace_template: '状态：{{ calc.result.status }}
+
+    金额（元）：{{ calc.result.amount }}
+
+    {{ calc.result.reason }}
+
+    非审批结果，MANUAL_REVIEW/INVALID_INPUT/INELIGIBLE金额0不代表实际补贴或税款为0。'
+example_inputs:
+  price: 100000
+  claim_time: '2026-11-21'
+  old_owned_since: '2025-01-08'
+  new_fuel: nev
+  nev_in_catalog: true
+  individual_consumer: true
+  old_passenger_car: true
+  new_passenger_car: true
+  same_owner: true
+  new_owned_during_review: true
+  same_province: true
+  documents_valid: true
+  prior_auto_claims: 0
+  new_invoice_date: '2026-01-01'
+  new_registration_date: '2026-01-02'
+  old_fuel: gasoline
+  old_registration_date: '2013-06-30'
+  qualified_scrapper: true
+  scrap_certificate_date: '2026-01-01'
+  deregistration_date: '2026-01-02'
+  scrap_delivery_date: '2026-01-01'
+  deregistration_certificate_date: '2026-01-02'
+  invoice_city: 常州市
+  registration_province: 江苏省
+  local_new_car_subsidy_claimed: false
+  quota_status: available
+example_expected:
+  status: CALCULATED
+  amount: 12000.0
+limitations:
+- 仅依据用户明确填写的事实进行全国标准金额试算，不连接实时资格、预算、产品或车辆数据库
+- 本规则只覆盖2026年内交易及申请；地方跨年受理期限、补正及资金安排另核
+- 不核验证件照片真伪、实际退货/产权交易或平台记录；未知事实不得默认满足资格
+- 复用全国公开规则金额函数；不是新增地方叠加补贴。
+- 常州开票、江苏登记；平台额度、审核及纯购新车重复申领须实时核验。

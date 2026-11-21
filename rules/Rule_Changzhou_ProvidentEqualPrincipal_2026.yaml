@@ -1,0 +1,81 @@
+rule_id: Rule_Changzhou_ProvidentEqualPrincipal_2026
+name: 常州公积金等额本金月供及利息
+version: '1.0'
+description: 常州官方依据的金额试算；说明金额性质和适用时间，不默认资格和账户事实，实际以主管部门审核/银行合同为准。
+region: 江苏省常州市
+keywords:
+- 等额本金
+- 首月月供
+- 递减月供
+- 本金还款
+policy_source:
+  title: 每万元住房公积金贷款还本付息对照表
+  url: https://gjj.changzhou.gov.cn/html/gjj/2026/LPQCMPQB_1116/14578.html
+  raw_path: resources/data/raw/changzhou_finance_20261121/provident/batch1.web.json
+  body_sha256: a843d8f73109db3155234274ac7a795d9c93ff3872994b1a2659f98a87adae64
+  published_date: '2026-11-16'
+  issued_date: null
+  completeness: official_published_text
+  source_path: resources/data/process/changzhou_finance_20261121/provident/04.md
+  clause: 见原文及supporting_sources中的额度、期限、利率、限额和舍入条款
+  supporting_sources:
+  - title: 关于印发《常州市住房公积金缴存管理实施细则》《常州市住房公积金提取管理实施细则》《常州市住房公积金个人住房贷款管理实施细则》的通知
+    url: https://www.changzhou.gov.cn/gi_news/472177500750450
+    markdown_path: resources/data/process/changzhou_20261121/housing/09.md
+    body_sha256: 8a6f4b0481e1bf3e288b773e73174b9b26ef9ed6bf31b25d5fd7661bdcb33d7e
+valid_period:
+  start: '2026-01-01'
+  end: '2026-12-31'
+inputs:
+- name: claim_time
+  label: 业务日期
+  type: string
+  required: true
+  description: 明确业务日期，YYYY-MM-DD；不由模型推断，不改变真实申请或交易时间。
+- name: principal
+  label: 贷款本金
+  type: float
+  required: true
+  description: 拟贷或合同本金，大于0且最多两位小数，本项只做金额数学估算，不确认贷款资格。 单位元，有限非负数；不得以当前余额代替口径不同的月均/净余额。
+- name: term_years
+  label: 贷款年限
+  type: int
+  required: true
+  description: 以整年填写1至30；一年期为到期还本付息，不是每月摊还。
+- name: rate_class
+  label: 官方核定利率档
+  type: string
+  required: true
+  description: 按常州中心核定档次选择；不是自行用房产套数或60/30配贷系数推断。
+  options:
+  - label: 第一档（首套）
+    value: first
+  - label: 第二档（二套）
+    value: second
+calc:
+  result: dsl_helpers.changzhou_provident_repayment_2026(inputs, 'equal_principal')
+output:
+  status: '{{ calc.result.status }}'
+  final_result: '{{ calc.result.amount }}'
+  trace_template: '{{ calc.result.reason }}
+
+    {% if calc.result.status == ''CALCULATED'' %}金额（元）：{{ calc.result.amount }}；性质：一年期为到期本息，其他年限为首月月供{% else %}本次未给出成功金额，须补充或核实相关条件{% endif %}
+
+    末期还款：{{ calc.result.get(''last_payment'', ''未核算'') }}
+
+    预计总利息：{{ calc.result.get(''total_interest'', ''未核算'') }}
+
+    预计本息总额：{{ calc.result.get(''total_payment'', ''未核算'') }}
+
+    年利率百分比：{{ calc.result.get(''annual_rate_percent'', ''未核算'') }}'
+example_inputs:
+  claim_time: '2026-11-21'
+  principal: 120000
+  term_years: 10
+  rate_class: first
+example_expected:
+  status: CALCULATED
+  amount: 1260.0
+limitations:
+- 模型仅选择公式及用户明确输入的事实，不补造资格、政策身份、交易日期、余额或历史次数。
+- 金额均为人民币元，计算性质见追踪；利率及后续调息、银行舍入和真实审批需以合同/中心核定为准。

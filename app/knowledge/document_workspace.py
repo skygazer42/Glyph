@@ -15,6 +15,7 @@ import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from time import sleep
 from typing import Literal
 from urllib.parse import quote
 from uuid import uuid4
@@ -60,7 +61,7 @@ def safe_document_id(raw_id: str) -> str:
 
 
 def atomic_write(path: Path, content: str) -> None:
-    """An interrupted write cannot replace an existing complete preference file."""
+    """在同目录写入临时文件、刷新并 fsync 后以 os.replace 替换目标；清理临时文件，不保证多文件事务或目录断电持久性。"""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: str | None = None
     try:
@@ -71,50 +72,79 @@ def atomic_write(path: Path, content: str) -> None:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        for attempt in range(6):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError as error:
+                # Windows readers and antivirus can briefly deny replacement.
+                # Genuine permission errors still propagate after bounded retry.
+                if getattr(error, "winerror", None) not in {5, 32, 33} or attempt == 5:
+                    raise
+                sleep(0.025 * 2**attempt)
     finally:
         if temporary is not None:
             Path(temporary).unlink(missing_ok=True)
 
 
+def _canonical_path(path: Path) -> Path:
+    """Compare equivalent Windows extended paths using one drive/UNC spelling."""
+    resolved = path.resolve()
+    if sys.platform != "win32":
+        return resolved
+    value = str(resolved)
+    if value.startswith("\\\\?\\UNC\\"):
+        return Path("\\\\" + value[8:])
+    return Path(value.removeprefix("\\\\?\\"))
+
+
 class DocumentWorkspace:
+    """管理上传目录内的原文、版本化解析缓存和处理配置；不负责调用解析器或写入向量库。"""
+
     def __init__(self, upload_dir: Path, parsed_dir: Path, parsed_status_dir: Path, embedded_dir: Path):
-        self.root = upload_dir.resolve()
+        self.root = _canonical_path(upload_dir)
         self.parsed_dir = parsed_dir
         self.parsed_status_dir = parsed_status_dir
         self.embedded_dir = embedded_dir
         self.config_dir = upload_dir / ".status" / "processing"
 
     def contained_path(self, directory: Path, filename: str) -> Path:
+        """解析并约束路径位于上传根目录内；符号链接或越界路径返回 400。"""
         candidate = directory / filename
-        if candidate.is_symlink() or not candidate.resolve().is_relative_to(self.root):
+        if candidate.is_symlink() or not _canonical_path(candidate).is_relative_to(self.root):
             raise HTTPException(status_code=400, detail="文档路径超出上传目录")
         return candidate
 
     def source_path(self, doc_id: str, *, must_exist: bool = True) -> Path:
+        """返回规范文档 ID 对应的原文路径；要求存在时对缺失文件返回 404。"""
         path = self.contained_path(self.root, safe_document_id(doc_id))
         if must_exist and not path.is_file():
             raise HTTPException(status_code=404, detail="文档不存在")
         return path
 
     def source_version(self, doc_id: str) -> str:
+        """读取原文字节并返回 SHA-256 版本；文件读取失败直接传播。"""
         return hashlib.sha256(self.source_path(doc_id).read_bytes()).hexdigest()
 
     def require_source_version(self, doc_id: str, expected: str | None) -> str:
+        """返回当前原文版本；提供的预期版本不匹配时返回 409。"""
         current = self.source_version(doc_id)
         if expected is not None and current != expected:
             raise HTTPException(status_code=409, detail="原文已变更，请刷新工作区")
         return current
 
     def parsed_path(self, doc_id: str) -> Path:
+        """返回受上传目录边界约束的 Markdown 缓存路径，不要求缓存已存在。"""
         safe_document_id(doc_id)
         return self.contained_path(self.parsed_dir, f"{doc_id}.md")
 
     def marker_path(self, directory: Path, doc_id: str) -> Path:
+        """返回文档状态标记路径；先验证文档 ID 和目录边界。"""
         safe_document_id(doc_id)
         return self.contained_path(directory, f"{doc_id}.json")
 
     def parsed_content(self, doc_id: str, source_version: str) -> ParsedContent:
+        """返回与原文版本匹配的非空解析正文；缺失或失效缓存标为不可用，旧缓存可首次绑定版本。"""
         path = self.parsed_path(doc_id)
         if not path.is_file():
             return ParsedContent(available=False)
@@ -139,6 +169,7 @@ class DocumentWorkspace:
         )
 
     def store_parsed(self, doc_id: str, text: str, source_version: str, parser: str) -> ParsedContent:
+        """校验原文版本后分别原子替换正文和标记，再返回缓存；两个文件并非同一事务。"""
         self.require_source_version(doc_id, source_version)
         path = self.parsed_path(doc_id)
         marker = self.marker_path(self.parsed_status_dir, doc_id)
@@ -149,12 +180,14 @@ class DocumentWorkspace:
         }, ensure_ascii=False))
         return self.parsed_content(doc_id, source_version)
 
-    def embedded(self, doc_id: str, source_version: str) -> bool:
+    def embedded(self, doc_id: str, source_version: str, *, parsed: ParsedContent | None = None) -> bool:
+        """仅当嵌入标记同时匹配原文和解析正文版本时返回真；不检查向量库内容。"""
         marker = self.marker_path(self.embedded_dir, doc_id)
         if not marker.is_file():
             return False
         metadata = json.loads(marker.read_text(encoding="utf-8"))
-        parsed = self.parsed_content(doc_id, source_version)
+        if parsed is None:
+            parsed = self.parsed_content(doc_id, source_version)
         return bool(
             parsed.available
             and metadata.get("source_version") == source_version
@@ -163,6 +196,7 @@ class DocumentWorkspace:
 
     def require_parsed_version(self, doc_id: str, source_version: str,
                                expected: str | None) -> tuple[str, str]:
+        """返回有效解析正文及其版本；无缓存或预期版本不匹配时返回 409。"""
         parsed = self.parsed_content(doc_id, source_version)
         if not parsed.available or parsed.text is None or parsed.version is None:
             raise HTTPException(status_code=409, detail="请先解析当前版本文档，再执行嵌入")
@@ -171,6 +205,7 @@ class DocumentWorkspace:
         return parsed.text, parsed.version
 
     def config(self, doc_id: str) -> tuple[ProcessingConfig, str, str | None]:
+        """返回配置、修订号和保存时间；未保存时返回默认配置、修订号 0 和 None。"""
         path = self.marker_path(self.config_dir, doc_id)
         if not path.is_file():
             return ProcessingConfig(), "0", None
@@ -178,6 +213,7 @@ class DocumentWorkspace:
         return ProcessingConfig.model_validate(saved["config"]), saved["revision"], saved["saved_at"]
 
     def validate_config(self, doc_id: str, config: ProcessingConfig, capabilities: ProcessingCapabilities) -> None:
+        """按当前能力和源文件格式校验配置；不支持的选项返回 422，不启动处理。"""
         if config.index == "hierarchical":
             raise HTTPException(status_code=422, detail="当前文档工作区尚未启用分级索引")
         if config.ocr != "auto":
@@ -193,7 +229,7 @@ class DocumentWorkspace:
 
     @contextmanager
     def document_lock(self, doc_id: str, operation: Literal["processing", "embedding", "upload"]):
-        """OS locks guard compare-and-swap across workers and release on exit/crash."""
+        """按文档及操作类型获取跨进程非阻塞文件锁；竞争返回 409，正常或异常退出时释放锁。"""
         path = self.contained_path(self.config_dir, f"{safe_document_id(doc_id)}.{operation}.lock")
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a+b") as stream:
@@ -216,6 +252,7 @@ class DocumentWorkspace:
 
     def save_config(self, doc_id: str, request: SaveProcessingConfigRequest,
                     capabilities: ProcessingCapabilities) -> SaveProcessingConfigResponse:
+        """在文档处理锁内核对原文和配置修订后写入新修订；冲突返回 409，不触发解析或嵌入。"""
         config = ProcessingConfig.model_validate(request.model_dump(exclude={"source_version", "revision"}))
         self.validate_config(doc_id, config, capabilities)
         with self.document_lock(doc_id, "processing"):
@@ -233,6 +270,7 @@ class DocumentWorkspace:
                                             saved_at=saved_at, source_version=source_version)
 
     def pages(self, doc_id: str, source_version: str) -> list[WorkspacePage]:
+        """读取 PDF 或文本页及字符区间；PDF 资源在返回前关闭，不支持的格式返回空列表。"""
         path = self.source_path(doc_id)
         url = f"/api/knowledge/documents/{quote(doc_id, safe='')}/pages"
         if path.suffix.lower() == ".pdf":
@@ -260,6 +298,7 @@ class DocumentWorkspace:
         return []
 
     def workspace(self, doc_id: str, capabilities: ProcessingCapabilities) -> DocumentWorkspaceResponse:
+        """汇总原文页面、有效缓存、配置及嵌入标记；返回前再次核对原文版本。"""
         path = self.source_path(doc_id)
         source_version = self.source_version(doc_id)
         pages = self.pages(doc_id, source_version)
@@ -279,6 +318,7 @@ class DocumentWorkspace:
         )
 
     def page_image(self, doc_id: str, number: int, expected_version: str | None) -> bytes:
+        """渲染指定 PDF 页为 PNG 字节并前后核对版本；页号越界返回 404，非 PDF 返回 422。"""
         path = self.source_path(doc_id)
         source_version = self.require_source_version(doc_id, expected_version)
         if path.suffix.lower() != ".pdf":
@@ -294,6 +334,7 @@ class DocumentWorkspace:
         return image
 
     def preview(self, doc_id: str, request: ChunkPreviewRequest) -> ChunkPreviewResponse:
+        """按解析正文的 Unicode 字符偏移预览分块，不写入索引；仅正文与原文完全一致时映射页号。"""
         source_version = self.require_source_version(doc_id, request.source_version)
         parsed = self.parsed_content(doc_id, source_version)
         if not parsed.available or parsed.text is None or parsed.version is None:
