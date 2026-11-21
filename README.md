@@ -1,5 +1,7 @@
 <div align="center">
-  <img src="./docs/images/glyph-logo.png" alt="Glyph Logo" width="300">
+  <img src="./web/src/assets/platform-mark.svg" alt="Glyph Logo" width="80" height="80">
+
+  <h1>Glyph</h1>
 
   <h3>政务政策智能问答与补贴测算平台</h3>
   <p>基于 AutoGen 多智能体编排，融合政策检索、知识图谱、规则计算与结构化查询</p>
@@ -18,8 +20,7 @@
     <a href="#项目简介">项目简介</a> ·
     <a href="#核心功能">核心功能</a> ·
     <a href="#技术架构">技术架构</a> ·
-    <a href="#核心执行流程">执行流程</a> ·
-    <a href="#项目文档">项目文档</a>
+    <a href="#核心执行流程">执行流程</a>
   </p>
 </div>
 
@@ -168,20 +169,6 @@ FAQ 使用严格问句匹配，同时核对来源正文、引文、地区和适�
 | **文档与多模态** | LlamaIndex、PyMuPDF、TXT / Markdown 读取、可选 MinerU 与 Vision 服务 |
 | **前端界面** | Vue 3、Vite、Vue Router、Pinia、Element Plus、AntV G6 |
 | **工程与验证** | Docker Compose、pytest、Ruff、mypy、Vue 静态编译与生产构建 |
-
-具体依赖与版本声明以 [requirements.txt](./requirements.txt)、[前端依赖](./web/package.json)和[技术栈说明](./docs/TECH_STACK_OVERVIEW.md)为准。
-
-## 项目文档
-
-| 文档 | 内容 |
-| --- | --- |
-| [快速启动](./docs/QUICK_START.md) | 环境准备、模型配置、运行方式和资料导入 |
-| [技术栈与回答链路](./docs/TECH_STACK_OVERVIEW.md) | 实际处理分支、存储职责、可选能力与实现边界 |
-| [项目结构与命名](./docs/PROJECT_STRUCTURE.md) | 目录职责、文件迁移、服务入口与源码导航 |
-| [认证与会话](./docs/AUTHENTICATION.md) | 工作人员认证、公众会话、附件与权限范围 |
-| [知识库配置](./docs/KNOWLEDGE_ENV_RECIPES.md) | 检索模式、索引和上下文配置 |
-| [本地资料总目录](./resources/data/README.md) | 原件、解析正文、来源清单与检索证据的统一入口 |
-| [政策资料目录](./resources/data/policy_catalog/README.md) | 来源快照、适用地区、年度范围与已知缺项 |
 
 ## 数据来源与许可
 
