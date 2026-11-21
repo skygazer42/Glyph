@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="./web/src/assets/platform-mark.svg" alt="Glyph Logo" width="80" height="80">
+  <h1><img src="./web/src/assets/platform-mark.svg" alt="Glyph Logo" width="40" height="40" align="absmiddle"> Glyph</h1>
 
-  <h1>Glyph</h1>
-
-  <h3>政务政策智能问答与补贴测算平台</h3>
-  <p>基于 AutoGen 多智能体编排，融合政策检索、知识图谱、规则计算与结构化查询</p>
+  <p>
+    <strong>政务政策智能问答与补贴测算平台</strong><br>
+    基于 AutoGen 多智能体编排，融合政策检索、知识图谱、规则计算与结构化查询
+  </p>
 
   <p>
     <img src="./docs/images/badges/python.svg" alt="Python 3.10">
