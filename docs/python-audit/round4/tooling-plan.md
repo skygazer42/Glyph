@@ -1,0 +1,16 @@
+# Tooling round 4 — full-file Python guidelines review
+
+Ownership is the exact 88 Python paths in `docs/python-audit/round3/tooling-files.json`. Other agents own other sources. No subagents, installs, new Python modules/dependencies, commits, deployments, database migrations or external business operations.
+
+1. Read the current Skill entry and all chapters applicable to these files, including NAM/FUN/CLS/DAT/ERR/RES/ASY/HTTP/LOG/TST/DES and actual language/framework protocols.
+2. Read every owned file in full, in numbered bounded ranges. Record the current source LF hash, lines actually read, applicable numbered rules/levels and concrete observations at real locations. Search/caller checks support full reading; they do not replace it. Re-review from current code rather than inheriting past compliance assertions.
+3. Before editing any Python source or test, wait for the parent message `基线通过可编辑`. Until then, only review and write artifacts in this round4 folder. Identify confirmed mandatory issues and judge recommended changes by actual benefit.
+4. After the gate, add valuable failing behavior regressions before behavior changes, then make minimal confirmed fixes within ownership. Mechanical naming/readability edits need no implementation-shape tests. Keep valid optional states, resources, framework callbacks and explicit business fallbacks with concrete reasoning.
+5. Run appropriately scoped existing/new tests, Ruff, mypy, Python3.10 AST/current compilation and diff checks. Capture actual commands/results and limitations, including unavailable external integration prerequisites.
+6. Deliver `tooling-files.json` with all88 paths and per-file rules/locations/levels/observations, hashes, line counts, issues/fixes/retained; an independent `tooling-review.md` and actual evidence. Recheck every final source hash, freeze and notify the parent for repository-wide verification.
+
+Baseline record: parent confirmed `基线通过可编辑` after 332 baseline tests passed (round4/baseline-pytest.txt). Python editing was authorized after confirming each issue and adding valuable red regressions for behavior changes. The completed status is recorded below.
+
+Final bounded handoff: parent authorized the two required-LLM-model fallbacks in `llamaindex_hybrid_retrieval.py` and appended knowledge regression tests only. Exercise the real settings assembly for both embedding backends; prove empty names fail before the fix, preserve custom models and key-absent optional LLM behavior, then reject blank configured names and pass valid names directly to the SDK. API has frozen the final Milvus credentials/dimension fixes. Re-read both final affected files, refresh all 88 ledger hashes, run only the new targeted behavior/static checks, and freeze; parent owns the final repository-wide test run.
+
+Final status: 88-file review complete, 55 files with 104 resolved rule findings, 23,976 current lines. Final bounded LlamaIndex regressions: old 4 failed/4 passed; fixed 9 passed including the actual markdown path case. Final Ruff/mypy 2 files and AST/compile/diff 3 files passed. All current hashes and rule levels/locations validated; source frozen. Parent owns one final 202-file unified verification.

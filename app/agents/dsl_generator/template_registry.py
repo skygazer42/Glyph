@@ -116,6 +116,7 @@ class TemplateRegistry:
     # ------------------------------------------------------------------ #
 
     def _build_profiles(self) -> List[TemplateProfile]:
+        """登记家电、汽车和消费券模板的识别信号、最低分与载荷准备函数。"""
         return [
             TemplateProfile(
                 name="appliance",
@@ -209,6 +210,10 @@ class TemplateRegistry:
 
     @staticmethod
     def _prepare_auto_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+        """原地补齐汽车模板结构并替换规范化档位，返回同一 data。
+
+        已有有效期补充缺失的业务时间边界；车型、价格区间和补贴必须满足模板契约，非法数值或区间报错。
+        """
         valid_period = data.get("valid_period", {})
         windows = data.setdefault("windows", {})
         for key in ("purchase_window", "claim_window", "modify_window"):
@@ -256,6 +261,10 @@ class TemplateRegistry:
 
     @staticmethod
     def _prepare_coupon_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+        """原地规范化消费券档位、配额和期限，并返回同一载荷。
+
+        缺失类型集合从档位按首次出现顺序推导；必需门槛和优惠数值不得缺省，列表字段形状错误直接报错。
+        """
         normalized = []
         for tier in data.get("tiers", []):
             entry = dict(tier)
@@ -357,6 +366,10 @@ class TemplateRegistry:
 
     @staticmethod
     def _normalize_number(value: Any) -> Optional[float]:
+        """将占位符转为 None，或解析政策数值；末尾“万”乘一万，并移除逗号及“元”。
+
+        拒绝布尔、非有限值及无法解析的对象；整数形式的字符串返回 int，其余保留数值形态，不推断额外币种或单位。
+        """
         value = TemplateRegistry._normalize_placeholder(value)
         if value is None:
             return None

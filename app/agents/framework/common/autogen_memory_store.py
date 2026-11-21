@@ -30,6 +30,7 @@ _configure_redis()
 
 
 def redis_health() -> Dict[str, Any]:
+    """返回本地记忆后端状态；配置 Redis 时只探测连通性，不表示启用了 Redis 持久化。"""
     info: Dict[str, Any] = {
         "enabled": False, "backend": "local", "persistent": False,
         "redis_requested": bool(_REDIS_CFG),
@@ -51,6 +52,7 @@ def redis_health() -> Dict[str, Any]:
 
 
 def get_memory(session_id: str) -> ListMemory:
+    """获取或创建进程内会话记忆，返回缓存中的同一 ListMemory 实例。"""
     mem = _MEMORIES.get(session_id)
     if mem is None:
         mem = ListMemory(name=f"session:{session_id}")
@@ -59,6 +61,7 @@ def get_memory(session_id: str) -> ListMemory:
 
 
 async def add_user_message(session_id: str, text: str) -> None:
+    """将非空用户文本加入会话记忆，应用公共长度与条数限制。"""
     if not text:
         return
     mem = get_memory(session_id)
@@ -66,6 +69,7 @@ async def add_user_message(session_id: str, text: str) -> None:
 
 
 async def add_assistant_message(session_id: str, text: str, max_len: int = 800) -> None:
+    """截短非空助手文本后加入会话记忆，仍受公共记忆限制约束。"""
     if not text:
         return
     mem = get_memory(session_id)
@@ -76,6 +80,7 @@ async def add_assistant_message(session_id: str, text: str, max_len: int = 800) 
 
 
 def get_recent_messages(session_id: str, limit: int = 10) -> List[str]:
+    """返回最近 limit 条记忆中的非空文本；负数报错，零或不存在时返回空列表。"""
     if limit < 0:
         raise ValueError("limit must be non-negative")
     mem = _MEMORIES.get(session_id)
@@ -86,6 +91,7 @@ def get_recent_messages(session_id: str, limit: int = 10) -> List[str]:
 
 
 async def build_buffered_context(session_id: str, buffer_size: int = 10) -> BufferedChatCompletionContext:
+    """新建指定容量的模型上下文并注入当前本地会话记忆。"""
     ctx = BufferedChatCompletionContext(buffer_size=buffer_size)
     mem = get_memory(session_id)
     await mem.update_context(ctx)

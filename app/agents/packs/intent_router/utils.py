@@ -30,6 +30,8 @@ class IntentPrediction(BaseModel):
 
 
 class LLMIntentClassifier:
+    """复用一个意图助手，并用实例锁串行访问其对话状态。"""
+
     def __init__(self, model_client=None):
         self._client = model_client
         self._assistant = None
@@ -48,10 +50,12 @@ class LLMIntentClassifier:
         return self._assistant
 
     async def classify(self, query: str) -> IntentPrediction:
+        """串行调用意图助手并返回校验后的预测；模型或 JSON 校验失败向上传播。"""
         async with self._lock:
             return await self._classify(query)
 
     async def _classify(self, query: str) -> IntentPrediction:
+        """调用共享意图助手并记录模型日志，按 IntentPrediction 校验 JSON；须由外层持有实例锁，失败向上传播。"""
         assistant = self._get_assistant()
         user = build_intent_user_prompt(query)
         messages = [

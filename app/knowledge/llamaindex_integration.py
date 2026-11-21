@@ -41,6 +41,7 @@ class LlamaIndexIntegration:
         return all((self.storage_dir / idx).exists() for idx in indices)
 
     def _load_retriever(self) -> None:
+        """从当前存储目录建立检索器引用；旧引用的释放由替换流程负责。"""
         self.retriever = HierarchicalRetriever(str(self.storage_dir))
         print(f"已加载 LlamaIndex 检索器: {self.storage_dir}")
 
@@ -48,11 +49,13 @@ class LlamaIndexIntegration:
         self, documents: List["PolicyDocument"], chunk_size: int = 800,
         chunk_overlap: int = 100,
     ) -> bool:
+        """在线程中构建分级索引并重新加载检索器；成功返回 True，构建异常向上传播。"""
         return await anyio.to_thread.run_sync(
             self._build_index_sync, documents, chunk_size, chunk_overlap,
         )
 
     def _build_index_sync(self, documents: List[PolicyDocument], chunk_size: int, chunk_overlap: int) -> bool:
+        """以临时 Markdown 构建持久索引，再替换检索器并关闭旧实例；临时目录退出时删除。"""
         with tempfile.TemporaryDirectory(prefix="index-md-", dir=self.storage_dir) as temp_dir:
             md_files = []
             document_ids = {}
@@ -81,6 +84,7 @@ class LlamaIndexIntegration:
         self, query: str, top_k: int = 10, threshold: float = 0.7,
         retrieval_mode: str = "hybrid",
     ) -> Tuple[List["PolicyDocument"], List[float]]:
+        """检索并按阈值转换为等长文档和分数列表；缺失检索器或非正 top_k 抛错。"""
         if self.retriever is None:
             raise RuntimeError("Hierarchical retriever is not initialized")
         if top_k <= 0:
@@ -110,6 +114,7 @@ class LlamaIndexIntegration:
         return documents, scores
 
     async def close(self) -> None:
+        """先清空索引可用状态和检索器引用，再限时在线程中释放旧检索器。"""
         retriever, self.retriever = self.retriever, None
         self.has_index = False
         if retriever is not None:
@@ -180,11 +185,13 @@ class EnhancedVectorRetrieverAgent:
         )
 
     async def add_documents(self, documents: List["PolicyDocument"]) -> bool:
+        """启用集成时构建文档索引；未启用时返回 False，不执行写入。"""
         if self.llamaindex is None:
             return False
         return await self.llamaindex.build_index_from_documents(documents)
 
     async def close(self) -> None:
+        """释放代理持有的 LlamaIndex 集成；未启用时不执行操作。"""
         if self.llamaindex is not None:
             await self.llamaindex.close()
 

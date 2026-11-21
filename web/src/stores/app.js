@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose } from 'vue'
 import { ElMessage } from 'element-plus'
+import { createKnowledgeListState } from '@/utils/knowledgeList'
 
 export const useAppStore = defineStore('app', () => {
   // 状态
@@ -27,7 +28,7 @@ export const useAppStore = defineStore('app', () => {
 
   // 知识库相关状态
   const kbState = ref({
-    documents: [],
+    ...createKnowledgeListState(),
     searchQuery: '',
     searchResults: [],
     selectedDoc: null,
@@ -36,7 +37,7 @@ export const useAppStore = defineStore('app', () => {
 
   // 计算属性
   const hasGeneratedDSL = computed(() => dslState.value.generatedYAML.length > 0)
-  const documentCount = computed(() => kbState.value.documents.length)
+  const documentCount = computed(() => kbState.value.listSummary?.total ?? 0)
   let notificationTimer = null
   onScopeDispose(() => {
     clearTimeout(notificationTimer)
@@ -71,9 +72,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function resetKBState() {
-    kbState.value.searchQuery = ''
-    kbState.value.searchResults = []
-    kbState.value.selectedDoc = null
+    kbState.value = {
+      ...createKnowledgeListState(),
+      searchQuery: '',
+      searchResults: [],
+      selectedDoc: null,
+      uploading: false
+    }
   }
 
   function resetPrivateState() {
@@ -81,8 +86,6 @@ export const useAppStore = defineStore('app', () => {
     dslState.value.dslList = []
     dslState.value.showExamples = false
     resetKBState()
-    kbState.value.documents = []
-    kbState.value.uploading = false
     loading.value = false
     clearTimeout(notificationTimer)
     notification.value = { show: false, type: 'success', message: '' }

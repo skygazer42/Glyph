@@ -19,6 +19,10 @@ from app.schemas.database import DBConnectionCreate, DBConnectionUpdate
 
 
 def main() -> None:
+    """按当前配置创建或更新演示连接，再刷新其表结构元数据。
+
+    连接配置写入与元数据刷新由各自持久层提交，本入口不提供跨步骤事务。
+    """
     db = SessionLocal()
     try:
         db_settings = settings.database

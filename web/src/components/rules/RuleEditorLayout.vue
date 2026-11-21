@@ -60,9 +60,11 @@ onBeforeUnmount(() => comparisonQuery.removeEventListener('change', updateCompar
   border-left: 1px solid var(--wb-line);
 }
 .rule-source-label {
+  flex: none;
   min-height: 54px;
   padding: 12px 22px;
   border-bottom: 1px solid var(--wb-line);
+  background: var(--wb-tint);
   color: var(--wb-muted);
   font-size: 13px;
   line-height: 1.7;
@@ -79,6 +81,7 @@ onBeforeUnmount(() => comparisonQuery.removeEventListener('change', updateCompar
   min-height: 0;
 }
 .rule-editor-tabs :deep(.el-tabs__header) {
+  flex: none;
   padding: 0 22px;
   margin: 0;
   border-bottom: 1px solid var(--wb-line);

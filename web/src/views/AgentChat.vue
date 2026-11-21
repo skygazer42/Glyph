@@ -11,11 +11,13 @@
       </div>
     </div>
   </header>
-  <div v-if="workspace" class="consultation-titlebar">
+  <div v-if="workspace" class="consultation-titlebar" :class="{ 'is-compact': isCompact }">
       <div>
         <h1>政策咨询</h1>
       </div>
-      <ConsultationActions workspace :evidence-visible="evidenceVisible" :source-count="activeSources.length" @new="startConsultation" @history="showSessionDrawer = true" @evidence="toggleEvidence" @settings="settingsVisible = true" />
+      <Teleport v-if="toolbarMounted" to="#workspace-consultation-actions" :disabled="isCompact">
+        <ConsultationActions workspace :evidence-visible="evidenceVisible" :source-count="activeSources.length" @new="startConsultation" @history="showSessionDrawer = true" @evidence="toggleEvidence" @settings="settingsVisible = true" />
+      </Teleport>
   </div>
   <main class="conversation-workspace" aria-label="政策咨询">
     <div v-if="isConnected === false" class="consultation-service-note" role="status">
@@ -39,11 +41,12 @@
           <template v-else>
             <div class="assistant-heading">
               <span class="assistant-mark"><el-icon><Reading /></el-icon></span>
-              <strong>政策答复</strong>
-              <span class="answer-number">
+              <strong>{{ isPending(message) && !message.content ? '正在处理您的问题' : '政策答复' }}</strong>
+              <span v-if="!isPending(message)" class="answer-number">
                 答复 {{ getAnswerNumber(index) }}
               </span>
             </div>
+            <AnswerProgress v-if="isPending(message) && activeRun" :run="activeRun" :started-at="message.startedAt" :source-count="sourceDocumentCount(message)" :has-content="Boolean(message.content)" @stop="cancelPendingMessage" />
             <SubsidyResultCard
               v-if="getSubsidyResult(message.metadata)"
               :result="getSubsidyResult(message.metadata)"
@@ -55,32 +58,23 @@
               <span v-if="message.metadata?.engine_result?.status === 'EXPIRED'" class="answer-status">
                 政策已结束
               </span>
-              <div v-if="message.content" class="formatted-answer" v-html="formatMessage(message.content)" />
-              <span v-else-if="loading" class="answer-pending">
-                <span class="loading-dot" />
-                正在查询政策与整理依据…
-              </span>
-              <span v-else>
-                本条答复未返回正文。
-              </span>
-              <div v-if="getReferences(message).length" class="answer-source-links">
-                <span>政策依据</span>
-                <div class="inline-source-list">
-                  <button v-for="(source, sourceIndex) in getReferences(message)" :key="sourceIndex" type="button" class="inline-policy-source"
-                    :aria-label="'查看政策依据 ' + (sourceIndex + 1) + '：' + source.title" @click="showEvidence(message, sourceIndex)">
-                    <span class="citation">{{ sourceIndex + 1 }}</span><span>{{ source.title }}</span><el-icon><Right /></el-icon>
-                  </button>
-                </div>
-              </div>
+              <div v-if="message.content" class="formatted-answer" @click="openCitation($event, message)" v-html="formatMessage(message)" />
+              <p v-else-if="!isPending(message) && !['error', 'cancelled'].includes(message.status)" class="answer-empty">本条答复未返回正文。</p>
+              <AnswerSources v-if="getReferences(message).length" :sources="getReferences(message)" @select="showEvidence(message, $event)" />
+            </div>
+            <div v-if="message.status === 'error' || message.status === 'cancelled'" class="answer-outcome" :class="{ 'is-error': message.status === 'error' }" role="status">
+              <span>{{ message.status === 'cancelled' ? '已停止本次答复' : message.error || '本次答复未完成' }}</span>
+              <span v-if="message.content" class="answer-partial">已保留收到的内容</span>
+              <button type="button" :disabled="loading" @click="retryAnswer(message, index)">重新尝试</button>
             </div>
             <details v-if="getSubsidyResult(message.metadata)" class="answer-details" @toggle="revealDetails($event.target)">
               <summary>
                 查看完整答复
               </summary>
-              <div class="formatted-answer" v-html="formatMessage(message.content)" />
+              <div class="formatted-answer" @click="openCitation($event, message)" v-html="formatMessage(message)" />
             </details>
             <Text2SQLResult v-if="workspace && message.metadata?.route === 'text2sql'" :metadata="message.metadata" />
-            <div class="answer-actions">
+            <div v-if="!isPending(message) && message.content" class="answer-actions">
               <el-tooltip content="复制答复" placement="bottom">
                 <button type="button" class="workbench-icon" aria-label="复制答复" :disabled="!message.content" @click="copyMessage(message)">
                   <el-icon>
@@ -103,10 +97,6 @@
             </div>
           </template>
         </article>
-        <div v-if="loading && (!messages.length || messages[messages.length - 1].role !== 'assistant')" class="answer-pending">
-          <span class="loading-dot" />
-          正在查询政策与整理依据…
-        </div>
       </div>
     </div>
     <div class="composer-area">
@@ -212,6 +202,7 @@
     :message="activeMessage"
     :source-index="activeSourceIndex"
     :reveal-token="evidenceRevealToken"
+    :citation-context="citationContext"
     @close="closeEvidence"
   />
   <el-drawer
@@ -227,6 +218,7 @@
       :message="activeMessage"
       :source-index="activeSourceIndex"
       :reveal-token="evidenceRevealToken"
+    :citation-context="citationContext"
       @close="closeEvidence"
     />
   </el-drawer>
@@ -291,7 +283,7 @@
     <el-form label-position="top" @submit.prevent="submitMeasurement">
       <div class="measurement-grid">
         <el-form-item label="地区">
-          <el-input v-model="measurementForm.region" placeholder="例如：山东省济南市" maxlength="60" />
+          <el-input v-model="measurementForm.region" placeholder="例如：江苏省常州市" maxlength="60" />
         </el-form-item>
         <el-form-item label="政策年度">
           <el-input-number v-model="measurementForm.year" :min="2000" :max="2100" :controls="false" />
@@ -356,19 +348,23 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { agentApi, dbApi } from '@/api'
 import { ElMessage } from 'element-plus'
 import { Delete, CopyDocument, Reading, Right, Plus, Refresh, VideoPause, Warning } from '@element-plus/icons-vue'
-import SessionManager from '@/components/SessionManager.vue'
-import FileUploader from '@/components/FileUploader.vue'
-import Text2SQLResult from '@/components/Text2SQLResult.vue'
+import SessionManager from '@/components/consultation/SessionManager.vue'
+import FileUploader from '@/components/consultation/FileUploader.vue'
+import Text2SQLResult from '@/components/consultation/Text2SQLResult.vue'
 import { useChatHistory, useSessionList, conversationStorage, conversationStorageKey } from '@/composables/useLocalStorage'
 import { useAuthStore } from '@/stores/auth'
 import { redirectStaffToLogin } from '@/api/request'
 import { useTheme } from '@/composables/useTheme'
-import PlatformMark from '@/components/workbench/PlatformMark.vue'
-import ConsultationActions from '@/components/workbench/ConsultationActions.vue'
+import PlatformMark from '@/components/brand/PlatformMark.vue'
+import ConsultationActions from '@/components/consultation/ConsultationActions.vue'
 import { shouldOpenEvidence } from '@/utils/consultationEvidence'
-import PolicyEvidence from '@/components/workbench/PolicyEvidence.vue'
-import SubsidyResultCard from '@/components/workbench/SubsidyResultCard.vue'
-import { getSubsidyResult, getPolicySources, getPolicyConditions } from '@/utils/policyPresentation'
+import PolicyEvidence from '@/components/consultation/PolicyEvidence.vue'
+import SubsidyResultCard from '@/components/consultation/SubsidyResultCard.vue'
+import AnswerSources from '@/components/consultation/AnswerSources.vue'
+import AnswerProgress from '@/components/consultation/AnswerProgress.vue'
+import { formatAnswer } from '@/utils/answerCitations'
+import { createAguiRunState, applyAguiEvent, readAguiStream } from '@/utils/aguiStream'
+import { getSubsidyResult, getPolicySources, getPolicyConditions, groupPolicySources } from '@/utils/policyPresentation'
 
 const props = defineProps({ workspace: { type: Boolean, default: false } })
 const auth = useAuthStore()
@@ -377,10 +373,12 @@ const conversationScope = props.workspace ? `staff:${auth.staffUser.username}` :
 // 状态
 const inputMessage = ref('')
 const loading = ref(false)
+const pendingMessage = ref(null)
+const activeRun = ref(null)
 const isConnected = ref(null)
 const checkingConnection = ref(false)
 const messagesContainer = ref(null)
-const useStreaming = ref(true) // 是否使用流式响应
+const useStreaming = ref(true) // 是否逐步呈现正文；处理事件始终使用 AG-UI
 const sessionId = ref(null) // 会话ID
 const serverSessionId = ref(null)
 const showSessionDrawer = ref(false) // 显示会话侧边栏
@@ -536,9 +534,16 @@ let connectionTimer = null
 let healthRequest = null
 
 const cancelPendingMessage = () => {
-  chatRequest?.controller?.abort()
-  chatRequest?.typewriter?.dispose()
+  const request = chatRequest
+  if (request?.message && request.message.status === 'pending') {
+    request.message.status = 'cancelled'
+    request.message.time = new Date().toLocaleTimeString()
+    updateSessionMetadata(request.message)
+  }
+  request?.controller?.abort()
   chatRequest = null
+  pendingMessage.value = null
+  activeRun.value = null
   loading.value = false
 }
 
@@ -554,6 +559,11 @@ const loadSession = (newSessionId) => {
   // 创建或加载会话历史
   chatHistory = useChatHistory(newSessionId, conversationScope)
   messages.value = chatHistory.messages.value
+  for (const message of messages.value) {
+    if (message.role === 'assistant' && message.status === 'pending') {
+      message.status = 'cancelled'
+    }
+  }
 
   // 更新会话活跃时间
   try {
@@ -568,27 +578,15 @@ const loadSession = (newSessionId) => {
 
 // 示例问题
 const exampleQuestions = [
-  { title: '查找政策', prompt: '济南有哪些消费补贴政策？' },
+  { title: '查找政策', prompt: '常州有哪些住房和公积金政策？' },
   { title: '核对条件', prompt: '家电补贴需要满足哪些条件？' },
   { title: '办理材料', prompt: '新能源车补贴要哪些材料？' }
 ]
 
-// 格式化消息（支持简单的Markdown）
-const formatMessage = (text) => {
-  if (!text) {
-    return ''
-  }
-
-  // 简单的markdown转换
-  const formatted = String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`(.*?)`/g, '<code>$1</code>')
-  return formatted.split(/\n\s*\n/).map(paragraph => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`).join('')
-}
+// 原文先转义，正文引用保留与本条答复来源的对应关系。
+const formatMessage = (message) => formatAnswer(message.content, getReferences(message))
+const isPending = (message) => loading.value && pendingMessage.value === message
+const sourceDocumentCount = (message) => groupPolicySources(getReferences(message)).length
 
 // 提取引用信息
 const getReferences = (message) => getPolicySources(message?.metadata)
@@ -605,82 +603,6 @@ const scrollToBottom = () => {
       messagesContainer.value.scrollTop = messages.value.length ? messagesContainer.value.scrollHeight : 0
     }
   })
-}
-
-// 轻量型吐字渲染器，提升“流式”观感
-const createTypewriterRenderer = (getTarget) => {
-  const STEP = 6
-  const INTERVAL = 18
-  let queue = ''
-  let timer = null
-  const resolvers = []
-
-  const resolveAll = () => {
-    while (resolvers.length > 0) {
-      const resolve = resolvers.shift()
-      resolve?.()
-    }
-  }
-
-  const stop = () => {
-    if (timer !== null) {
-      clearInterval(timer)
-      timer = null
-    }
-    resolveAll()
-  }
-
-  const tick = () => {
-    if (queue.length === 0) {
-      stop()
-      return
-    }
-
-    const target = getTarget()
-    if (!target) {
-      queue = ''
-      stop()
-      return
-    }
-
-    const chunk = queue.slice(0, STEP)
-    queue = queue.slice(STEP)
-    target.content += chunk
-    scrollToBottom()
-
-    if (queue.length === 0) {
-      stop()
-    }
-  }
-
-  const ensureTimer = () => {
-    if (timer === null) {
-      timer = setInterval(tick, INTERVAL)
-    }
-  }
-
-  return {
-    push(text = '') {
-      if (!text) {
-        return
-      }
-      queue += text
-      ensureTimer()
-    },
-    async finish() {
-      if (queue.length === 0) {
-        return
-      }
-      return new Promise((resolve) => {
-        resolvers.push(resolve)
-        ensureTimer()
-      })
-    },
-    dispose() {
-      queue = ''
-      stop()
-    }
-  }
 }
 
 // 复制消息到剪贴板
@@ -747,321 +669,105 @@ const acceptServerSession = (id) => {
   }
 }
 
-// 发送消息（流式）
+// 每次请求只运行一次；AG-UI 的最终快照替换文本，不重复执行或拼接。
 const sendMessageStream = async (userMessage) => {
-  // 添加用户消息
-  const userMsg = {
-    role: 'user',
-    content: userMessage,
-    time: new Date().toLocaleTimeString()
-  }
-  addMessageToHistory(userMsg)
-
-  // 添加空的助手消息（用于流式更新）
-  const assistantMsg = {
-    role: 'assistant',
-    content: '',
-    time: new Date().toLocaleTimeString(),
-    metadata: null
-  }
-  addMessageToHistory(assistantMsg)
-
-  scrollToBottom()
-  loading.value = true
-
-  let streamingSucceeded = false
+  addMessageToHistory({ role: 'user', content: userMessage, time: new Date().toLocaleTimeString() })
+  addMessageToHistory({ role: 'assistant', content: '', time: '', metadata: {}, status: 'pending', startedAt: Date.now(), question: userMessage })
   const targetMessage = messages.value[messages.value.length - 1]
-  const request = { controller: new AbortController() }
+  const runId = crypto.randomUUID()
+  const request = { controller: new AbortController(), message: targetMessage }
   chatRequest = request
-  const typewriter = createTypewriterRenderer(() => chatRequest === request ? targetMessage : null)
-  request.typewriter = typewriter
-  let aggregatedContent = ''
-
+  pendingMessage.value = targetMessage
+  activeRun.value = createAguiRunState(runId)
+  loading.value = true
+  scrollToBottom()
   try {
-    const url = '/api/agent/chat/stream'
+    const forwardedProps = {}
     const resolvedUserId = getResolvedUserId()
-    const payload = {
-      message: userMessage,
-      session_id: serverSessionId.value ?? sessionId.value
-    }
-
-    if (resolvedUserId) {
-      payload.user_id = resolvedUserId
-    }
-
+    if (resolvedUserId) forwardedProps.user_id = resolvedUserId
     const attachmentPayload = buildAttachmentPayload()
-    if (attachmentPayload.length > 0) {
-      payload.attachments = attachmentPayload
-    }
-
-    if (props.workspace && selectedConnectionId.value) {
-      payload.connection_id = selectedConnectionId.value
-    }
-    if (props.workspace && text2sqlMode.value) {
-      payload.text2sql_mode = true
-    }
-
-    // 使用fetch发送POST请求并接收SSE
-    const response = await fetch(url, {
+    if (attachmentPayload.length) forwardedProps.attachments = attachmentPayload
+    if (props.workspace && selectedConnectionId.value) forwardedProps.connection_id = selectedConnectionId.value
+    if (props.workspace && text2sqlMode.value) forwardedProps.text2sql_mode = true
+    const response = await fetch(`/api${agentApi.aguiUrl}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
+        Accept: 'text/event-stream',
         ...(props.workspace ? auth.staffHeaders() : { 'X-Client-Audience': 'public' })
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        threadId: serverSessionId.value ?? sessionId.value,
+        runId,
+        messages: [{ id: crypto.randomUUID(), role: 'user', content: userMessage }],
+        tools: [], context: [], state: {}, forwardedProps
+      }),
       signal: request.controller.signal
     })
-
-    if (chatRequest !== request) {
-      return false
-    }
+    if (chatRequest !== request) return false
     if (!response.ok) {
       if (props.workspace && response.status === 401) {
+        targetMessage.status = 'error'
+        targetMessage.error = '登录状态已过期，请重新登录'
         await redirectStaffToLogin()
         return false
       }
       const problem = await response.json().catch(() => null)
       throw new Error(typeof problem?.detail === 'string' ? problem.detail : '咨询请求未完成，请稍后重试')
     }
-
-    if (!response.body) {
-      throw new Error('浏览器不支持流式响应')
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let stopReading = false
-
-    const processSSEEvent = (rawEvent) => {
-      const lines = rawEvent.split(/\r?\n/)
-      let eventType = 'message'
-      const dataLines = []
-
-      for (const rawLine of lines) {
-        const line = rawLine.trim()
-        if (line.length === 0) {
-          continue
-        }
-        if (line.startsWith('event:')) {
-          eventType = line.slice(6).trim() || 'message'
-          continue
-        }
-        if (line.startsWith('data:')) {
-          dataLines.push(line.slice(5).trim())
-        }
+    if (!response.body) throw new Error('浏览器不支持流式响应')
+    await readAguiStream(response.body, event => {
+      if (chatRequest !== request) return
+      applyAguiEvent(activeRun.value, event)
+      const run = activeRun.value
+      if (run.sessionId) acceptServerSession(run.sessionId)
+      if (useStreaming.value || (event.type === 'CUSTOM' && event.name === 'glyph.answer') || event.type === 'RUN_FINISHED') {
+        targetMessage.content = run.content
       }
-
-      if (dataLines.length === 0) {
-        return null
+      if (event.type === 'CUSTOM' && ['glyph.sources', 'glyph.answer'].includes(event.name)) {
+        targetMessage.metadata = { ...run.metadata, sources: run.sources }
       }
-      const dataStr = dataLines.join('\n')
-
-      const parsed = JSON.parse(dataStr)
-
-      if (chatRequest !== request) {
-        return 'done'
-      }
-      const { error, session_id, content, metadata, done } = parsed
-      if (error || eventType === 'error') {
-        throw new Error(error || '流式响应失败')
-      }
-
-      acceptServerSession(session_id)
-
-      if (eventType === 'session') {
-        return null
-      }
-
-      if (content) {
-        aggregatedContent += content
-        typewriter.push(content)
-      }
-
-      if (metadata) {
-        targetMessage.metadata = metadata
-      }
-
-      if (done || eventType === 'done') {
-        return 'done'
-      }
-
-      return null
-    }
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (chatRequest !== request) {
-        return false
-      }
-      if (done) {
-        break
-      }
-
-      buffer += decoder.decode(value, { stream: true })
-
-      const segments = buffer.split(/\r?\n\r?\n/)
-      buffer = segments.pop() || ''
-
-      for (const rawEvent of segments) {
-        if (rawEvent.trim().length === 0) {
-          continue
-        }
-        const status = processSSEEvent(rawEvent)
-        if (status === 'done') {
-          buffer = ''
-          stopReading = true
-          break
-        }
-      }
-
-      if (stopReading) {
-        break
-      }
-    }
-
-    if (buffer.trim().length > 0) {
-      stopReading = processSSEEvent(buffer) === 'done'
-    }
-    if (!stopReading) {
-      throw new Error('流式响应意外中断')
-    }
-
-    await typewriter.finish()
-
-    if (chatRequest !== request) {
-      return false
-    }
-    if (aggregatedContent.length > 0 && targetMessage.content.length === 0) {
-      targetMessage.content = aggregatedContent
-    }
-
-    // 如果没有收到任何内容，显示错误
-    if (targetMessage.content.length === 0) {
-      throw new Error('没有收到回复')
-    }
-
-    // 更新会话元数据
+      const container = messagesContainer.value
+      if (container && container.scrollHeight - container.scrollTop - container.clientHeight < 160) scrollToBottom()
+    }, { signal: request.controller.signal })
+    if (chatRequest !== request) return false
+    if (activeRun.value.status === 'error') throw new Error(activeRun.value.error || '咨询服务暂时不可用，请重试')
+    if (!activeRun.value.finished || !activeRun.value.content.trim()) throw new Error('答复未完整返回，请重试')
+    targetMessage.content = activeRun.value.content
+    targetMessage.status = 'complete'
+    targetMessage.time = new Date().toLocaleTimeString()
     updateSessionMetadata(targetMessage)
-    streamingSucceeded = true
+    resetAttachments()
     return true
-
   } catch (error) {
-    if (chatRequest !== request) {
-      return false
-    }
-    console.error('流式发送消息失败:', error)
-
-    typewriter.dispose()
-
-    // 更新错误消息
-    targetMessage.content = error.message || '咨询请求未完成，请稍后重试。'
+    if (chatRequest !== request) return false
+    targetMessage.status = error.name === 'AbortError' ? 'cancelled' : 'error'
+    targetMessage.error = error.name === 'AbortError' ? '' : error.message || '本次答复未完成，请稍后重试'
+    targetMessage.time = new Date().toLocaleTimeString()
     updateSessionMetadata(targetMessage)
     return false
   } finally {
-    typewriter.dispose()
     request.controller.abort()
-    if (chatRequest === request && streamingSucceeded) {
-      resetAttachments()
-    }
     if (chatRequest === request) {
       chatRequest = null
+      pendingMessage.value = null
+      activeRun.value = null
       loading.value = false
-      scrollToBottom()
     }
   }
 }
 
-// 发送消息
 const sendMessage = async () => {
-  if (inputMessage.value.trim().length === 0 || loading.value) {
-    return
-  }
-
-  const userMessage = inputMessage.value.trim()
-  // 根据设置选择流式或非流式，失败时保留输入以便重试
-  const succeeded = useStreaming.value
-    ? await sendMessageStream(userMessage)
-    : await sendMessageNonStream(userMessage)
-  if (succeeded && inputMessage.value.trim() === userMessage) {
-    inputMessage.value = ''
-  }
+  const question = inputMessage.value.trim()
+  if (!question || loading.value) return
+  const succeeded = await sendMessageStream(question)
+  if (succeeded && inputMessage.value.trim() === question) inputMessage.value = ''
 }
 
-// 发送消息（非流式）
-const sendMessageNonStream = async (userMessage) => {
-  const request = {}
-  chatRequest = request
-  // 添加用户消息
-  const userMsg = {
-    role: 'user',
-    content: userMessage,
-    time: new Date().toLocaleTimeString()
-  }
-  addMessageToHistory(userMsg)
-
-  scrollToBottom()
-  loading.value = true
-
-  try {
-    // 调用API
-    const resolvedUserId = getResolvedUserId()
-    const attachmentPayload = buildAttachmentPayload()
-    const response = await agentApi.chat(
-      userMessage,
-      serverSessionId.value ?? sessionId.value,
-      props.workspace ? selectedConnectionId.value || null : null,
-      resolvedUserId,
-      attachmentPayload,
-      { staffRequest: props.workspace, text2sql_mode: props.workspace && text2sqlMode.value }
-    )
-
-    if (chatRequest !== request) {
-      return false
-    }
-    const { success } = response
-    if (success) {
-      const { session_id, message, metadata } = response
-      // 更新会话ID
-      acceptServerSession(session_id)
-
-      // 添加助手回复
-      const assistantMsg = {
-        role: 'assistant',
-        content: message,
-        time: new Date().toLocaleTimeString(),
-        metadata
-      }
-      addMessageToHistory(assistantMsg)
-      updateSessionMetadata(assistantMsg)
-      resetAttachments()
-      return true
-    } else {
-      throw new Error('获取回复失败')
-    }
-  } catch (error) {
-    if (chatRequest !== request) {
-      return false
-    }
-    console.error('发送消息失败:', error)
-
-    // 添加错误消息
-    const errorMsg = {
-      role: 'assistant',
-      content: '抱歉，我遇到了一些问题，请稍后再试。',
-      time: new Date().toLocaleTimeString()
-    }
-    addMessageToHistory(errorMsg)
-    updateSessionMetadata(errorMsg)
-    return false
-  } finally {
-    if (chatRequest === request) {
-      chatRequest = null
-      loading.value = false
-      scrollToBottom()
-    }
-  }
+const retryAnswer = async (message, index) => {
+  if (loading.value) return
+  const question = message.question || [...messages.value.slice(0, index)].reverse().find(item => item.role === 'user')?.content
+  if (question) await sendMessageStream(question)
 }
 
 // 清空对话
@@ -1162,6 +868,7 @@ const handleSessionDelete = (deletedSessionId) => {
 const { isDark, toggleTheme } = useTheme()
 const compactQuery = window.matchMedia('(max-width: 1099px)')
 const isCompact = ref(compactQuery.matches)
+const toolbarMounted = ref(false)
 const updateCompactLayout = (event) => {
   isCompact.value = event.matches
   if (event.matches) evidenceVisible.value = false
@@ -1182,6 +889,7 @@ const helpVisible = ref(false)
 const composerRef = ref(null)
 const selectedAnswerKey = ref(null)
 const activeSourceIndex = ref(0)
+const citationContext = ref('')
 const evidenceRevealToken = ref(0)
 const measurementForm = ref({ region: '', year: new Date().getFullYear(), category: '', price: undefined, energyLevel: 1 })
 const measurementDrafts = new Map()
@@ -1196,13 +904,23 @@ watch([activeSources, currentConditions, loading], () => {
 watch(() => messages.value.length, () => { selectedAnswerKey.value = null })
 
 const getAnswerNumber = (index) => messages.value.slice(0, index + 1).filter(message => message.role === 'assistant').length
-const showEvidence = (message, sourceIndex) => {
+const showEvidence = (message, sourceIndex, article = '') => {
+  citationContext.value = article
   selectedAnswerKey.value = getMessageKey(message)
   activeSourceIndex.value = sourceIndex
   evidenceRevealToken.value++
   evidenceVisible.value = true
   manualEvidenceChoice = true
 }
+const openCitation = (event, message) => {
+  const link = event.target.closest('a[data-source-index]')
+  if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return
+  const index = Number(link.dataset.sourceIndex)
+  if (!Number.isInteger(index) || !getReferences(message)[index]) return
+  event.preventDefault()
+  showEvidence(message, index, link.dataset.article || '')
+}
+
 const revealDetails = (element) => {
   if (!element.open) return
   nextTick(() => {
@@ -1261,6 +979,8 @@ const submitMeasurement = () => {
 
 // 初始化
 onMounted(() => {
+  // The parent header target exists after this slotted page has mounted.
+  toolbarMounted.value = true
   compactQuery.addEventListener('change', updateCompactLayout)
   checkConnection()
   // 每30秒检查一次连接状态
@@ -1297,4 +1017,4 @@ watch(() => auth.staffUser, (user) => {
 }, { flush: 'sync' })
 </script>
 
-<style src="@/styles/workbench.css"></style>
+<style src="@/styles/consultation.css"></style>

@@ -16,7 +16,7 @@ from app.agents.framework.common.session_manager import SessionManager
 from app.agents.service.agent_service import AgentService
 from app.agents.service.chat_history_store import ChatHistoryStore
 from app.core.llms import model_client
-from app.knowledge.doc_enhanced import EnhancedDocumentProcessor
+from app.knowledge.document_processor import EnhancedDocumentProcessor
 from app.knowledge.service import KnowledgeService
 from app.utils.lifecycle import close_with_timeout
 

@@ -174,6 +174,7 @@ export const agentApi = {
   // 发送消息（流式）- 通过POST发送，使用SSE接收
   // 注意：不使用EventSource，而是在组件中直接fetch
   chatStreamUrl: '/agent/chat/stream',
+  aguiUrl: '/agent/ag-ui',
 
   // 获取会话信息
   getSession(sessionId) {

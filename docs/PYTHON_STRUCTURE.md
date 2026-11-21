@@ -39,7 +39,10 @@ app/
       db_connection.py            连接记录与关联数据删除
       schema_metadata.py          表、列、关系、值映射的查询和写入
       chat_history.py             聊天记录持久化
-  knowledge/                      解析、切块、索引、检索和文档工作区
+  knowledge/
+    document_processor.py         MinerU / LlamaIndex 等文档解析处理
+    document_workspace.py         文档预览、切块和索引工作区
+                                  其余解析、索引和检索模块按现有职责保留
   agents/                         Agent、处理链、DSL 和运行框架
   core/                           认证、日志、模型客户端
   utils/lifecycle.py              有界异步资源清理
@@ -100,6 +103,9 @@ CLI 先读取有效配置，再把 `model` 的名称、密钥、地址、温度�
 | `7_sync_text2sql_schema.py` | `python -m scripts.sync_text2sql_schema` |
 | `tests/data_import.py` | `python -m scripts.import_data` |
 | `tests/docker_rebuild_test.py` | `python -m scripts.render_docker_report`，仅渲染历史样例 |
+| `scripts/unified_cli.py` | `python -m scripts.agent_cli` |
+
+2026-11-21 进一步整理了处理器文件名、前端目录和开发 Compose 文件。当前全项目目录与迁移表见 [项目结构与命名](PROJECT_STRUCTURE.md)。历史审查报告保留当时的文件路径；本文此前的运行验收限制描述的是 2026-11-17 那一轮整理，不代表本次验证结果。
 
 ## 验证边界
 

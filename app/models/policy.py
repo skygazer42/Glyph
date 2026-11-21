@@ -116,6 +116,7 @@ class PolicyDocument(BaseModel):
 
     @model_validator(mode="after")
     def validate_dates(self) -> "PolicyDocument":
+        """仅在生效和失效日期均已提供时，要求失效日期严格晚于生效日期。"""
         effective = self.effective_date
         expiry = self.expiry_date
         if expiry is not None and effective is not None and expiry <= effective:

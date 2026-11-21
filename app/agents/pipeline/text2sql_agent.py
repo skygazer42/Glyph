@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 async def answer_text2sql_query(query: str, *, connection_id: Optional[int]) -> FinalAnswer:
+    """对指定连接执行自然语言查询并转为答复；连接缺失或执行失败返回未验证的错误答案。"""
     if connection_id is None or connection_id <= 0:
         return FinalAnswer(
             query_id=uuid4(),
@@ -41,6 +42,10 @@ async def answer_text2sql_query(query: str, *, connection_id: Optional[int]) -> 
         )
 
 def _build_text2sql_answer(response: SQLQueryResult, connection_id: int) -> FinalAnswer:
+    """将 SQL 结果转为未验证答复，元数据保留全部返回行，文字仅预览前十行。
+
+    有错误时展示错误；无错误且至少两列时按首两列生成简单柱图提示，不验证它们是否适合统计。
+    """
     rows = [] if response.results is None else response.results
     metadata = {
         "route": "text2sql",

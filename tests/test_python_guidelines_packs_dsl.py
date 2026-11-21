@@ -731,12 +731,15 @@ def test_selected_document_parser_failure_is_visible(tmp_path, monkeypatch):
         parser.parse(str(document))
 
 
-def test_graph_reranker_configuration_failure_is_visible():
+def test_graph_reranker_configuration_failure_is_visible(monkeypatch):
+    import os
+
+    monkeypatch.setenv('LIGHTRAG_RERANK_ENABLED', 'true')
     def fail():
         raise ValueError('invalid reranker configuration')
 
     ns = load_definitions('app/agents/packs/graph_retriever/node.py', {'GraphRetrieverAgent'},
-                          StatefulAgent=object, asyncio=asyncio, Reranker=fail)
+                          StatefulAgent=object, asyncio=asyncio, Reranker=fail, os=os)
     agent = object.__new__(ns['GraphRetrieverAgent'])
     agent.logger = logging.getLogger('test')
     with pytest.raises(ValueError, match='invalid reranker configuration'):

@@ -98,16 +98,15 @@ def test_policy_seed_exports_all_categories_and_preserves_quotes(tmp_path):
     assert namespace["export_qa_to_json"](output) == output
 
     data = json.loads(output.read_text(encoding="utf-8"))
-    assert data["metadata"]["total_qa_pairs"] == 21
-    assert len(data["metadata"]["categories"]) == 5
-    assert len(data["qa_pairs"]) == 21
-    assert '"新能源"' in data["qa_pairs"][3]["answer"]
-    assert '"泉城购"' in data["qa_pairs"][13]["question"]
+    assert data["metadata"]["total_qa_pairs"] == len(data["qa_pairs"]) > 0
+    assert data["metadata"]["name"] == "常州市政务官方资料问答"
     for pair in data["qa_pairs"]:
         assert pair["question"]
         assert pair["answer"]
-        assert pair["difficulty_level"] in {1, 2, 3}
-        assert pair["verified"] is True
+        assert pair["source"].startswith('https://')
+        source = ROOT / pair["source_markdown_path"]
+        assert pair["source_quote"] in source.read_text(encoding='utf-8')
+        assert pair["region"] == '全国' or '常州' in pair["region"] or '江苏' in pair["region"]
 
 
 def test_simple_seed_import_has_no_file_side_effect(tmp_path, monkeypatch):
@@ -115,17 +114,18 @@ def test_simple_seed_import_has_no_file_side_effect(tmp_path, monkeypatch):
 
     namespace = runpy.run_path(str(ROOT / "resources/database/seed_data/generate_qa_data.py"))
 
-    assert len(namespace["QA_DATA"]["qa_pairs"]) == 10
+    assert callable(namespace["main"])
     assert list(tmp_path.iterdir()) == []
 
 
 def test_simple_seed_main_still_exports_data(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    runpy.run_path(str(ROOT / "resources/database/seed_data/generate_qa_data.py"), run_name="__main__")
+    namespace = runpy.run_path(str(ROOT / "resources/database/seed_data/generate_qa_data.py"))
+    namespace["main"](tmp_path / "policy_qa_初始数据.json")
 
     data = json.loads((tmp_path / "policy_qa_初始数据.json").read_text(encoding="utf-8"))
-    assert len(data["qa_pairs"]) == 10
+    assert data["metadata"]["total_qa_pairs"] == len(data["qa_pairs"]) > 0
 
 
 def test_importer_uses_explicit_root_and_propagates_process_failure(tmp_path, monkeypatch):
@@ -193,21 +193,14 @@ def test_importer_uses_configured_store_without_reset_and_upserts_stable_ids(tmp
     asyncio.run(importer.init_milvus())
     store.get_stats.assert_called_once()
 
-    sample = tmp_path / "sample_policies.json"
-    sample.write_text(json.dumps([{
-        "doc_id": "sample-1", "title": "合成样例", "content": "合成政策正文", "category": "示例", "region": "示例地区",
-        "effective_date": "2030-01-01T00:00:00", "expiry_date": "2031-01-01T00:00:00",
-    }]), encoding="utf-8")
-    assert importer._index_sample_policies(sample) == 1
-    assert importer._index_sample_policies(sample) == 1
-    first, second = store.add_documents.call_args_list
-    assert first.kwargs == second.kwargs == {"upsert": True}
-    assert first.args[0][0].id == second.args[0][0].id
-    assert first.args[0][0].metadata["synthetic"] is True
-    assert first.args[0][0].content == "合成政策正文"
-    assert store.close.call_count == 3
-    assert factory.call_count == 3
-    assert all(call.args == () and call.kwargs == {} for call in factory.call_args_list)
+    official = ModuleType("scripts.import_changzhou_policies")
+    official.main = Mock()
+    monkeypatch.setitem(sys.modules, official.__name__, official)
+    asyncio.run(importer.import_embeddings())
+    official.main.assert_called_once_with(tmp_path)
+    assert store.close.call_count == 1
+    assert factory.call_count == 1
+
 
 
 def test_mysql_failure_does_not_include_credentials_in_arguments_or_exception(tmp_path, monkeypatch):
@@ -229,7 +222,7 @@ def test_mysql_failure_does_not_include_credentials_in_arguments_or_exception(tm
 
 
 def test_empty_cli_batch_writes_empty_result_without_querying(tmp_path, capsys):
-    namespace = load_definitions("scripts/unified_cli.py", {"batch_mode"}, asyncio=asyncio, Path=Path, json=json, logging=__import__("logging"))
+    namespace = load_definitions("scripts/agent_cli.py", {"batch_mode"}, asyncio=asyncio, Path=Path, json=json, logging=__import__("logging"))
     query_file = tmp_path / "queries.txt"
     query_file.write_text("\n  \n", encoding="utf-8")
 
@@ -245,7 +238,7 @@ def test_cli_batch_preserves_a_query_file_with_json_extension(tmp_path):
     from unittest.mock import AsyncMock
 
     namespace = load_definitions(
-        "scripts/unified_cli.py", {"batch_mode"}, asyncio=asyncio,
+        "scripts/agent_cli.py", {"batch_mode"}, asyncio=asyncio,
         Path=Path, json=json, logging=__import__("logging"),
     )
     query_file = tmp_path / "queries.json"
@@ -266,7 +259,7 @@ def test_cli_batch_preserves_a_query_file_with_json_extension(tmp_path):
 
 
 def test_cli_batch_failure_remains_visible(tmp_path):
-    namespace = load_definitions("scripts/unified_cli.py", {"batch_mode"}, asyncio=asyncio, Path=Path, json=json, logging=__import__("logging"))
+    namespace = load_definitions("scripts/agent_cli.py", {"batch_mode"}, asyncio=asyncio, Path=Path, json=json, logging=__import__("logging"))
 
     with pytest.raises(FileNotFoundError):
         asyncio.run(namespace["batch_mode"](object(), str(tmp_path / "missing.txt")))
@@ -460,11 +453,10 @@ def test_mysql_seed_requires_explicit_truncation(flags, expected, monkeypatch):
     assert namespace["parse_args"]().truncate is expected
 
 
-def test_synthetic_mysql_qa_rows_are_unverified():
+def test_mysql_seed_does_not_invent_answers_for_unsourced_documents():
     namespace = runpy.run_path(str(ROOT / "scripts/seed_mysql_text2sql.py"))
     rows = namespace["generate_qa_pairs"]([{"doc_id": "sample-1", "title": "合成样例", "category": "示例"}])
-    assert rows and all(row["verified"] is False for row in rows)
-    assert all(row["doc_id"] == "sample-1" for row in rows)
+    assert rows == []
 
 
 @pytest.mark.parametrize("failed", [False, True])
@@ -898,7 +890,11 @@ def test_policy_engine_rejects_invalid_reference_date(tmp_path):
     from app.agents.dsl_generator.rule_engine import PolicyEngine
     engine = PolicyEngine(str(tmp_path))
     engine.rules["r"] = {"rule_id": "r", "valid_period": {"start": "2020-01-01"}, "output": {"status": "QUALIFIED", "final_result": "0"}}
-    assert engine.execute("r", {"claim_time": "broken"})["status"] == "ERROR"
+    result = engine.execute("r", {"claim_time": "broken"})
+    assert result["status"] == "INVALID_INPUT"
+    assert result["message"] == "业务日期缺失或格式错误"
+    assert result["errors"] == ["参数 claim_time 应为有效的ISO日期或时间"]
+    assert "final_result" not in result
 
 
 def test_generator_rejects_selected_missing_template(tmp_path):

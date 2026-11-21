@@ -26,17 +26,17 @@ from app.models.policy import PolicyDocument
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Embed documents into LightRAG storage (resources/data/lightrag by default)."
+        description="Embed official Changzhou documents into the configured LightRAG storage."
     )
     parser.add_argument(
         "--input-dir",
-        default="resources/data/process",
-        help="Directory containing docs to ingest (default: resources/data/process).",
+        default="resources/data/process/changzhou_20261121",
+        help="Directory containing official Changzhou docs to ingest.",
     )
     parser.add_argument(
         "--workdir",
-        default=os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag"),
-        help="LightRAG working directory (default: env LIGHTRAG_WORKDIR or resources/data/lightrag).",
+        default=os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag_changzhou_20261121"),
+        help="LightRAG working directory for the accepted Changzhou corpus.",
     )
     parser.add_argument(
         "--batch-size",
@@ -59,6 +59,11 @@ async def seed_lightrag(
     batch_size: int,
     limit: Optional[int],
 ) -> None:
+    """将目录文档分批写入 LightRAG，退出时关闭本次创建的图谱智能体。
+
+    limit=None 才在完成后更新完整种子清单，0 表示不导入；批次失败直接传播，
+    此前写入的批次不会回滚。
+    """
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     if limit is not None and limit < 0:
@@ -109,6 +114,7 @@ async def seed_lightrag(
 
 
 def write_seed_manifest(source_dir: Path, workdir: Path, supported_extensions: set[str]) -> None:
+    """记录目录内支持格式文件的大小和修改时间；清单用于识别种子状态，不包含内容哈希。"""
     manifest = {}
     for file in source_dir.rglob("*"):
         if file.is_file() and file.suffix.lower() in supported_extensions:
@@ -129,6 +135,7 @@ def write_seed_manifest(source_dir: Path, workdir: Path, supported_extensions: s
 
 
 def main() -> None:
+    """读取命令行选项并执行 LightRAG 导入，保留失败退出语义。"""
     args = parse_args()
     asyncio.run(
         seed_lightrag(

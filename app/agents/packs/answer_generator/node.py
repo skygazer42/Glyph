@@ -518,6 +518,7 @@ class AnswerGeneratorAgent(StatefulAgent):
         )
 
     async def _generate_with_llm(self, query_context: Dict[str, Any], sources: List, synthesis: Dict[str, Any]) -> GeneratedAnswer:
+        """复用并加锁调用回答助手，返回含证据和启发式置信度的结果；空文本报错。"""
         if self._assistant is None:
             self._assistant = AssistantAgent(
                 name="answer_gen_llm",

@@ -23,10 +23,16 @@ logger = logging.getLogger()
 
 
 class CombinedMeta(AsyncSyncMeta, ABCMeta):
+    """组合外部 R2R 的同步适配元类与抽象类协议，供示例智能体继承。"""
+
     pass
 
 
 def sync_wrapper(async_gen):
+    """把异步生成器适配为同步迭代器，结束时关闭原生成器。
+
+    通过当前事件循环逐项驱动，调用线程不能已有正在运行的事件循环。
+    """
     loop = asyncio.get_event_loop()
 
     def wrapper():
@@ -43,6 +49,8 @@ def sync_wrapper(async_gen):
 
 
 class R2RAgent(Agent, metaclass=CombinedMeta):
+    """持有会话和搜索来源的 R2R 工具调用示例，运行时逐轮更新实例会话状态。"""
+
     def __init__(self, *args, **kwargs):
         self.search_results_collector = SearchResultsCollector()
         super().__init__(*args, **kwargs)
@@ -108,6 +116,7 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
         *args,
         **kwargs,
     ) -> list[dict]:
+        """重建本次会话并执行有上限的模型、工具循环，返回输入消息之后新增的消息列表。"""
         self._reset()
         await self._setup(system_instruction)
 
@@ -143,6 +152,7 @@ class R2RAgent(Agent, metaclass=CombinedMeta):
     async def process_llm_response(
         self, response: LLMChatCompletion, *args, **kwargs
     ) -> None:
+        """按模型提供方的响应结构保存消息并依次调用工具，更新本实例的完成状态。"""
         if not self._completed:
             message = response.choices[0].message
             finish_reason = response.choices[0].finish_reason
@@ -383,6 +393,7 @@ class R2RStreamingAgent(R2RAgent):
         self.streaming_citations: list[dict] = []
 
         async def sse_generator() -> AsyncGenerator[str, None]:
+            """逐轮消费模型流并产出文本、工具和引用的 SSE 事件，同时累计会话结果。"""
             pending_tool_calls = {}
             partial_text_buffer = ""
             iterations_count = 0
@@ -827,6 +838,7 @@ class R2RXMLStreamingAgent(R2RStreamingAgent):
         self.streaming_citations: list[dict] = []
 
         async def sse_generator() -> AsyncGenerator[str, None]:
+            """从模型流解析 XML 思考和动作块，执行工具后继续生成并产出 SSE 事件。"""
             iterations_count = 0
             consolidated_citations: list[dict] = []
 

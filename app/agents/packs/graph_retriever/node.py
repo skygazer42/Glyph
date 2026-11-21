@@ -38,15 +38,21 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DashscopeEmbedding(BaseModel):
+    """单条 DashScope 非空有限数嵌入向量，不在此限定具体维度。"""
+
     model_config = ConfigDict(strict=True, allow_inf_nan=False)
     embedding: list[float] = Field(min_length=1)
 
 
 class DashscopeEmbeddingOutput(BaseModel):
+    """DashScope 输出中的非空嵌入列表，不在此核对其条数与请求一致。"""
+
     embeddings: list[DashscopeEmbedding] = Field(min_length=1)
 
 
 class DashscopeEmbeddingResponse(BaseModel):
+    """供图检索嵌入适配器校验的 DashScope 响应外壳。"""
+
     output: DashscopeEmbeddingOutput
 
 
@@ -66,7 +72,7 @@ class GraphRetrieverAgent(StatefulAgent):
             **kwargs,
         )
 
-        self.working_dir = os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag") if working_dir is None else working_dir
+        self.working_dir = os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag_changzhou_20261121") if working_dir is None else working_dir
         self.default_mode = os.getenv("LIGHTRAG_QUERY_MODE", default_mode)
         self.embedding_backend = settings.embedding.backend.lower()
         if self.embedding_backend not in {"dashscope", "openai"}:
@@ -151,6 +157,7 @@ class GraphRetrieverAgent(StatefulAgent):
         return settings.embedding.dashscope_model
 
     def _infer_embedding_dim(self) -> int:
+        """按嵌入后端和模型推断维度；未知 OpenAI 模型使用正数配置，DashScope 按支持配置或默认维度。"""
         if self.embedding_backend == "openai":
             if "3-large" in self.embedding_model:
                 return 3072
@@ -176,6 +183,7 @@ class GraphRetrieverAgent(StatefulAgent):
         return await asyncio.to_thread(self._embed_openai_sync, texts)
 
     def _embed_openai_sync(self, texts: List[str]) -> List[List[float]]:
+        """在本次调用持有的客户端内获取嵌入，按配置尝试次数重试，最终失败继续抛出。"""
         api_key = settings.embedding.openai_api_key or os.getenv("LLM_API_KEY")
         base_url = settings.embedding.openai_base_url or os.getenv("OPENAI_BASE_URL")
         if not api_key:
@@ -198,6 +206,10 @@ class GraphRetrieverAgent(StatefulAgent):
         return await asyncio.to_thread(self._embed_dashscope_sync, texts)
 
     def _embed_dashscope_sync(self, texts: List[str]) -> List[List[float]]:
+        """逐条请求文本嵌入并按输入顺序返回向量，每条取响应首向量。
+
+        请求异常按配置次数重试，响应始终关闭；模型结构校验错误不进入该重试分支。此同步方法由异步包装移到线程调用。
+        """
         api_key = settings.embedding.dashscope_api_key
         if not api_key:
             raise ValueError("Missing DashScope API key (set EMBEDDING_DASHSCOPE_API_KEY)")
@@ -331,7 +343,9 @@ class GraphRetrieverAgent(StatefulAgent):
         """
         return await self.process_request(message, ctx)
 
-    def _create_rerank_callback(self) -> Callable[..., Awaitable[List[Dict[str, Any]]]]:
+    def _create_rerank_callback(self) -> Optional[Callable[..., Awaitable[List[Dict[str, Any]]]]]:
+        if os.getenv("LIGHTRAG_RERANK_ENABLED", "true").lower() in {"false", "0", "off"}:
+            return None
         reranker = Reranker()
         self._reranker = reranker
 

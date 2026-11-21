@@ -52,6 +52,7 @@ class WorkflowAgent:
         intent: Optional[Dict[str, Any]] = None,
         allow_user_profile: bool = True,
     ) -> FinalAnswer:
+        """为本次请求构建工作流并收集末条消息；有界关闭流，运行失败转为工作流兜底答案。"""
         attachments = attachments or []
         context: Dict[str, Any] = {
             "vision_summary": "",
@@ -111,6 +112,7 @@ class WorkflowAgent:
         *,
         allow_user_profile: bool = True,
     ) -> GraphFlow:
+        """创建本次请求专用流程；工具闭包将检索、计算和档案结果写入调用方 context。"""
         builder = DiGraphBuilder()
         participants: List[ChatAgent] = []
         previous_agent: Optional[AssistantAgent] = None
@@ -224,6 +226,7 @@ class WorkflowAgent:
         rule_result: Optional[FinalAnswer],
         user_profile: Optional[Dict[str, Any]],
     ) -> FinalAnswer:
+        """依次优先复用规则答案、知识答案、档案文本和末条文本消息；均不可用时构造兜底答复。"""
         if rule_result:
             return rule_result
         if knowledge_result:

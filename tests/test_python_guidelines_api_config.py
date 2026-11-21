@@ -313,7 +313,7 @@ def _stub_api_dependencies(load_module):
     for module_name, class_name in names.items():
         load_module.stub(module_name, **{class_name: type(class_name, (), {})})
     load_module.stub("app.knowledge.service", KnowledgeService=type("KnowledgeService", (), {}))
-    load_module.stub("app.knowledge.doc_enhanced", EnhancedDocumentProcessor=type("EnhancedDocumentProcessor", (), {}))
+    load_module.stub("app.knowledge.document_processor", EnhancedDocumentProcessor=type("EnhancedDocumentProcessor", (), {}))
     load_module.stub("app.core.llms", model_client=object())
 
 
@@ -833,7 +833,7 @@ def test_cli_applies_yaml_model_options_before_client_import_and_registers_clean
     load_module("app/utils/lifecycle.py", name="app.utils.lifecycle")
     metrics = Mock()
     namespace = load_definitions(
-        "scripts/unified_cli.py", {"main"}, argparse=argparse, asyncio=asyncio, Path=Path, sys=sys,
+        "scripts/agent_cli.py", {"main"}, argparse=argparse, asyncio=asyncio, Path=Path, sys=sys,
         AsyncExitStack=AsyncExitStack, metrics_mode=metrics,
         logging=SimpleNamespace(DEBUG=10, INFO=20, basicConfig=Mock(), getLogger=Mock(return_value=Mock())),
     )
@@ -852,7 +852,7 @@ def test_cli_applies_yaml_model_options_before_client_import_and_registers_clean
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", configured_import)
-    monkeypatch.setattr(sys, "argv", ["unified_cli", "--config", str(config_file), "--metrics"])
+    monkeypatch.setattr(sys, "argv", ["agent_cli", "--config", str(config_file), "--metrics"])
     if service_import_fails:
         with pytest.raises(SystemExit) as error:
             asyncio.run(namespace["main"]())

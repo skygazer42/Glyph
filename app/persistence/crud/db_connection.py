@@ -16,8 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class CRUDDBConnection(CRUDBase[DBConnection, DBConnectionCreate, DBConnectionUpdate]):
+    """维护数据库连接配置及关联元数据；凭据字段名称不代表实际加密。"""
+
     def create(self, db: Session, *, obj_in: DBConnectionCreate) -> DBConnection:
         # shortcut: 凭据沿用明文存储契约；引入受管密钥与数据迁移时改为可逆加密。
+        """保存连接配置并提交、刷新；当前将输入密码原样写入 password_encrypted 字段。"""
         db_obj = DBConnection(
             name=obj_in.name,
             db_type=obj_in.db_type,
@@ -35,6 +38,7 @@ class CRUDDBConnection(CRUDBase[DBConnection, DBConnectionCreate, DBConnectionUp
     def update(
         self, db: Session, *, db_obj: DBConnection, obj_in: Union[DBConnectionUpdate, Dict[str, Any]]
     ) -> DBConnection:
+        """将非 None 的 password 映射到现有凭据字段，再按基础更新流程提交。"""
         if isinstance(obj_in, dict):
             update_data = dict(obj_in)
         else:
@@ -46,6 +50,7 @@ class CRUDDBConnection(CRUDBase[DBConnection, DBConnectionCreate, DBConnectionUp
         return super().update(db, db_obj=db_obj, obj_in=update_data)
 
     def get_by_name(self, db: Session, *, name: str) -> Optional[DBConnection]:
+        """返回首个同名连接配置；未命中返回 None。"""
         return db.query(DBConnection).filter(DBConnection.name == name).first()
 
     def remove(self, db: Session, *, id: int) -> Optional[DBConnection]:

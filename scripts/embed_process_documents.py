@@ -55,6 +55,11 @@ async def ingest_documents(
     limit: Optional[int],
     dry_run: bool,
 ) -> None:
+    """分批解析目录文档并追加到向量库，不构建分级索引。
+
+    limit=None 表示不限数量，0 表示不读取或写入；dry_run 仅解析和报告。
+    入库失败向调用方传播，已完成批次不回滚，退出时关闭本函数创建的服务。
+    """
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     if limit is not None and limit < 0:
@@ -115,6 +120,7 @@ async def ingest_documents(
 
 
 def main() -> None:
+    """解析命令行选项并运行文档入库；错误由命令行进程暴露。"""
     args = parse_args()
     asyncio.run(
         ingest_documents(

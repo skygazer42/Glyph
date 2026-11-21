@@ -15,6 +15,7 @@ async def web_search(query: str) -> str:
 
 
 async def main() -> None:
+    """演示流式及完整响应并清理模型客户端；搜索工具需先配置真实实现。"""
     try:
         agent = AssistantAgent(
             name="Assistant",

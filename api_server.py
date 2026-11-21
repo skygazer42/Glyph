@@ -7,6 +7,7 @@ import logging
 from contextlib import AsyncExitStack, asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -48,7 +49,7 @@ from app.api.deps import close_dependencies, get_session_manager  # noqa: E402
 # 生命周期管理
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
+    """启动共享会话清理任务，退出时按登记顺序释放会话管理器和应用客户端。"""
     # 启动时执行
     logger.info("🚀 应用启动中...")
 
@@ -58,6 +59,10 @@ async def lifespan(app: FastAPI):
         stack.push_async_callback(close_with_timeout, session_manager.stop)
         session_manager.start()
         logger.info("✅ 会话管理器已启动")
+        try:
+            await run_in_threadpool(knowledge.warm_document_catalog)
+        except Exception:
+            logger.exception("资料目录预热失败，资料接口将在读取时报告错误")
         yield
     logger.info("✅ 会话管理器及应用客户端已关闭")
 
@@ -92,7 +97,7 @@ app.include_router(db_connections.router, prefix="/api/db", tags=["数据库连�
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
-    """健康检查"""
+    """返回 API 进程标识和版本，不执行模型或数据库连通性检查。"""
     return HealthResponse(
         status="healthy",
         service="政策DSL生成和知识库管理系统",

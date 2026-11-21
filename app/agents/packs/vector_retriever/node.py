@@ -299,6 +299,10 @@ class VectorRetrieverAgent(StatefulAgent):
         }
 
     async def _maybe_rerank(self, query_text: str, search_results: Dict[str, Any]) -> Dict[str, Any]:
+        """按配置在线程中重排并原地更新检索结果，replace 只留重排子集，fuse 对全部候选加权。
+
+        每次创建的重排器负责关闭；未启用、无候选或重排失败时返回传入结果，不额外复制或保证事务回滚。
+        """
         try:
             if os.getenv("KB_RERANK_ENABLED", "true").lower() != "true":
                 return search_results
@@ -431,6 +435,7 @@ class VectorRetrieverAgent(StatefulAgent):
         raise ValueError(f"Unsupported embedding backend: {backend}")
 
     async def _embed_openai(self, texts: List[str]) -> np.ndarray:
+        """使用本次请求拥有的异步客户端获取向量并校验维度，退出时关闭客户端。"""
         api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL")
         model = self.model_name
@@ -443,6 +448,7 @@ class VectorRetrieverAgent(StatefulAgent):
 
     async def _embed_ollama(self, texts: List[str]) -> np.ndarray:
         # Ollama is an independently selected backend whose SDK is not a runtime requirement.
+        """按显式选定的 Ollama 后端加载 SDK、生成向量并交给索引维度校验。"""
         from lightrag.llm.ollama import ollama_embed
         host = os.getenv("EMBEDDING_BINDING_HOST", "http://localhost:11434")
         model = self.model_name
@@ -462,6 +468,7 @@ class VectorRetrieverAgent(StatefulAgent):
 
     @staticmethod
     def _l2_normalize(embs: np.ndarray) -> np.ndarray:
+        """沿每行向量归一化并转为 float32，分母加微量值以允许零向量。"""
         norms = np.linalg.norm(embs, axis=1, keepdims=True) + 1e-12
         return (embs / norms).astype(np.float32)
 

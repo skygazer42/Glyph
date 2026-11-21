@@ -5,6 +5,7 @@
 
 import logging
 import math
+import os
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from functools import lru_cache
@@ -16,6 +17,11 @@ from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _graph_file_path() -> Path:
+    """与图检索使用相同地区工作目录，避免页面继续展示已归档的旧图谱。"""
+    return Path(os.getenv("LIGHTRAG_WORKDIR", "resources/data/lightrag_changzhou_20261121")) / "graph_chunk_entity_relation.graphml"
 
 
 class GraphNode(BaseModel):
@@ -43,6 +49,8 @@ class GraphData(BaseModel):
 
 
 class GraphStats(BaseModel):
+    """描述图谱文件是否存在及节点、边和文件大小统计。"""
+
     exists: bool
     nodes: int
     edges: int
@@ -51,15 +59,21 @@ class GraphStats(BaseModel):
 
 
 class ExplorationNode(GraphNode):
+    """为图谱浏览节点补充去重邻居数量。"""
+
     neighbor_count: int
 
 
 class ExplorationLink(GraphLink):
+    """保留边的稳定版本内标识与方向，供子图展示使用。"""
+
     id: str
     directed: bool
 
 
 class SubgraphData(BaseModel):
+    """返回有限子图及全图总量、截断标记和文件修订信息。"""
+
     nodes: list[ExplorationNode]
     links: list[ExplorationLink]
     total_nodes: int
@@ -70,18 +84,24 @@ class SubgraphData(BaseModel):
 
 
 class GraphSearchData(BaseModel):
+    """返回排序后的图谱搜索命中及截取前总数。"""
+
     nodes: list[ExplorationNode]
     total: int
     revision: str
 
 
 class SubgraphQuery(BaseModel):
+    """限制中心邻域查询深度和节点预算；无中心时查询概览。"""
+
     node_id: str | None = Field(default=None, min_length=1)
     depth: int = Field(default=1, ge=1, le=3)
     limit: int = Field(default=120, ge=1, le=600)
 
 
 class GraphSearchQuery(BaseModel):
+    """限制全图实体搜索词长度和返回数量。"""
+
     q: str = Field(min_length=1, max_length=200)
     limit: int = Field(default=12, ge=1, le=50)
 
@@ -96,6 +116,8 @@ class GraphSearchQuery(BaseModel):
 
 @dataclass
 class GraphIndex:
+    """缓存一个文件修订内的节点、边、无向邻接及确定性排名。"""
+
     nodes: dict[str, ExplorationNode]
     links: tuple[ExplorationLink, ...]
     neighbors: dict[str, set[str]]
@@ -113,7 +135,7 @@ def get_knowledge_graph():
     """
     try:
         # 获取 GraphML 文件路径
-        graph_file = Path("resources/data/lightrag/graph_chunk_entity_relation.graphml")
+        graph_file = _graph_file_path()
 
         if not graph_file.exists():
             raise HTTPException(
@@ -153,6 +175,7 @@ def parse_graphml(file_path: Path) -> tuple[List[GraphNode], List[GraphLink]]:
 
 
 def _parse_exploration_graphml(file_path: Path) -> tuple[list[GraphNode], list[ExplorationLink]]:
+    """解析节点和边并保留方向；无原生边 ID 时以全图序号构造版本内标识。"""
     tree = ET.parse(file_path)
     root = tree.getroot()
 
@@ -167,7 +190,7 @@ def _parse_exploration_graphml(file_path: Path) -> tuple[list[GraphNode], list[E
         key_map[key_id] = key_name
 
     nodes = []
-    links = []
+    links: list[ExplorationLink] = []
 
     # 解析节点
     for node in root.findall('.//graphml:node', ns):
@@ -219,6 +242,7 @@ def _parse_exploration_graphml(file_path: Path) -> tuple[list[GraphNode], list[E
 
 @lru_cache(maxsize=1)
 def _cached_graph(file_path: str, mtime_ns: int, size: int) -> GraphIndex:
+    """按路径、mtime 和大小缓存图索引；拒绝重复标识、悬空边并计算无向邻居及排名。"""
     nodes, links = _parse_exploration_graphml(Path(file_path))
     node_map = {node.id: node for node in nodes}
     if len(node_map) != len(nodes):
@@ -256,7 +280,8 @@ def _cached_graph(file_path: str, mtime_ns: int, size: int) -> GraphIndex:
 
 
 def _load_graph_index() -> GraphIndex:
-    graph_file = Path("resources/data/lightrag/graph_chunk_entity_relation.graphml").resolve()
+    """加载当前图索引并复核文件元数据；缺失返回 404，读取或格式错误转换为 500。"""
+    graph_file = _graph_file_path().resolve()
     try:
         stat = graph_file.stat()
         # shortcut: 版本由 mtime 和大小识别，导入若保留两者时改用内容摘要。
@@ -273,8 +298,9 @@ def _load_graph_index() -> GraphIndex:
 
 
 def _overview_ids(graph: GraphIndex, limit: int) -> list[str]:
+    """按排名从多个连通区域选概览节点，最多取预算与 24 的较小值。"""
     remaining = set(graph.nodes)
-    selected = []
+    selected: list[str] = []
     frontier: set[str] = set()
     seeds = iter(sorted(graph.ranked_ids, key=lambda node_id: (
         not graph.neighbors[node_id], graph.rank[node_id],
@@ -292,6 +318,7 @@ def _overview_ids(graph: GraphIndex, limit: int) -> list[str]:
 
 
 def _center_ids(graph: GraphIndex, node_id: str, depth: int, limit: int) -> tuple[list[str], bool]:
+    """按无向邻接逐层选择中心邻域，返回节点 ID 和是否因预算截断的标记。"""
     selected = [node_id]
     seen = {node_id}
     frontier = [node_id]
@@ -356,7 +383,7 @@ def get_graph_stats():
     获取知识图谱统计信息
     """
     try:
-        graph_file = Path("resources/data/lightrag/graph_chunk_entity_relation.graphml")
+        graph_file = _graph_file_path()
 
         if not graph_file.exists():
             return {

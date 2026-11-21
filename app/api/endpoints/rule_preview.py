@@ -11,6 +11,8 @@ from app.api.schemas import PreviewDSLRequest, TestDSLResponse
 
 
 class DraftInput(BaseModel):
+    """校验规则草稿的单个输入规格，允许保留额外业务字段。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
 
     name: str = Field(min_length=1, max_length=256, pattern=r"\S")
@@ -19,6 +21,8 @@ class DraftInput(BaseModel):
 
 
 class DraftOutput(BaseModel):
+    """校验规则草稿的输出状态、结果与追踪模板。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
 
     status: str
@@ -27,6 +31,8 @@ class DraftOutput(BaseModel):
 
 
 class DraftRule(BaseModel):
+    """供规则预览使用的严格类型草稿；保留额外字段并禁止输入名称重复。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
 
     rule_id: str = Field(min_length=1, max_length=256, pattern=r"\S")

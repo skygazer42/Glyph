@@ -206,6 +206,7 @@ class DSLPipeline:
 
     @staticmethod
     def _default_input_value(spec: Dict[str, Any]) -> Any:
+        """为生成规则的试运行构造类型示例值，不代表真实用户业务输入。"""
         name = spec["name"]
         input_type = spec.get("type", "string")
 
@@ -219,6 +220,7 @@ class DSLPipeline:
 
     @staticmethod
     def _value_for_tier(name: str, input_type: str, tier: Dict[str, Any]) -> Any:
+        """为试运行选择档位中的示例金额或类型值，不参与正式补贴金额计算。"""
         if name in {"invoice_no_tax", "price", "amount", "consumption_amount"}:
             low, high = tier.get("range", [0, None])
             if high is None:

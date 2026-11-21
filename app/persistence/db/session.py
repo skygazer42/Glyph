@@ -24,6 +24,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:
+    """为依赖调用提供一个 Session，并在退出时关闭；提交与回滚由使用方负责。"""
     db = SessionLocal()
     try:
         yield db

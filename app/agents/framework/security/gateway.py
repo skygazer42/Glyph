@@ -714,7 +714,7 @@ async def example_usage():
     # 模拟请求
     request = {
         'token': token,
-        'query': '济南市家电补贴政策是什么？',
+        'query': '常州市住房公积金提取规定是什么？',
         'action': 'query:read',
         'ip_address': '192.168.1.100',
         'user_agent': 'Mozilla/5.0'

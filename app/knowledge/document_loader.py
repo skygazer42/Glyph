@@ -268,6 +268,8 @@ class DocumentLoader:
         """Extract government departments from content."""
         departments: List[str] = []
         patterns = [
+            r"(江苏省[\u4e00-\u9fff]+[厅局委部])",
+            r"(常州市[\u4e00-\u9fff]+[厅局委部])",
             r"(山东省[\u4e00-\u9fff]+[厅局委部])",
             r"(济南市[\u4e00-\u9fff]+[厅局委部])",
             r"([\u4e00-\u9fff]+市[\u4e00-\u9fff]+[厅局委部])",
@@ -313,6 +315,8 @@ class DocumentLoader:
         """Extract regions from content."""
         regions: List[str] = []
         patterns = [
+            r"(江苏省)",
+            r"(常州经开区|常州经济开发区|常州|溧阳市?|天宁区|钟楼区|新北区|武进区|金坛区)",
             r"(山东省)",
             r"(济南市)",
             r"([青烟威][岛海坊])",  # Qingdao, Yantai, Weihai, Weifang
@@ -387,7 +391,11 @@ class DocumentLoader:
         """Infer source from file path."""
         path_str = str(file_path).lower()
 
-        if "山东" in path_str:
+        if "常州" in path_str or "changzhou" in path_str:
+            return "常州市政府"
+        elif "江苏" in path_str or "jiangsu" in path_str:
+            return "江苏省政府"
+        elif "山东" in path_str:
             return "山东省政府"
         elif "济南" in path_str:
             return "济南市政府"

@@ -11,9 +11,32 @@ node_modules/
 web/node_modules/
 .env
 .env.local
+.env.*.local
+
+# Local tooling and generated verification artifacts
+.agents/
+.oil-ui/
+.omx/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+web/dist/
+temp/
 
 # Large local data/cache directories (mount at runtime if needed)
 resources/data/milvus/
 resources/data/neo4j/
+resources/data/raw/
+resources/data/process/
+resources/data/policy_catalog/*.json
+resources/data/lightrag*/
+resources/data/graph_seed/
+resources/data/guize/
+resources/data/research/
+resources/data/exports/
+resources/data/local-inventory.json
+resources/archive/
+resources/faq/*.json
+uploads/
 volumes/
 milvus_data/

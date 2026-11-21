@@ -25,6 +25,8 @@ from app.config.app_config import settings
 
 
 class MinerUApiResponse(BaseModel):
+    """校验 MinerU 云端响应的公共状态与数据封装。"""
+
     model_config = ConfigDict(strict=True)
     code: int
     msg: str | None = None
@@ -32,12 +34,16 @@ class MinerUApiResponse(BaseModel):
 
 
 class MinerUUploadData(BaseModel):
+    """校验批量上传任务标识和文件直传地址。"""
+
     model_config = ConfigDict(strict=True)
     batch_id: str = Field(min_length=1)
     file_urls: list[str] = Field(min_length=1)
 
 
 class MinerUTaskFile(BaseModel):
+    """描述云端任务中文件的处理状态和可用产物。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
     state: str = Field(min_length=1)
     full_zip_url: str | None = None
@@ -45,22 +51,30 @@ class MinerUTaskFile(BaseModel):
 
 
 class MinerUTaskData(BaseModel):
+    """承载云端任务的文件结果集合。"""
+
     model_config = ConfigDict(strict=True)
     # An empty list while the service schedules a task is a real pending state.
     extract_result: list[MinerUTaskFile] = Field(default_factory=list)
 
 
 class MinerULocalFile(BaseModel):
+    """描述本地 MinerU 返回的文件结果。"""
+
     model_config = ConfigDict(strict=True)
     markdown: str = Field(min_length=1, validation_alias=AliasChoices("md", "markdown", "md_content"))
 
 
 class MinerULocalResponse(BaseModel):
+    """校验本地 MinerU 服务响应的数据形态。"""
+
     model_config = ConfigDict(strict=True)
     results: dict[str, MinerULocalFile] = Field(min_length=1)
 
 
 class MinerUArchiveContent(BaseModel):
+    """适配提取归档中的正文内容字段。"""
+
     model_config = ConfigDict(strict=True)
     content: str
 
@@ -596,6 +610,7 @@ class MinerUAdapter:
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def extract_single(file_path: str) -> Dict[str, Any]:
+            """在批处理信号量内提取一个文件；捕获普通异常并转换为包含错误信息的失败结果。"""
             async with semaphore:
                 try:
                     return await self.extract_document(file_path, options)

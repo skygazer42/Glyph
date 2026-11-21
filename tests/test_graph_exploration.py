@@ -43,6 +43,7 @@ def write_graph(path, nodes, links, *, directed=False):
 @pytest.fixture
 def api(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LIGHTRAG_WORKDIR", "resources/data/lightrag")
     name = "_graph_exploration_api"
     spec = importlib.util.spec_from_file_location(name, ROOT / "app/api/endpoints/knowledge_graph.py")
     assert spec is not None and spec.loader is not None
@@ -54,6 +55,21 @@ def api(monkeypatch, tmp_path):
     graph_file = tmp_path / "resources/data/lightrag/graph_chunk_entity_relation.graphml"
     with TestClient(application) as client:
         yield SimpleNamespace(module=module, client=client, graph_file=graph_file)
+
+
+def test_all_graph_endpoints_use_the_configured_regional_directory(api, monkeypatch, tmp_path):
+    write_graph(api.graph_file, [{"id": "旧地区"}], [])
+    regional = tmp_path / "changzhou_graph"
+    write_graph(regional / "graph_chunk_entity_relation.graphml", [{"id": "常州市"}], [])
+    monkeypatch.setenv("LIGHTRAG_WORKDIR", str(regional))
+    graph = api.client.get('/api/knowledge-graph/graph')
+    assert graph.status_code == 200
+    assert {row['id'] for row in graph.json()['nodes']} == {'常州市'}
+    stats = api.client.get('/api/knowledge-graph/graph/stats')
+    assert stats.status_code == 200 and stats.json()['nodes'] == 1
+    subset = api.client.get('/api/knowledge-graph/subgraph')
+    assert subset.status_code == 200
+    assert {row['id'] for row in subset.json()['nodes']} == {'常州市'}
 
 
 def get_subgraph(api, **params):

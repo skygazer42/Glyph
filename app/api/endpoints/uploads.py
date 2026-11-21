@@ -19,12 +19,14 @@ ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".pdf", ".doc", 
 
 
 def attachment_directory(access: ChatAccess) -> Path:
+    """按访问身份选择公共附件目录或当前工作人员目录，不创建目录。"""
     if access.is_staff:
         return ATTACHMENT_DIR / "staff" / access.namespace.split(":")[1]
     return ATTACHMENT_DIR / "public"
 
 
 def _save_attachment(file: UploadFile, access: ChatAccess) -> AttachmentUploadResponse:
+    """独占创建随机文件并分块写入，超过 10 MB 返回 413；写入异常时尝试删除残留，再返回上传元数据。"""
     if not file.filename:
         raise HTTPException(status_code=400, detail="上传文件缺少文件名")
     extension = Path(file.filename).suffix.lower()
@@ -64,6 +66,7 @@ def _save_attachment(file: UploadFile, access: ChatAccess) -> AttachmentUploadRe
 
 
 def _attachment_response(filename: str, access: ChatAccess) -> FileResponse:
+    """只返回指定身份目录内现有附件的下载响应；路径无效或文件缺失均返回 404。"""
     directory = attachment_directory(access).resolve()
     file_path = (directory / filename).resolve()
     if (
@@ -82,6 +85,7 @@ def _attachment_response(filename: str, access: ChatAccess) -> FileResponse:
 
 @router.post("", response_model=AttachmentUploadResponse)
 def upload_attachment(file: Annotated[UploadFile, File()]) -> AttachmentUploadResponse:
+    """上传公共咨询附件并返回保存路径、下载地址和大小；不解析正文或执行嵌入。"""
     return _save_attachment(file, ChatAccess())
 
 
@@ -89,6 +93,7 @@ def upload_attachment(file: Annotated[UploadFile, File()]) -> AttachmentUploadRe
 def upload_staff_attachment(
     file: Annotated[UploadFile, File()], access: Annotated[ChatAccess, Depends(require_staff)]
 ) -> AttachmentUploadResponse:
+    """将附件保存到已登录工作人员自己的目录，并返回上传元数据。"""
     return _save_attachment(file, access)
 
 
@@ -96,9 +101,11 @@ def upload_staff_attachment(
 def get_staff_attachment(
     filename: str, access: Annotated[ChatAccess, Depends(require_staff)]
 ) -> FileResponse:
+    """下载当前工作人员目录内的附件；其他目录或缺失文件返回 404。"""
     return _attachment_response(filename, access)
 
 
 @router.get("/{filename}")
 def get_attachment(filename: str) -> FileResponse:
+    """下载公共咨询目录内的附件；路径无效或文件缺失返回 404。"""
     return _attachment_response(filename, ChatAccess())

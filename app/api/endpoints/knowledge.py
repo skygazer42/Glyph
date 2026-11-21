@@ -9,9 +9,10 @@ import time
 import shutil
 import logging
 from pathlib import Path
+from threading import Lock
 from uuid import NAMESPACE_URL, uuid4, uuid5
-from typing import BinaryIO, Optional, Tuple
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from typing import Annotated, BinaryIO, Optional, Tuple
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from starlette.concurrency import run_in_threadpool
 
@@ -25,7 +26,7 @@ from app.schemas.knowledge import (
     SearchResult,
     UploadResponse,
     ListDocumentsResponse,
-    DocumentInfo,
+    DocumentListQuery, DocumentSummary,
     DeleteDocumentResponse,
     StatsResponse,
     CapabilitiesResponse, ProcessingCapabilities, ParserCapability,
@@ -36,9 +37,10 @@ from app.api.deps import (
     get_enhanced_doc_processor,
     get_knowledge_service,
 )
-from app.knowledge.doc_enhanced import EnhancedDocumentProcessor
+from app.knowledge.document_processor import EnhancedDocumentProcessor
 from app.knowledge.service import KnowledgeService
 from app.knowledge.document_workspace import DocumentWorkspace, SUPPORTED_FORMATS, atomic_write, safe_document_id
+from app.knowledge.document_catalog import DocumentCatalog
 from app.models.policy import PolicyDocument, PolicyType
 
 router = APIRouter()
@@ -50,13 +52,29 @@ PARSED_DIR = UPLOAD_DIR / "parsed"
 STATUS_DIR = UPLOAD_DIR / ".status"
 PARSED_STATUS_DIR = STATUS_DIR / "parsed"
 EMBED_STATUS_DIR = STATUS_DIR / "embedded"
+_catalogs: dict[tuple[Path, ...], DocumentCatalog] = {}
+_catalog_lock = Lock()
 
 
 def _workspace() -> DocumentWorkspace:
     return DocumentWorkspace(UPLOAD_DIR, PARSED_DIR, PARSED_STATUS_DIR, EMBED_STATUS_DIR)
 
 
+def _catalog() -> DocumentCatalog:
+    paths = tuple(path.absolute() for path in (UPLOAD_DIR, PARSED_DIR, PARSED_STATUS_DIR, EMBED_STATUS_DIR))
+    with _catalog_lock:
+        if paths not in _catalogs:
+            _catalogs[paths] = DocumentCatalog(_workspace())
+        return _catalogs[paths]
+
+
+def warm_document_catalog() -> None:
+    """Build/restore the listing snapshot before the server accepts requests."""
+    _catalog().documents()
+
+
 def _capabilities() -> ProcessingCapabilities:
+    """根据配置返回解析器可选能力；可用标记不代表已探测外部服务连通性。"""
     from app.config.app_config import settings
 
     return ProcessingCapabilities(
@@ -71,6 +89,7 @@ def _capabilities() -> ProcessingCapabilities:
 
 
 def _selected_processor(config: ProcessingConfig, processor: EnhancedDocumentProcessor) -> EnhancedDocumentProcessor:
+    """自动模式复用注入处理器；显式解析器配置创建对应处理器实例。"""
     if config.parser == "auto":
         return processor
     return EnhancedDocumentProcessor(config={
@@ -100,6 +119,7 @@ def _save_upload(file_path: Path, source: BinaryIO) -> tuple[int, int]:
 
 
 def _snapshot_parse_cache(workspace: DocumentWorkspace, doc_id: str) -> dict[Path, bytes | None]:
+    """读取正文和解析标记的原始字节快照，缺失文件记为 None，供失败恢复使用。"""
     paths = (workspace.parsed_path(doc_id), workspace.marker_path(PARSED_STATUS_DIR, doc_id))
     return {path: path.read_bytes() if path.is_file() else None for path in paths}
 
@@ -232,7 +252,7 @@ def _build_policy_document_from_cache(
 
 
 def _embed_document_once(request: EmbedRequest, knowledge_service: KnowledgeService) -> EmbedResponse:
-    """Keep the OS lock and all blocking work in one worker thread."""
+    """在线程内持有嵌入锁，校验原文和解析版本后 upsert 向量并写标记；后续失败不回滚已写向量。"""
     doc_id = safe_document_id(request.doc_id)
     workspace = _workspace()
     with workspace.document_lock(doc_id, "embedding"):
@@ -260,15 +280,7 @@ async def upload_document(
     file: UploadFile = File(...),
     processor: EnhancedDocumentProcessor = Depends(get_enhanced_doc_processor)
 ):
-    """
-    上传文档
-
-    Args:
-        file: 上传的文件
-
-    Returns:
-        上传结果
-    """
+    """保存上传原文并解析为版本化 Markdown 缓存，返回文档标识和原文版本；不执行向量嵌入，失败时仅尝试清理本请求拥有的文件及缓存。"""
     created_identity = None
     source_version = None
     parsed_text = None
@@ -436,7 +448,7 @@ async def search_knowledge(
 
 
 @router.get("/documents", response_model=ListDocumentsResponse)
-def list_documents():
+def list_documents(query: Annotated[DocumentListQuery, Query()]):
     """
     获取已上传的文档列表
 
@@ -444,40 +456,24 @@ def list_documents():
         文档列表
     """
     try:
-        if not UPLOAD_DIR.exists():
-            return ListDocumentsResponse(
-                success=True,
-                documents=[],
-                total=0
-            )
-
-        documents = []
-        workspace = _workspace()
-        for file_path in UPLOAD_DIR.iterdir():
-            if file_path.is_file() and not file_path.is_symlink() and file_path.suffix.lower() in SUPPORTED_FORMATS:
-                source_version = workspace.source_version(file_path.name)
-                parsed = workspace.parsed_content(file_path.name, source_version)
-                documents.append(
-                    DocumentInfo(
-                        id=file_path.name,
-                        name=file_path.name,
-                        size=file_path.stat().st_size,
-                        modified=file_path.stat().st_mtime,
-                        embedded=workspace.embedded(file_path.name, source_version),
-                        parsed=parsed.available,
-                        content_length=parsed.content_length,
-                        source_version=source_version,
-                    )
-                )
-
-        logger.info(f"获取文档列表，共 {len(documents)} 个")
-
+        documents = _catalog().documents()
+        summary = DocumentSummary(total=len(documents), parsed=sum(doc.parsed for doc in documents),
+                                  embedded=sum(doc.embedded for doc in documents))
+        keyword = query.query.strip().casefold()
+        matching = [doc for doc in documents if (not keyword or keyword in doc.name.casefold())
+                    and (query.parsed == "all" or doc.parsed == (query.parsed == "parsed"))
+                    and (query.indexed == "all" or doc.embedded == (query.indexed == "indexed"))]
+        matching.sort(key=lambda doc: (doc.modified, doc.name), reverse=query.sort == "newest")
+        total = len(matching)
+        if query.page is not None:
+            start = (query.page - 1) * query.page_size
+            matching = matching[start:start + query.page_size]
         return ListDocumentsResponse(
-            success=True,
-            documents=documents,
-            total=len(documents)
+            success=True, documents=matching, total=total, summary=summary,
+            page=query.page, page_size=query.page_size if query.page is not None else None,
         )
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"获取文档列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -485,17 +481,22 @@ def list_documents():
 
 @router.get("/capabilities", response_model=CapabilitiesResponse)
 def get_capabilities():
+    """返回当前配置声明的处理能力，不触发解析器探测或文档处理。"""
     return CapabilitiesResponse(success=True, capabilities=_capabilities())
 
 
 @router.get("/documents/{doc_id}/workspace", response_model=DocumentWorkspaceResponse)
 def get_document_workspace(doc_id: str, response: Response):
+    """返回原文、页面、解析缓存和处理配置的版本化工作区，并禁止缓存。"""
     response.headers["Cache-Control"] = "no-store"
-    return _workspace().workspace(doc_id, _capabilities())
+    result = _workspace().workspace(doc_id, _capabilities())
+    _catalog().invalidate(doc_id)
+    return result
 
 
 @router.get("/documents/{doc_id}/source")
 def get_document_source(doc_id: str, source_version: str | None = None):
+    """校验可选原文版本后以内联文件响应返回原文；版本冲突返回 409。"""
     workspace = _workspace()
     workspace.require_source_version(doc_id, source_version)
     path = workspace.source_path(doc_id)
@@ -508,17 +509,20 @@ def get_document_source(doc_id: str, source_version: str | None = None):
 
 @router.get("/documents/{doc_id}/pages/{page}")
 def get_document_page(doc_id: str, page: int, source_version: str | None = None):
+    """返回指定 PDF 页的 PNG 图像；版本冲突、格式或页号错误由工作区报告。"""
     image = _workspace().page_image(doc_id, page, source_version)
     return Response(image, media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 @router.post("/documents/{doc_id}/chunks/preview", response_model=ChunkPreviewResponse)
 def preview_document_chunks(doc_id: str, request: ChunkPreviewRequest):
+    """根据指定原文和解析版本生成分块预览，不执行向量嵌入或保存分块。"""
     return _workspace().preview(doc_id, request)
 
 
 @router.put("/documents/{doc_id}/processing-config", response_model=SaveProcessingConfigResponse)
 def save_processing_config(doc_id: str, request: SaveProcessingConfigRequest):
+    """核对文档版本及配置修订后保存处理偏好；不自动解析或重新嵌入文档。"""
     return _workspace().save_config(doc_id, request, _capabilities())
 
 

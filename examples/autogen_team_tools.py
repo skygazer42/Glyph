@@ -12,6 +12,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 
 async def main() -> None:
+    """将写作团队封装为工具交给主助手，结束后分别关闭两个模型客户端。"""
     # Disable parallel tool calls when using TeamTool
     model_client = OpenAIChatCompletionClient(model="gpt-4.1")
     main_model_client = None

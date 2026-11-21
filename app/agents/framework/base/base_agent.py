@@ -310,6 +310,7 @@ class ProactiveAgent(PolicyAgentBase):
         task.add_done_callback(completed)
 
     async def stop(self):
+        """取消并有界等待本代理登记的调度任务，记录任务失败后停止基础代理。"""
         tasks, self._scheduled_tasks = self._scheduled_tasks, set()
         for task in tasks:
             task.cancel()

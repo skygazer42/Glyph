@@ -265,6 +265,73 @@ def test_invalid_persisted_catalog_is_rebuilt_from_verified_files(api):
     assert api.client.get("/api/knowledge/documents").json() == expected
 
 
+def test_metadata_cache_write_failure_does_not_hide_verified_documents(api, monkeypatch):
+    from app.knowledge import document_catalog
+
+    cached(api)
+    monkeypatch.setattr(document_catalog, "atomic_write", Mock(side_effect=PermissionError("read-only cache")))
+    response = api.client.get("/api/knowledge/documents")
+    assert response.status_code == 200
+    assert response.json()["summary"] == {"total": 1, "parsed": 1, "embedded": 0}
+    assert api.client.get("/api/knowledge/documents").json() == response.json()
+
+
+def test_deletion_after_catalog_scan_does_not_fail_the_remaining_library(api, monkeypatch):
+    gone = source(api, "gone.txt")
+    source(api, "remaining.txt")
+    original = api.module.DocumentWorkspace.source_version
+
+    def source_version(workspace, name):
+        if name == "gone.txt" and gone.exists():
+            gone.unlink()
+        return original(workspace, name)
+
+    monkeypatch.setattr(api.module.DocumentWorkspace, "source_version", source_version)
+    response = api.client.get("/api/knowledge/documents")
+    assert response.status_code == 200
+    assert [doc["id"] for doc in response.json()["documents"]] == ["remaining.txt"]
+
+
+def test_deletion_during_directory_scan_does_not_skip_later_entries(api, monkeypatch):
+    from app.knowledge import document_catalog
+
+    for name in ("a.txt", "b.txt", "c.txt"):
+        source(api, name)
+    original = document_catalog.os.scandir
+
+    class Entries:
+        def __init__(self, directory):
+            with original(directory) as iterator:
+                self.entries = sorted(iterator, key=lambda entry: entry.name)
+
+        def __enter__(self):
+            return iter(self.entries)
+
+        def __exit__(self, *args):
+            return False
+
+    class DisappearingEntry:
+        name = "b.txt"
+
+        def is_file(self, **kwargs):
+            return True
+
+        def inode(self):
+            (api.router.UPLOAD_DIR / self.name).unlink()
+            raise FileNotFoundError(self.name)
+
+    def scan(directory):
+        result = Entries(directory)
+        if Path(directory) == api.workspace.root:
+            result.entries = [DisappearingEntry() if entry.name == "b.txt" else entry for entry in result.entries]
+        return result
+
+    monkeypatch.setattr(document_catalog.os, "scandir", scan)
+    response = api.client.get("/api/knowledge/documents")
+    assert response.status_code == 200
+    assert {doc["id"] for doc in response.json()["documents"]} == {"a.txt", "c.txt"}
+
+
 def test_document_list_pagination_filters_and_global_counts(api):
     for index in range(25):
         path = source(api, name=f"policy-{index:02d}.txt")

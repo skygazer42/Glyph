@@ -28,6 +28,8 @@ _CSRF_PATTERN = re.compile(r"[A-Za-z0-9_-]{32,128}")
 
 @dataclass(frozen=True)
 class ChatAccess:
+    """一次请求的咨询访问身份；user 为空时走公众会话凭证流程。"""
+
     user: APIUser | None = None
     expires_at: datetime | None = None
     csrf_token: str | None = None
@@ -38,6 +40,7 @@ class ChatAccess:
 
     @property
     def namespace(self) -> str:
+        """返回会话存储前缀；员工前缀由用户名摘要隔离，公众共用 public 前缀。"""
         if self.user is None:
             return "public:"
         owner = hashlib.sha256(self.user.username.encode("utf-8")).hexdigest()[:24]
@@ -46,11 +49,14 @@ class ChatAccess:
 
 @dataclass(frozen=True)
 class ChatSessionKey:
+    """区分内部存储标识与客户端凭证；公众客户端持有签名令牌。"""
+
     storage_id: str
     client_id: str
 
 
 def get_signing_key() -> str:
+    """返回符合长度和算法要求的会话签名密钥；配置不可用时抛出 HTTP 503。"""
     secret = settings.security.jwt_secret_key
     if not secret or len(secret.encode("utf-8")) < 32:
         raise HTTPException(
@@ -66,6 +72,7 @@ def get_signing_key() -> str:
 
 
 def require_staff_configuration() -> None:
+    """在员工认证前检查签名密钥和默认账号配置，缺失时返回服务不可用错误。"""
     get_signing_key()
     if not settings.security.api_default_username or not settings.security.api_default_password:
         raise HTTPException(
@@ -75,6 +82,10 @@ def require_staff_configuration() -> None:
 
 
 def _decode_session_token(token: str, *, audience: str, purpose: str) -> tuple[dict, datetime]:
+    """校验会话令牌的签名、受众、用途和过期时间，返回声明及 UTC 到期时间。
+
+    无效令牌转换为 HTTP 401；签名配置错误保留 HTTP 503。
+    """
     secret = get_signing_key()
     if not token or len(token) > 2048:
         raise HTTPException(status_code=401, detail="会话凭证无效或已过期。")
@@ -131,6 +142,7 @@ def require_staff(request: Request) -> ChatAccess:
 
 
 def get_chat_access(request: Request) -> ChatAccess:
+    """按 X-Client-Audience 选择员工认证或公众身份；未知入口返回 HTTP 400。"""
     audience = request.headers.get("X-Client-Audience", "public")
     if audience == "staff":
         return require_staff(request)

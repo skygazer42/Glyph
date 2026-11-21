@@ -61,5 +61,6 @@ def create_openai_client(
 
 
 def create_buffered_context(buffer_size: int = 10) -> BufferedChatCompletionContext:
+    """创建模型消息缓冲区，环境变量 LLM_CTX_BUFFER_SIZE 可覆盖调用参数容量。"""
     size = int(os.getenv("LLM_CTX_BUFFER_SIZE", str(buffer_size)))
     return BufferedChatCompletionContext(buffer_size=size)

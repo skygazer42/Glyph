@@ -26,6 +26,7 @@ from autogen_core.logging import (
 class UTF8JsonFormatter(logging.Formatter):
     """自定义格式化器:将日志消息中的JSON转换为UTF-8可读格式"""
     def format(self, record: logging.LogRecord) -> str:
+        """仅将既有日志格式中可解析的 JSON 消息转为中文可读文本，其余原样返回。"""
         formatted = super().format(record)
         parts = formatted.split(" - ", 3)
         if len(parts) != 4:
@@ -68,7 +69,10 @@ class LoggingManager:
         backup_count: int = 5,
         enable_console: bool = True,
     ) -> None:
-        """Configure logger handlers and optional rotating file output."""
+        """替换日志处理器，并按需配置控制台及滚动文件输出。
+
+        只关闭本管理器创建且不再复用的处理器；外部传入的 handler 由调用方管理。
+        """
         self._logger.setLevel(level)
 
         # Detach replaced handlers and release owned file streams.
@@ -111,6 +115,7 @@ class LoggingManager:
         messages: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> None:
+        """将模型流式请求的输入消息封装为 AutoGen 开始事件并以 INFO 记录。"""
         event = LLMStreamStartEvent(messages=messages, **kwargs)
         self._logger.info(self._serialize_event(event))
 
@@ -122,6 +127,7 @@ class LoggingManager:
         completion_tokens: int,
         **kwargs: Any,
     ) -> None:
+        """记录流式模型响应及调用方提供的输入、输出 token 数。"""
         event = LLMStreamEndEvent(
             response=response,
             prompt_tokens=prompt_tokens,
@@ -139,6 +145,7 @@ class LoggingManager:
         completion_tokens: int,
         **kwargs: Any,
     ) -> None:
+        """记录完整模型调用的消息、响应和 token 用量。"""
         event = LLMCallEvent(
             messages=messages,
             response=response,
@@ -156,6 +163,7 @@ class LoggingManager:
         arguments: Dict[str, Any],
         result: str,
     ) -> None:
+        """记录已完成工具调用的名称、参数和文本结果。"""
         event = ToolCallEvent(tool_name=tool_name, arguments=arguments, result=result)
         self._logger.info(self._serialize_event(event))
 
@@ -171,6 +179,7 @@ class LoggingManager:
         delivery_stage: DeliveryStage = DeliveryStage.SEND,
         **kwargs: Any,
     ) -> None:
+        """记录消息在发送或投递阶段的参与方、消息类型和载荷。"""
         event = MessageEvent(
             payload=payload,
             sender=sender,
@@ -190,6 +199,7 @@ class LoggingManager:
         kind: MessageKind = MessageKind.DIRECT,
         **kwargs: Any,
     ) -> None:
+        """以 WARNING 记录未投递消息的载荷和参与方。"""
         event = MessageDroppedEvent(
             payload=payload,
             sender=sender,
@@ -206,6 +216,7 @@ class LoggingManager:
         exception: BaseException,
         **kwargs: Any,
     ) -> None:
+        """记录消息处理失败事件，并附上所传异常的原始回溯。"""
         event = MessageHandlerExceptionEvent(
             payload=payload,
             handling_agent=handling_agent,
@@ -223,6 +234,7 @@ class LoggingManager:
         exception: BaseException,
         **kwargs: Any,
     ) -> None:
+        """记录智能体构造失败事件，并附上所传异常的原始回溯。"""
         event = AgentConstructionExceptionEvent(
             agent_id=agent_id, exception=exception, **kwargs
         )

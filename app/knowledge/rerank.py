@@ -12,6 +12,8 @@ from app.config.app_config import settings
 
 
 class RerankItem(BaseModel):
+    """校验重排服务返回的原文档位置和有限相关性分数。"""
+
     model_config = ConfigDict(strict=True)
 
     index: int = Field(ge=0)
@@ -21,16 +23,22 @@ class RerankItem(BaseModel):
 
 
 class DashscopeRerankResponse(BaseModel):
+    """适配 DashScope 重排结果所在的响应路径。"""
+
     results: list[RerankItem] = Field(
         validation_alias=AliasChoices(AliasPath("output", "results"), "data")
     )
 
 
 class XinferenceRerankResponse(BaseModel):
+    """适配 Xinference 的两种重排结果字段名称。"""
+
     results: list[RerankItem] = Field(validation_alias=AliasChoices("data", "results"))
 
 
 class Reranker:
+    """持有配置选定的重排后端及 HTTP Session；调用方负责 close。"""
+
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.settings = settings.reranker
         self.logger = logging.getLogger(__name__) if logger is None else logger
@@ -71,6 +79,10 @@ class Reranker:
 
 
     def rerank(self, query: str, documents: Sequence[str], top_n: Optional[int] = None) -> List[Tuple[int, float, str]]:
+        """返回按分数降序的原索引、分数、文本三元组。
+
+        空文档直接返回空列表；非空输入时，零数量返回空列表，负数量抛出 ValueError。
+        """
         if not documents:
             return []
         k = int(self.settings.top_n if top_n is None else top_n)
@@ -92,6 +104,7 @@ class Reranker:
 
     # ------------ DashScope  ------------
     def _call_dashscope(self, query: str, docs: Sequence[str], k: int) -> List[Tuple[int, float, str]]:
+        """请求 DashScope 并校验返回索引，再按分数截取；HTTP 响应退出时关闭，错误向上传播。"""
         payload = {
             "model": self.model,  # "gte-rerank-v2"
             "input": {"query": query, "documents": list(docs)},
@@ -113,6 +126,7 @@ class Reranker:
 
     # ------------ Xinference（OpenAI 风格 /v1/rerank） ------------
     def _call_xinference(self, query: str, docs: Sequence[str], k: int) -> List[Tuple[int, float, str]]:
+        """请求 Xinference 并校验返回索引，再按分数截取；HTTP 响应退出时关闭，错误向上传播。"""
         payload = {
             "model": self.model,  # 如 bge-reranker-large / bge-m3
             "query": query,
@@ -136,6 +150,7 @@ class Reranker:
 
 
     def close(self) -> None:
+        """关闭 HTTP 后端持有的 Session；原生 LlamaIndex 模式不创建该 Session。"""
         if self.backend in {"dashscope", "xinference"}:
             self.session.close()
 
@@ -155,6 +170,7 @@ class LlamaIndexReranker(BaseNodePostprocessor):
         self._prepare()
 
     def _prepare(self) -> None:
+        """按配置初始化本地后处理器或远程重排服务，初始化失败直接传播。"""
         if self._settings.backend.lower() == "llamaindex":
             model = self._settings.model_name
             if any(key in model.lower() for key in ("bge", "reranker", "flag")):
@@ -173,6 +189,7 @@ class LlamaIndexReranker(BaseNodePostprocessor):
     def _postprocess_nodes(
         self, nodes: List[NodeWithScore], query_bundle: Optional[QueryBundle] = None,
     ) -> List[NodeWithScore]:
+        """按查询重排节点并生成新的分数包装；空节点返回空列表，非空节点缺少查询时抛错。"""
         if not nodes:
             return []
         if query_bundle is None:
@@ -194,6 +211,7 @@ class LlamaIndexReranker(BaseNodePostprocessor):
                 for index, score, _ in ranked]
 
     def close(self) -> None:
+        """关闭包装器创建的远程重排服务；本地后处理器不走此关闭路径。"""
         if self._service is not None:
             self._service.close()
 

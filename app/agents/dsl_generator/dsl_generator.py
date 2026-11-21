@@ -404,7 +404,7 @@ output:
     def _get_appliance_template(**kwargs) -> Dict[str, Any]:
         """家电补贴模板"""
         return {
-            'rule_id': kwargs.get('rule_id', 'Rule_Jinan_Appliance_2025'),
+            'rule_id': kwargs.get('rule_id', 'Rule_Template_Appliance'),
             'doc_id': kwargs.get('doc_id', '济商务字〔2025〕X号'),
             'title': kwargs.get('title', '家电以旧换新补贴实施细则'),
             'inputs': [
@@ -452,8 +452,8 @@ output:
                        f"({tier}['range'][1] is None or {amount} < {tier}['range'][1])")
             tier_expression = f'{tier} if {matches} else ({tier_expression})'
         return {
-            'rule_id': kwargs.get('rule_id', 'Rule_Jinan_Car_2025'),
-            'doc_id': kwargs.get('doc_id', '济南市汽车消费补贴公告'),
+            'rule_id': kwargs.get('rule_id', 'Rule_Template_Car'),
+            'doc_id': kwargs.get('doc_id', '待核实的汽车消费补贴政策'),
             'title': kwargs.get('title', '汽车消费补贴活动'),
             'inputs': [
                 {'name': 'invoice_no_tax', 'type': 'float', 'required': True, 'description': '不含税价格'},
@@ -477,8 +477,8 @@ output:
     def _get_consumption_template(**kwargs) -> Dict[str, Any]:
         """消费补贴模板"""
         return {
-            'rule_id': kwargs.get('rule_id', 'Rule_Jinan_Consumption_2025'),
-            'doc_id': kwargs.get('doc_id', '济南市消费促进活动通知'),
+            'rule_id': kwargs.get('rule_id', 'Rule_Template_Consumption'),
+            'doc_id': kwargs.get('doc_id', '待核实的消费促进活动政策'),
             'title': kwargs.get('title', '消费促进补贴活动'),
             'inputs': [
                 {'name': 'amount', 'type': 'float', 'required': True, 'description': '消费金额'},

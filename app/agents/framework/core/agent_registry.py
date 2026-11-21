@@ -136,6 +136,7 @@ class AgentRegistry:
         logger.info(f"Unregistered agent {agent_id}")
 
     async def create_instance(self, agent_id: str, config: Optional[Dict[str, Any]] = None) -> Optional[AgentBase]:
+        """在代理专属锁内创建并发布单例；未注册、禁用或初始化失败返回 None，未发布实例负责关闭。"""
         lock = self._creation_locks.setdefault(agent_id, asyncio.Lock())
         async with lock:
             info = self._agents.get(agent_id)

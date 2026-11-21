@@ -18,6 +18,8 @@ from app.schemas.chat_history import (
 
 
 class CRUDChatSession(CRUDBase[ChatSession, ChatSessionCreate, ChatSessionUpdate]):
+    """在调用方 Session 中维护聊天会话及其查询操作。"""
+
     def list_active(
         self, 
         db: Session, 
@@ -45,6 +47,8 @@ class CRUDChatSession(CRUDBase[ChatSession, ChatSessionCreate, ChatSessionUpdate
 
 
 class CRUDChatMessage(CRUDBase[ChatMessage, ChatMessageCreate, ChatMessageUpdate]):
+    """在调用方 Session 中维护会话消息与消息顺序。"""
+
     def get_by_session(
         self, 
         db: Session, 
@@ -87,6 +91,8 @@ class CRUDChatMessage(CRUDBase[ChatMessage, ChatMessageCreate, ChatMessageUpdate
 
 
 class CRUDChatHistorySnapshot(CRUDBase[ChatHistorySnapshot, ChatHistorySnapshotCreate, ChatHistorySnapshotCreate]):
+    """维护按会话关联的查询响应快照。"""
+
     def get_by_session(self, db: Session, *, session_id: str) -> List[ChatHistorySnapshot]:
         """获取会话的历史快照"""
         return db.query(self.model).filter(

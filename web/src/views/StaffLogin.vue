@@ -1,24 +1,13 @@
 <template>
   <div class="staff-login">
-    <header class="staff-login-header">
-      <div class="staff-login-header-inner">
-      <router-link to="/agent" class="staff-login-brand" aria-label="政策知识服务平台公众咨询">
-        <PlatformMark width="32" height="32" />
-        <span>政策知识服务平台</span>
-      </router-link>
-      <div class="staff-login-header-actions">
-        <el-tooltip :content="isDark ? '切换浅色界面' : '切换深色界面'" placement="bottom">
-          <button type="button" class="staff-login-theme" :aria-label="isDark ? '切换浅色界面' : '切换深色界面'" @click="toggleTheme">
-            <el-icon><component :is="isDark ? Sunny : Moon" /></el-icon>
-          </button>
-        </el-tooltip>
-        <router-link to="/agent" class="staff-login-public">公众咨询 <el-icon aria-hidden="true"><TopRight /></el-icon></router-link>
-      </div>
-      </div>
-    </header>
     <main class="staff-login-main">
       <section class="staff-login-panel" aria-labelledby="staff-login-title">
-        <p class="staff-login-caption">工作人员入口</p>
+        <div class="staff-login-panel-heading">
+          <div class="staff-login-brand"><PlatformMark width="32" height="32" /><span>政策知识服务平台</span></div>
+          <el-tooltip :content="isDark ? '切换浅色界面' : '切换深色界面'" placement="bottom">
+            <button type="button" class="staff-login-theme" :aria-label="isDark ? '切换浅色界面' : '切换深色界面'" @click="toggleTheme"><el-icon><component :is="isDark ? Sunny : Moon" /></el-icon></button>
+          </el-tooltip>
+        </div>
         <h1 id="staff-login-title">登录工作台</h1>
         <p class="staff-login-description">使用工作人员账号，进入政策资料与规则工作区。</p>
         <p v-if="notice" class="staff-login-notice" role="status">{{ notice }}</p>
@@ -32,7 +21,10 @@
           </el-form-item>
           <el-button class="staff-login-submit" type="primary" native-type="submit" :loading="busy" :disabled="busy">{{ restoring ? '正在确认登录状态' : submitting ? '正在登录' : '登录工作台' }}</el-button>
         </el-form>
-        <p class="staff-login-account-note">账号由平台管理员分配。</p>
+        <footer class="staff-login-panel-footer">
+          <p class="staff-login-account-note">账号由平台管理员分配。</p>
+          <router-link to="/agent" class="staff-login-public">公众咨询 <el-icon aria-hidden="true"><TopRight /></el-icon></router-link>
+        </footer>
       </section>
     </main>
   </div>
@@ -42,7 +34,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Lock, Moon, Sunny, TopRight, User, WarningFilled } from '@element-plus/icons-vue'
-import PlatformMark from '@/components/workbench/PlatformMark.vue'
+import PlatformMark from '@/components/brand/PlatformMark.vue'
 import { useTheme } from '@/composables/useTheme'
 import { useAuthStore } from '@/stores/auth'
 import { getStaffDestination } from '@/utils/staffNavigation'
@@ -135,27 +127,20 @@ onBeforeUnmount(() => {
   --el-disabled-text-color: var(--wb-muted);
   --el-border-radius-base: var(--wb-radius);
   min-height: 100dvh;
-  display: grid;
-  grid-template-rows: auto 1fr;
   color: var(--wb-ink);
   background-color: var(--wb-canvas);
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--wb-border) 65%, transparent) .7px, transparent .8px);
-  background-size: 24px 24px;
   font: var(--wb-text-size)/1.6 var(--wb-font);
   font-variant-numeric: tabular-nums;
 }
-.staff-login-header { padding: 0 32px; border-bottom: 1px solid var(--wb-line); background: var(--wb-surface); }
-.staff-login-header-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; max-width: 1280px; min-height: var(--wb-public-header-height); margin-inline: auto; }
-.staff-login-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--wb-ink); font-size: 17px; font-weight: 600; text-decoration: none; }
+.staff-login-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 28px; }
+.staff-login-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--wb-ink); font-size: 17px; font-weight: 600; }
 .staff-login-brand svg { flex-shrink: 0; }
-.staff-login-header-actions { display: flex; align-items: center; gap: 20px; }
 .staff-login-theme { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: var(--wb-radius); color: var(--wb-muted); background: transparent; font-size: 17px; cursor: pointer; }
 .staff-login-theme:hover { background: var(--wb-tint); }
-.staff-login-public { display: inline-flex; align-items: center; gap: 5px; color: var(--wb-muted); font-size: 14px; text-decoration: none; white-space: nowrap; }
+.staff-login-public { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; color: var(--wb-muted); font-size: 13px; text-decoration: none; white-space: nowrap; }
 .staff-login-public:hover { color: var(--wb-blue); }
-.staff-login-main { display: grid; align-content: start; padding: clamp(48px, 14vh, 144px) 20px 40px; }
+.staff-login-main { display: grid; min-height: 100dvh; align-content: center; padding: 40px 20px; }
 .staff-login-panel { width: min(100%, 420px); margin: 0 auto; padding: 36px 32px; border: 1px solid var(--wb-line); border-radius: 12px; background: var(--wb-surface); box-shadow: 0 12px 36px color-mix(in srgb, var(--wb-ink) 4%, transparent), 0 2px 6px color-mix(in srgb, var(--wb-ink) 2%, transparent); }
-.staff-login-caption { margin: 0 0 8px; color: var(--wb-muted); font-size: 13px; }
 .staff-login-panel h1 { margin: 0; font-size: var(--wb-title-size); font-weight: 600; line-height: 1.5; }
 .staff-login-description { margin: 10px 0 28px; color: var(--wb-muted); font-size: 14px; }
 .staff-login-notice { margin: 0 0 20px; padding: 12px; border-radius: var(--wb-radius); color: var(--wb-ink); background: var(--wb-blue-soft); font-size: 14px; }
@@ -173,17 +158,15 @@ onBeforeUnmount(() => {
 .staff-login .staff-login-submit.el-button:not(:disabled):hover,
 .staff-login .staff-login-submit.el-button:not(:disabled):focus { border-color: var(--wb-blue-hover); color: var(--wb-surface); background: var(--wb-blue-hover); box-shadow: none; transform: none; }
 .staff-login .staff-login-submit.el-button:disabled { border-color: var(--wb-line); color: var(--wb-muted); background: var(--wb-tint); box-shadow: none; }
-.staff-login-account-note { margin: 20px 0 0; color: var(--wb-muted); font-size: 13px; text-align: center; }
+.staff-login-panel-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px; }
+.staff-login-account-note { margin: 0; color: var(--wb-muted); font-size: 13px; }
 .staff-login a:focus-visible, .staff-login button:focus-visible { outline: 2px solid var(--wb-blue); outline-offset: 3px; }
 @media (max-width: 600px) {
-  .staff-login-header { padding: 0 16px; }
-  .staff-login-header-inner { gap: 10px; min-height: 64px; }
-  .staff-login-brand { gap: 7px; font-size: 14px; }
+  .staff-login-brand { gap: 8px; font-size: 16px; }
   .staff-login-brand svg { width: 28px; height: 28px; }
-  .staff-login-header-actions { gap: 8px; }
-  .staff-login-public { min-height: 44px; font-size: 12px; }
+  .staff-login-public { min-height: 44px; }
   .staff-login-theme { width: 44px; height: 44px; }
-  .staff-login-main { padding: 36px 16px; }
+  .staff-login-main { padding: 28px 16px; }
   .staff-login-panel { padding: 26px 22px; }
   .staff-login-panel :deep(.el-input__wrapper), .staff-login-submit { min-height: 44px; }
   .staff-login-panel :deep(.el-input__inner) { font-size: 16px; }

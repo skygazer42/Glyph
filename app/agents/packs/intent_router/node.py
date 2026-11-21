@@ -342,7 +342,7 @@ class IntentRouterAgent(PolicyAgentBase):
     def _extract_locations(self, text: str) -> List[str]:
         """提取地点"""
         locations = []
-        location_keywords = ["济南", "青岛", "烟台", "潍坊", "全省", "市", "区", "县"]
+        location_keywords = ["常州", "江苏", "天宁", "钟楼", "新北", "武进", "金坛", "溧阳", "常州经开区", "济南", "青岛", "烟台", "潍坊", "全省", "市", "区", "县"]
         for keyword in location_keywords:
             if keyword in text:
                 locations.append(keyword)

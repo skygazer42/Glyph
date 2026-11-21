@@ -79,8 +79,8 @@ class QueryAnalyzerAgent(PolicyAgentBase):
 
         # 常见实体模式
         self.entity_patterns = {
-            "department": r"(济南市|山东省|商务厅|财政局|发改委|工信局|人社局)",
-            "location": r"(济南|青岛|烟台|潍坊|淄博|济宁|泰安|威海|日照|临沂|德州|聊城|滨州|菏泽|全省)",
+            "department": r"(常州市|江苏省|济南市|山东省|商务厅|财政局|发改委|工信局|人社局)",
+            "location": r"(常州经济开发区|常州经开区|常州市?|江苏省?|天宁区?|钟楼区?|新北区?|武进区?|金坛区?|溧阳市?|济南|青岛|烟台|潍坊|淄博|济宁|泰安|威海|日照|临沂|德州|聊城|滨州|菏泽|全省)",
             "money": r"(\d+(?:\.\d+)?[万千百]?元)",
             "date": r"(\d{4}年\d{1,2}月\d{1,2}日|\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}月\d{1,2}日)",
             "percentage": r"(\d+(?:\.\d+)?%)"
@@ -243,7 +243,7 @@ class QueryAnalyzerAgent(PolicyAgentBase):
 
     def _extract_location_constraints(self, entities: List[str]) -> Optional[str]:
         """从实体中提取地点约束"""
-        location_keywords = ["济南", "青岛", "烟台", "全省", "市", "区", "县"]
+        location_keywords = ["常州", "江苏", "天宁", "钟楼", "新北", "武进", "金坛", "溧阳", "济南", "青岛", "烟台", "全省", "市", "区", "县"]
 
         for entity in entities:
             for keyword in location_keywords:

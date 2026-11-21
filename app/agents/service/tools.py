@@ -30,6 +30,8 @@ from app.utils.lifecycle import close_with_timeout
 
 
 class _WebSearchHit(BaseModel):
+    """网页检索单条结果的所需字段，忽略额外字段并拒绝非有限分数。"""
+
     model_config = ConfigDict(extra="ignore", allow_inf_nan=False)
 
     title: str
@@ -39,12 +41,16 @@ class _WebSearchHit(BaseModel):
 
 
 class _WebSearchResponse(BaseModel):
+    """网页检索的结果列表响应，空列表允许但 results 字段必需。"""
+
     model_config = ConfigDict(extra="ignore")
 
     results: List[_WebSearchHit]
 
 
 class _DifySearchHit(BaseModel):
+    """Dify 单条命中，兼容内容和分数的既定别名，出处字段可缺省。"""
+
     model_config = ConfigDict(extra="ignore", allow_inf_nan=False)
 
     content: str = Field(validation_alias=AliasChoices("content", "text"))
@@ -55,6 +61,8 @@ class _DifySearchHit(BaseModel):
 
 
 class _DifySearchResponse(BaseModel):
+    """Dify 命中列表外壳，接受 data、hits 或 items 作为既定输入别名。"""
+
     model_config = ConfigDict(extra="ignore")
 
     hits: List[_DifySearchHit] = Field(validation_alias=AliasChoices("data", "hits", "items"))
@@ -67,6 +75,7 @@ class IntentDetectionTool:
         self.classifier = LLMIntentClassifier() if classifier is None else classifier
 
     async def detect(self, query: str) -> Dict[str, Any]:
+        """将意图模型的校验结果转为字典；分类失败向调用方传播。"""
         prediction = await self.classifier.classify(query)
         return prediction.model_dump()
 
@@ -83,6 +92,7 @@ class KnowledgeTool:
         self._last_timings: ContextVar[dict[str, float]] = ContextVar("knowledge_tool_timings")
 
     async def aclose(self) -> None:
+        """禁止后续访问并等待初始化任务，仅关闭由此门面创建并拥有的知识服务。"""
         self._closed = True
         if self._service_task is not None:
             await close_with_timeout(partial(asyncio.shield, self._service_task))
@@ -103,6 +113,7 @@ class KnowledgeTool:
         return service
 
     async def get_service(self) -> KnowledgeService:
+        """复用知识服务或共享初始化任务；调用方取消不取消初始化，门面关闭后拒绝访问。"""
         if self._closed:
             raise RuntimeError("Knowledge tool is closed")
         if self._service is not None:
@@ -119,6 +130,7 @@ class KnowledgeTool:
         return service
 
     async def ingest(self, documents: List[PolicyDocument]) -> int:
+        """将文档追加到向量存储并返回输入条数，不重建完整分级快照。"""
         service = await self.get_service()
         # 分批追加向量；完整分级快照由 embed_documents 独立构建，避免覆盖既有语料。
         await run_sync(service.vector_store.add_documents, documents)
@@ -132,6 +144,7 @@ class KnowledgeTool:
         threshold: float = 0.6,
         filters: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[PolicyDocument], List[float]]:
+        """返回对应的政策文档与分数；先尝试无需过滤的 Dify 命中，否则查询本地知识服务。"""
         self._last_timings.set({})
         if top_k < 0:
             raise ValueError("top_k must not be negative")
@@ -187,6 +200,7 @@ class WebSearchTool:
         return self._client is not None
 
     def search(self, query: str, max_results: Optional[int] = None) -> List[Dict[str, Any]]:
+        """同步返回限量网页结果；工具未启用或请求零条时返回空列表，客户端失败继续传播。"""
         client = self._client
         if client is None:
             return []
@@ -275,6 +289,7 @@ class VisionTool:
         return self._mode != "disabled"
 
     async def describe(self, query: str, attachments: List[Attachment]) -> str:
+        """按已配置视觉后端读取附件并返回描述；未启用或无附件时返回空字符串。"""
         if not self.enabled or not attachments:
             return ""
         if self._mode == "dashscope":
@@ -282,6 +297,7 @@ class VisionTool:
         return await self._describe_openai(query, attachments)
 
     async def aclose(self) -> None:
+        """清空本门面的视觉客户端状态并关闭已持有客户端。"""
         client, self._client = self._client, None
         self._mode = "disabled"
         self._dashscope_api_key = None
@@ -311,6 +327,7 @@ class VisionTool:
         return payload
 
     def _resolve_image_url(self, attachment: Attachment) -> Optional[str]:
+        """使用支持的远程 URL 或读取本地文件生成 data URL；不在此下载远程图片。"""
         if attachment.url:
             if attachment.url.lower().startswith(("http://", "https://", "data:image/")):
                 return attachment.url
@@ -334,6 +351,7 @@ class VisionTool:
         return str(resolved)
 
     def _resolve_local_image_path(self, attachment: Attachment) -> Optional[Path]:
+        """缺失附件路径时返回 None，指定路径必须是现有文件；这里不承担上传根目录的访问授权。"""
         if not attachment.path:
             return None
         path = Path(attachment.path)
@@ -430,6 +448,7 @@ class DifyKnowledgeProxy:
             raise ValueError("Dify KB requires base_url, api_key and dataset_id when enabled")
 
     async def search(self, query: str, top_k: Optional[int] = None) -> Tuple[List[PolicyDocument], List[float]]:
+        """返回对应的 Dify 文档和分数；网络失败供调用者回退，非法 JSON 错误不当作正常无结果。"""
         if not self.enabled:
             return [], []
         limit = self.top_k if top_k is None else top_k
@@ -448,6 +467,10 @@ class DifyKnowledgeProxy:
             return [], []
 
     def _search_sync(self, query: str, top_k: int) -> Tuple[List[PolicyDocument], List[float]]:
+        """同步请求 Dify，关闭响应后校验命中并构造对应的文档、分数列表。
+
+        忽略空内容，保留出处元数据；HTTP、JSON 与结构校验错误向外传播，由异步入口决定是否回退。
+        """
         url = f"{self.base_url}/v1/datasets/{self.dataset_id}/retrieve"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -524,6 +547,7 @@ class UserProfileTool:
         logger.info("UserProfileTool 已加载 {} 条用户历史记录", len(self._db))
 
     async def fetch(self, user_id: str) -> Dict[str, Any]:
+        """返回档案的深拷贝及 found 标志；未命中时返回 found=False 和说明文字。"""
         profile = self._db.get(user_id)
         if profile is not None:
             return {**deepcopy(profile), "user_id": user_id, "found": True}
@@ -535,6 +559,7 @@ class UserProfileTool:
 
     @staticmethod
     def format_profile(profile: Dict[str, Any]) -> str:
+        """将 fetch 返回的档案字典格式化为文本，未找到时直接返回其说明。"""
         if not profile["found"]:
             return profile["message"]
         history = profile.get("history") or []

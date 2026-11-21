@@ -75,6 +75,7 @@ class SessionManager:
         connection_id: Optional[int] = None,
         user_id: Optional[str] = None,
     ) -> Session:
+        """先按配置保存会话元数据，再登记新的内存会话；返回管理器持有的可变会话对象。"""
         with self._lock:
             if session_id is None:
                 session_id = str(uuid.uuid4())
@@ -97,6 +98,7 @@ class SessionManager:
             return session
 
     def get_session(self, session_id: str) -> Optional[Session]:
+        """返回并刷新缓存会话的活跃时间；缓存未命中时尝试从历史库恢复元数据，仍未找到则返回 None。"""
         with self._lock:
             session = self.sessions.get(session_id)
             if session:
@@ -129,6 +131,7 @@ class SessionManager:
         connection_id: Optional[int] = None,
         user_id: Optional[str] = None,
     ) -> Session:
+        """复用或恢复指定会话，未找到时创建；返回共享内存对象而非独立副本。"""
         with self._lock:
             if session_id:
                 existing = self.sessions.get(session_id)
@@ -165,6 +168,7 @@ class SessionManager:
         metadata: Optional[Dict[str, Any]] = None,
         region: Optional[str] = None,
     ) -> None:
+        """先完成配置的历史持久化，再追加消息深拷贝并更新内存计数；存储错误不被吞掉。"""
         with self._lock:
             session = self.get_session(session_id)
             if not session:
@@ -198,6 +202,7 @@ class SessionManager:
             session.title = title
 
     def get_messages(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """优先返回内存消息的深拷贝，否则读取历史库；limit 为零返回空列表，负数报错。"""
         with self._lock:
             if limit is not None and limit < 0:
                 raise ValueError("limit must be non-negative")
@@ -222,17 +227,20 @@ class SessionManager:
             return []
 
     def update_context(self, session_id: str, context: Dict[str, Any]) -> None:
+        """仅更新已存在会话，将传入上下文深拷贝后合并到管理器缓存。"""
         with self._lock:
             session = self.get_session(session_id)
             if session:
                 session.context.update(deepcopy(context))
 
     def get_context(self, session_id: str) -> Dict[str, Any]:
+        """返回会话上下文的深拷贝；未找到会话时返回空字典。"""
         with self._lock:
             session = self.get_session(session_id)
             return deepcopy(session.context) if session else {}
 
     def delete_session(self, session_id: str) -> None:
+        """先删除配置的持久化历史，再移除内存会话与消息队列；存储失败保留内存条目。"""
         with self._lock:
             if self.history_store is not None:
                 self.history_store.delete_session(session_id)
@@ -248,6 +256,7 @@ class SessionManager:
     # 查询 & 统计
     # ------------------------------------------------------------------
     def list_sessions(self) -> List[Session]:
+        """有历史库时以活跃记录为列表来源并复用已缓存对象，否则列出内存会话。"""
         with self._lock:
             if self.history_store:
                 sessions: List[Session] = []
@@ -282,6 +291,7 @@ class SessionManager:
     # 清理任务
     # ------------------------------------------------------------------
     async def cleanup_expired_sessions(self) -> None:
+        """在线程中清理过期内存会话及队列，不删除持久化聊天历史。"""
         await asyncio.to_thread(self._cleanup_expired_sessions)
 
     def _cleanup_expired_sessions(self) -> None:
@@ -311,10 +321,12 @@ class SessionManager:
                 logger.exception("会话清理任务异常")
 
     def start(self) -> None:
+        """在当前事件循环启动唯一的会话过期清理任务。"""
         if self._cleanup_task is None or self._cleanup_task.done():
             self._cleanup_task = asyncio.create_task(self._run_cleanup())
 
     async def stop(self) -> None:
+        """取消并有界等待本管理器的清理任务；非取消异常继续传播。"""
         if self._cleanup_task is not None:
             task = self._cleanup_task
             task.cancel()
@@ -330,6 +342,7 @@ class SessionManager:
     # SSE 消息队列
     # ------------------------------------------------------------------
     def create_message_queue(self, session_id: str) -> asyncio.Queue:
+        """为会话新建并登记队列；同标识原队列会被替换。"""
         with self._lock:
             queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
             self.message_queues[session_id] = queue
@@ -340,11 +353,13 @@ class SessionManager:
             return self.message_queues.get(session_id)
 
     async def put_message(self, session_id: str, message: Any) -> None:
+        """向已登记队列放入消息；会话没有队列时不做操作。"""
         queue = self.get_message_queue(session_id)
         if queue:
             await queue.put(message)
 
     async def get_message(self, session_id: str, timeout: Optional[float] = None) -> Any:
+        """等待会话队列消息；超时、队列不存在或零超时取空队列时返回 None。"""
         queue = self.get_message_queue(session_id)
         if not queue:
             return None

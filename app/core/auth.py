@@ -15,12 +15,16 @@ from app.core.security import get_password_hash, verify_password
 
 
 class APIUser(BaseModel):
+    """API 使用的账号身份，不包含密码散列。"""
+
     username: str
     full_name: Optional[str] = None
     disabled: bool = False
 
 
 class APIUserInDB(APIUser):
+    """认证时使用的内部账号记录，包含可验证的密码散列。"""
+
     hashed_password: str
 
 
@@ -28,6 +32,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def _seed_users() -> Dict[str, APIUserInDB]:
+    """从当前配置构造默认账号快照；账号或密码缺失时返回空映射。"""
     username = settings.security.api_default_username
     password = settings.security.api_default_password
     if not username or not password:
@@ -46,10 +51,12 @@ _users_db: Dict[str, APIUserInDB] = _seed_users()
 
 
 def get_api_user(username: str) -> Optional[APIUserInDB]:
+    """读取启动时构造的内存账号记录；未找到时返回 None。"""
     return _users_db.get(username)
 
 
 def authenticate_user(username: str, password: str) -> Optional[APIUserInDB]:
+    """验证用户名和密码，失败返回 None；是否禁用由后续访问依赖检查。"""
     user = get_api_user(username)
     if user is None:
         # Keep unknown usernames on the same password-derivation path.
@@ -61,6 +68,7 @@ def authenticate_user(username: str, password: str) -> Optional[APIUserInDB]:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """复制声明并写入 UTC 到期时间后签名；未指定有效期时采用配置值。"""
     if not settings.security.jwt_secret_key:
         raise HTTPException(status_code=503, detail="认证签名密钥未配置，请设置 SECURITY__JWT_SECRET_KEY。")
     to_encode = data.copy()
@@ -76,6 +84,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def _decode_token(token: str) -> APIUserInDB:
+    """验证 Bearer JWT 并查找内存账号；令牌或账号无效时抛出 HTTP 401。"""
     if not settings.security.jwt_secret_key:
         raise HTTPException(status_code=503, detail="认证签名密钥未配置，请设置 SECURITY__JWT_SECRET_KEY。")
     credentials_exception = HTTPException(
@@ -101,10 +110,12 @@ def _decode_token(token: str) -> APIUserInDB:
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> APIUserInDB:
+    """OAuth2 依赖入口，解析 Bearer 令牌并返回内部账号记录。"""
     return _decode_token(token)
 
 
 def get_current_active_user(current_user: APIUserInDB = Depends(get_current_user)) -> APIUser:
+    """拒绝已禁用账号，向依赖方提供当前可用的 API 身份。"""
     if current_user.disabled:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user

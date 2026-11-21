@@ -11,7 +11,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import WorkspaceLayout from '@/components/workbench/WorkspaceLayout.vue'
+import WorkspaceLayout from '@/layouts/WorkspaceLayout.vue'
 
 const route = useRoute()
 const compactQuery = window.matchMedia('(max-width: 699px)')

@@ -42,6 +42,7 @@ class ChatHistoryStore:
         title: str,
         connection_id: Optional[int] = None,
     ) -> None:
+        """创建或更新会话元数据；连接不存在时不保存该连接标识，每次调用负责关闭自己的数据库会话。"""
         db = self._session_factory()
         try:
             valid_connection_id = self._sanitize_connection_id(db, connection_id)
@@ -71,6 +72,7 @@ class ChatHistoryStore:
             db.close()
 
     def update_title(self, session_id: str, title: str) -> None:
+        """仅在会话存在且标题变化时更新标题，数据库失败向调用者传播。"""
         db = self._session_factory()
         try:
             existing = chat_session_crud.get(db, session_id)
@@ -89,6 +91,7 @@ class ChatHistoryStore:
         metadata: Optional[Dict[str, Any]] = None,
         region: Optional[str] = None,
     ) -> None:
+        """在同一数据库事务中追加消息并刷新已有会话时间；调用结束关闭数据库会话。"""
         db = self._session_factory()
         try:
             message_type = ROLE_TO_MESSAGE_TYPE.get(role, role)
@@ -109,6 +112,7 @@ class ChatHistoryStore:
             db.close()
 
     def list_sessions(self, *, limit: int = 100, connection_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """返回限定数量的活跃会话元数据，可按连接筛选；消息数来自关联消息集合。"""
         db = self._session_factory()
         try:
             records = chat_session_crud.list_active(
@@ -132,6 +136,7 @@ class ChatHistoryStore:
             db.close()
 
     def fetch_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """返回会话元数据；未找到时返回 None，不创建会话。"""
         db = self._session_factory()
         try:
             record = chat_session_crud.get(db, session_id)
@@ -150,6 +155,7 @@ class ChatHistoryStore:
             db.close()
 
     def list_messages(self, session_id: str, *, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """按存储顺序返回消息字典；limit 取末尾消息，零返回空列表，负数报错。"""
         if limit is not None and limit < 0:
             raise ValueError("limit must not be negative")
         db = self._session_factory()
@@ -173,6 +179,7 @@ class ChatHistoryStore:
             db.close()
 
     def delete_session(self, session_id: str) -> None:
+        """删除已存在会话并提交；失败回滚后继续抛出，最终关闭数据库会话。"""
         db = self._session_factory()
         try:
             existing = chat_session_crud.get(db, session_id)
@@ -186,6 +193,7 @@ class ChatHistoryStore:
             db.close()
 
     def create_snapshot(self, session_id: str, *, query: str, response_data: Dict[str, Any]) -> None:
+        """保存一轮问题与响应快照，并关闭本次创建的数据库会话。"""
         db = self._session_factory()
         try:
             snapshot_crud.create(

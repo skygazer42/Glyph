@@ -3,7 +3,7 @@ Configuration management for the policy QA system.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import yaml
 from pydantic import AliasChoices, Field, field_validator

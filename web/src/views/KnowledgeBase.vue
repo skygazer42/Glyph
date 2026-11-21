@@ -14,7 +14,7 @@
       <header class="kb-page-heading">
         <div>
           <h1>政策资料</h1>
-          <p v-if="loaded" class="kb-page-stats"><span><b>{{ documents.length }}</b> 份资料</span><span><b>{{ parsedDocuments.length }}</b> 份有正文</span><span><b>{{ indexedCount }}</b> 份已入库</span></p>
+          <p v-if="listSummary" class="kb-page-stats"><span><b>{{ listSummary.total }}</b> 份资料</span><span><b>{{ listSummary.parsed }}</b> 份有正文</span><span><b>{{ listSummary.embedded }}</b> 份已入库</span></p>
           <p v-else class="kb-page-stats">集中管理政策文件，核对正文与入库状态。</p>
         </div>
         <el-button id="kb-add-doc" type="primary" :icon="Upload" @click="importVisible = true">上传资料</el-button>
@@ -24,16 +24,16 @@
         <el-tab-pane label="资料管理" name="documents">
           <section class="kb-collection" aria-labelledby="kb-document-list-heading" :aria-busy="loading">
             <h2 id="kb-document-list-heading" class="kb-visually-hidden">政策资料列表</h2>
-            <header v-if="!loaded" class="kb-unloaded-toolbar" aria-label="资料读取后可使用筛选">
+            <header v-if="!listSummary" class="kb-unloaded-toolbar" aria-label="资料读取后可使用筛选">
               <span class="kb-unloaded-caption">资料列表<small>PDF、Word 和文本</small></span>
               <el-input :prefix-icon="Search" placeholder="搜索文件名" aria-label="搜索文件名称，资料读取后可用" disabled />
               <el-select model-value="all" aria-label="正文筛选，资料读取后可用" disabled><el-option label="全部正文" value="all" /></el-select>
             </header>
-            <div v-if="loaded && documents.length" class="kb-collection-toolbar">
+            <div v-if="listSummary?.total" class="kb-collection-toolbar">
               <div class="kb-scope-tabs" role="group" aria-label="按入库范围筛选">
-                <button id="kb-document-index-status" type="button" :class="{ 'is-active': documentIndexStatus === 'all' }" :aria-pressed="documentIndexStatus === 'all'" @click="documentIndexStatus = 'all'">全部资料 <span>{{ loaded ? documents.length : '—' }}</span></button>
-                <button type="button" :class="{ 'is-active': documentIndexStatus === 'indexed' }" :aria-pressed="documentIndexStatus === 'indexed'" @click="documentIndexStatus = 'indexed'">已入库 <span>{{ loaded ? indexedCount : '—' }}</span></button>
-                <button type="button" :class="{ 'is-active': documentIndexStatus === 'pending' }" :aria-pressed="documentIndexStatus === 'pending'" @click="documentIndexStatus = 'pending'">未入库 <span>{{ loaded ? documents.length - indexedCount : '—' }}</span></button>
+                <button id="kb-document-index-status" type="button" :class="{ 'is-active': documentIndexStatus === 'all' }" :aria-pressed="documentIndexStatus === 'all'" @click="documentIndexStatus = 'all'">全部资料 <span>{{ listSummary.total }}</span></button>
+                <button type="button" :class="{ 'is-active': documentIndexStatus === 'indexed' }" :aria-pressed="documentIndexStatus === 'indexed'" @click="documentIndexStatus = 'indexed'">已入库 <span>{{ listSummary.embedded }}</span></button>
+                <button type="button" :class="{ 'is-active': documentIndexStatus === 'pending' }" :aria-pressed="documentIndexStatus === 'pending'" @click="documentIndexStatus = 'pending'">未入库 <span>{{ listSummary.total - listSummary.embedded }}</span></button>
               </div>
               <el-form class="kb-filters" aria-label="资料筛选" @submit.prevent>
                 <el-input id="kb-document-query" v-model="documentQuery" :prefix-icon="Search" placeholder="搜索文件名" aria-label="搜索文件名称" clearable />
@@ -44,17 +44,20 @@
               </el-form>
             </div>
             <div v-if="listError && loaded" class="kb-refresh-notice" role="status"><el-icon><Warning /></el-icon><span>{{ capabilityError ? '资料与处理选项更新未完成，仍显示上次读取的资料。' : '资料更新未完成，仍显示上次读取的内容。' }}</span><el-button link @click="retryLibrary">重新读取</el-button></div>
-            <div v-if="loading && !loaded" class="kb-list-skeleton" role="status" aria-label="正在读取资料">
+            <div v-if="loading && !listSummary" class="kb-list-skeleton" role="status" aria-label="正在读取资料">
               <el-skeleton :animated="false"><template #template><div v-for="row in 3" :key="row" class="kb-skeleton-row"><el-skeleton-item variant="rect" class="kb-skeleton-file" /><div class="kb-skeleton-copy"><el-skeleton-item variant="text" /><el-skeleton-item variant="text" /></div><el-skeleton-item variant="text" class="kb-skeleton-status" /></div></template></el-skeleton>
             </div>
             <UnavailableState v-else-if="!loaded && listError" title="暂时无法读取资料" description="请确认服务连接后重新读取。已有资料与导入草稿会保留。" :detail="[listError, capabilityError].filter(Boolean).join('\n')" @retry="retryLibrary" />
-            <div v-else-if="loaded && !matchingDocuments.length" class="kb-empty">
-              <el-icon><Document /></el-icon><h3>{{ documents.length ? '没有匹配的资料' : '还没有政策资料' }}</h3>
-              <p>{{ documents.length ? '调整文件名称、正文状态或入库状态，重新查找资料。' : '导入 PDF、Word 或文本，开始核对和整理。' }}</p>
-              <el-button v-if="documents.length" @click="clearFilters">清除筛选</el-button><el-button v-else type="primary" @click="importVisible = true">导入第一份资料</el-button>
+            <div v-else-if="loaded && !documents.length" class="kb-empty">
+              <el-icon><Document /></el-icon><h3>{{ listSummary.total ? '没有匹配的资料' : '还没有政策资料' }}</h3>
+              <p>{{ listSummary.total ? '调整文件名称、正文状态或入库状态，重新查找资料。' : '导入 PDF、Word 或文本，开始核对和整理。' }}</p>
+              <el-button v-if="listSummary.total" @click="clearFilters">清除筛选</el-button><el-button v-else type="primary" @click="importVisible = true">导入第一份资料</el-button>
             </div>
-            <template v-else-if="loaded">
-            <el-table id="kb-document-table" :data="visibleDocuments" row-key="id" highlight-current-row :current-row-key="selectedDocId" aria-label="知识库文档资料" @current-change="selectDocument">
+            <template v-if="listSummary">
+            <el-table id="kb-document-table" v-show="documents.length || (loading && !loaded)" :data="documents" :data-ready-ms="listReadyMs" :data-fetch-ms="listFetchMs" :data-commit-ms="listCommitMs" row-key="id" aria-label="知识库文档资料">
+              <template #empty>
+                <div class="kb-empty" role="status"><p>正在读取资料…</p></div>
+              </template>
               <el-table-column label="文件名称" min-width="300">
                 <template #default="{ row }"><div class="kb-doc-identity"><span class="kb-file-icon" :class="{ 'is-pdf': fileExtension(row.name) === 'PDF' }" :title="fileExtension(row.name)"><el-icon><Document /></el-icon></span><div><button type="button" class="kb-doc-title" :title="row.name" :data-document-id="row.id" @click="openDocument(row.id)">{{ row.name }}</button></div></div></template>
               </el-table-column>
@@ -75,12 +78,12 @@
                 </div></template>
               </el-table-column>
             </el-table>
-            <div class="kb-document-cards" aria-label="知识库文档资料">
-              <article v-for="document in visibleDocuments" :key="document.id" class="kb-document-card">
+            <div v-show="documents.length || (loading && !loaded)" class="kb-document-cards" aria-label="知识库文档资料">
+              <div v-if="loading && !loaded && !documents.length" class="kb-empty" role="status"><p>正在读取资料…</p></div>
+              <article v-for="document in documents" :key="document.id" class="kb-document-card">
                 <div class="kb-doc-identity"><span class="kb-file-icon" :class="{ 'is-pdf': fileExtension(document.name) === 'PDF' }"><el-icon><Document /></el-icon></span><div><button type="button" class="kb-doc-title" :data-document-id="document.id" @click="openDocument(document.id)">{{ document.name }}</button><span class="kb-doc-meta">{{ fileExtension(document.name) }} · {{ formatBytes(document.size) }}</span></div></div>
                 <dl class="kb-card-state"><div><dt>正文状态</dt><dd><span class="kb-status" :class="document.parsed ? 'is-ready' : 'is-pending'">{{ document.parsed ? '正文已提取' : '待解析' }}</span></dd></div><div><dt>入库状态</dt><dd><span class="kb-status" :class="document.embedded ? 'is-ready' : 'is-neutral'">{{ document.embedded ? '已入库' : '待入库' }}</span></dd></div></dl>
                 <footer><time class="kb-doc-meta">更新于 {{ formatDate(document.modified) }}</time><div class="kb-row-actions">
-                  <el-button link :aria-pressed="selectedDocId === document.id && selectedPreviewOpen" @click="previewDocument(document)">预览</el-button>
                   <el-button link @click="openDocument(document.id)">查看</el-button>
                   <el-dropdown trigger="click" popper-class="kb-document-menu" @command="view => openDocument(document.id, view)">
                     <el-button text class="kb-more-actions" :icon="MoreFilled" :aria-label="'更多操作：' + document.name" />
@@ -90,24 +93,15 @@
               </article>
             </div>
             </template>
-            <div v-if="loaded && matchingDocuments.length" class="kb-list-footer"><span>{{ loading ? '正在更新资料…' : `共 ${matchingDocuments.length} 份资料` }}<template v-if="!loading && matchingDocuments.length !== documents.length">，全部 {{ documents.length }} 份</template><template v-if="listError"> · 上次读取结果</template></span><el-pagination v-if="matchingDocuments.length > 10" v-model:current-page="currentPage" :page-size="10" :total="matchingDocuments.length" layout="prev, pager, next" /><span v-else>10 条 / 页</span></div>
-          </section>
-          <p v-if="loaded" class="kb-collection-note"><el-icon><InfoFilled /></el-icon><span>问答将引用已入库的 {{ indexedCount }} 份资料，可在文件详情中核对正文与入库状态。</span></p>
-          <section v-if="draft.count" class="kb-pending-task" aria-label="待提交资料"><el-icon><FolderOpened /></el-icon><div><strong>{{ draft.count }} 份资料的导入草稿</strong><p>文件清单和处理选项已保留，可继续核对。</p></div><el-button @click="importVisible = true">继续导入<el-icon><ArrowRight /></el-icon></el-button></section>
-          <details v-if="selectedDocument" ref="selectionElement" class="kb-selection" :open="selectedPreviewOpen" aria-labelledby="kb-selected-title" @toggle="selectedPreviewOpen = $event.target.open">
-            <summary id="kb-selected-title"><span>选中资料预览</span><strong>{{ selectedDocument.name }}</strong></summary>
-            <header><p>{{ fileExtension(selectedDocument.name) }} · {{ formatBytes(selectedDocument.size) }}</p><el-button id="kb-open-workspace" @click="openDocument(selectedDocument.id)">进入文档工作区<el-icon><ArrowRight /></el-icon></el-button></header>
-            <ol class="kb-processing-chain">
-              <li><span>01</span><div><strong>原始资料</strong><small>{{ selectionDetail?.page_count ? selectionDetail.page_count + ' 页 · ' : '' }}原始文件可查阅</small></div></li>
-              <li><span>02</span><div><strong>解析正文</strong><small>{{ selectedDocument.parsed ? selectedDocument.content_length.toLocaleString() + ' 字符 · 可核对正文' : '待提取 · 保留原文件' }}</small></div></li>
-              <li><span>03</span><div><strong>切块检查</strong><small>核对条款边界与重叠</small></div></li>
-              <li><span>04</span><div><strong>索引方案</strong><small>{{ selectedDocument.embedded ? '已有入库完成标记' : '核对后手动入库' }}</small></div></li>
-            </ol>
-            <div class="kb-selection-body">
-              <div><h3>正文与来源</h3><p v-if="selectionError" class="kb-inline-error" role="status">{{ selectionError }} <el-button link @click="loadSelection">重试</el-button></p><p v-else-if="selectionLoading" class="kb-muted">正在读取正文…</p><p v-else-if="selectionDetail?.parsed.available" class="kb-excerpt">{{ selectionExcerpt }}</p><p v-else class="kb-muted">尚未取得有效解析正文。原始文件可先行查阅，确认解析方案后再提取。</p><el-button link type="primary" @click="openDocument(selectedDocument.id, 'parsed')">对照原文核对解析<el-icon><ArrowRight /></el-icon></el-button></div>
-              <aside><h3>{{ selectedDocument.parsed ? '下一步：核对切块边界' : '下一步：核对解析方案' }}</h3><p>{{ selectedDocument.parsed ? '调整目标长度与重叠范围，确认完整条款，再保存处理方案。' : '先打开原文件确认资料完整，再按实际可用的解析方式提取正文。' }}</p><el-button link type="primary" @click="openDocument(selectedDocument.id, selectedDocument.parsed ? 'chunks' : 'index')">{{ selectedDocument.parsed ? '查看切块' : '查看处理方案' }}<el-icon><ArrowRight /></el-icon></el-button></aside>
+            <div v-if="listSummary" class="kb-list-footer">
+              <span>{{ loading ? '正在更新资料…' : `共 ${matchingTotal} 份资料` }}<template v-if="!loading && matchingTotal !== listSummary.total">，全部 {{ listSummary.total }} 份</template><template v-if="listError && loaded"> · 上次读取结果</template></span>
+              <el-select v-model="pageSize" class="kb-page-size" aria-label="每页资料数量">
+                <el-option v-for="size in [10, 20, 50]" :key="size" :value="size" :label="`${size} 条/页`" />
+              </el-select>
+              <el-pagination v-model:current-page="currentPage" class="kb-pagination" :page-size="pageSize" :total="matchingTotal" :pager-count="5" layout="prev, pager, next" prev-text="上一页" next-text="下一页" aria-label="资料列表分页" />
             </div>
-          </details>
+          </section>
+          <section v-if="draft.count" class="kb-pending-task" aria-label="待提交资料"><el-icon><FolderOpened /></el-icon><div><strong>{{ draft.count }} 份资料的导入草稿</strong><p>文件清单和处理选项已保留，可继续核对。</p></div><el-button @click="importVisible = true">继续导入<el-icon><ArrowRight /></el-icon></el-button></section>
         </el-tab-pane>
         <el-tab-pane label="知识检索" name="search">
           <div class="kb-search-layout">
@@ -150,7 +144,7 @@
         </el-tab-pane>
       </el-tabs>
     </template>
-    <KnowledgeImportDialog v-model="importVisible" :documents="documents" :capabilities="capabilities" @uploaded="onUploaded" @draft-change="draft = $event" />
+    <KnowledgeImportDialog v-model="importVisible" :documents="knownDocuments" :capabilities="capabilities" @uploaded="onUploaded" @draft-change="draft = $event" />
   </div>
 </template>
 
@@ -160,6 +154,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowRight, CircleCheck, Clock, Document, FolderOpened, InfoFilled, Loading, MoreFilled, Refresh, Search, SortDown, SortUp, Upload, Warning } from '@element-plus/icons-vue'
 import { knowledgeApi } from '@/api'
 import { useAppStore } from '@/stores/app'
+import { createKnowledgeListLoader, getKnowledgeListPage, getKnowledgeListTotal, getKnownKnowledgeDocuments, invalidateKnowledgeList, knowledgeListKey } from '@/utils/knowledgeList'
 import KnowledgeDocumentWorkspace from '@/components/knowledge/KnowledgeDocumentWorkspace.vue'
 import KnowledgeImportDialog from '@/components/knowledge/KnowledgeImportDialog.vue'
 import UnavailableState from '@/components/UnavailableState.vue'
@@ -172,40 +167,29 @@ const activeDocId = computed(() => typeof route.query.doc === 'string' ? route.q
 const documentView = computed(() => ['parsed', 'chunks', 'index'].includes(route.query.view) ? route.query.view : 'source')
 const documentPage = computed(() => Math.max(1, Number.parseInt(route.query.page, 10) || 1))
 const libraryTab = computed(() => route.query.tab === 'search' ? 'search' : 'documents')
-const documentQuery = ref('')
-const documentStatus = ref('all')
-const documentIndexStatus = ref('all')
-const documentSortDirection = ref(-1)
-const currentPage = ref(1)
-const selectedDocId = ref('')
-const selectedPreviewOpen = ref(false)
-const selectionElement = ref(null)
-const selectedDocument = computed(() => matchingDocuments.value.find(document => document.id === selectedDocId.value) || null)
-const selectionDetail = ref(null)
-const selectionLoading = ref(false)
-const selectionError = ref('')
-const loading = ref(false)
-const loaded = ref(documents.value.length > 0)
-const listError = ref('')
+const documentQuery = ref(appStore.kbState.listQuery.query)
+const debouncedDocumentQuery = ref(documentQuery.value)
+const documentStatus = ref(appStore.kbState.listQuery.parsed)
+const documentIndexStatus = ref(appStore.kbState.listQuery.indexed)
+const documentSortDirection = ref(appStore.kbState.listQuery.sort === 'oldest' ? 1 : -1)
+const currentPage = ref(appStore.kbState.listQuery.page)
+const pageSize = ref(appStore.kbState.listQuery.page_size)
+const loading = computed(() => appStore.kbState.listLoading)
+const loaded = computed(() => Boolean(getKnowledgeListPage(appStore.kbState)))
+const listError = computed(() => appStore.kbState.listError)
+const listReadyMs = ref(null)
+const listFetchMs = ref(null)
+const listCommitMs = ref(null)
+const listSummary = computed(() => appStore.kbState.listSummary)
+const matchingTotal = computed(() => getKnowledgeListTotal(appStore.kbState))
+const knownDocuments = computed(() => getKnownKnowledgeDocuments(appStore.kbState))
+const listParams = computed(() => ({ page: currentPage.value, page_size: pageSize.value, query: debouncedDocumentQuery.value, parsed: documentStatus.value, indexed: documentIndexStatus.value, sort: documentSortDirection.value === -1 ? 'newest' : 'oldest' }))
+const listLoader = createKnowledgeListLoader(() => appStore.kbState, (params, options) => knowledgeApi.listDocuments(params, options))
 const importVisible = ref(false)
 const draft = ref({ count: 0, savedAt: null })
 const capabilities = ref(null)
 const capabilityError = ref('')
-const parsedDocuments = computed(() => documents.value.filter(document => document.parsed))
-const indexedCount = computed(() => documents.value.filter(document => document.embedded).length)
 const hasDocumentFilters = computed(() => Boolean(documentQuery.value.trim()) || documentStatus.value !== 'all' || documentIndexStatus.value !== 'all')
-const matchingDocuments = computed(() => documents.value.filter(document => {
-  const matchesName = document.name.toLocaleLowerCase().includes(documentQuery.value.trim().toLocaleLowerCase())
-  const matchesStatus = documentStatus.value === 'all' || document.parsed === (documentStatus.value === 'parsed')
-  const matchesIndex = documentIndexStatus.value === 'all' || document.embedded === (documentIndexStatus.value === 'indexed')
-  return matchesName && matchesStatus && matchesIndex
-}).sort((a, b) => (a.modified - b.modified) * documentSortDirection.value))
-const visibleDocuments = computed(() => matchingDocuments.value.slice((currentPage.value - 1) * 10, currentPage.value * 10))
-const selectionExcerpt = computed(() => {
-  const text = selectionDetail.value?.parsed.text || ''
-  const excerpt = text.replace(/\s+/g, ' ').slice(0, 170)
-  return excerpt + (text.length > 170 ? '…' : '')
-})
 const searchOptions = reactive({ topK: 10, threshold: 0.5 })
 const thresholdPercent = computed({
   get: () => Math.round(searchOptions.threshold * 100),
@@ -218,7 +202,7 @@ const expandedResultIds = ref(new Set())
 const searching = ref(false)
 const searchCompleted = ref(false)
 const searchError = ref('')
-let listRequest, selectionRequest, searchRequest, capabilityRequest
+let searchRequest, capabilityRequest, documentQueryTimer
 let libraryScrollTop = 0
 
 function errorMessage(error, fallback) {
@@ -235,57 +219,35 @@ function formatDate(seconds) {
 }
 function fileExtension(name) { return name.includes('.') ? name.split('.').at(-1).toUpperCase() : '文件' }
 function sourceName(source) { return typeof source === 'string' ? source.split(/[\\/]/).at(-1) : '' }
-function findResultDocument(result) { return documents.value.find(document => document.id === sourceName(result.source)) }
+function findResultDocument(result) {
+  const id = sourceName(result.source)
+  return knownDocuments.value.find(document => document.id === id) || (/\.(pdf|docx|txt|md)$/i.test(id) ? { id } : null)
+}
+async function loadCurrentPage(options) {
+  const startedAt = import.meta.env.DEV ? performance.now() : 0
+  const state = appStore.kbState
+  const page = await listLoader.load(listParams.value, options)
+  const fetchedAt = import.meta.env.DEV ? performance.now() : 0
+  if (!page || appStore.kbState !== state || knowledgeListKey(page.params) !== knowledgeListKey(listParams.value)) return
+  const lastPage = Math.max(1, Math.ceil(page.total / pageSize.value))
+  if (currentPage.value > lastPage) currentPage.value = lastPage
+  if (import.meta.env.DEV) {
+    await nextTick()
+    const committedAt = performance.now()
+    // Request-to-DOM timing; background browser frame throttling is excluded.
+    listReadyMs.value = Math.round((committedAt - startedAt) * 10) / 10
+    listFetchMs.value = Math.round((fetchedAt - startedAt) * 10) / 10
+    listCommitMs.value = Math.round((committedAt - fetchedAt) * 10) / 10
+  }
+}
 async function loadDocuments() {
-  listRequest?.abort()
-  const controller = new AbortController()
-  listRequest = controller
-  loading.value = true
-  listError.value = ''
-  try {
-    const response = await knowledgeApi.listDocuments({}, { signal: controller.signal })
-    if (controller.signal.aborted) return
-    if (!response.success || !Array.isArray(response.documents)) throw new Error('文档响应无效')
-    appStore.kbState.documents = response.documents
-    loaded.value = true
-    const nextSelection = matchingDocuments.value.some(document => document.id === selectedDocId.value) ? selectedDocId.value : matchingDocuments.value[0]?.id || ''
-    if (selectedDocId.value !== nextSelection) selectedDocId.value = nextSelection
-    else if (selectedDocId.value) loadSelection()
-  } catch (error) {
-    if (!controller.signal.aborted) listError.value = errorMessage(error, '无法读取文档资料，请检查服务连接后重试。')
-  } finally {
-    if (listRequest === controller) loading.value = false
-  }
+  invalidateKnowledgeList(appStore.kbState)
+  listLoader.cancel()
+  await loadCurrentPage({ refresh: true })
 }
-async function loadSelection() {
-  selectionRequest?.abort()
-  selectionDetail.value = null
-  selectionError.value = ''
-  if (!selectedDocId.value || activeDocId.value) return
-  const controller = new AbortController()
-  const id = selectedDocId.value
-  selectionRequest = controller
-  selectionLoading.value = true
-  try {
-    const response = await knowledgeApi.getDocumentWorkspace(id, { signal: controller.signal })
-    if (!controller.signal.aborted && selectedDocId.value === id) selectionDetail.value = response
-  } catch (error) {
-    if (!controller.signal.aborted) selectionError.value = errorMessage(error, '正文暂时无法读取，可重试或打开工作区。')
-  } finally {
-    if (selectionRequest === controller) selectionLoading.value = false
-  }
-}
-function selectDocument(document) { if (document) selectedDocId.value = document.id }
-async function previewDocument(document) {
-  selectDocument(document)
-  selectedPreviewOpen.value = true
-  await nextTick()
-  selectionElement.value.scrollIntoView({ block: 'start' })
-}
-function clearFilters() { documentQuery.value = ''; documentStatus.value = 'all'; documentIndexStatus.value = 'all' }
+function clearFilters() { clearTimeout(documentQueryTimer); documentQuery.value = ''; debouncedDocumentQuery.value = ''; documentStatus.value = 'all'; documentIndexStatus.value = 'all' }
 function setLibraryTab(tab) { router.replace({ query: { ...(tab === 'search' ? { tab } : {}) } }) }
 async function openDocument(id, view = 'source') {
-  selectionRequest?.abort()
   const scroller = document.getElementById('module-content')
   libraryScrollTop = scroller.scrollTop
   await router.push({ query: { ...(libraryTab.value === 'search' ? { tab: 'search' } : {}), doc: id, ...(view === 'source' ? {} : { view }), page: '1' } })
@@ -308,18 +270,20 @@ async function loadCapabilities() {
   capabilityRequest?.abort()
   const controller = new AbortController()
   capabilityRequest = controller
+  const state = appStore.kbState
   capabilityError.value = ''
   try {
     const response = await knowledgeApi.getCapabilities({ signal: controller.signal })
-    if (!controller.signal.aborted) capabilities.value = response.capabilities
+    if (!controller.signal.aborted && appStore.kbState === state) capabilities.value = response.capabilities
   } catch (error) {
-    if (!controller.signal.aborted) capabilityError.value = '处理能力读取失败，导入文件和草稿会保留。请重新读取后提交。'
+    if (!controller.signal.aborted && appStore.kbState === state) capabilityError.value = '处理能力读取失败，导入文件和草稿会保留。请重新读取后提交。'
   }
 }
 async function retryLibrary() {
   await Promise.all([loadDocuments(), loadCapabilities()])
 }
 async function performSearch() {
+  const state = appStore.kbState
   const query = appStore.kbState.searchQuery.trim()
   searchRequest?.abort()
   searchResults.value = []
@@ -332,28 +296,28 @@ async function performSearch() {
   searching.value = true
   try {
     const response = await knowledgeApi.search(query, { ...searchOptions, signal: controller.signal })
-    if (controller.signal.aborted) return
+    if (controller.signal.aborted || appStore.kbState !== state) return
     if (!response.success || !Array.isArray(response.results)) throw new Error('检索响应无效')
     searchResults.value = response.results
     searchCompleted.value = true
   } catch (error) {
-    if (!controller.signal.aborted) searchError.value = errorMessage(error, '检索未完成，请检查服务连接后重试。')
+    if (!controller.signal.aborted && appStore.kbState === state) searchError.value = errorMessage(error, '检索未完成，请检查服务连接后重试。')
   } finally {
     if (searchRequest === controller) searching.value = false
   }
 }
-watch([documentQuery, documentStatus, documentIndexStatus, documentSortDirection], () => { currentPage.value = 1 })
-watch(matchingDocuments, items => {
-  currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(items.length / 10)))
-  if (!items.some(document => document.id === selectedDocId.value)) selectedDocId.value = items[0]?.id || ''
+watch(documentQuery, value => {
+  clearTimeout(documentQueryTimer)
+  documentQueryTimer = setTimeout(() => { debouncedDocumentQuery.value = value }, 120)
 })
-watch(selectedDocId, loadSelection)
-watch(activeDocId, id => { if (!id) loadSelection() })
+watch([debouncedDocumentQuery, documentStatus, documentIndexStatus, documentSortDirection, pageSize], () => { currentPage.value = 1 }, { flush: 'sync' })
+watch(listParams, () => { loadCurrentPage() })
+watch(activeDocId, (id, previousId) => { if (!id && previousId) loadCurrentPage({ refresh: true }) })
 onMounted(() => {
-  loadDocuments()
+  loadCurrentPage({ refresh: true })
   loadCapabilities()
 })
-onBeforeUnmount(() => { listRequest?.abort(); selectionRequest?.abort(); searchRequest?.abort(); capabilityRequest?.abort() })
+onBeforeUnmount(() => { clearTimeout(documentQueryTimer); listLoader.cancel(); searchRequest?.abort(); capabilityRequest?.abort() })
 </script>
 
 <style scoped>
@@ -363,26 +327,26 @@ onBeforeUnmount(() => { listRequest?.abort(); selectionRequest?.abort(); searchR
 .kb-library-tabs :deep(.el-tabs__content) { display: flex; flex: 1; overflow: visible; }
 .kb-library-tabs :deep(.el-tab-pane) { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .knowledge-base :deep(.el-button) { font-size: 14px; }
-.kb-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
-.kb-page-heading > div { min-width: 0; }
+.kb-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 12px; }
+.kb-page-heading > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 18px; min-width: 0; }
 .kb-page-heading h1 { margin: 0; color: var(--wb-ink); font-size: var(--wb-title-size); font-weight: 600; line-height: 1.5; }
-.kb-page-heading p { margin: 7px 0 0; color: var(--wb-muted); font-size: 13px; line-height: 1.8; }
+.kb-page-heading p { margin: 0; color: var(--wb-muted); font-size: 13px; line-height: 1.8; }
 .kb-page-stats { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; line-height: 22px; }
 .kb-page-stats > span + span::before { content: '·'; margin-right: 10px; color: var(--wb-muted); }
 .kb-page-stats b { color: var(--wb-muted); font: 500 13px var(--wb-number); }
 .kb-page-heading > .el-button { flex: none; }
 .kb-library-tabs { background: transparent; }
-.kb-library-tabs > :deep(.el-tabs__header) { margin: 0 0 18px; }
+.kb-library-tabs > :deep(.el-tabs__header) { margin: 0 0 12px; }
 .kb-library-tabs :deep(.el-tabs__item) { height: 40px; color: var(--wb-muted); font-size: 14px; font-weight: 400; }
 .kb-library-tabs :deep(.el-tabs__item.is-active) { color: var(--wb-ink); font-weight: 500; }
 .kb-library-tabs :deep(.el-tabs__nav-wrap::after) { height: 1px; background: var(--wb-line); }
-.kb-collection { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 280px; overflow: hidden; border: 1px solid var(--wb-line); border-radius: var(--wb-radius); background: var(--wb-surface); }
+.kb-collection { display: flex; flex: none; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--wb-line); border-radius: var(--wb-radius); background: var(--wb-surface); }
 .kb-collection > .unavailable-state, .kb-collection > .kb-empty, .kb-collection > .kb-list-skeleton { flex: 1; }
 .kb-visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .kb-unloaded-toolbar { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 320px) 148px; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--wb-line); }
 .kb-unloaded-caption { color: var(--wb-ink); font-size: 14px; font-weight: 500; }
 .kb-unloaded-caption small { margin-left: 12px; color: var(--wb-muted); font-size: 12px; font-weight: 400; }
-.kb-collection-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 18px; min-height: 62px; border-bottom: 1px solid var(--wb-line); }
+.kb-collection-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 18px; min-height: 54px; border-bottom: 1px solid var(--wb-line); }
 .kb-scope-tabs { display: flex; align-items: center; gap: 4px; align-self: stretch; flex: none; }
 .kb-scope-tabs > button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--wb-muted); font: 400 14px/1.5 var(--wb-font); white-space: nowrap; cursor: pointer; }
 .kb-scope-tabs > button.is-active { color: var(--wb-ink); background: var(--wb-nav-active); font-weight: 500; }
@@ -446,29 +410,10 @@ onBeforeUnmount(() => { listRequest?.abort(); selectionRequest?.abort(); searchR
 .kb-card-state dt { color: var(--wb-muted); font-size: 12px; margin-bottom: 4px; }
 .kb-card-state dd { margin: 0; }
 .kb-document-card footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-.kb-list-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-height: 48px; padding: 10px 18px; border-top: 1px solid var(--wb-line); color: var(--wb-muted); font-size: 12px; }
-.kb-collection-note { display: flex; align-items: baseline; gap: 7px; margin: 12px 0 0; color: var(--wb-muted); font-size: 12px; line-height: 22px; }
-.kb-collection-note > .el-icon { position: relative; top: 2px; flex: none; font-size: 13px; }
-.kb-selection { margin-top: 14px; border: 1px solid var(--wb-line); border-radius: var(--wb-radius); background: var(--wb-surface); }
-.kb-selection > summary { padding: 16px 24px; cursor: pointer; color: var(--wb-muted); font-size: 13px; overflow-wrap: anywhere; }
-.kb-selection > summary strong { margin-left: 16px; font-size: var(--wb-text-size); font-weight: 400; color: var(--wb-ink); }
-.kb-selection > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 0 24px 20px; }
-.kb-selection > header p { margin: 0; color: var(--wb-muted); font-size: 13px; }
-.kb-processing-chain { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 20px 24px; margin: 0; list-style: none; background: var(--wb-tint); }
-.kb-processing-chain li { display: flex; gap: 10px; padding: 0 16px; border-right: 1px solid var(--wb-line); }
-.kb-processing-chain li:first-child { padding-left: 0; }
-.kb-processing-chain li:last-child { border: 0; }
-.kb-processing-chain li > span { color: var(--wb-muted); font: 12px/1.8 var(--wb-number); }
-.kb-processing-chain strong, .kb-processing-chain small { display: block; font-size: 13px; line-height: 1.8; }
-.kb-processing-chain strong { font-weight: 500; color: var(--wb-ink); }
-.kb-processing-chain small { margin-top: 4px; color: var(--wb-muted); }
-.kb-selection-body { display: grid; grid-template-columns: 1.4fr 1fr; }
-.kb-selection-body > * { padding: 24px; }
-.kb-selection-body aside { border-left: 1px solid var(--wb-line); }
-.kb-selection-body h3 { margin: 0 0 10px; font-size: var(--wb-text-size); font-weight: 500; }
-.kb-selection-body p { margin: 0 0 12px; font-size: var(--wb-text-size); line-height: 1.9; }
-.kb-selection-body aside p, .kb-muted { color: var(--wb-muted); }
-.kb-excerpt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.kb-list-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-height: 44px; padding: 10px 18px; border-top: 1px solid var(--wb-line); color: var(--wb-muted); font-size: 12px; }
+.kb-list-footer > span { flex: 1; }
+.kb-page-size { width: 112px; flex: none; }
+.kb-pagination { max-width: 100%; }
 .kb-pending-task { display: flex; align-items: center; gap: 16px; padding: 18px 24px; margin-top: 20px; background: var(--wb-blue-soft); border: 1px solid var(--wb-line); border-radius: var(--wb-radius); }
 .kb-pending-task > .el-icon { color: var(--wb-blue); font-size: 22px; }
 .kb-pending-task > div { flex: 1; min-width: 0; }
@@ -480,7 +425,6 @@ onBeforeUnmount(() => { listRequest?.abort(); selectionRequest?.abort(); searchR
 .kb-empty p { margin: 0; max-width: 420px; font-size: var(--wb-text-size); line-height: 1.8; }
 .kb-error { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--wb-line); border-radius: var(--wb-radius); font-size: var(--wb-text-size); background: var(--wb-surface); color: var(--wb-error); }
 .kb-error > span { flex: 1; }
-.kb-inline-error { color: var(--wb-error); }
 .kb-search-layout { display: grid; flex: 1; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: stretch; }
 .kb-search-layout h2 { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.7; }
 .kb-search-controls, .kb-search-results { border: 1px solid var(--wb-line); border-radius: var(--wb-radius); background: var(--wb-surface); }
@@ -531,9 +475,6 @@ onBeforeUnmount(() => { listRequest?.abort(); selectionRequest?.abort(); searchR
   .kb-filters > .kb-card-sort { display: inline-flex; }
   #kb-document-table { display: none; }
   .kb-document-cards { display: block; }
-  .kb-processing-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-  .kb-processing-chain li:nth-child(2) { border: 0; }
-  .kb-processing-chain li:nth-child(3) { padding-left: 0; }
 }
 @media (max-width: 899px) {
   .kb-search-layout { grid-template-columns: minmax(0, 1fr); }
@@ -559,14 +500,8 @@ onBeforeUnmount(() => { listRequest?.abort(); selectionRequest?.abort(); searchR
   .kb-filters :deep(.el-select__selected-item) { font-size: 16px; }
   .kb-document-card { padding: 18px; }
   .kb-list-footer { padding: 12px 18px; }
-  .kb-selection > summary { padding: 16px 18px; }
-  .kb-selection > summary strong { display: block; margin: 7px 0 0; }
-  .kb-selection > header { padding-inline: 18px; }
-  .kb-selection-body, .kb-search-layout { grid-template-columns: minmax(0, 1fr); }
-  .kb-selection-body aside { border-left: 0; border-top: 1px solid var(--wb-line); }
-  .kb-selection-body > * { padding: 18px; }
-  .kb-processing-chain { padding: 18px; gap: 16px 10px; }
-  .kb-processing-chain li { padding: 0 8px; }
+  .kb-pagination { flex-basis: 100%; justify-content: flex-end; }
+  .kb-search-layout { grid-template-columns: minmax(0, 1fr); }
   .kb-pending-task { flex-wrap: wrap; padding: 18px; }
   .kb-pending-task > .el-button { margin-left: auto; }
   .kb-row-actions { gap: 14px; }

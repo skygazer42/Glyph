@@ -25,6 +25,7 @@ DIALOGUE_RESPONSES = {
 }
 
 def respond_to_dialogue(intent: str) -> FinalAnswer:
+    """从意图对应的固定答复中随机选一条；未知意图使用闲聊集合。"""
     options: List[str] = DIALOGUE_RESPONSES.get(intent, DIALOGUE_RESPONSES["chit_chat"])
     answer = random.choice(options)
     return FinalAnswer(
@@ -83,6 +84,7 @@ def _detect_missing_slots(
     query: str,
     domain_meta: Optional[Dict[str, Any]],
 ) -> Set[str]:
+    """用领域关键词和金额正则识别追问缺项；未知领域返回空集合以使用通用提示，不代表信息已完整。"""
     text = query.strip()
     keywords = (domain_meta or {}).get("keywords") or []
     joined = text + "".join(str(k) for k in keywords)
@@ -160,6 +162,7 @@ def _detect_missing_slots(
 
 def _build_clarification_message(domain: str, missing: Set[str]) -> str:
     # 家电以旧换新补贴
+    """按领域与缺项生成固定追问文案；缺项为空时给出整组信息提示，不计算资格或补贴。"""
     if domain == "appliance_subsidy":
         if not missing or missing == {"product", "energy", "price"}:
             return (
@@ -181,7 +184,7 @@ def _build_clarification_message(domain: str, missing: Set[str]) -> str:
     if domain == "retail_coupon":
         if not missing or missing == {"scene", "order_amount"}:
             return (
-                "为了判断您是否满足“泉城购”零售/餐饮消费券的使用条件，请补充：\n"
+                "为了核对您所指零售/餐饮消费券活动的使用条件，请补充具体活动名称、地区和官方规则，以及：\n"
                 "1. 准备在哪一类场景消费（零售商超、便利店，还是餐饮门店/酒店餐厅）；\n"
                 "2. 单笔预计消费金额（元）。"
             )

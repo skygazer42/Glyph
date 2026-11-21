@@ -51,6 +51,7 @@ class ReviewRequest(BaseModel):
     @field_validator("query")
     @classmethod
     def require_nonempty_query(cls, value: str) -> str:
+        """拒绝仅空白的问题，原文留给政策相关性审查使用。"""
         if not value.strip():
             raise ValueError("Policy review requires a nonempty query")
         return value

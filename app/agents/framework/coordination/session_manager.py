@@ -61,11 +61,13 @@ class SessionManagerAgent(PolicyAgentBase):
         self._cleanup_task: Optional[asyncio.Task] = None
 
     async def start(self):
+        """启动基础代理后创建会话清理任务，已在运行的清理任务不会重复创建。"""
         await super().start()
         if self._cleanup_task is None or self._cleanup_task.done():
             self._cleanup_task = asyncio.create_task(self._run_session_cleanup())
 
     async def stop(self):
+        """取消并有界等待会话清理任务，再停止基础代理。"""
         if self._cleanup_task is not None:
             self._cleanup_task.cancel()
             with fail_after(5, shield=True):

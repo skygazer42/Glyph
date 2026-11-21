@@ -26,6 +26,8 @@ from app.models.database import DBConnection, SchemaColumn, SchemaRelationship, 
 
 @dataclass
 class ColumnInfo:
+    """保存结构内省得到的列名称、类型和键约束标记。"""
+
     name: str
     data_type: str
     is_pk: bool

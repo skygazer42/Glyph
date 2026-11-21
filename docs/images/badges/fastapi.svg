@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="116" height="22" viewBox="0 0 116 22" role="img" aria-label="FastAPI: API">
+  <title>FastAPI: API</title>
+  <clipPath id="rounded"><rect width="116" height="22" rx="3"/></clipPath>
+  <g clip-path="url(#rounded)">
+    <rect width="82" height="22" fill="#555"/>
+    <rect x="82" width="34" height="22" fill="#009688"/>
+  </g>
+  <g transform="translate(7 4) scale(0.583333)" fill="#fff"><path d="M12 .0387C5.3729.0384.0003 5.3931 0 11.9988c-.001 6.6066 5.372 11.9628 12 11.9625 6.628.0003 12.001-5.3559 12-11.9625-.0003-6.6057-5.3729-11.9604-12-11.96m-.829 5.4153h7.55l-7.5805 5.3284h5.1828L5.279 18.5436q2.9466-6.5444 5.892-13.0896"/></g>
+  <g fill="#fff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11" text-anchor="middle">
+    <text x="53" y="15">FastAPI</text>
+    <text x="99" y="15">API</text>
+  </g>
+</svg>

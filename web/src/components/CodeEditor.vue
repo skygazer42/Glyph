@@ -41,11 +41,11 @@
         <pre><code :class="language">{{ modelValue }}</code></pre>
       </div>
 
-      <el-empty
-        v-else-if="mode === 'display' && modelValue === ''"
-        :description="emptyText"
-        :image-size="80"
-      />
+      <template v-else-if="mode === 'display' && modelValue === ''">
+        <slot name="empty">
+          <el-empty :description="emptyText" :image-size="80" />
+        </slot>
+      </template>
     </div>
 
     <div

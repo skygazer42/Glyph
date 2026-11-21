@@ -167,7 +167,7 @@ def test_policy_agent_uses_actual_runtime_and_memory_contract(load_module):
 def test_session_context_independent_mutable_defaults(load_module):
     load_module.stub("app.agents.framework.coordination")
     load_module.stub("app.agents.framework.base.base_agent", PolicyAgentBase=object)
-    models = load_module("app/models/policy.py")
+    load_module("app/models/policy.py")
     module = load_module("app/agents/framework/coordination/session_manager.py", name="app.agents.framework.coordination.session_manager")
     first = module.SessionContext(session_id="first")
     second = module.SessionContext(session_id="second")
@@ -202,7 +202,7 @@ def test_session_action_missing_required_field_is_visible(load_module, payload):
 
 def test_session_store_one_turn_and_zero_history(load_module, monkeypatch):
     from types import SimpleNamespace
-    models = load_module("app/models/policy.py")
+    load_module("app/models/policy.py")
     module = load_module("app/agents/framework/common/session_store.py", name="app.agents.framework.common.session_store")
     monkeypatch.setattr(module, "MAX_TURNS", 1)
     monkeypatch.setattr(module, "HISTORY_WINDOW", 0)
@@ -215,7 +215,7 @@ def test_session_store_one_turn_and_zero_history(load_module, monkeypatch):
 
 @pytest.mark.parametrize("write_method", ["add_query", "add_answer"])
 def test_session_write_requires_existing_session(load_module, write_method):
-    models = load_module("app/models/policy.py", name="app.models.policy")
+    load_module("app/models/policy.py", name="app.models.policy")
     store = load_module("app/agents/framework/common/session_store.py", name="app.agents.framework.common.session_store")
     with pytest.raises(KeyError, match="missing"):
         getattr(store, write_method)("missing", Mock())
@@ -446,7 +446,7 @@ def _load_service_module(load_module):
     load_module.stub("app.agents.service.agentchat_router", AgentChatRouter=Mock(), agentchat_enabled=lambda: False)
     load_module.stub("app.agents.service.agentchat_team", AgentChatTeam=Mock(), agentchat_team_enabled=lambda: False)
     load_module.stub("app.agents.service.tools", **{name: Mock() for name in ("IntentDetectionTool", "KnowledgeTool", "VisionTool", "WebSearchTool", "UserProfileTool")})
-    load_module.stub("app.agents.domain.policy_domain", PolicyDomainContextBuilder=Mock())
+    load_module.stub("app.agents.domain.policy_domain", PolicyDomainContext=Mock(), PolicyDomainContextBuilder=Mock())
     load_module.stub("app.core.logging_manager", UTF8JsonFormatter=logging.Formatter, logging_manager=Mock())
     load_module.stub("app.config.app_config", settings=SimpleNamespace())
     load_module.stub("app.config.agent_config", AgentServiceConfig=Mock())
@@ -513,6 +513,8 @@ def test_service_request_attachments_are_isolated(load_module, monkeypatch):
     service.initialize = initialize
     async def prepare(session_id, user_id, query): return session_id, query, {"history": [], "is_new_session": True}, False
     service._prepare_conversation_context = prepare
+    async def rewrite(query, *, context): return query
+    service.rewrite_agent.rewrite = rewrite
     async def finalize(**kwargs): return kwargs["final"]
     service._finalize_answer = finalize
     async def workflow(query, *, attachments, intent, allow_user_profile=True):
@@ -980,7 +982,6 @@ def test_conversation_history_excludes_current_query_and_counts_turns(load_modul
     import asyncio
     from unittest.mock import AsyncMock
     module, _ = _load_service_module(load_module)
-    models = sys.modules["app.models.policy"]
     store = load_module("app/agents/framework/common/session_store.py", name="app.agents.framework.common.session_store")
     memory = load_module("app/agents/framework/common/autogen_memory_store.py")
     monkeypatch.setattr(module, "session_store", store)
@@ -1335,7 +1336,9 @@ def test_registry_unregister_without_loop_preserves_registration(load_module):
 def test_agentchat_stream_closes_under_parent_cancellation(load_module, filename):
     import asyncio
     import anyio
-    from autogen_agentchat.messages import ModelClientStreamingChunkEvent
+    from autogen_agentchat.messages import ModelClientStreamingChunkEvent, ToolCallRequestEvent, ToolCallExecutionEvent
+    from autogen_core import FunctionCall
+    from autogen_core.models import FunctionExecutionResult
     from unittest.mock import AsyncMock
     load_module.stub("app.agents.framework.common.autogen_memory_store")
     load_module("app/models/policy.py", name="app.models.policy")
@@ -1343,12 +1346,20 @@ def test_agentchat_stream_closes_under_parent_cancellation(load_module, filename
     cls = module.AgentChatRouter if filename == "agentchat_router" else module.AgentChatTeam
     router = cls(model_client=None, knowledge_tool=Mock(), graph_tool=Mock(), rule_tool=Mock(),
                  text2sql_tool=Mock(), workflow_tool=Mock())
+    router._reflect_on_tool_use = True
+    router._max_tool_iterations = 1
     closed = []
     class Stream:
+        def __init__(self):
+            self.events = iter([
+                ToolCallRequestEvent(content=[FunctionCall(id="one", name="knowledge_tool", arguments="{}")], source="assistant"),
+                ToolCallExecutionEvent(content=[FunctionExecutionResult(call_id="one", name="knowledge_tool", content="policy", is_error=False)], source="assistant"),
+                ModelClientStreamingChunkEvent(content="chunk", source="assistant"),
+            ])
         def __aiter__(self):
             return self
         async def __anext__(self):
-            return ModelClientStreamingChunkEvent(content="chunk", source="assistant")
+            return next(self.events)
         async def aclose(self):
             await anyio.lowlevel.checkpoint()
             closed.append(asyncio.current_task())

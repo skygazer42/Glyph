@@ -31,6 +31,8 @@ def _serialized(method: Callable[Concatenate[DBAccess, P], R]) -> Callable[Conca
 
 
 class DBAccess:
+    """串行管理一个数据库适配器及其查询入口；连接替换和 close 负责释放当前自有资源。"""
+
     def __init__(self, dialect: str = "MySQL") -> None:
         self._connection_lock = RLock()
         self.dialect = dialect
@@ -48,6 +50,7 @@ class DBAccess:
 
     @staticmethod
     def _query_frame(connection: Any, sql: str) -> pd.DataFrame:
+        """执行查询并消费全部结果为 DataFrame；游标退出时关闭，连接仍由实例持有。"""
         with closing(connection.cursor()) as cursor:
             cursor.execute(sql)
             return pd.DataFrame(cursor.fetchall(), columns=[column[0] for column in cursor.description])
@@ -58,6 +61,7 @@ class DBAccess:
         user: str | None = None, password: str | None = None,
         port: int | None = None, **kwargs: Any,
     ) -> None:
+        """关闭旧适配器后连接 PostgreSQL；查询异常尝试回滚，连接由本实例关闭。"""
         import psycopg2
 
         host = os.getenv("HOST") if host is None else host
@@ -90,6 +94,7 @@ class DBAccess:
         user: str | None = None, password: str | None = None,
         port: int | None = None, **kwargs: Any,
     ) -> None:
+        """关闭旧适配器后连接 MySQL；查询前允许重连，失败尝试回滚，不自动提交写入。"""
         host = os.getenv("HOST") if host is None else host
         dbname = os.getenv("DATABASE") if dbname is None else dbname
         user = os.getenv("USER") if user is None else user
@@ -120,6 +125,7 @@ class DBAccess:
         self, user: str | None = None, password: str | None = None,
         dsn: str | None = None, **kwargs: Any,
     ) -> None:
+        """关闭旧适配器后连接 Oracle；查询移除末尾分号，异常尝试回滚。"""
         import oracledb
 
         user = os.getenv("USER") if user is None else user
@@ -147,6 +153,7 @@ class DBAccess:
         self, cred_file_path: str | None = None, project_id: str | None = None,
         **kwargs: Any,
     ) -> None:
+        """替换为本实例拥有的 BigQuery 客户端；查询等待任务完成并转为 DataFrame。"""
         from google.cloud import bigquery
         from google.oauth2 import service_account
 
@@ -173,6 +180,7 @@ class DBAccess:
 
     @_serialized
     def connect_to_duckdb(self, url: str, init_sql: str | None = None, **kwargs: Any) -> None:
+        """连接内存、本地或下载后的 DuckDB 文件；初始化 SQL 失败即关闭新连接并传播异常。"""
         import duckdb
 
         if url in (":memory:", ""):
@@ -208,6 +216,7 @@ class DBAccess:
 
     @_serialized
     def connect_to_mssql(self, odbc_conn_str: str, **kwargs: Any) -> None:
+        """替换为本实例拥有的 SQLAlchemy engine；每次查询使用 begin 上下文，close 时 dispose。"""
         connection_url = URL.create("mssql+pyodbc", query={"odbc_connect": odbc_conn_str})
         self.close()
         engine = create_engine(connection_url, **kwargs)
@@ -228,6 +237,7 @@ class DBAccess:
         protocol: str = "https", requests_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
+        """替换为 Presto 连接并登记关闭入口；查询结果完全消费后关闭游标。"""
         from pyhive import presto
 
         host = os.getenv("PRESTO_HOST") if host is None else host
@@ -257,6 +267,7 @@ class DBAccess:
         self, host: str | None = None, dbname: str = "default", user: str | None = None,
         password: str | None = None, port: int | None = None, auth: str = "CUSTOM", **kwargs: Any,
     ) -> None:
+        """替换为 Hive 连接并登记关闭入口；查询不额外承诺提交或回滚。"""
         from pyhive import hive
 
         host = os.getenv("HIVE_HOST") if host is None else host
@@ -281,6 +292,7 @@ class DBAccess:
 
     @_serialized
     def run_sql(self, sql: str) -> pd.DataFrame:
+        """在实例锁内执行当前适配器查询并返回 DataFrame；未连接时抛出 RuntimeError。"""
         if self._run_sql is None:
             raise RuntimeError("You need to connect to a database before running SQL")
         return self._run_sql(sql)

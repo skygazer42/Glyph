@@ -10,6 +10,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 
 async def main() -> None:
+    """将数学、化学智能体作为协调助手的工具运行演示，并关闭共享模型客户端。"""
     model_client = OpenAIChatCompletionClient(model="gpt-4.1")
     try:
 

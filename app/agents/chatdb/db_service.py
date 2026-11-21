@@ -22,12 +22,14 @@ class ConnectionSettings:
 
     @classmethod
     def from_connection(cls, connection: DBConnection) -> "ConnectionSettings":
+        """从数据库连接记录复制建立连接所需的配置字段。"""
         return cls(db_type=connection.db_type, host=connection.host,
                    database_name=connection.database_name, username=connection.username,
                    password_encrypted=connection.password_encrypted, port=connection.port)
 
 
 def _build_db_access(connection: DBConnection | ConnectionSettings) -> DBAccess:
+    """依据连接配置建立 MySQL 或 PostgreSQL 访问对象；不支持的数据库类型直接报错。"""
     db_access = DBAccess()
     db_type = connection.db_type.lower()
 

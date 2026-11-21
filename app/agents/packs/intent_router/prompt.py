@@ -43,7 +43,7 @@ def build_intent_user_prompt(query: str) -> str:
         # calculation
         "\n示例：家电以旧换新最多能补多少钱？\n",
         # comparison
-        "\n示例：济南和青岛的创业补贴政策有什么区别？\n",
+        "\n示例：常州和无锡的创业补贴政策有什么区别？\n",
         # summary
         "\n示例：请概括新能源汽车补贴政策的主要主题和相关部门关系。\n",
         # policy_inquiry

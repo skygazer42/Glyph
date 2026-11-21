@@ -141,7 +141,7 @@ answer = await service.process_query(
 print(answer.answer, answer.metadata)
 ```
 
-- FastAPI (`app/main.py`、`app/api/endpoints/agent.py`) 与 CLI (`scripts/unified_cli.py`) 均直接依赖 `AgentService`。
+- FastAPI (`app/main.py`、`app/api/endpoints/agent.py`) 与 CLI (`scripts/agent_cli.py`) 均直接依赖 `AgentService`。
 - 文档/示例中若仍提到 `app/services/*`，请更新为 `app/agents/service/`。
 
 ## 常见扩展指引

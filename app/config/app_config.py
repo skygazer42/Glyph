@@ -387,7 +387,7 @@ class SystemSettings(BaseSettings):
     early_stop_conf: float = Field(default=0.80, validation_alias=AliasChoices('EARLY_STOP_CONF', 'early_stop_conf'))
 
     # LightRAG 配置
-    lightrag_workdir: str = Field(default="resources/data/lightrag", validation_alias=AliasChoices('LIGHTRAG_WORKDIR', 'lightrag_workdir'))
+    lightrag_workdir: str = Field(default="resources/data/lightrag_changzhou_20261121", validation_alias=AliasChoices('LIGHTRAG_WORKDIR', 'lightrag_workdir'))
     lightrag_seed_data_dir: Optional[str] = Field(default=None, validation_alias=AliasChoices('LIGHTRAG_SEED_DATA_DIR', 'lightrag_seed_data_dir'))
     max_embed_tokens: int = Field(default=8192, validation_alias=AliasChoices('MAX_EMBED_TOKENS', 'max_embed_tokens'))
 

@@ -15,6 +15,8 @@ from app.persistence.crud.db_connection import db_connection as db_connection_cr
 
 
 class DBConnectionInfo(BaseModel):
+    """向列表调用方提供连接概要，不包含用户名或密码。"""
+
     id: int
     name: str
     db_type: str

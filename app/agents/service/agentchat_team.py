@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 import logging
 import asyncio
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, Iterable
+from hashlib import sha256
 from app.utils.lifecycle import close_with_timeout
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -14,17 +15,21 @@ from uuid import uuid4
 from autogen_agentchat.base import TaskResult
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_agentchat.messages import TextMessage, ModelClientStreamingChunkEvent, ToolCallRequestEvent, ToolCallExecutionEvent
+from autogen_agentchat.messages import TextMessage, ToolCallRequestEvent, ToolCallExecutionEvent
 from autogen_core.models import ChatCompletionClient
 
 from app.agents.framework.common import autogen_memory_store
 from app.models.policy import FinalAnswer
+from app.agents.service.agentchat_stream import AgentChatAnswerStream
+from app.agents.service.progress import native_tool_progress
 
 
 logger = logging.getLogger(__name__)
 
 
 class AgentChatTeam:
+    """按会话缓存双成员问答团队和锁；API 用户代理不等待终端输入。"""
+
     SYSTEM_PROMPT = (
         "你是政策问答的工具调度助手，必须选择唯一工具并直接给出答案：\n"
         " knowledge_tool（政策内容/流程/依据）、graph_tool（关系/对比/多文档融合）、\n"
@@ -32,6 +37,8 @@ class AgentChatTeam:
         "政策解释/流程优先使用 knowledge_tool；关系/对比/串讲类问题用 graph_tool；仅当用户提供价格/能效/数量等可计算要素时才调用 rule_tool，"
         "text2sql 仅用于显式数据库/表字段问题，workflow 仅处理多模态或跨档案流程。\n"
         "调用后整理简洁答案（金额/条件/流程要点），失败时说明原因并给出下一步建议。"
+        "整理时必须保留工具答案原有的[资料N]引用编号与紧邻的第几条、页码等定位，"
+        "让事实与对应引用保持相邻；不得改号、编造引用或补造未提供的条款。"
     )
 
     def __init__(
@@ -56,15 +63,14 @@ class AgentChatTeam:
             raise ValueError("AGENTCHAT_MAX_TOOL_ITERATIONS must be positive")
 
     async def _get_or_create_team(self, session_id: str) -> RoundRobinGroupChat:
-        # Agent 名称必须是合法的 python identifier，简单清洗 session_id
-        safe_id = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in session_id)
-        if not safe_id or safe_id[0].isdigit():
-            safe_id = f"sess_{safe_id}"
-
+        """复用会话团队，首次创建时装入记忆并限制团队轮次为两轮。"""
         team = self._teams.get(session_id)
         if team is not None:
             return team
 
+        # The role prefix plus a stable session digest fits the SDK name limit.
+        # The complete session ID still owns team, lock and memory isolation.
+        safe_id = sha256(session_id.encode("utf-8")).hexdigest()[:48]
         model_context = await autogen_memory_store.build_buffered_context(session_id, buffer_size=self._buffer_size)
 
         router = AssistantAgent(
@@ -90,6 +96,7 @@ class AgentChatTeam:
         return team
 
     async def run(self, session_id: str, query: str) -> Tuple[Optional[FinalAnswer], Dict[str, Any]]:
+        """在会话锁内运行团队，返回答案和诊断；执行失败或缺少助手文本时返回 None 答案。"""
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             started_at = time.perf_counter()
@@ -97,6 +104,10 @@ class AgentChatTeam:
             debug: Dict[str, Any] = {"agentchat_team": True, "memory_key": session_id}
             try:
                 result = await team.run(task=TextMessage(content=query, source="user"))
+            except (asyncio.CancelledError, GeneratorExit):
+                # AutoGen mutates context before model/tool work and cannot roll it back.
+                self._teams.pop(session_id, None)
+                raise
             except Exception as exc:
                 logger.exception("AgentChat request failed")
                 debug["error"] = str(exc)
@@ -138,48 +149,56 @@ class AgentChatTeam:
 
     @staticmethod
     def _extract_tool_traces(messages: Iterable[Any]) -> Dict[str, Any]:
+        """按事件顺序收集工具名称；请求和执行事件均计入追踪。"""
         calls: list[str] = []
         for message in messages:
             if isinstance(message, (ToolCallRequestEvent, ToolCallExecutionEvent)):
                 calls.extend(item.name for item in message.content)
         return {"calls": calls, "count": len(calls), "primary_tool": calls[0] if calls else None}
 
-    async def run_stream(self, session_id: str, query: str) -> AsyncIterator[Dict[str, Any]]:
+    async def run_stream(self, session_id: str, query: str) -> AsyncGenerator[Dict[str, Any], None]:
+        """在会话锁内转发文本片段并关闭团队流，最后产出带失败诊断或答案的 final。"""
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             started_at = time.perf_counter()
             team = await self._get_or_create_team(session_id)
             meta: Dict[str, Any] = {"agentchat_team": True, "memory_key": session_id}
-            chunks: list[str] = []
+            answer_stream = AgentChatAnswerStream(
+                reflect_on_tool_use=self._reflect_on_tool_use,
+                max_tool_iterations=self._max_tool_iterations,
+            )
             events = []
             result = None
-            stream = team.run_stream(task=TextMessage(content=query, source="user"))
-            try:
+            with native_tool_progress():
+                stream = team.run_stream(task=TextMessage(content=query, source="user"))
                 try:
-                    async for event in stream:
-                        events.append(event)
-                        if isinstance(event, TaskResult):
-                            result = event
-                        elif isinstance(event, ModelClientStreamingChunkEvent) and event.content:
-                            chunks.append(event.content)
-                            yield {"type": "chunk", "content": event.content}
-                finally:
-                    await close_with_timeout(stream.aclose)
-            except Exception as exc:
-                logger.exception("AgentChat request failed")
-                meta["error"] = str(exc)
+                    try:
+                        async for event in stream:
+                            events.append(event)
+                            if isinstance(event, TaskResult):
+                                result = event
+                            content = answer_stream.consume(event)
+                            if content is not None:
+                                yield {"type": "chunk", "content": content}
+                    except BaseException as exc:
+                        status = "cancelled" if isinstance(exc, (asyncio.CancelledError, GeneratorExit)) else "error"
+                        if status == "cancelled":
+                            # Rebuild from service memory; never reuse a partially advanced SDK context.
+                            self._teams.pop(session_id, None)
+                        answer_stream.finish_pending(status)
+                        raise
+                    finally:
+                        await close_with_timeout(stream.aclose)
+                except Exception as exc:
+                    logger.exception("AgentChat request failed")
+                    meta["error"] = str(exc)
             meta["duration_ms"] = round((time.perf_counter() - started_at) * 1000, 2)
-            meta["stream_chunks"] = len(chunks)
+            answer_stream.finish_pending("error")
+            meta["stream_chunks"] = answer_stream.chunk_count
             meta.update(self._extract_tool_traces(events))
-            content = ""
+            content = answer_stream.text
             if result is not None:
-                for message in reversed(result.messages):
-                    if isinstance(message, TextMessage) and message.source != "user":
-                        content = message.content.strip()
-                        break
                 meta["stop_reason"] = result.stop_reason
-            if not content and chunks:
-                content = "".join(chunks).strip()
             if not content:
                 meta.setdefault("error", "AgentChat stream completed without an assistant answer")
             failed = "error" in meta

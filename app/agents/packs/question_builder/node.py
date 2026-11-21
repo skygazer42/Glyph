@@ -56,6 +56,7 @@ class QuestionAnalysis(BaseModel):
     @field_validator("intent")
     @classmethod
     def require_nonempty_intent(cls, value: str) -> str:
+        """拒绝仅空白的意图字段，保留原值交给问题分析。"""
         if not value.strip():
             raise ValueError("Question analysis requires a nonempty intent")
         return value

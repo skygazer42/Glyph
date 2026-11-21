@@ -1,484 +1,200 @@
 <div align="center">
-  <img src="docs/images/glyph-logo.png" alt="Glyph Logo" width="300" />
+  <img src="./docs/images/glyph-logo.png" alt="Glyph Logo" width="300">
+
+  <h3>政务政策智能问答与补贴测算平台</h3>
+  <p>基于 AutoGen 多智能体编排，融合政策检索、知识图谱、规则计算与结构化查询</p>
+
+  <p>
+    <img src="./docs/images/badges/python.svg" alt="Python 3.10">
+    <img src="./docs/images/badges/fastapi.svg" alt="FastAPI">
+    <img src="./docs/images/badges/autogen.svg" alt="AutoGen AgentChat">
+    <img src="./docs/images/badges/vue.svg" alt="Vue 3">
+    <img src="./docs/images/badges/milvus.svg" alt="Milvus">
+    <img src="./docs/images/badges/lightrag.svg" alt="LightRAG">
+    <img src="./docs/images/badges/license.svg" alt="MIT License">
+  </p>
+
+  <p>
+    <a href="#项目简介">项目简介</a> ·
+    <a href="#核心功能">核心功能</a> ·
+    <a href="#技术架构">技术架构</a> ·
+    <a href="#核心执行流程">执行流程</a> ·
+    <a href="#项目文档">项目文档</a>
+  </p>
 </div>
-
-## 面向政务咨询的 Multi-Agent 智能助手
-
-相关技术方案曾支持国家级赛事获奖项目。
 
 ## 项目简介
 
-Glyph 面向政务咨询、政策服务、消费补贴、以旧换新、消费券等业务场景，提供统一的政策问答与测算能力。用户可以直接询问“我是否符合条件”“能补多少钱”“怎么办理”“需要哪些材料”“最近有哪些相关政策”等问题，系统会结合政策文档、FAQ、规则配置和结构化数据给出答案。
-
-项目重点覆盖政策检索、资格判断、补贴测算、流程问答、政策对比和结构化查询等场景。底层结合多 Agent 编排、向量检索、图谱增强、YAML DSL 规则引擎与 Text2SQL，使回答既能贴近业务口径，也具备可追溯和可扩展性。
-
-### 核心能力
-
-- **政策问答** - 回答政策内容、适用范围、办理流程、所需材料、截止时间等问题
-- **资格判断** - 结合地区、品类、价格、能效等条件判断是否符合申报或领取要求
-- **补贴测算** - 基于规则引擎计算补贴金额、消费券档位、封顶金额等结果
-- **政策检索** - 融合向量检索、图谱检索和规则匹配，提升政策召回与定位效率
-- **政策对比** - 对不同政策的条件、金额、时间和适用对象进行横向比较
-- **结构化查询** - 支持自然语言转 SQL，直接查询政策库和业务库中的结构化数据
-- **接口集成** - 提供 RESTful API、CLI 和前端页面，方便接入现有业务系统
-
-## 系统架构
-
-Python 目录职责、命名、内部导入和脚本命令迁移见 [Python 代码与目录约定](docs/PYTHON_STRUCTURE.md)。
-
-<div align="center">
-  <img src="docs/images/glyph-architecture.png" alt="Glyph 政策智能问答系统架构图" width="100%" />
-</div>
-
-系统围绕“咨询入口 -> 智能路由 -> 检索/规则/查询执行 -> 结果输出”这条主链路展开，兼顾政策问答、补贴测算和结构化查询三类核心场景。
-
-- **用户入口** - 支持 Web 前端、API、CLI 等多种接入方式，统一承接政务咨询与政策服务请求。
-- **智能编排** - 由 AgentService 与 AgentChat Team 负责意图识别、路由决策、会话记忆和工具调度。
-- **执行链路** - 按问题类型分别走知识检索、规则引擎、Text2SQL 或工作流处理。
-- **数据底座** - 以政策文档、FAQ、DSL 规则、MySQL、Milvus、LightRAG 等数据源支撑回答和计算结果。
-
----
-
-## 功能特性
-
-### 1. 智能路由系统
-
-```
-用户查询 → 意图识别 → 智能路由 → 专业Agent → 答案生成
-```
-
-路由图展示了 FAQ 短路、FastPath 分流与各专业 Agent 的执行关系。
-
-<div align="center">
-  <img src="docs/images/glyph-routing-flow.png" alt="Glyph 查询处理与路由执行流程图" width="90%" />
-</div>
-
-支持的意图类型：
-- **政策查询** (`policy_inquiry`) - 资格、流程、截止日期等
-- **政策对比** (`comparison`) - 多个政策的对比分析
-- **政策摘要** (`summary`) - 政策概述与关键信息提取
-- **金额计算** (`calculation`) - 补贴金额估算
-- **数据查询** (`database_query`) - SQL数据库查询
-- **对话交互** (`chit_chat`) - 问候、闲聊等
-
-### 2. 多引擎检索
-
-| 引擎 | 适用场景 | 技术栈 |
-|------|---------|--------|
-| **向量检索** | 语义相似度查询 | Milvus + OpenAI/DashScope Embeddings |
-| **图谱检索** | 关系推理、概念关联 | LightRAG (Neo4j-like graph) |
-| **规则引擎** | 确定性计算、条件判断 | YAML DSL + PolicyEngine |
-| **SQL查询** | 结构化数据查询 | ChatDB (Text2SQL) |
-
-**智能早停机制** ⚡:
-- **触发条件**: 向量检索置信度 ≥ 80% (可配置 `EARLY_STOP_CONF`)
-- **优化效果**: 跳过重排序和深度分析,直接生成答案
-- **性能提升**: 响应时间减少 30-50%,API 调用成本降低
-- **质量保证**: 仅对高置信度检索结果启用,确保答案准确性
-
-```python
-# 示例：高置信度查询触发早停
-查询: "家电以旧换新补贴标准是多少？"
-检索置信度: 92% ✅
-→ 早停触发,跳过重排序
-→ 直接生成答案 (节省 ~0.8s)
-```
-
-### 3. Agent 架构（新版 AgentChat 主路径）
-
-- **入口**：问候/FAQ 快速分支 → Dialogue 或直接返回。
-- **主干**：AgentChat Team（UserProxy + Router Assistant），Router 仅做“选 1 个工具并回答”：`knowledge_tool`（知识检索）、`rule_tool`（补贴计算）、`text2sql_tool`（数据库查询）、`workflow_tool`（多模态/档案）。
-- **记忆**：AutoGen `ListMemory + BufferedChatCompletionContext` 唯一来源；支持 `MEMORY_MAX_ITEMS`、`MEMORY_TRUNCATE_CHARS`，以及 Redis 持久化（`AGENTCHAT_REDIS_URL`/`REDIS_URL`）。
-- **回退**：Team 失败时可选 Router 兜底；如设 `AGENTCHAT_NO_FALLBACK=true`，失败直接报错，不再走旧链路。
-- **输出**：`metadata.agentchat_meta` 带耗时、tool traces、memory_key、stop_reason；`timings_ms` 保留分段耗时。
-- **流式**：`AGENTCHAT_STREAM_ENABLED=true` 时 SSE 先推 chunk 再推最终答案。
-
-调优建议：
-- 模型与上下文：用较快模型（如 qwen-plus），调整 `LLM_CTX_BUFFER_SIZE`、`KNOWLEDGE_MAX_CONTEXT_PER_DOC` 控制上下文长度。
-- 记忆持久化：设置 Redis URL 并按需配置 `AGENTCHAT_REDIS_NAMESPACE`、`AGENTCHAT_REDIS_TTL_SECONDS`；默认即启用 AgentChat Team/Router（`.env.example` 已打开开关）。
-
-### 路由决策（从快到稳）
-
-1) FAQ 短路（无需改写/模型）
-- 原始问题命中 FAQ（标签包含或相似度≥FAQ_THRESHOLD）→ 直接返回。
-- 可选：改写后再试一次（`FAQ_RETRY_ON_REWRITE=true`）。
-
-2) 预处理（仅在不命中 FAQ 时）
-- 最近 N 轮上下文（N=CONVERSATION__HISTORY_WINDOW，0 表示关闭记忆）。
-- Rewrite 业务化改写（短句/具槽位直返；带 LRU 缓存）。
-
-3) FastPath 路由（不调意图模型，能判就判）
-- 有图片/票据且 Vision 开启 → Workflow。
-- SQL 关键词 且 有 connection_id → Text2SQL。
-- “是否符合/能否享受/是否有资格…” 且缺“类别/能效/价格” → Clarifier（三要素清单）。
-- 同时包含“补贴/补助”+ 家电品类 + “价格（…元）” + “能效/水效” → RuleEngine（直接计算）。
-- 关系/流程/脉络 → GraphAgent。否则再调用 LLM 意图分类。
-
-4) 检索/生成与早停
-- Knowledge：Milvus/LlamaIndex → 置信度≥EARLY_STOP_CONF 先走“要点抽取⚡”，否则再一次 LLM 总结。
-- RuleEngine：YAML DSL 计算（输出 trace/封顶校验）。
-- Text2SQL：表结构检索→SQL 生成→安全校验（仅 SELECT）→执行。
-- Graph/Workflow：按场景执行，失败回退 Knowledge。
-
-5) 统一后处理
-- 每条答案尾部统一追加“【路由】xxx”“【引用】…”。metadata 附 routing_debug、domain_context、rule_id/sql/search_query 等。
-
-### FAQ 策略（优先短路）
-
-- 命中即答：先用“原始问题”匹配 FAQ，若标签包含命中或相似度 ≥ `FAQ_THRESHOLD`（默认 0.85），直接返回，不走改写/意图/检索。
-- 改写后重试（可选）：`FAQ_RETRY_ON_REWRITE=true` 时，原文未命中才对“改写后问题”再尝试一次（提升口语化问法命中率）。
-- 标签来源与维护：严格从 `resources/data/process` 文档抽取关键词作为 tags。若需要更新，可手动编辑 `resources/faq/qa_pairs.json`，确保引用真实文档语句，避免臆造。
-- 适用场景：固定问法（“发放时间/面额/领取与使用/资料清单/有效期/封顶金额/是否可再次享受” 等）优先挂到 FAQ，减少大模型调用与响应时延。
-
-### 可配置项（.env）
-
-- `FAQ_THRESHOLD=0.85`：FAQ 相似度阈值。
-- `FAQ_RETRY_ON_REWRITE=true`：改写后再试一次 FAQ。
-- `CONVERSATION__HISTORY_WINDOW=5`：上下文窗口（轮数），设 0 关闭记忆。
-- `EARLY_STOP_CONF=0.80`：知识检索早停阈值（≥ 阈值先走“要点抽取⚡”）。
-- `WEB_SEARCH__ENABLED=false`：禁用联网兜底（更快更稳）。
-- `SYSTEM__HYBRID_RETRIEVAL_ENABLED=true`：启用分级检索（需要本地索引）。
-
-### 多轮对话记忆（可开关）
-
-- 目的：让追问更连贯（类似 ChatGPT），例如“我是否符合？”→“二级能效空调 8000 元。”→“怎么办理？”。
-- 策略：仅拼接“最近 N 轮≈2N 条消息”摘要到改写提示，避免提示过长与幻觉；
-- 配置：`CONVERSATION__HISTORY_WINDOW=N`（默认 5；设 0 关闭记忆）。
-
-### 延迟与成本优化
-- 最少调用原则：FastPath + Rewrite 缓存 + 知识早停，能不用模型就不用。
-- 控制上下文长度：仅拼接最近 N 轮，避免超长提示引发幻觉与耗时。
-- 只允许安全 SQL：拒绝 DML/DDL/多语句/UNION，降低数据库风险与执行时间。
-
-
-**14个核心Agent及其分工**:
-
-| Agent | 功能 | 输出 |
-|-------|------|------|
-| **RewriteAgent** | 查询标准化与改写 | 结构化查询 |
-| **IntentRouter** | 意图识别与路由决策 | 路由目标+置信度 |
-| **respond_to_dialogue** | 闲聊、问候等对话交互 | 对话回复 |
-| **KnowledgeAgent** | 向量检索+重排+政策分析 | 结构化政策信息 |
-| **GraphAgent** | LightRAG图谱推理 | 实体关系网络 |
-| **RuleEngine** | YAML DSL规则计算 | 补贴金额/资格判断 |
-| **answer_text2sql_query** | 自然语言→SQL→执行 | 数据库查询结果 |
-| **WorkflowAgent** | 多Agent并行协调 | 融合多源结果 |
-| **PolicyAnalyzer** | 政策要素提取 | 资格/流程/金额/时间 |
-| **PolicyComparator** | 多政策对比分析 | 对比表格 |
-| **AnswerGenerator** | 答案生成与优化 | 最终答案+置信度 |
-| **QueryAnalyzer** | 查询深度分析 | 查询特征向量 |
-| **Clarifier** | 澄清与歧义消解 | 澄清问题 |
-| **QuestionBuilder** | 问题构建 | 结构化问题 |
-
----
-
-## 快速开始
-
-### 环境要求
-
-- Python 3.10
-- Docker / Docker Compose（推荐）
-- Conda 或 Miniconda（本地开发时需要）
-- Node.js 18+（仅本地调试前端时需要）
-- 8GB 以上内存
-
-> 推荐把依赖服务交给 Docker，应用本身根据需求选择“全 Docker”或“本地 conda 开发”两种方式。
-
-### 方式一：Docker 一键运行（推荐）
-
-适合首次体验、演示和快速拉起完整环境。
-
-1. **克隆代码**
-   ```bash
-   git clone https://github.com/skygazer42/Glyph.git
-   cd Glyph
-   ```
-
-2. **准备配置**
-   ```bash
-   cp .env.example .env
-   ```
-   至少补齐以下配置：
-   - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL_NAME`
-   - `EMBEDDING_BACKEND` 及对应 API Key
-
-3. **启动完整服务**
-   ```bash
-   docker compose up -d --build web
-   ```
-
-4. **访问与检查**
-   - 前端：http://localhost:8080
-   - 后端健康检查：http://localhost:8000/api/health
-
-5. **说明**
-   - `api` 容器首次启动时会自动执行初始化：建表、Text2SQL 种子、schema 同步、Milvus 文档嵌入、LightRAG 种子导入。
-   - 容器内使用 `/app/.initialized` 标记避免重复导入。
-   - 如需改前端端口，可修改 `docker-compose.yaml` 中 `web` 服务的 `ports`，例如改为 `"3000:80"`。
-   - 如需手动重建数据：
-     ```bash
-     docker compose exec api bash -c "\
-       rm -f /app/.initialized && \
-       python -m scripts.create_tables && \
-       python -m scripts.seed_mysql_text2sql && \
-       python -m scripts.sync_text2sql_schema && \
-       python -m scripts.embed_process_documents --input-dir resources/data/process && \
-       python -m scripts.seed_lightrag --input-dir resources/data/process"
-     ```
-
-### 方式二：本地开发
-
-适合需要改 Python 代码、调试接口或单独运行前端的场景。推荐做法是：**Docker 起依赖服务，conda 跑应用本身**。
-
-1. **克隆代码**
-   ```bash
-   git clone https://github.com/skygazer42/Glyph.git
-   cd Glyph
-   ```
-
-2. **创建 conda 环境并安装依赖**
-   ```bash
-   conda create -n glyph python=3.10 -y
-   conda activate glyph
-   pip install -r requirements.txt
-   ```
-
-3. **准备 `.env`**
-   ```bash
-   cp .env.example .env
-   ```
-   本地开发时，至少确认这些配置与 Docker 依赖服务一致：
-   ```bash
-   DATABASE__MYSQL_HOST=localhost
-   DATABASE__MYSQL_PORT=3307
-   DATABASE__MYSQL_USER=root
-   DATABASE__MYSQL_PASSWORD=mysql
-   DATABASE__MYSQL_DB=policy_db
-
-   DATABASE__MILVUS_HOST=localhost
-   DATABASE__MILVUS_PORT=19530
-
-   REDIS_URL=redis://localhost:6379/0
-   AGENTCHAT_REDIS_URL=redis://localhost:6379/0
-   SECURITY__RATE_LIMIT_REDIS_URL=redis://localhost:6379/0
-   ```
-   同时补齐：
-   - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL_NAME`
-   - `EMBEDDING_BACKEND` 及对应 API Key
-
-4. **启动依赖服务**
-   ```bash
-   docker compose up -d mysql redis milvus
-   ```
-   这会同时拉起：
-   - MySQL 8.0，宿主机端口 `3307`
-   - Redis，宿主机端口 `6379`
-   - Milvus，宿主机端口 `19530`
-
-5. **初始化数据**
-   ```bash
-   bash scripts/init_data.sh
-   ```
-   该脚本会完成建表、Text2SQL 数据准备、schema 同步、Milvus 文档嵌入，以及 LightRAG 种子导入。默认保留已有记录；仅主动重置演示库时才使用 `python -m scripts.seed_mysql_text2sql --truncate`。清空操作不能由后续插入回滚恢复。
-
-6. **启动后端 API**
-   ```bash
-   python -m uvicorn api_server:app --reload --env-file .env
-   ```
-
-   工作人员后台需要先按 [认证配置说明](docs/AUTHENTICATION.md) 设置账号、密码与签名密钥。项目不提供默认登录账号；公众咨询免登录，但会话签发同样需要签名密钥。
-
-7. **启动前端（可选）**
-   ```bash
-   npm --prefix web install
-   npm --prefix web run dev
-   ```
-
-### 常用验证
-
-1. **健康检查**
-   ```bash
-   curl http://localhost:8000/api/health
-   ```
-
-2. **检查数据库是否已初始化**
-   ```bash
-   mysql -h 127.0.0.1 -P 3307 -uroot -pmysql -D policy_db -e "SHOW TABLES;"
-   ```
-
-3. **手动接口检查**
-   ```bash
-   curl -X POST http://localhost:8000/api/agent/chat \
-     -H "Content-Type: application/json" \
-     -d '{"message": "家电以旧换新的补贴标准是什么？", "session_id": "demo"}'
-   ```
-
-4. **CLI 快速验证**
-   ```bash
-   python -m scripts.unified_cli --interactive
-   ```
-
-5. **自动化测试**
-   ```bash
-   pytest tests -q
-   ```
-
----
-
-## 配置说明
-
-### 完整 .env 配置
-
-```bash
-# ==================== LLM 配置 ====================
-LLM_API_KEY=sk-xxx
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL_NAME=deepseek-chat
-LLM_TEMPERATURE=0
-LLM_MAX_TOKENS=4000
-LLM_TIMEOUT=120
-
-# ==================== 嵌入配置 ====================
-# 向量检索嵌入 (KnowledgeTool)
-EMBEDDING_BACKEND=openai  # openai | dashscope
-EMBEDDING_OPENAI_API_KEY=sk-xxx
-EMBEDDING_OPENAI_MODEL=text-embedding-3-small
-EMBEDDING_DASHSCOPE_API_KEY=sk-xxx
-EMBEDDING_DASHSCOPE_MODEL=text-embedding-v3
-
-# LightRAG 嵌入 (GraphAgent)
-EMBEDDING_DASHSCOPE_API_KEY=sk-xxx
-EMBEDDING_DASHSCOPE_DIMENSION=1024
-
-# ==================== Reranker 配置 (可选) ====================
-RERANKER_BACKEND=dashscope
-DASHSCOPE_API_KEY=sk-xxx
-RERANKER_MODEL=gte-rerank-v2
-RERANKER_TOP_N=5
-RERANKER_STRATEGY=replace  # replace | fuse
-
-# ==================== Milvus 配置 ====================
-DATABASE__MILVUS_HOST=localhost
-DATABASE__MILVUS_PORT=19530
-DATABASE__MILVUS_COLLECTION_NAME=policy_documents
-DATABASE__MILVUS_USER=
-DATABASE__MILVUS_PASSWORD=
-DATABASE__MILVUS_DB_NAME=default
-DATABASE__MILVUS_USE_SECURE=false
-
-# ==================== MySQL 配置 ====================
-DATABASE__MYSQL_HOST=localhost
-DATABASE__MYSQL_PORT=3307
-DATABASE__MYSQL_USER=root
-DATABASE__MYSQL_PASSWORD=mysql
-DATABASE__MYSQL_DB=policy_db
-
-# ==================== LightRAG 配置 ====================
-LIGHTRAG_WORKDIR=resources/data/lightrag
-LIGHTRAG_QUERY_MODE=hybrid  # naive | local | global | hybrid
-LIGHTRAG_EMBED_RETRY=3
-
-# ==================== 多轮对话配置 ====================
-CONVERSATION__MAX_TURNS=20
-CONVERSATION__HISTORY_WINDOW=5
-
-# ==================== 性能优化配置 ====================
-EARLY_STOP_CONF=0.80  # 早停置信度阈值
-ANALYZER_CONCURRENCY=3  # 政策分析并发数
+政务政策服务同时涉及政策原文、办事指南、适用地区、执行期限与金额规则。同一个问题可能需要查找条款、补充个人条件、核对政策版本，再完成补贴计算。政策检索、条件判断与金额计算因此需要共享来源和业务条件，让回答与计算依据保持一致。
+
+**Glyph** 面向政策咨询、资格判断、办理流程和补贴测算，将 **AutoGen 多智能体编排、Milvus 向量检索、LightRAG 图谱查询、YAML DSL 规则引擎和 Text2SQL** 集成到统一服务中。模型负责理解问题、提取条件与选择工具，规则引擎和数据库负责计算及查询，回答结合来源与执行结果呈现。
+
+系统提供公众咨询与工作人员工作台。公众可以询问政策、补充条件并查看测算依据；工作人员可以管理知识资料、核对解析正文、探索政策关系、编辑规则草稿和查询结构化数据。当前资料以常州、江苏和全国适用政策为主要服务范围。
+
+### 核心价值
+
+- **从问答到计算**：将政策解释、条件澄清和确定性测算连接起来，覆盖“能否申请、能补多少、如何办理”的咨询过程。
+- **多种依据协同**：按任务调用原文检索、政策关系、金额规则或结构化数据库，让不同问题使用对应的执行能力。
+- **结果可以复核**：保存政策来源、引用条款、规则适用期及核验记录，展示计算明细与需要人工确认的条件。
+- **知识可以维护**：通过原文、解析缓存、处理配置、预览和入库状态管理政策资料，避免上传后无法核对处理结果。
+- **入口权限分明**：公众咨询与工作人员管理使用不同访问凭证，数据库查询和私有档案能力由服务端控制。
+
+## 核心功能
+
+| 功能模块 | 说明 | 技术实现 |
+| --- | --- | --- |
+| **智能问答与工具编排** | 理解问题并调用知识、图谱、规则、SQL 或工作流工具 | AutoGen AgentChat Team / Router + AgentService |
+| **政策知识检索** | 检索政策原文，支持可选分级索引与重排 | Milvus + LlamaIndex + Reranker |
+| **来源核验 FAQ** | 对已核验问句快速作答，检查来源、地区和适用日期 | 严格问句匹配 + 正文哈希与引文核验 |
+| **补贴与资格测算** | 提取明确条件，执行比例、额度、封顶和资格计算 | YAML DSL + PolicyEngine + 领域计算函数 |
+| **规则生成与试算** | 从政策材料生成草稿，编辑、保存并检查试算结果 | DSL 生成管线 + 草稿试算 + 规则核验记录 |
+| **知识库工作区** | 上传、重新解析、原文与 PDF 页图查看、切块预览、显式入库 | 版本化解析缓存 + DocumentWorkspace |
+| **政策图谱探索** | 搜索实体、展开关系邻居、查看有限子图与统计 | LightRAG / GraphML + AntV G6 |
+| **结构化查询** | 工作人员使用自然语言查询业务数据 | ChatDB / Text2SQL + 只读 SQL 校验 + MySQL |
+| **附件与多模态** | 结合用户附件处理问题，按配置启用图片识别 | WorkflowAgent + 文档解析 + 可选 Vision 模型 |
+| **会话与访问控制** | 保存聊天记录，隔离公众与工作人员会话 | MySQL + 签名会话凭证 + HttpOnly Cookie / CSRF |
+
+## 技术架构
+
+系统按职责分为入口、编排、执行和数据四层：
+
+| 层级 | 职责 | 主要组件 |
+| --- | --- | --- |
+| **入口层** | 承接公众咨询、工作人员管理、会话与流式响应 | Vue 3、FastAPI、AG-UI / SSE、CLI |
+| **编排层** | 管理问题上下文，处理 FAQ，选择工具与回退路径 | AgentService、AutoGen AgentChat Team / Router |
+| **执行层** | 执行知识检索、图谱查询、规则计算、SQL 与附件工作流 | KnowledgeAgent、GraphAgent、RuleEngineAgent、ChatDB、WorkflowAgent |
+| **数据层** | 保存政策资料、向量、图关系、业务数据与规则 | Milvus、LightRAG、MySQL、政策原文、YAML 规则 |
+
+```mermaid
+flowchart TB
+    subgraph Entry[入口层]
+        Public[公众政策咨询]
+        Staff[工作人员工作台]
+        CLI[命令行]
+    end
+
+    Public --> API[FastAPI · 身份与会话校验]
+    Staff --> API
+    API --> Service[AgentService · 上下文与路由]
+    CLI --> Service
+    Service --> FAQ[来源核验 FAQ]
+    Service --> Agent[AutoGen AgentChat Team / Router]
+
+    subgraph Execution[工具与执行层]
+        Knowledge[知识检索]
+        Graph[图谱查询]
+        Rule[规则计算]
+        SQL[Text2SQL]
+        Workflow[附件与工作流]
+    end
+
+    Agent --> Knowledge
+    Agent --> Graph
+    Agent --> Rule
+    Agent --> SQL
+    Agent --> Workflow
+    Knowledge --> Milvus[(Milvus 向量库)]
+    Knowledge -. 可选 .-> Index[LlamaIndex 分级索引]
+    Graph --> LightRAG[LightRAG 原生存储 / GraphML]
+    Rule --> Engine[YAML DSL / PolicyEngine]
+    SQL --> MySQL[(MySQL)]
+    API --> History[聊天记录持久化]
+    History --> MySQL
 ```
 
----
+图谱查询使用 LightRAG，关系探索页面读取其 GraphML 文件；当前默认图谱链路不依赖 Neo4j 作为主存储。MySQL 负责业务数据、连接元数据和聊天记录，模型上下文由进程内 AutoGen 记忆维护。
 
-## 开发指南
+## 核心执行流程
 
-### 添加新的 Agent
+### 1. 问题接收与快速响应
 
-1. **创建 Agent 类**:
+服务先校验入口身份与会话，恢复本轮所需上下文。普通问答优先处理问候与已核验 FAQ；FAQ 未命中时继续进入模型与工具编排。
 
-```python
-# app/agents/packs/my_agent/node.py
-from app.agents.framework.base.base_agent import PolicyAgentBase
-from app.models.policy import AgentType, MessageType
+FAQ 使用严格问句匹配，同时核对来源正文、引文、地区和适用日期，避免把条件相反或适用地区不同的问题当作同一问句。
 
-class MyCustomAgent(PolicyAgentBase):
-    def __init__(self):
-        super().__init__(
-            agent_type=AgentType.CUSTOM,
-            name="MyCustomAgent",
-            description="自定义Agent功能描述"
-        )
+### 2. 智能体编排与专项路由
 
-    async def _handle_user_query(self, message, ctx):
-        # 处理用户查询
-        return result
+普通请求按配置优先尝试 **AgentChat Team**，随后在允许回退时尝试 **Router**；允许回退且两者未得到结果时进入知识问答。附件和强制 Text2SQL 等请求经过改写、快速路由或意图判断，交给相应专项流程。
 
-    async def _handle_query_analysis(self, message, ctx):
-        # 处理查询分析
-        return result
-```
+| 工具 | 执行职责 |
+| --- | --- |
+| `knowledge_tool` | 检索政策资料并组织基于原文的回答 |
+| `graph_tool` | 查询政策实体与关系，补充关联信息 |
+| `rule_tool` | 匹配规则，提取条件并执行补贴或资格计算 |
+| `text2sql_tool` | 在工作人员权限下查询结构化业务数据 |
+| `workflow_tool` | 结合附件和已启用的视觉等能力处理问题 |
 
-2. **注册到 AgentService**:
+### 3. 执行结果与来源返回
 
-```python
-# app/agents/service/agent_service.py
-from app.agents.packs.my_agent.node import MyCustomAgent
+问答界面通过 **AG-UI** 接收运行、处理阶段、工具调用与正文事件，显示真实进度，支持停止和失败后手动重试。协议由 SSE 传输，模型正文能否逐步返回仍由流式配置、请求类型及模型能力共同决定；最终答复快照替换草稿，避免重复拼接。
 
-class AgentService:
-    def __init__(self):
-        # ...
-        self.my_custom_agent = MyCustomAgent()
-```
+正文中的资料编号可点击查看对应依据；同一政策的多处引用合并展示，保留各自编号与摘录。有可用原文链接时可直接打开，条款在返回摘录中出现时会定位高亮。
 
-3. **添加路由规则**:
+普通问答、附件与模型流式路径的具体分支见[技术栈与回答链路](./docs/TECH_STACK_OVERVIEW.md)。
 
-```python
-# app/agents/service/agent_service.py
-def _resolve_route(self, intent_result, ...):
-    if intent == "my_custom_intent":
-        return "my_custom"
-    # ...
-```
+## 项目特色
 
-### 添加新的意图
+### 规则计算与模型生成分工
 
-```python
-# app/models/policy.py
-class QueryIntent(str, Enum):
-    # 现有意图...
-    MY_CUSTOM_INTENT = "my_custom_intent"
-```
+模型负责理解意图、选择规则和提取用户明确提供的条件；金额与资格逻辑由 `PolicyEngine` 及领域函数执行。当前规则覆盖 2026 年全国家电、数码、汽车以旧换新，以及常州住房、公积金、人才、育儿等场景。
 
-### 添加新的 DSL 规则
+规则核验记录绑定 YAML、政策来源和计算实现的指纹，版本变化后需要重新核验。草稿生成与试算不能代替政策核验，部分场景保留人工确认入口。[规则范围与限制](./resources/data/policy_catalog/RULES_2026.md)
 
-```yaml
-# resources/dsl/rules/my_policy.yaml
-policy_meta:
-  id: Rule_MyPolicy_2025
-  name: 自定义政策规则
+### 原文检索与政策关系互补
 
-eligibility:
-  conditions:
-    - field: age
-      operator: ">="
-      value: 18
+**Milvus** 提供原文语义检索，**LlamaIndex** 可选融合预先构建的分级索引，**LightRAG** 支撑图谱查询。知识检索按文档 ID 合并结果；图谱结果为空时可返回知识问答路径。重排和联网搜索按配置启用。
 
-calculation:
-  rules:
-    - condition: income < 50000
-      formula: "base_amount * 1.5"
-```
+### 文档处理过程可查看
 
----
+知识库保留原文、版本化解析结果和处理配置，支持 PDF 页图、Markdown 正文、句子边界或固定长度切块预览。原文与解析版本会在入库前核对，减少使用过期解析结果的风险。
 
-## 许可证
+预览与索引写入分别管理：当前网页按整篇解析正文入库，切块预览不直接驱动逐块写入；常州专项导入另有分段、稳定 ID 和读回核验流程。分级索引、图谱构建及工作区能力边界见[技术说明](./docs/TECH_STACK_OVERVIEW.md#文档工作区与索引)。
 
-本项目采用 [MIT License](LICENSE)。
+### 公众服务与工作人员管理分离
 
----
+公众可以咨询政策、使用测算与图谱工具；知识库管理、规则维护、数据库查询和私有档案访问需要工作人员权限。会话凭证、Cookie、CSRF 校验与账号命名空间共同约束服务端访问。
+
+聊天记录持久化与模型记忆分别管理：前者写入 MySQL，后者使用进程内 `ListMemory` 和 `BufferedChatCompletionContext`。当前记忆桥接器没有实现 Redis 持久化。[认证与会话说明](./docs/AUTHENTICATION.md)
+
+## 技术栈
+
+| 方向 | 技术 |
+| --- | --- |
+| **后端服务** | Python 3.10、FastAPI、Uvicorn、Pydantic v2、pydantic-settings |
+| **智能体与模型** | AutoGen Core / AgentChat、OpenAI 兼容模型接口 |
+| **检索与图谱** | Milvus、LlamaIndex、LightRAG、可选 Reranker |
+| **规则与查询** | YAML DSL、PolicyEngine、ChatDB / Text2SQL |
+| **数据持久化** | MySQL、SQLAlchemy、PyMySQL |
+| **文档与多模态** | LlamaIndex、PyMuPDF、TXT / Markdown 读取、可选 MinerU 与 Vision 服务 |
+| **前端界面** | Vue 3、Vite、Vue Router、Pinia、Element Plus、AntV G6 |
+| **工程与验证** | Docker Compose、pytest、Ruff、mypy、Vue 静态编译与生产构建 |
+
+具体依赖与版本声明以 [requirements.txt](./requirements.txt)、[前端依赖](./web/package.json)和[技术栈说明](./docs/TECH_STACK_OVERVIEW.md)为准。
+
+## 项目文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [快速启动](./docs/QUICK_START.md) | 环境准备、模型配置、运行方式和资料导入 |
+| [技术栈与回答链路](./docs/TECH_STACK_OVERVIEW.md) | 实际处理分支、存储职责、可选能力与实现边界 |
+| [项目结构与命名](./docs/PROJECT_STRUCTURE.md) | 目录职责、文件迁移、服务入口与源码导航 |
+| [认证与会话](./docs/AUTHENTICATION.md) | 工作人员认证、公众会话、附件与权限范围 |
+| [知识库配置](./docs/KNOWLEDGE_ENV_RECIPES.md) | 检索模式、索引和上下文配置 |
+| [本地资料总目录](./resources/data/README.md) | 原件、解析正文、来源清单与检索证据的统一入口 |
+| [政策资料目录](./resources/data/policy_catalog/README.md) | 来源快照、适用地区、年度范围与已知缺项 |
+
+## 数据来源与许可
+
+当前资料包括常州、江苏和全国适用的正式政策、官方解读、办事指南、公开问答，以及明确标注来源的用户语料和保险产品资料。来源性质、正文快照、引文与适用范围分别记录，不将所有材料统一视为政府正式文件。
+
+测算结果用于辅助理解政策，实际办理以对应年度、地区的有效政策及受理机关要求为准。项目代码采用 [MIT License](./LICENSE)，第三方资料与依赖遵循各自许可和使用条件。
 
 ## 致谢
 
-- [AutoGen](https://github.com/microsoft/autogen) - 多 Agent 协作框架
-- [LightRAG](https://github.com/HKUDS/LightRAG) - 轻量级知识图谱检索
-- [Milvus](https://milvus.io/) - 向量数据库
-- [FastAPI](https://fastapi.tiangolo.com/) - Web 框架
+- [AutoGen](https://github.com/microsoft/autogen) · 智能体与工具编排
+- [FastAPI](https://fastapi.tiangolo.com/) · API 服务
+- [Milvus](https://milvus.io/) · 向量存储与检索
+- [LlamaIndex](https://github.com/run-llama/llama_index) · 文档解析与索引
+- [LightRAG](https://github.com/HKUDS/LightRAG) · 图谱检索增强
+- [Vue](https://vuejs.org/) · 前端界面
+- [AntV G6](https://g6.antv.antgroup.com/) · 图谱可视化

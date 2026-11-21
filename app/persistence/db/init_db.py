@@ -11,12 +11,14 @@ logger = logging.getLogger(__name__)
 
 def init_db() -> None:
     # Create tables
+    """依据已注册模型创建缺失表；不执行已有表结构的数据迁移。"""
     Base.metadata.create_all(bind=engine)
     logger.info("Tables created")
 
 
 def create_initial_data(db: Session) -> None:
     # Check if we already have connections
+    """仅在示例连接名称不存在时创建示例配置；创建操作通过 CRUD 自行提交。"""
     connection = db_connection_crud.get_by_name(db, name="Sample Database")
     if connection is None:
         connection_in = DBConnectionCreate(

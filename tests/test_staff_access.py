@@ -23,6 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def auth_app(monkeypatch):
+    from sse_starlette.sse import AppStatus
+
+    # Each TestClient owns its event loop; let SSE create its real event there.
+    monkeypatch.setattr(AppStatus, "should_exit", False)
+    monkeypatch.setattr(AppStatus, "should_exit_event", None)
+
     def stub(name, **attributes):
         module = types.ModuleType(name)
         module.__path__ = [str(ROOT.joinpath(*name.split(".")))]

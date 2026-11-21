@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 class VisualizationConfig(BaseModel):
+    """可视化建议的图型与配置字典；图型限定枚举，配置内部结构由后续使用方解释。"""
+
     type: Literal["bar", "line", "pie", "scatter", "table"]
     config: Dict[str, Any]
 

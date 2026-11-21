@@ -158,6 +158,7 @@ def _load_text2sql_context(connection_id: int) -> tuple[Dict[str, Any], Dict[str
 
 
 async def retrieve_schema_for_connection(connection_id: int, query: str) -> tuple[Dict[str, Any], Dict[str, Dict[str, str]], ConnectionSettings]:
+    """在线程中读取连接上下文，返回相关 schema、仅含选中列的值映射及连接配置。"""
     snapshot, mappings, settings = await asyncio.to_thread(_load_text2sql_context, connection_id)
     schema = await select_relevant_schema(snapshot, query)
     selected_columns = {f"{column['table_name']}.{column['name']}" for column in schema["columns"]}

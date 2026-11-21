@@ -16,6 +16,8 @@ from app.config.app_config import settings
 
 
 class ExtractedInput(BaseModel):
+    """政策提取结果中的输入声明，严格校验公共字段并保留领域扩展字段。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
     name: str = Field(min_length=1)
     type: str = Field(min_length=1)
@@ -24,6 +26,8 @@ class ExtractedInput(BaseModel):
 
 
 class ExtractedPolicySource(BaseModel):
+    """可缺省的政策出处字段，未提取到的文号、标题或条款保留 None。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
     doc_id: str | None = None
     title: str | None = None
@@ -31,6 +35,8 @@ class ExtractedPolicySource(BaseModel):
 
 
 class ExtractedValidity(BaseModel):
+    """可缺省的起止日期，非空值须为年月日格式且开始不晚于结束。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
     start: str | None = None
     end: str | None = None
@@ -51,6 +57,8 @@ class ExtractedValidity(BaseModel):
 
 class ExtractedPolicy(BaseModel):
     # Domains have distinct calculation sections; validate the shared external envelope here.
+    """校验模型返回的共享政策外壳；领域计算字段作为扩展数据保留。"""
+
     model_config = ConfigDict(strict=True, extra="allow")
     rule_id: str | None = None
     inputs: list[ExtractedInput] = Field(default_factory=list)
@@ -299,7 +307,7 @@ class DSLExtractor:
     def _extract_with_rules(self, text: str) -> str:
         """使用规则提取（不依赖 LLM）"""
         result: Dict[str, Any] = {
-            "rule_id": "Rule_Jinan_Policy_2025",
+            "rule_id": "Rule_Template_Policy",
             "doc_id": None,
             "title": None,
             "clause": None,
@@ -547,10 +555,12 @@ class DSLExtractor:
     @staticmethod
     def _extract_city(text: str) -> str:
         """提取城市名称"""
-        cities = ['济南', '青岛', '烟台', '潍坊', '临沂', '淄博', '济宁', '泰安']
+        cities = ['常州', '溧阳', '南京', '苏州', '无锡', '镇江', '济南', '青岛', '烟台', '潍坊', '临沂', '淄博', '济宁', '泰安']
         for city in cities:
             if city in text:
                 return city
+        if any(district in text for district in ['天宁区', '钟楼区', '新北区', '武进区', '金坛区', '常州经开区', '常州经济开发区']):
+            return '常州'
         return 'Unknown'
 
     @staticmethod

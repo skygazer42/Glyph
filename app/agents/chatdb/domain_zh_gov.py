@@ -3,7 +3,7 @@ Chinese gov/policy domain helpers for ChatDB (政务领域适配).
 
 This module centralizes:
 - Domain synonyms for tables/columns/values (中英/中性别名 → 规范值)
-- Region aliases (e.g., "济南市" → "济南")
+- Region aliases (e.g., "常州市" → "常州")
 - Time window phrase parser (e.g., "近3个月" → [start,end])
 - Lightweight intent heuristics (count/list/latest/top)
 
@@ -29,6 +29,16 @@ from pathlib import Path
 # ---------------------------
 
 REGION_ALIASES: Dict[str, str] = {
+    "常州经济开发区": "常州经开区",
+    "常州经开区": "常州经开区",
+    "天宁区": "天宁",
+    "钟楼区": "钟楼",
+    "新北区": "新北",
+    "武进区": "武进",
+    "金坛区": "金坛",
+    "溧阳市": "溧阳",
+    "常州市": "常州",
+    "江苏省": "江苏",
     "济南市": "济南",
     "青岛市": "青岛",
     "北京市": "北京",
@@ -88,6 +98,8 @@ TABLE_HINTS: Dict[str, List[str]] = {
 
 @dataclass
 class TimeWindow:
+    """中文时间短语解析出的日期起止与原短语，供下游构造查询条件。"""
+
     start: date
     end: date
     phrase: str
@@ -163,6 +175,7 @@ def parse_time_window(query: str, today: Optional[date] = None) -> Optional[Time
 # ---------------------------
 
 def infer_intent(query: str) -> Dict[str, str]:
+    """用中文关键词提取聚合、排序和条数提示；未识别时返回空字典。"""
     query = query.strip()
     intent: Dict[str, str] = {}
     if not query:
@@ -270,6 +283,7 @@ def _apply_overrides(payload: Dict[str, Any]) -> None:
 
 
 def load_overrides(paths: Optional[List[Path]] = None) -> None:
+    """按顺序将存在的 JSON 配置合并到模块级领域词表；单文件失败记录警告并继续。"""
     if paths is None:
         paths = DEFAULT_OVERRIDE_PATHS
     for path in paths:

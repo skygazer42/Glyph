@@ -65,6 +65,7 @@ class ResearchAgentMixin(RAGAgentMixin):
         max_tool_context_length=10_000,
         **kwargs,
     ):
+        """复用 RAG 依赖组装，并在父类初始化后追加配置要求的研究工具。"""
         # Store the app configuration needed for research tools
         self.app_config = app_config
 
@@ -546,6 +547,7 @@ class R2RStreamingResearchAgent(ResearchAgentMixin, R2RStreamingRAGAgent):
         file_search_method: Callable,
         max_tool_context_length: int = 10_000,
     ):
+        """将传入配置切为流式模式，补充缺省迭代上限后装配研究智能体。"""
         # Force streaming on
         config.stream = True
         if config.max_iterations is None:
@@ -638,6 +640,7 @@ class R2RXMLToolsStreamingResearchAgent(
         file_search_method: Callable,
         max_tool_context_length: int = 10_000,
     ):
+        """更新传入配置的流式开关和缺省迭代上限，再装配 XML 工具研究智能体。"""
         # Force streaming on
         config.stream = True
         if config.max_iterations is None:

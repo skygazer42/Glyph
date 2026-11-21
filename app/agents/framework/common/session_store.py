@@ -24,6 +24,7 @@ _SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
 def create_or_update_session(session_id: Optional[str], user_id: Optional[str]) -> Tuple[str, Dict[str, Any]]:
+    """创建或刷新进程内会话，返回标识和共享记录；不提供持久化或副本隔离。"""
     session_id = session_id or f"session_{datetime.now().timestamp()}"
     session = _SESSIONS.get(session_id)
     if session is None:
@@ -46,6 +47,7 @@ def create_or_update_session(session_id: Optional[str], user_id: Optional[str]) 
 
 
 def add_query(session_id: str, query: UserQuery) -> None:
+    """给已存在会话追加问题并按 MAX_TURNS 截断，更新查询计数与活跃时间。"""
     session = _SESSIONS[session_id]
     record = {
         "timestamp": datetime.now().isoformat(),
@@ -59,6 +61,7 @@ def add_query(session_id: str, query: UserQuery) -> None:
 
 
 def add_answer(session_id: str, answer: FinalAnswer) -> None:
+    """给已存在会话追加回答摘要，只保留最近 MAX_TURNS 条回答。"""
     session = _SESSIONS[session_id]
     record = {
         "timestamp": datetime.now().isoformat(),
@@ -73,6 +76,7 @@ def add_answer(session_id: str, answer: FinalAnswer) -> None:
 
 
 def get_context(session_id: Optional[str]) -> Dict[str, Any]:
+    """按配置窗口交错组装最近问题和回答；缺失会话返回新会话标记及空历史。"""
     if not session_id or session_id not in _SESSIONS:
         return {"is_new_session": True, "history": []}
     session = _SESSIONS[session_id]

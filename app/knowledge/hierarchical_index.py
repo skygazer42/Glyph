@@ -899,6 +899,7 @@ class HierarchicalRetriever:
 
     @staticmethod
     def _scored_node(result) -> TextNode:
+        """深复制检索节点并写入相关性分数；缺少分数时抛错，不修改原节点。"""
         node = result.node.model_copy(deep=True)
         if result.score is None:
             raise ValueError("Retrieval result is missing its relevance score")
@@ -906,6 +907,7 @@ class HierarchicalRetriever:
         return node
 
     def close(self) -> None:
+        """解除并关闭当前重排器引用；无重排器时不操作。"""
         reranker, self.reranker = self.reranker, None
         if reranker is not None:
             reranker.close()
@@ -964,12 +966,15 @@ class HierarchicalRetriever:
 
         # 创建自定义检索器
         class CustomRetriever(BaseRetriever):
+            """把分级检索结果适配为 LlamaIndex 的带分数节点。"""
+
             def __init__(self, parent_retriever, mode):
                 super().__init__()
                 self.parent_retriever = parent_retriever
                 self.mode = mode
 
             def _retrieve(self, query_bundle):
+                """按配置模式检索并重排，使用节点元数据中的分数生成 NodeWithScore。"""
                 nodes = self.parent_retriever.retrieve(
                     query_bundle.query_str,
                     top_k=10,

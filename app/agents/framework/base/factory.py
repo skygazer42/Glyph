@@ -23,6 +23,8 @@ if TYPE_CHECKING:
 
 
 class PolicyAnswerGenerator(Protocol):
+    """工厂所需的回答生成协议：异步接收消息文本并返回结果字典。"""
+
     async def process_message(self, message: str) -> Dict[str, Any]: ...
 
 

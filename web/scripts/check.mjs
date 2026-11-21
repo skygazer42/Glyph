@@ -35,6 +35,7 @@ const counts = {
   toolingJavaScript: 0,
   css: 0,
   html: 0,
+  svg: 0,
   sfcStyleBlocks: 0,
   packageJson: 1,
   lockJson: 1
@@ -81,11 +82,15 @@ for (const path of sourceFiles) {
   } else if (path.endsWith('.css')) {
     postcss.parse(source, { from: filename })
     counts.css++
-  } else if (path.endsWith('.html')) {
+  } else if (path.endsWith('.html') || path.endsWith('.svg')) {
     const errors = []
     parseHtml(source, { onError: error => errors.push(error) })
-    assert.equal(errors.length, 0, `${filename}: HTML parser ${errors}`)
-    counts.html++
+    assert.equal(errors.length, 0, `${filename}: markup parser ${errors}`)
+    if (path.endsWith('.svg')) {
+      counts.svg++
+    } else {
+      counts.html++
+    }
   } else {
     throw new Error(`Maintained source is not covered by a parser: ${filename}`)
   }
@@ -111,7 +116,7 @@ console.log(JSON.stringify({
   limits: [
     'Static syntax and Vue compilation checks; no configured lint, typecheck, or semantic static analyzer is present.',
     'PostCSS parses syntax and Vue scoped-style compilation; this does not validate browser CSS support, computed styles, accessibility, or layout.',
-    'HTML is parsed with the installed Vue DOM parser; this is not a full HTML conformance validator.',
+    'HTML and SVG are parsed with the installed Vue DOM parser; this is not a full HTML or SVG conformance validator.',
     'Package/lock checks compare root package declarations; they do not audit transitive dependencies or prove installed package integrity.',
     'No browser mount, external API calls, runtime behavior, or backend files are exercised by this script.',
     'Generated node_modules, dist, and .vite caches are intentionally excluded.'

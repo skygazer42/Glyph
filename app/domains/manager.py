@@ -12,6 +12,7 @@ class DomainConfig:
     """领域配置管理器"""
 
     def __init__(self) -> None:
+        """装配内置政策领域的关键词、提示词键、模板路径和术语归一化规则。"""
         self.domains: Dict[str, Dict[str, Any]] = {
             "汽车补贴": {
                 "detect_keywords": ["汽车", "购车", "新能源", "燃油车", "发票不含税", "乘用车", "绿牌"],
@@ -45,7 +46,7 @@ class DomainConfig:
                 "prompt_key": "consumer_coupon",
                 "dsl_template": "templates/consumer_coupon.yaml.j2",
                 "schema": "ConsumerCouponSchema",
-                "examples": ["泉城购消费券发放活动公告"],
+                "examples": ["消费券发放活动公告（以当地正式文件为准）"],
                 "normalization": {
                     "retail": ["零售", "零售消费券"],
                     "dining": ["餐饮", "餐饮消费券"],

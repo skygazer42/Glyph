@@ -70,7 +70,10 @@ def find_markdown_files(data_dir: Path) -> List[str]:
 
 
 def main(args: argparse.Namespace) -> int:
-    """主函数"""
+    """全量构建并保存 Markdown 分级索引，再用示例查询验证检索。
+
+    无输入或构建、验证失败返回 1，成功返回 0；退出前关闭已创建的检索器。
+    """
     # These CLI-only imports may initialize model clients; importing this module is inert.
     from app.config.app_config import settings
     from app.knowledge.hierarchical_index import HierarchicalIndexBuilder, HierarchicalRetriever

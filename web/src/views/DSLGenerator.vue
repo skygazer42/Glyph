@@ -1,171 +1,246 @@
 <template>
   <div class="workspace-module dsl-generator">
-    <header class="dsl-page-heading"><h1>规则管理</h1><p>依据政策原文编制规则，核对条件与计算结果</p></header>
+    <h1 class="dsl-visually-hidden">规则管理</h1>
     <div class="rule-workspace">
-    <section class="rule-composer" aria-labelledby="rule-composer-heading">
-      <header class="composer-heading">
-        <div>
-          <h2 id="rule-composer-heading">规则编制</h2>
-        </div>
-        <div class="composer-actions">
-          <span class="generation-status" :class="{ 'is-ready': appStore.hasGeneratedDSL && !appStore.dslState.generating }" role="status" :aria-busy="appStore.dslState.generating">
-            <el-icon v-if="appStore.dslState.generating" class="is-loading"><Loading /></el-icon>
-            <el-icon v-else-if="appStore.hasGeneratedDSL"><DocumentChecked /></el-icon>
-            <span>{{ appStore.dslState.generating ? '正在生成' : appStore.hasGeneratedDSL ? '已生成 · 请核对' : '等待输入' }}</span>
-          </span>
-          <el-button type="primary" plain :icon="FolderChecked" :loading="saving" :disabled="!canSaveDSL" @click="saveDSL">{{ isCurrentRuleSaved ? '已保存' : '保存规则' }}</el-button>
-        </div>
-      </header>
-
-      <p v-if="generationError || saveError" class="rule-operation-error" role="alert">{{ generationError || saveError }}</p>
-
-      <div class="rule-editor-grid">
-        <RuleEditorLayout v-model="editorTab" :has-rule="appStore.hasGeneratedDSL">
-          <template #source>
-            <CodeEditor
-              id="policy-source-panel"
-              v-model="appStore.dslState.inputText"
-              class="policy-input-editor"
-              title="政策原文"
-              mode="input"
-              :show-header="false"
-              :rows="10"
-              :disabled="appStore.dslState.generating"
-              placeholder="请粘贴完整政策条款作为生成依据，保留适用对象、条件、标准和有效期限。"
-            >
-              <template #footer>
-                <div class="editor-footer-row">
-                  <span class="editor-note">{{ inputCharacterCount.toLocaleString('zh-CN') }} 字</span>
-                  <div class="editor-button-group">
-                    <el-button :disabled="saving || (!appStore.dslState.inputText && !appStore.hasGeneratedDSL)" @click="clearInput">
-                      {{ appStore.dslState.generating ? '取消并清空' : '清空' }}
-                    </el-button>
-                    <el-button type="primary" :loading="appStore.dslState.generating" :disabled="saving || inputCharacterCount === 0" @click="generateDSL">
-                      <el-icon v-if="!appStore.dslState.generating"><MagicStick /></el-icon>
-                      <span>生成规则</span>
-                    </el-button>
-                  </div>
-                </div>
-              </template>
-            </CodeEditor>
-          </template>
-          <template #rule>
-            <CodeEditor
-              id="generated-rule-panel"
-              v-model="appStore.dslState.generatedYAML"
-              class="rule-output-editor"
-              title="结构化规则"
-              mode="display"
-              language="yaml"
-              :show-copy="true"
-              :empty-text="appStore.dslState.generating ? '正在解析政策条款，请稍候…' : '生成后，结构化规则将在这里显示'"
-              :aria-busy="appStore.dslState.generating"
-            >
-              <template #title>
-                <span class="editor-note">结构化规则 · YAML</span>
-              </template>
-              <template #footer>
-                <div class="editor-footer-row">
-                  <span class="editor-note">{{ isCurrentRuleSaved ? '当前版本已保存' : appStore.hasGeneratedDSL ? '可先试算，核对后再保存' : '生成后可试算与保存' }}</span>
-                  <div class="editor-button-group">
-                    <el-button :disabled="!appStore.hasGeneratedDSL || appStore.dslState.generating" @click="testCurrentDSL">填写测试参数</el-button>
-                  </div>
-                </div>
-              </template>
-            </CodeEditor>
-          </template>
-        </RuleEditorLayout>
-      </div>
-    </section>
-        <section ref="testPanelRef" class="rule-test-panel" aria-labelledby="rule-test-heading" :aria-busy="testing || testPanelLoading">
-          <header class="test-panel-heading"><h2 id="rule-test-heading">条件试算</h2><span>核对执行结果</span></header>
-          <div class="test-panel-body">
-            <p v-if="testPanelLoading" class="test-placeholder" role="status">正在读取规则与测试参数…</p>
-            <template v-else-if="testForm.ruleId">
-              <div class="test-rule-identity"><strong>{{ testContext }}</strong><span>{{ testForm.ruleId }}</span></div>
-              <p v-if="testOrigin === 'generated'" class="test-draft-note">试算当前生成版本，核对后可保存规则。</p>
-              <el-form :model="testForm" label-position="top" class="rule-test-form" @submit.prevent="executeTest">
-                <div class="test-fields">
-                  <el-form-item v-for="input in testInputSpecs" :key="input.name" :label="formatParamLabel(input.name)">
-                    <el-input-number v-if="['float', 'number', 'int', 'integer'].includes(input.type)" v-model="testForm.inputs[input.name]" :controls="false" :step-strictly="['int', 'integer'].includes(input.type)" :disabled="testing" :placeholder="`请输入${formatParamLabel(input.name)}`" :aria-label="formatParamLabel(input.name)" />
-                    <el-select v-else-if="['bool', 'boolean'].includes(input.type)" v-model="testForm.inputs[input.name]" :disabled="testing" clearable placeholder="请选择" :aria-label="formatParamLabel(input.name)"><el-option label="是" :value="true" /><el-option label="否" :value="false" /></el-select>
-                    <el-input v-else v-model="testForm.inputs[input.name]" :disabled="testing" :placeholder="`请输入${formatParamLabel(input.name)}`" :aria-label="formatParamLabel(input.name)" />
-                  </el-form-item>
-                </div>
-                <p v-if="Object.keys(testForm.inputs).length === 0" class="test-placeholder">此规则没有需要填写的输入参数。</p>
-                <el-button native-type="submit" type="primary" plain :loading="testing" :disabled="!canExecuteTest" class="run-test-button">执行试算</el-button>
-              </el-form>
-            </template>
-            <div v-else class="test-placeholder test-empty-state">
-              <div><strong>先生成规则，再核对条件</strong><p>试算可在保存前进行，也可选择下方已保存的规则。</p></div>
-              <ol class="test-steps">
-                <li><span aria-hidden="true">1</span><div><strong>生成规则</strong><p>从政策条款提取条件与计算逻辑</p></div></li>
-                <li><span aria-hidden="true">2</span><div><strong>填写实际条件</strong><p>按规则提供数字、文本或是非值</p><div class="test-input-shapes" aria-hidden="true"><i>数字</i><i>文本</i><i>是 / 否</i></div></div></li>
-                <li><span aria-hidden="true">3</span><div><strong>核对执行结果</strong><p>查看执行状态、原始返回值与计算过程</p></div></li>
-              </ol>
-            </div>
-            <p v-if="testError" class="test-error" role="alert">{{ testError }}</p>
-            <p v-if="testResultStale" class="test-result-stale" role="status">参数或规则已改变，请重新执行测试。</p>
-            <section v-if="testResult" class="test-result" aria-labelledby="test-result-heading" aria-live="polite">
-              <h4 id="test-result-heading">测试结果</h4>
-              <dl><div><dt>执行状态</dt><dd>{{ testStatusText }}</dd></div><div v-if="testResult.final_result != null"><dt>原始返回值</dt><dd class="result-value">{{ testResult.final_result }}</dd></div></dl>
-              <p v-if="testResult.final_result != null" class="test-result-note">按接口原样展示，含义与单位请结合规则和执行跟踪核对。</p>
-              <p v-if="testResult.message" class="test-result-message">{{ testResult.message }}</p>
-              <ul v-if="Array.isArray(testResult.errors) && testResult.errors.length" class="test-result-errors"><li v-for="(error, index) in testResult.errors" :key="index">{{ error }}</li></ul>
-              <details v-if="testResult.explainability_trace?.length || testResult.trace"><summary>执行跟踪</summary><pre class="trace-content">{{ testResult.explainability_trace?.length ? JSON.stringify(testResult.explainability_trace, null, 2) : testResult.trace }}</pre></details>
-              <details><summary>完整返回结果</summary><pre class="trace-content">{{ JSON.stringify(testResult, null, 2) }}</pre></details>
-            </section>
+      <section class="rule-composer" aria-labelledby="rule-composer-heading">
+        <header class="composer-heading">
+          <div>
+            <h2 id="rule-composer-heading">规则编制</h2>
           </div>
-        </section>
+          <div class="composer-actions">
+            <span v-if="appStore.hasGeneratedDSL || appStore.dslState.generating" class="generation-status" :class="{ 'is-ready': appStore.hasGeneratedDSL && !appStore.dslState.generating }" role="status" :aria-busy="appStore.dslState.generating">
+              <el-icon v-if="appStore.dslState.generating" class="is-loading"><Loading /></el-icon>
+              <el-icon v-else-if="appStore.hasGeneratedDSL"><DocumentChecked /></el-icon>
+              <span>{{ appStore.dslState.generating ? '正在生成' : '已生成 · 请核对' }}</span>
+            </span>
+            <el-button type="primary" plain :icon="FolderChecked" :loading="saving" :disabled="!canSaveDSL" @click="saveDSL">{{ isCurrentRuleSaved ? '已保存' : '保存规则' }}</el-button>
+          </div>
+        </header>
+
+        <p v-if="generationError || saveError" class="rule-operation-error" role="alert">{{ generationError || saveError }}</p>
+
+        <div class="rule-editor-grid">
+          <RuleEditorLayout v-model="editorTab" :has-rule="appStore.hasGeneratedDSL">
+            <template #source>
+              <div class="policy-source-surface">
+                <CodeEditor
+                  id="policy-source-panel"
+                  v-model="appStore.dslState.inputText"
+                  class="policy-input-editor"
+                  title="政策原文"
+                  mode="input"
+                  :show-header="false"
+                  :rows="10"
+                  :disabled="appStore.dslState.generating"
+                >
+                  <template #footer>
+                    <div class="editor-footer-row">
+                      <span class="editor-note">{{ inputCharacterCount.toLocaleString('zh-CN') }} 字</span>
+                      <div class="editor-button-group">
+                        <el-button :disabled="saving || (!appStore.dslState.inputText && !appStore.hasGeneratedDSL)" @click="clearInput">
+                          {{ appStore.dslState.generating ? '取消并清空' : '清空' }}
+                        </el-button>
+                        <el-button type="primary" :loading="appStore.dslState.generating" :disabled="saving || inputCharacterCount === 0" @click="generateDSL">
+                          <el-icon v-if="!appStore.dslState.generating"><MagicStick /></el-icon>
+                          <span>生成规则</span>
+                        </el-button>
+                      </div>
+                    </div>
+                  </template>
+                </CodeEditor>
+                <div v-if="inputCharacterCount === 0" class="source-empty-state" aria-hidden="true">
+                  <el-icon><Document /></el-icon>
+                  <strong>粘贴政策原文</strong>
+                  <p>保留适用对象、条件、补贴标准和有效期。</p>
+                </div>
+              </div>
+            </template>
+            <template #rule>
+              <CodeEditor
+                id="generated-rule-panel"
+                v-model="appStore.dslState.generatedYAML"
+                class="rule-output-editor"
+                title="结构化规则"
+                mode="display"
+                language="yaml"
+                :show-copy="true"
+                :aria-busy="appStore.dslState.generating"
+              >
+                <template #empty>
+                  <div class="rule-empty-state" role="status">
+                    <el-icon><component :is="appStore.dslState.generating ? Loading : SetUp" :class="{ 'is-loading': appStore.dslState.generating }" /></el-icon>
+                    <strong>{{ appStore.dslState.generating ? '正在提取规则' : '等待生成规则' }}</strong>
+                    <p>{{ appStore.dslState.generating ? '正在解析适用条件与计算逻辑…' : '生成后，在这里对照原文核对条件与计算逻辑。' }}</p>
+                  </div>
+                </template>
+                <template #title>
+                  <span class="editor-note">结构化规则 · YAML</span>
+                </template>
+                <template #footer>
+                  <div class="editor-footer-row">
+                    <span v-if="appStore.hasGeneratedDSL" class="editor-note">{{ isCurrentRuleSaved ? '当前版本已保存' : '可先试算，核对后再保存' }}</span>
+                    <div class="editor-button-group">
+                      <el-button :disabled="!appStore.hasGeneratedDSL || appStore.dslState.generating" @click="testCurrentDSL">条件试算</el-button>
+                    </div>
+                  </div>
+                </template>
+              </CodeEditor>
+            </template>
+          </RuleEditorLayout>
+        </div>
+      </section>
+
+      <section class="saved-rules" aria-labelledby="saved-rules-heading">
+        <header class="rules-heading">
+          <div class="rules-heading-label"><h2 id="saved-rules-heading">已保存的规则</h2><span v-if="!tableLoading && !listError">{{ appStore.dslState.dslList.length }} 条</span></div>
+          <div class="rules-toolbar">
+            <SearchBar v-model="searchQuery" placeholder="搜索规则名称或 ID" :disabled="tableLoading || !!listError" :show-button="false" />
+            <el-tooltip v-if="!listError" content="刷新规则列表" placement="top">
+              <el-button :icon="Refresh" :disabled="tableLoading" aria-label="刷新规则列表" @click="loadDSLList" />
+            </el-tooltip>
+          </div>
+        </header>
+        <UnavailableState v-if="listError && !tableLoading" class="rules-unavailable" title="规则列表加载失败" description="暂时无法读取规则列表，请稍后重试。" :detail="listError" @retry="loadDSLList" />
+        <div v-else class="rules-body" :aria-busy="tableLoading">
+          <ul v-if="filteredRules.length" class="rules-list" aria-labelledby="saved-rules-heading">
+            <li
+              v-for="rule in filteredRules"
+              :key="rule.rule_id"
+              class="rule-row"
+              :class="{ 'is-testing': testOrigin === 'saved' && testForm.ruleId === rule.rule_id && !testPanelLoading }"
+            >
+              <div class="rule-row-heading">
+                <h3 :title="rule.title">{{ rule.title }}</h3>
+                <span class="rule-state" :class="{ 'is-active': rule.is_active }">
+                  <i aria-hidden="true"></i>{{ rule.is_active ? '适用期内' : '不在适用期' }}
+                </span>
+              </div>
+              <div class="rule-row-footer">
+                <span class="rule-id" :title="rule.rule_id">{{ rule.rule_id }}</span>
+                <div class="rule-row-actions">
+                  <el-button link type="primary" :aria-label="`查看 ${rule.title}`" @click="viewRule(rule)">查看</el-button>
+                  <el-button link type="primary" :aria-label="`测试 ${rule.title}`" @click="testRule(rule)">测试</el-button>
+                </div>
+              </div>
+              <div v-if="rule.doc_type || rule.created_at" class="rule-meta">
+                <span v-if="rule.doc_type">{{ rule.doc_type }}</span>
+                <time v-if="rule.created_at" :datetime="rule.created_at">{{ formatDate(rule.created_at) }}</time>
+              </div>
+            </li>
+          </ul>
+          <div v-else-if="tableLoading" class="rules-skeleton" role="status" aria-label="正在读取规则列表">
+            <el-skeleton :animated="false">
+              <template #template>
+                <div v-for="row in 3" :key="row" class="rules-skeleton-row">
+                  <el-skeleton-item variant="text" />
+                  <el-skeleton-item variant="text" />
+                </div>
+              </template>
+            </el-skeleton>
+          </div>
+          <div v-else class="rules-empty" role="status">
+            <strong>{{ searchQuery ? '未找到匹配规则' : '暂无已保存的规则' }}</strong>
+            <span>{{ searchQuery ? '换个名称或规则 ID 试试' : '生成并核对规则后，即可保存到这里' }}</span>
+          </div>
+        </div>
+        <footer v-if="!listError && (ruleListStatus || matchingRules.length > pageSize)" class="rules-footer">
+          <span v-if="ruleListStatus" role="status">{{ ruleListStatus }}</span>
+          <el-pagination v-if="matchingRules.length > pageSize" v-model:current-page="currentPage" :page-size="pageSize" :total="matchingRules.length" :pager-count="5" layout="prev, pager, next" aria-label="规则列表分页" />
+        </footer>
+      </section>
     </div>
 
-    <section class="saved-rules" aria-labelledby="saved-rules-heading">
-      <header class="rules-heading">
-        <div class="rules-heading-label"><h2 id="saved-rules-heading">已保存的规则</h2><span v-if="!tableLoading && !listError">{{ appStore.dslState.dslList.length }} 条</span></div>
-        <div class="rules-toolbar">
-          <SearchBar v-model="searchQuery" placeholder="搜索规则名称或 ID" :disabled="tableLoading || !!listError" :show-button="false" :debounce="300" @input="filterRules" />
-          <el-tooltip v-if="!listError" content="刷新规则列表" placement="top">
-            <el-button :icon="Refresh" :disabled="tableLoading" aria-label="刷新规则列表" @click="loadDSLList" />
-          </el-tooltip>
-        </div>
-      </header>
-      <UnavailableState v-if="listError && !tableLoading" class="rules-unavailable" title="规则列表加载失败" description="暂时无法读取规则列表，请稍后重试。" :detail="listError" @retry="loadDSLList" />
-      <div v-else class="rules-table-wrap">
-        <el-table :data="filteredRules" class="rules-table" :aria-busy="tableLoading">
-          <el-table-column prop="title" label="规则名称" min-width="210" show-overflow-tooltip />
-          <el-table-column prop="rule_id" label="规则 ID" min-width="190" show-overflow-tooltip>
-            <template #default="scope"><span class="rule-id">{{ scope.row.rule_id }}</span></template>
-          </el-table-column>
-          <el-table-column prop="doc_type" label="文档类型" width="110">
-            <template #default="scope"><span>{{ scope.row.doc_type || '通用' }}</span></template>
-          </el-table-column>
-          <el-table-column label="状态" width="100">
-            <template #default="scope"><span class="rule-state" :class="{ 'is-active': scope.row.is_active }"><i aria-hidden="true"></i>{{ scope.row.is_active ? '已激活' : '未激活' }}</span></template>
-          </el-table-column>
-          <el-table-column prop="created_at" label="创建时间" width="168">
-            <template #default="scope"><span class="rule-date">{{ formatDate(scope.row.created_at) }}</span></template>
-          </el-table-column>
-          <el-table-column label="操作" width="130" fixed="right">
-            <template #default="scope">
-              <el-button link type="primary" @click="viewRule(scope.row)">查看</el-button>
-              <el-button link type="primary" @click="testRule(scope.row)">测试</el-button>
-            </template>
-          </el-table-column>
-          <template #empty>
-            <div v-if="tableLoading" class="rules-skeleton" role="status" aria-label="正在读取规则列表">
-              <el-skeleton :animated="false">
-                <template #template><div v-for="row in 3" :key="row" class="rules-skeleton-row"><el-skeleton-item v-for="column in 6" :key="column" variant="text" /></div></template>
-              </el-skeleton>
-            </div>
-            <div v-else class="rules-empty"><strong>{{ searchQuery ? '未找到匹配规则' : '暂无已保存的规则' }}</strong><span>{{ searchQuery ? '换个名称或规则 ID 试试' : '在上方生成并核对规则后，保存到规则库' }}</span></div>
-          </template>
-        </el-table>
+    <el-dialog
+      v-model="showTestDialog"
+      title="条件试算"
+      width="760px"
+      class="glyph-dialog rule-test-dialog"
+      :close-on-click-modal="false"
+      align-center
+    >
+      <div class="test-rule-identity">
+        <strong>{{ testContext }}</strong>
+        <span v-if="testForm.ruleId">{{ testForm.ruleId }}</span>
       </div>
-      <footer v-if="!listError && (!tableLoading || appStore.dslState.dslList.length)" class="rules-footer">
-        <span>{{ tableLoading ? '正在更新规则列表…' : searchQuery ? `匹配 ${matchingRules.length} 条规则` : '选择规则可查看内容或填写测试参数' }}</span>
-        <el-pagination v-if="!tableLoading && !listError && matchingRules.length > pageSize" v-model:current-page="currentPage" :page-size="pageSize" :total="matchingRules.length" layout="total, prev, pager, next" />
-      </footer>
-    </section>
+      <div :aria-busy="testing || testPanelLoading">
+        <p v-if="testPanelLoading" class="test-placeholder" role="status">正在读取规则与测试参数…</p>
+        <template v-else-if="testForm.ruleId">
+          <p v-if="testOrigin === 'generated'" class="test-draft-note">试算当前生成版本，核对后可保存规则。</p>
+          <el-form id="rule-test-form" :model="testForm" label-position="top" class="rule-test-form" @submit.prevent="executeTest">
+            <div class="test-fields">
+              <el-form-item
+                v-for="input in testInputSpecs"
+                :key="input.name"
+                :label="input.label || formatParamLabel(input.name)"
+              >
+                <el-select
+                  v-if="Array.isArray(input.options) && input.options.length > 0"
+                  v-model="testForm.inputs[input.name]"
+                  :disabled="testing"
+                  clearable
+                  placeholder="请选择"
+                  :aria-label="input.label || formatParamLabel(input.name)"
+                >
+                  <el-option
+                    v-for="option in input.options"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+                <el-input-number
+                  v-else-if="['float', 'number', 'int', 'integer'].includes(input.type)"
+                  v-model="testForm.inputs[input.name]"
+                  :controls="false"
+                  :step-strictly="['int', 'integer'].includes(input.type)"
+                  :disabled="testing"
+                  :placeholder="`请输入${input.label || formatParamLabel(input.name)}`"
+                  :aria-label="input.label || formatParamLabel(input.name)"
+                />
+                <el-select
+                  v-else-if="['bool', 'boolean'].includes(input.type)"
+                  v-model="testForm.inputs[input.name]"
+                  :disabled="testing"
+                  clearable
+                  placeholder="请选择"
+                  :aria-label="input.label || formatParamLabel(input.name)"
+                >
+                  <el-option label="是" :value="true" />
+                  <el-option label="否" :value="false" />
+                </el-select>
+                <el-input
+                  v-else
+                  v-model="testForm.inputs[input.name]"
+                  :disabled="testing"
+                  :placeholder="`请输入${input.label || formatParamLabel(input.name)}`"
+                  :aria-label="input.label || formatParamLabel(input.name)"
+                />
+                <p v-if="input.description" class="test-placeholder">{{ input.description }}</p>
+              </el-form-item>
+            </div>
+            <p v-if="Object.keys(testForm.inputs).length === 0" class="test-placeholder">此规则没有需要填写的输入参数。</p>
+          </el-form>
+        </template>
+        <p v-if="testError" ref="testErrorRef" class="test-error" role="alert">{{ testError }}</p>
+        <p v-if="testResultStale" class="test-result-stale" role="status">参数或规则已改变，请重新执行测试。</p>
+        <section v-if="testResult" ref="testResultRef" class="test-result" aria-labelledby="test-result-heading" aria-live="polite">
+          <h3 id="test-result-heading">试算结果</h3>
+          <dl><div><dt>执行状态</dt><dd>{{ testStatusText }}</dd></div><div v-if="testHasAmount"><dt>原始返回值</dt><dd class="result-value">{{ testResult.final_result }}</dd></div></dl>
+          <p v-if="testHasAmount" class="test-result-note">按接口原样展示，含义与单位请结合规则和执行跟踪核对。</p>
+          <p v-else class="test-result-note">本次未得出金额，请根据执行状态和说明补充核验。</p>
+          <p v-if="testResult.message" class="test-result-message">{{ testResult.message }}</p>
+          <ul v-if="Array.isArray(testResult.errors) && testResult.errors.length" class="test-result-errors"><li v-for="(error, index) in testResult.errors" :key="index">{{ error }}</li></ul>
+          <details v-if="testResult.explainability_trace?.length || testResult.trace"><summary>执行跟踪</summary><pre class="trace-content">{{ testResult.explainability_trace?.length ? JSON.stringify(testResult.explainability_trace, null, 2) : testResult.trace }}</pre></details>
+          <details><summary>完整返回结果</summary><pre class="trace-content">{{ JSON.stringify(testResult, null, 2) }}</pre></details>
+        </section>
+      </div>
+      <template #footer>
+        <div class="test-dialog-footer">
+          <el-button @click="showTestDialog = false">关闭</el-button>
+          <el-button form="rule-test-form" native-type="submit" type="primary" :loading="testing" :disabled="!canExecuteTest">执行试算</el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="showDetailDialog" title="规则详情" width="800px" class="glyph-dialog dsl-detail-dialog">
       <CodeEditor v-model="currentRuleDetail" class="rule-detail-editor" title="结构化规则内容" mode="display" language="json" :show-copy="true" />
@@ -175,13 +250,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { dslApi } from '@/api'
 import { CodeEditor, SearchBar } from '@/components'
 import UnavailableState from '@/components/UnavailableState.vue'
 import RuleEditorLayout from '@/components/rules/RuleEditorLayout.vue'
-import { DocumentChecked, FolderChecked, Loading, MagicStick, Refresh } from '@element-plus/icons-vue'
+import { Document, DocumentChecked, FolderChecked, Loading, MagicStick, Refresh, SetUp } from '@element-plus/icons-vue'
 
 // Store
 const appStore = useAppStore()
@@ -190,15 +265,17 @@ const appStore = useAppStore()
 const searchQuery = ref('')
 const editorTab = ref(appStore.hasGeneratedDSL ? 'rule' : 'source')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = 10
 const tableLoading = ref(false)
 const listError = ref('')
 const saving = ref(false)
 const showDetailDialog = ref(false)
+const showTestDialog = ref(false)
 const testing = ref(false)
 const currentRuleDetail = ref('')
-const testPanelRef = ref(null)
 const testPanelLoading = ref(false)
+const testResultRef = ref(null)
+const testErrorRef = ref(null)
 const testContext = ref('')
 const testOrigin = ref('')
 const testInputSpecs = ref([])
@@ -215,9 +292,22 @@ const testForm = ref({
 
 // Test result
 const testResult = ref(null)
+const testHasAmount = computed(() => ['VALID', 'QUALIFIED', 'SUCCESS', 'CALCULATED'].includes(testResult.value?.status) && testResult.value.final_result != null)
 const testStatusText = computed(() => {
   const status = testResult.value?.status
-  return ({ VALID: '执行完成', QUALIFIED: '符合规则条件', NOT_QUALIFIED: '不符合规则条件', EXPIRED: '政策不在适用期', INVALID_INPUT: '输入未通过校验', ERROR: '执行出错' })[status] || status || '未返回状态'
+  return ({
+    VALID: '执行完成',
+    QUALIFIED: '符合规则条件',
+    CALCULATED: '金额测算完成（需审核）',
+    INELIGIBLE: '不满足本次测算条件',
+    NOT_QUALIFIED: '不符合规则条件',
+    MANUAL_REVIEW: '需主管部门人工核实',
+    SUSPENDED: '该业务当前暂停办理',
+    NOT_IN_PERIOD: '不在本次业务受理时段',
+    EXPIRED: '政策不在适用期',
+    INVALID_INPUT: '输入未通过校验',
+    ERROR: '执行出错'
+  })[status] || status || '未返回状态'
 })
 const testResultStale = ref(false)
 
@@ -249,11 +339,24 @@ const matchingRules = computed(() => {
 })
 
 const filteredRules = computed(() => {
-  const lastPage = Math.max(1, Math.ceil(matchingRules.value.length / pageSize.value))
-  const page = Math.min(currentPage.value, lastPage)
-  const start = (page - 1) * pageSize.value
-  const end = start + pageSize.value
+  const start = (currentPage.value - 1) * pageSize
+  const end = start + pageSize
   return matchingRules.value.slice(start, end)
+})
+
+const ruleListStatus = computed(() => {
+  if (filteredRules.value.length === 0) return ''
+  if (tableLoading.value) return '正在更新规则列表…'
+  return searchQuery.value ? `匹配 ${matchingRules.value.length} 条规则` : ''
+})
+
+watch(searchQuery, () => {
+  currentPage.value = 1
+})
+
+watch(matchingRules, rules => {
+  const lastPage = Math.max(1, Math.ceil(rules.length / pageSize))
+  currentPage.value = Math.min(currentPage.value, lastPage)
 })
 
 // Methods
@@ -399,10 +502,6 @@ const loadDSLList = async () => {
   }
 }
 
-const filterRules = () => {
-  currentPage.value = 1
-}
-
 const viewRule = async (rule) => {
   const request = {}
   detailRequest = request
@@ -422,14 +521,20 @@ const viewRule = async (rule) => {
 }
 
 const testRule = async (rule) => {
+  showTestDialog.value = true
+  if (testOrigin.value === 'saved' && testForm.value.ruleId === rule.rule_id) return
+
   const request = {}
   testFormRequest = request
   testRequest = null
   testing.value = false
   testPanelLoading.value = true
+  testContext.value = rule.title || rule.rule_id
+  testForm.value = { ruleId: '', inputs: {} }
+  testInputSpecs.value = []
+  testResultStale.value = false
   testError.value = ''
   testResult.value = null
-  testPanelRef.value?.scrollIntoView({ block: 'nearest' })
   try {
     const response = await dslApi.getDSL(rule.rule_id)
     if (testFormRequest !== request) {
@@ -470,7 +575,7 @@ const testCurrentDSL = () => {
   if (testOrigin.value !== 'generated' || testForm.value.ruleId !== appStore.dslState.generatedRuleId) {
     prepareTestForm(appStore.dslState.generatedRuleId, appStore.dslState.generatedInputs, 'generated', '当前生成的规则')
   }
-  testPanelRef.value?.scrollIntoView({ block: 'nearest' })
+  showTestDialog.value = true
 }
 
 const executeTest = async () => {
@@ -505,6 +610,11 @@ const executeTest = async () => {
   } finally {
     if (testRequest === request) {
       testing.value = false
+      await nextTick()
+      if (showTestDialog.value && testSignature.value === signature) {
+        const feedback = testError.value ? testErrorRef.value : testResultRef.value
+        feedback?.scrollIntoView({ block: 'nearest' })
+      }
     }
   }
 }
@@ -529,7 +639,15 @@ const formatParamLabel = (key) => {
     energy_level: '能效等级',
     category: '商品类别',
     quantity: '购买数量',
-    amount: '消费金额'
+    amount: '消费金额',
+    consumption_amount: '消费金额',
+    coupon_type: '消费券类型',
+    claim_time: '领取时间',
+    user_id: '用户 ID',
+    merchant_id: '商户 ID',
+    product_id: '商品 ID',
+    using_other_coupon: '是否使用其他消费券',
+    has_merchant_discount: '是否享受商家优惠'
   }
   return labels[key] || key
 }
@@ -556,37 +674,29 @@ onBeforeUnmount(() => {
 .dsl-generator {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  height: 100%;
   min-width: 0;
-  min-height: 100%;
+  min-height: 0;
 }
-.dsl-page-heading {
-  display: grid;
-  gap: 4px;
-}
-.dsl-page-heading h1 {
-  margin: 0;
-  color: var(--wb-ink);
-  font-size: var(--wb-title-size);
-  line-height: 32px;
-}
-.dsl-page-heading p {
-  margin: 0;
-  color: var(--wb-muted);
-  font-size: 13px;
-  line-height: 1.8;
+.dsl-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .rule-workspace {
   display: grid;
-  flex: none;
-  grid-template-columns: minmax(0, 1.95fr) minmax(320px, 1fr);
-  align-items: stretch;
-  gap: 24px;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) clamp(336px, 29%, 408px);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 20px;
   min-width: 0;
+  min-height: 0;
 }
 .rule-composer,
-.saved-rules,
-.rule-test-panel {
+.saved-rules {
   min-width: 0;
   border: 1px solid var(--wb-line);
   border-radius: var(--wb-radius);
@@ -599,13 +709,13 @@ onBeforeUnmount(() => {
 }
 .saved-rules {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  min-height: 260px;
+  min-height: 0;
+  overflow: hidden;
 }
-.composer-heading,
-.rules-heading {
+.composer-heading {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
@@ -620,12 +730,6 @@ onBeforeUnmount(() => {
   font-size: var(--wb-text-size);
   font-weight: 500;
   line-height: 1.5;
-}
-.composer-heading p {
-  margin: 5px 0 0;
-  color: var(--wb-muted);
-  font-size: var(--wb-text-size);
-  line-height: 1.7;
 }
 .generation-status {
   display: inline-flex;
@@ -653,7 +757,6 @@ onBeforeUnmount(() => {
   gap: 14px;
 }
 .rule-editor-grid {
-  --rule-editor-height: clamp(280px, 34vh, 360px);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -670,8 +773,7 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: 0;
 }
-.rule-editor-grid :deep(.editor-header),
-.test-panel-heading {
+.rule-editor-grid :deep(.editor-header) {
   min-height: 54px;
   gap: 8px;
   padding: 12px 22px;
@@ -679,12 +781,70 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--wb-line);
 }
 .rule-editor-grid :deep(.editor-body) {
+  display: flex;
+  flex-direction: column;
   flex: 1;
-  min-height: var(--rule-editor-height);
+  min-height: 0;
   background: var(--wb-surface);
 }
+.policy-source-surface {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.source-empty-state,
+.rule-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--wb-muted);
+  text-align: center;
+}
+.source-empty-state {
+  position: absolute;
+  inset: 0 0 64px;
+  pointer-events: none;
+}
+.policy-source-surface:focus-within .source-empty-state {
+  visibility: hidden;
+}
+.source-empty-state > .el-icon,
+.rule-empty-state > .el-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 2px;
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-radius);
+  background: var(--wb-tint);
+  color: var(--wb-blue);
+  font-size: 24px;
+}
+.source-empty-state strong,
+.rule-empty-state strong {
+  color: var(--wb-ink);
+  font-size: 16px;
+  font-weight: 500;
+}
+.source-empty-state p,
+.rule-empty-state p {
+  max-width: 280px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.rule-empty-state {
+  flex: 1;
+  min-height: 0;
+}
 .policy-input-editor :deep(.el-textarea__inner) {
-  min-height: var(--rule-editor-height) !important;
+  min-height: 0 !important;
   height: 100%;
   padding: 18px 22px;
   box-shadow: none;
@@ -711,7 +871,9 @@ onBeforeUnmount(() => {
   color: var(--wb-ink);
 }
 .rule-output-editor :deep(.code-display) {
-  height: var(--rule-editor-height);
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   padding: 18px 22px;
 }
 .rule-output-editor :deep(.code-display pre),
@@ -724,18 +886,11 @@ onBeforeUnmount(() => {
   overflow-wrap: normal;
   word-break: normal;
 }
-.rule-output-editor :deep(.el-empty) {
-  min-height: var(--rule-editor-height);
-  padding: 36px 20px;
-}
-.rule-output-editor :deep(.el-empty__image) {
-  display: none;
-}
-.rule-output-editor :deep(.el-empty__description p) {
-  font-size: var(--wb-text-size);
-  line-height: 1.8;
+.rule-output-editor :deep(.editor-body) {
+  background: color-mix(in srgb, var(--wb-tint) 55%, var(--wb-surface));
 }
 .rule-editor-grid :deep(.editor-footer) {
+  flex: none;
   padding: 14px 22px;
   border-color: var(--wb-line);
   background: var(--wb-surface);
@@ -754,6 +909,9 @@ onBeforeUnmount(() => {
 .editor-button-group .el-button + .el-button {
   margin-left: 0;
 }
+.rule-output-editor .editor-button-group {
+  margin-left: auto;
+}
 .editor-note {
   color: var(--wb-muted);
   font-size: 13px;
@@ -766,75 +924,149 @@ onBeforeUnmount(() => {
 .editor-button-group .el-icon + span {
   margin-left: 5px;
 }
-.rules-heading-label,
-.rules-toolbar {
+.rules-heading {
+  display: grid;
+  flex: none;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--wb-line);
+}
+.rules-heading-label {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
+  gap: 10px;
 }
 .rules-heading-label > span {
   color: var(--wb-muted);
-  font: var(--wb-text-size) var(--wb-number);
+  font: 13px var(--wb-number);
+}
+.rules-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
 }
 .rules-toolbar :deep(.search-bar) {
-  width: 240px;
+  min-width: 0;
 }
-.rules-table-wrap {
-  display: flex;
+.rules-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rules-body {
   flex: 1;
-  flex-direction: column;
   min-height: 0;
-  max-width: 100%;
-  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.rule-row {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px 10px;
+  box-shadow: inset 2px 0 transparent;
+}
+.rule-row + .rule-row,
+.rules-skeleton-row + .rules-skeleton-row {
   border-top: 1px solid var(--wb-line);
 }
-.rules-table {
-  flex: 1;
-  width: 100%;
-  min-width: 820px;
+.rule-row:focus-within {
+  background: var(--wb-tint);
 }
-.rules-table :deep(.el-table__empty-block) {
-  min-height: 144px;
-  align-items: flex-start;
+.rule-row.is-testing {
+  background: var(--wb-blue-soft);
+  box-shadow: inset 2px 0 var(--wb-blue);
 }
-.rules-table :deep(.el-table__empty-text) {
-  width: 100%;
-  line-height: 1.8;
+.rule-row h3 {
+  display: -webkit-box;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--wb-ink);
+  font-size: var(--wb-text-size);
+  font-weight: 500;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.rule-row-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
 }
 .rules-skeleton-row {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) minmax(190px, 1fr) 110px 100px 168px 130px;
-  align-items: center;
-  min-height: 48px;
-  border-bottom: 1px solid var(--wb-line);
+  align-content: center;
+  gap: 8px;
+  min-height: 84px;
+  padding: 12px 16px;
 }
 .rules-skeleton-row :deep(.el-skeleton__item) {
-  width: calc(100% - 24px);
-  height: 12px;
-  margin: 0 12px;
+  width: 58%;
+  height: 10px;
 }
 .rules-skeleton-row :deep(.el-skeleton__item:first-child) {
-  width: calc(100% - 34px);
-  margin-left: 22px;
-}
-.rules-table :deep(.el-table__cell:first-child .cell) {
-  padding-left: 22px;
+  width: 78%;
+  height: 13px;
 }
 .rule-id {
+  min-width: 0;
+  overflow: hidden;
   color: var(--wb-muted);
   font-family: var(--font-mono);
-  font-size: var(--wb-text-size);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.rule-date {
+.rule-row-footer,
+.rule-meta,
+.rule-row-actions {
+  display: flex;
+  align-items: center;
+}
+.rule-row-footer {
+  justify-content: space-between;
+  gap: 10px;
+}
+.rule-meta {
+  flex-wrap: wrap;
+  gap: 2px 8px;
   color: var(--wb-muted);
+  font-size: 12px;
+  line-height: 1.5;
   font-variant-numeric: tabular-nums;
+}
+.rule-row-actions {
+  flex: none;
+  gap: 6px;
+  margin-left: auto;
+}
+.rule-row-actions .el-button {
+  height: auto;
+  padding: 4px 6px;
+  border-radius: var(--wb-radius);
+}
+.rule-row-actions .el-button + .el-button {
+  margin-left: 0;
+}
+.rule-row-actions .el-button:hover {
+  background: var(--wb-blue-soft);
 }
 .rule-state {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--wb-tint);
   color: var(--wb-muted);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
 }
 .rule-state i {
   width: 5px;
@@ -843,6 +1075,7 @@ onBeforeUnmount(() => {
   background: currentColor;
 }
 .rule-state.is-active {
+  background: var(--wb-blue-soft);
   color: var(--wb-blue);
 }
 .rules-empty {
@@ -862,20 +1095,77 @@ onBeforeUnmount(() => {
 }
 .rules-footer {
   display: flex;
+  flex: none;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 16px;
-  padding: 14px 22px;
+  justify-content: flex-end;
+  gap: 6px 12px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--wb-line);
   color: var(--wb-muted);
-  font-size: var(--wb-text-size);
+  font-size: 13px;
+}
+.rules-footer > span {
+  margin-right: auto;
 }
 .rules-unavailable {
-  flex: 1;
+  min-height: 180px;
+}
+.dsl-generator :deep(.rule-test-dialog) {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  overflow: hidden;
+  font: var(--wb-text-size)/1.6 var(--wb-font);
+}
+.dsl-generator :deep(.rule-test-dialog .el-dialog__header) {
+  flex: none;
+  margin: 0;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--wb-line);
+}
+.dsl-generator :deep(.rule-test-dialog .el-dialog__title) {
+  font-size: 18px;
+}
+.dsl-generator :deep(.rule-test-dialog .el-dialog__headerbtn) {
+  top: 7px;
+  right: 10px;
+}
+.dsl-generator :deep(.rule-test-dialog .el-dialog__body) {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+}
+.dsl-generator :deep(.rule-test-dialog .el-dialog__footer) {
+  flex: none;
+  padding: 16px 24px;
   border-top: 1px solid var(--wb-line);
 }
+.test-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.test-dialog-footer .el-button + .el-button {
+  margin-left: 0;
+}
+.rule-test-form :deep(.el-input__wrapper),
+.rule-test-form :deep(.el-select__wrapper) {
+  min-height: var(--wb-control-height);
+  background: var(--wb-surface);
+  box-shadow: 0 0 0 1px var(--wb-border) inset;
+}
+.rule-test-form :deep(.el-input__wrapper.is-focus),
+.rule-test-form :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px var(--wb-blue) inset;
+}
 .rule-test-form :deep(.el-form-item__label) {
+  height: auto;
   color: var(--wb-ink);
+  line-height: 1.6;
 }
 .result-value {
   color: var(--wb-ink);
@@ -883,8 +1173,7 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 .trace-content {
-  max-height: 240px;
-  overflow: auto;
+  overflow-x: auto;
   margin: 0;
   padding: 12px;
   border: 1px solid var(--wb-line);
@@ -896,35 +1185,6 @@ onBeforeUnmount(() => {
   line-height: 1.8;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.rule-test-panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: var(--wb-surface);
-}
-.test-panel-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.test-panel-heading h2 {
-  margin: 0;
-  color: var(--wb-ink);
-  font-size: var(--wb-text-size);
-  font-weight: 500;
-}
-.test-panel-heading > span {
-  color: var(--wb-muted);
-  font-size: 12px;
-}
-.test-panel-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  padding: 22px;
 }
 .test-rule-identity {
   display: grid;
@@ -948,83 +1208,10 @@ onBeforeUnmount(() => {
   font-size: var(--wb-text-size);
   line-height: 1.8;
 }
-.test-placeholder p {
-  margin: 0;
-}
-.test-placeholder p + p {
-  margin-top: 10px;
-}
-.test-empty-state {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 20px;
-  margin: 0;
-  padding: 0;
-}
-.test-empty-state strong {
-  color: var(--wb-ink);
-  font-size: 14px;
-  font-weight: 500;
-}
-.test-empty-state > div > p {
-  margin-top: 8px;
-  font-size: 12.5px;
-  line-height: 1.75;
-}
-.test-steps {
+.test-fields {
   display: grid;
-  gap: 20px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.test-steps li {
-  position: relative;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-.test-steps li:not(:last-child)::after {
-  position: absolute;
-  top: 26px;
-  bottom: -16px;
-  left: 10px;
-  border-left: 1px dashed var(--wb-line);
-  content: '';
-}
-.test-steps li > span {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--wb-line);
-  border-radius: 50%;
-  background: var(--wb-tint);
-  color: var(--wb-muted);
-  font-family: var(--wb-number);
-  font-size: 12px;
-}
-.test-steps p {
-  margin: 4px 0 0;
-  font-size: 12.5px;
-  line-height: 1.7;
-}
-.test-input-shapes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-.test-input-shapes i {
-  padding: 2px 9px;
-  border: 1px solid var(--wb-line);
-  border-radius: 4px;
-  background: var(--wb-tint);
-  font-size: 12px;
-  font-style: normal;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
 }
 .test-result-stale {
   margin: 18px 0 0;
@@ -1039,15 +1226,12 @@ onBeforeUnmount(() => {
 .rule-test-form :deep(.el-select) {
   width: 100%;
 }
-.run-test-button {
-  width: 100%;
-}
 .test-result {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--wb-line);
 }
-.test-result h4 {
+.test-result h3 {
   margin: 0 0 14px;
   font-size: var(--wb-text-size);
 }
@@ -1108,31 +1292,40 @@ onBeforeUnmount(() => {
 .test-error {
   margin: 16px 0 0;
 }
-@media (min-width: 1536px) {
-  .rule-workspace {
-    grid-template-columns: minmax(0, 2.7fr) minmax(300px, 1fr);
-  }
-}
 @media (max-width: 1099px) {
+  .dsl-generator {
+    height: auto;
+    min-height: 100%;
+  }
   .rule-workspace {
+    flex: none;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: start;
     gap: 20px;
   }
   .rule-composer {
-    min-height: 0;
+    min-height: 540px;
   }
-  .test-fields {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 20px;
+  .rule-editor-grid :deep(.editor-body) {
+    min-height: 320px;
+  }
+  .policy-input-editor :deep(.el-textarea__inner) {
+    min-height: 320px !important;
+  }
+  .rule-output-editor :deep(.code-display) {
+    height: 320px;
+    max-height: 320px;
+  }
+  .rules-body {
+    overflow: visible;
   }
 }
 @media (max-width: 699px) {
   .dsl-generator {
     gap: 20px;
   }
-  .composer-heading,
-  .rules-heading {
+  .composer-heading {
     align-items: flex-start;
     padding: 16px;
   }
@@ -1156,8 +1349,7 @@ onBeforeUnmount(() => {
   .rule-editor-grid :deep(.editor-footer) {
     padding: 12px 16px;
   }
-  .rule-editor-grid :deep(.editor-body),
-  .rule-output-editor :deep(.el-empty) {
+  .rule-editor-grid :deep(.editor-body) {
     min-height: 280px;
   }
   .policy-input-editor :deep(.el-textarea__inner) {
@@ -1183,12 +1375,19 @@ onBeforeUnmount(() => {
     padding-right: 12px;
     padding-left: 12px;
   }
-  .test-panel-body {
+  .dsl-generator :deep(.rule-test-dialog) {
+    max-height: calc(100dvh - 24px);
+  }
+  .dsl-generator :deep(.rule-test-dialog .el-dialog__header),
+  .dsl-generator :deep(.rule-test-dialog .el-dialog__footer) {
     padding: 16px;
   }
-  .test-panel-heading {
-    padding-right: 16px;
-    padding-left: 16px;
+  .dsl-generator :deep(.rule-test-dialog .el-dialog__body) {
+    padding: 20px 16px;
+  }
+  .rule-test-form :deep(input),
+  .rule-test-form :deep(.el-select__selected-item) {
+    font-size: 16px;
   }
   .test-fields {
     grid-template-columns: minmax(0, 1fr);
@@ -1196,17 +1395,6 @@ onBeforeUnmount(() => {
   .rule-operation-error {
     margin-right: 16px;
     margin-left: 16px;
-  }
-  .rules-toolbar {
-    width: 100%;
-  }
-  .rules-toolbar :deep(.search-bar) {
-    flex: 1;
-    min-width: 0;
-    width: auto;
-  }
-  .rules-footer {
-    padding: 14px 16px;
   }
 }
 </style>

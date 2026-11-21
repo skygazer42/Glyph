@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 
 def _parse_optional_number(value: Any) -> Optional[float]:
+    """None 表示未配置数值；拒绝布尔和非有限数，其余值转换为浮点数。"""
     if value is None:
         return None
     if isinstance(value, bool):
@@ -22,6 +23,7 @@ def _round_policy_value(value: float, digits: int = 2) -> float:
     return round(value + 1e-12, digits)
 
 def _parse_iso(value: Any) -> Optional[datetime]:
+    """解析 ISO 时间；缺失返回 None，无时区时间按 UTC 解释，非法格式继续抛错。"""
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -30,6 +32,7 @@ def _parse_iso(value: Any) -> Optional[datetime]:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 def _is_within_window(timestamp: Optional[datetime], window: Optional[Dict[str, Any]]) -> bool:
+    """检查左闭右开时间窗；缺失时间不通过，缺失边界表示该侧不限。"""
     if timestamp is None:
         return False
     if not window:
@@ -41,6 +44,7 @@ def _is_within_window(timestamp: Optional[datetime], window: Optional[Dict[str, 
     return ok_start and ok_end
 
 def _parse_policy_bool(value: Any, default: bool = True) -> bool:
+    """将既定布尔词和零/一转换为布尔值；None 使用参数默认值，其他值报错。"""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -77,6 +81,11 @@ def appliance_subsidy(
     special_rules: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    """按价格乘能效比例计算单件补贴，比例限制在零至一并应用可选单件上限。
+
+    金额沿用价格输入单位，结果保留两位小数；category_limits 仅回显，不核验购买数量。
+    价格缺失或为负返回 INVALID_INPUT；无法转换、非有限输入及非法政策数值可抛错。
+    """
     special_rules = special_rules or {}
 
     price = _parse_optional_number(inputs.get("price"))
@@ -146,6 +155,10 @@ def auto_subsidy(
     price_basis: Optional[str] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    """按不含税发票金额匹配车型和价格档位，返回状态及两位小数补贴。
+
+    时间窗左闭右开，价格边界按档位 open_interval；去重、个人限额和预算仅在配置对应回调时检查，不占用额度或扣减预算。金额单位与档位配置一致。
+    """
     windows = windows or {}
     limits = limits or {}
     matching = matching or {}
@@ -286,6 +299,10 @@ def consumer_coupon(
     coupon_types: Optional[List[str]] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    """选择满足门槛的最大优惠，同额时优先较高门槛，返回优惠、应付额和失效时间。
+
+    AMOUNT 使用固定优惠，其他已允许类型按消费额乘折扣率并应用 cap；金额沿用输入单位并保留两位小数，应付额最低为零。配额和适用范围依配置回调检查，不实际领券或扣额度。
+    """
     valid_period = valid_period or {}
     tiers = tiers or []
     distribution = distribution or {}

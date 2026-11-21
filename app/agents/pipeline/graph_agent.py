@@ -27,6 +27,7 @@ class GraphAgent:
         self._inline_summary_threshold = 800
 
     async def answer(self, query: str, *, intent: Optional[Dict[str, Any]] = None) -> FinalAnswer:
+        """查询混合图检索并摘要首个文档；无图文档时转交知识问答，不将结果标记为已验证。"""
         result = await self._graph_agent.process_request(
             {"query_text": query, "mode": "hybrid", "top_k": 3},
             self._build_message_context(),
@@ -81,6 +82,7 @@ class GraphAgent:
         return f"根据知识库关系返回的内容，以下是与“{query}”相关的关系概要：\n{snippet}"
 
     async def close(self) -> None:
+        """关闭此门面持有的图检索代理资源。"""
         await self._graph_agent.close()
 
     @staticmethod

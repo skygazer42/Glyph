@@ -63,6 +63,7 @@ class RAGAgentMixin:
         tool_registry: Optional[ToolRegistry] = None,
         **kwargs,
     ):
+        """保存检索回调、工具注册表和上下文预算，再沿协作继承链初始化智能体。"""
         # Save references to the retrieval logic
         self.search_settings = search_settings
         self.knowledge_search_method = knowledge_search_method
@@ -104,6 +105,7 @@ class RAGAgentMixin:
     def format_search_results_for_llm(
         self, results: AggregateSearchResult
     ) -> str:
+        """格式化检索结果，并按 token 预算比例截取字符；不是精确的 token 截断器。"""
         context = format_search_results_for_llm(results)
         context_tokens = num_tokens(context) + 1
         frac_to_return = self.max_tool_context_length / (context_tokens)

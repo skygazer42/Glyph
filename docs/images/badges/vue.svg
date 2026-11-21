@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="81" height="22" viewBox="0 0 81 22" role="img" aria-label="Vue: 3">
+  <title>Vue: 3</title>
+  <clipPath id="rounded"><rect width="81" height="22" rx="3"/></clipPath>
+  <g clip-path="url(#rounded)">
+    <rect width="56" height="22" fill="#555"/>
+    <rect x="56" width="25" height="22" fill="#238c67"/>
+  </g>
+  <g transform="translate(7 4) scale(0.583333)" fill="#fff"><path d="M24,1.61H14.06L12,5.16,9.94,1.61H0L12,22.39ZM12,14.08,5.16,2.23H9.59L12,6.41l2.41-4.18h4.43Z"/></g>
+  <g fill="#fff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11" text-anchor="middle">
+    <text x="40" y="15">Vue</text>
+    <text x="68.5" y="15">3</text>
+  </g>
+</svg>

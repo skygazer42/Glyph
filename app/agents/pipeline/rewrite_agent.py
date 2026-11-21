@@ -16,6 +16,8 @@ from app.agents.domain.policy_domain import PolicyDomainContext, PolicyDomainCon
 
 @dataclass
 class ContextHints:
+    """从对话中提取的改写线索；空字符串表示尚未识别相应主题或槽位。"""
+
     topic: str = ""
     product: str = ""
     energy: str = ""
@@ -24,6 +26,9 @@ class ContextHints:
 
     def missing_slots(self) -> list[str]:
         if self.intent not in {"eligibility", "calculation"}:
+            return []
+        appliances = {"空调", "冰箱", "洗衣机", "电视", "家电", "净水器", "洗碗机", "电脑", "热水器", "油烟机", "家用灶具"}
+        if self.product not in appliances and "家电" not in self.topic:
             return []
         missing: list[str] = []
         if not self.product:
@@ -65,6 +70,7 @@ class RewriteAgent:
         self._cache_max = 256
 
     async def rewrite(self, query: str, context: dict | None = None) -> str:
+        """结合领域和对话线索生成限长独立问题并缓存；模型失败时使用规则归一化文本继续组装。"""
         key = (query.strip(), repr(context))
         if key in self._cache:
             self._cache.move_to_end(key)

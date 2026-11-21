@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 
 
 class DBConnection(Base):
+    """Text2SQL 目标数据库的连接配置及元数据关联。
+
+    password_encrypted 沿用历史列名；当前写入路径未执行密码加密。
+    """
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     db_type: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -33,6 +38,8 @@ class DBConnection(Base):
 
 
 class SchemaTable(Base):
+    """某个连接下可供 Text2SQL 检索的表说明和字段、关系元数据。"""
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     connection_id: Mapped[int] = mapped_column(Integer, ForeignKey("dbconnection.id"), nullable=False, index=True)
     table_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -53,6 +60,8 @@ class SchemaTable(Base):
 
 
 class SchemaColumn(Base):
+    """表字段的类型、键约束标记和自然语言值映射。"""
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     table_id: Mapped[int] = mapped_column(Integer, ForeignKey("schematable.id"), nullable=False, index=True)
     column_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -76,6 +85,8 @@ class SchemaColumn(Base):
 
 
 class SchemaRelationship(Base):
+    """记录同一连接中源表字段与目标表字段之间的关联。"""
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     connection_id: Mapped[int] = mapped_column(Integer, ForeignKey("dbconnection.id"), nullable=False)
     source_table_id: Mapped[int] = mapped_column(Integer, ForeignKey("schematable.id"), nullable=False)
@@ -96,6 +107,8 @@ class SchemaRelationship(Base):
 
 
 class ValueMapping(Base):
+    """将自然语言术语映射到某个数据库字段中的实际取值。"""
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     column_id: Mapped[int] = mapped_column(Integer, ForeignKey("schemacolumn.id"), nullable=False)
     nl_term: Mapped[str] = mapped_column(String(255), nullable=False, index=True)

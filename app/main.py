@@ -54,6 +54,8 @@ logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
 
 
 class QueryRequest(BaseModel):
+    """轻量问答入口的输入，可携带会话、用户和 Text2SQL 连接标识。"""
+
     query: str = Field(..., description="用户问题")
     session_id: Optional[str] = Field(default=None)
     user_id: Optional[str] = Field(default=None)
@@ -63,6 +65,8 @@ class QueryRequest(BaseModel):
 
 
 class QueryResponse(BaseModel):
+    """问答结果及检索来源；verification_passed 表示服务返回的核验状态。"""
+
     answer: str
     confidence: float
     verification_passed: bool
@@ -71,20 +75,28 @@ class QueryResponse(BaseModel):
 
 
 class LoadDocsRequest(BaseModel):
+    """待导入知识库的本地文件或目录路径列表。"""
+
     paths: List[str] = Field(..., description="待加载的文件/目录列表")
 
 
 class HealthResponse(BaseModel):
+    """轻量进程健康端点的状态响应。"""
+
     status: str
 
 
 class LoadDocsResponse(BaseModel):
+    """文档导入返回的加载数量及知识库、图谱索引数量。"""
+
     loaded_docs: int
     kb_indexed: int
     rag_indexed: int
 
 
 class TokenResponse(BaseModel):
+    """登录成功返回的 Bearer 访问令牌。"""
+
     access_token: str
     token_type: str = "bearer"
 
@@ -93,6 +105,7 @@ def create_app() -> FastAPI:
     """Factory to build the FastAPI application."""
     @asynccontextmanager
     async def lifespan(application: FastAPI):
+        """为本应用装配问答服务和可选限流连接，退出时执行已登记的有界清理。"""
         application.state.agent_service = None
         application.state.redis = None
         try:
@@ -130,6 +143,7 @@ def create_app() -> FastAPI:
 
     @application.get("/health", response_model=HealthResponse)
     async def health():
+        """报告 HTTP 服务可响应，不探测模型、数据库或 Redis 的连通性。"""
         return {"status": "ok"}
 
     query_rate_limiter = None
@@ -146,6 +160,7 @@ def create_app() -> FastAPI:
 
     @application.post("/auth/login", response_model=TokenResponse)
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+        """验证账号密码并签发 Bearer 令牌；凭据不匹配时返回 HTTP 401。"""
         user = authenticate_user(form_data.username, form_data.password)
         if user is None:
             raise HTTPException(
@@ -168,6 +183,7 @@ def create_app() -> FastAPI:
         request: QueryRequest,
         current_user: APIUser = Depends(get_current_user_or_dummy),
     ):
+        """执行一次问答并返回答案、来源和核验信息；执行异常转换为 HTTP 500。"""
         try:
             service: AgentService = application.state.agent_service
             final = await service.process_query(
@@ -200,6 +216,7 @@ def create_app() -> FastAPI:
         request: LoadDocsRequest,
         current_user: APIUser = Depends(get_current_user_or_dummy),
     ):
+        """将本地路径交给问答服务导入并返回计数；执行异常转换为 HTTP 500。"""
         try:
             service: AgentService = application.state.agent_service
             stats = await service.ingest_paths(request.paths)

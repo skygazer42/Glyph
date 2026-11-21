@@ -35,9 +35,10 @@ test('incomplete, invalid, string, and nonfinite numeric fields are rejected', (
 
 test('sources tolerate missing records and use real engine source as a fallback', () => {
   assert.deepEqual(getPolicySources({ sources: [null, 4, {}] }), [])
-  assert.deepEqual(getPolicySources({ engine_result: { policy_source: { title: '家电补贴细则', doc_id: '2026-1' } } }), [{ title: '家电补贴细则', path: '', origin: '2026-1' }])
+  assert.deepEqual(getPolicySources({ engine_result: { policy_source: { title: '家电补贴细则', doc_id: '2026-1' } } }), [{ title: '家电补贴细则', path: '', origin: '2026-1', citation_index: 0, document_id: '2026-1' }])
   const sources = getPolicySources({ sources: [{ title: '2025 年政策', chunk_idx: 6 }] })
-  assert.deepEqual(Object.keys(sources[0]), ['title', 'path', 'origin'])
+  assert.equal(sources[0].citation_index, 0)
+  assert.equal(sources[0].chunk_index, 6)
 })
 
 test('only HTTP(S) and known served local paths can open originals', () => {

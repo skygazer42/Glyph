@@ -54,6 +54,8 @@ class RankedTable(BaseModel):
 
 
 class TableRanking(RootModel[list[RankedTable]]):
+    """模型返回的表排序列表外壳，逐项按 RankedTable 严格校验。"""
+
     model_config = ConfigDict(strict=True)
 
 

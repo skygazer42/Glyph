@@ -32,6 +32,7 @@ class RetrievalRequest(BaseModel):
     @field_validator("query")
     @classmethod
     def require_nonempty_query(cls, value: str) -> str:
+        """拒绝仅空白的问题，但保留已提供字符串，不在校验器内改写文本。"""
         if not value.strip():
             raise ValueError("Policy retrieval requires a nonempty query")
         return value

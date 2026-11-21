@@ -81,7 +81,7 @@ class DocumentInfo(BaseModel):
     size: int
     modified: float
     embedded: bool = Field(default=False, description="是否已成功嵌入知识库")
-    parsed: bool = Field(default=False, description="是否存在与原文版本匹配的真实解析正文")
+    parsed: bool = Field(default=False, description="最近目录校验的解析状态；打开工作区和写操作重新检查内容版本")
     source_version: str | None = None
     content_length: int = 0
 
@@ -102,29 +102,39 @@ class ChunkingConfig(BaseModel):
 
 
 class ProcessingConfig(ChunkingConfig):
+    """文档解析、分块与索引偏好；具体可用性仍由工作区按能力校验。"""
+
     index: Literal["document", "hierarchical"] = "document"
     parser: Literal["auto", "mineru", "llamaindex", "text"] = "auto"
     ocr: Literal["auto", "on", "off"] = "auto"
 
 
 class ParserCapability(BaseModel):
+    """向工作区描述一个解析器选项及当前配置可用标记。"""
+
     value: Literal["auto", "mineru", "llamaindex", "text"]
     label: str
     available: bool
 
 
 class ProcessingCapabilities(BaseModel):
+    """声明当前解析器与 OCR、分级索引能力，不代表运行时健康探测。"""
+
     parsers: list[ParserCapability]
     ocr: bool
     hierarchical_index: bool
 
 
 class CapabilitiesResponse(BaseModel):
+    """封装工作区处理能力的接口响应。"""
+
     success: bool
     capabilities: ProcessingCapabilities
 
 
 class WorkspacePage(BaseModel):
+    """原文单页文本及其 Unicode 字符区间，图像地址可缺省。"""
+
     number: int
     text: str
     start: int
@@ -134,6 +144,8 @@ class WorkspacePage(BaseModel):
 
 
 class ParsedContent(BaseModel):
+    """描述解析缓存是否有效及版本；不可用时正文和版本可以为 None。"""
+
     available: bool
     text: str | None = None
     version: str | None = None
@@ -144,6 +156,8 @@ class ParsedContent(BaseModel):
 
 
 class DocumentWorkspaceResponse(BaseModel):
+    """汇总文档原文版本、页面、解析缓存、配置与嵌入标记的工作区响应。"""
+
     success: bool
     doc_id: str
     name: str
@@ -163,11 +177,15 @@ class DocumentWorkspaceResponse(BaseModel):
 
 
 class ChunkPreviewRequest(ChunkingConfig):
+    """使用指定原文及解析版本预览分块的请求，不触发嵌入。"""
+
     source_version: str = Field(pattern=r"^[a-f0-9]{64}$")
     parsed_version: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class ChunkPreview(BaseModel):
+    """描述解析正文中的一个字符区间及可确认的页号映射。"""
+
     id: str
     number: int
     text: str
@@ -178,6 +196,8 @@ class ChunkPreview(BaseModel):
 
 
 class ChunkPreviewResponse(BaseModel):
+    """返回分块预览、所用配置和版本，不表示索引已写入。"""
+
     success: bool
     source_version: str
     parsed_version: str
@@ -187,11 +207,15 @@ class ChunkPreviewResponse(BaseModel):
 
 
 class SaveProcessingConfigRequest(ProcessingConfig):
+    """携带原文版本与预期配置修订的保存请求，用于冲突检查。"""
+
     source_version: str = Field(pattern=r"^[a-f0-9]{64}$")
     revision: str = Field(min_length=1, max_length=64)
 
 
 class SaveProcessingConfigResponse(BaseModel):
+    """返回成功保存的配置、新修订及对应原文版本。"""
+
     success: bool
     config: ProcessingConfig
     revision: str
@@ -199,11 +223,34 @@ class SaveProcessingConfigResponse(BaseModel):
     source_version: str
 
 
+class DocumentListQuery(BaseModel):
+    """资料目录查询；不传页码时兼容完整目录读取。"""
+
+    model_config = ConfigDict(extra="forbid")
+    page: int | None = Field(default=None, ge=1)
+    page_size: int = Field(default=10, ge=1, le=100)
+    query: str = Field(default="", max_length=200)
+    parsed: Literal["all", "parsed", "unparsed"] = "all"
+    indexed: Literal["all", "indexed", "pending"] = "all"
+    sort: Literal["newest", "oldest"] = "newest"
+
+
+class DocumentSummary(BaseModel):
+    """全目录统计，不随当前页或筛选变化。"""
+
+    total: int
+    parsed: int
+    embedded: int
+
+
 class ListDocumentsResponse(BaseModel):
     """文档列表响应"""
     success: bool
     documents: List[DocumentInfo]
     total: int
+    page: int | None = None
+    page_size: int | None = None
+    summary: DocumentSummary | None = None
 
 
 class DeleteDocumentResponse(BaseModel):

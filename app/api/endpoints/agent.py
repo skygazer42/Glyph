@@ -8,7 +8,9 @@ import os
 import logging
 from pathlib import Path
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query
+from ag_ui.core import RunAgentInput
+from ag_ui.encoder import EventEncoder
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 from sse_starlette.sse import EventSourceResponse
 
@@ -25,6 +27,7 @@ from app.api.schemas import (
     SessionMessagesQuery,
 )
 from app.api.deps import get_session_manager, get_agent_service
+from app.api.agui import AGUIStreamingResponse, consultation_request, stream_agui_events
 from app.api.endpoints.uploads import attachment_directory
 from app.agents.framework.common.session_manager import SessionManager
 from app.agents.service.agent_service import AgentService
@@ -37,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_uploaded_attachment_paths(attachments: list[Attachment], access: ChatAccess) -> None:
+    """检查附件属于当前身份的上传目录，或使用允许的远程地址协议；无效路径返回 400。"""
     upload_root = attachment_directory(access).resolve()
     for attachment in attachments:
         if not attachment.path:
@@ -52,6 +56,7 @@ def _validate_uploaded_attachment_paths(attachments: list[Attachment], access: C
 
 
 def _resolve_request_session(request: ChatRequest | ChatStreamRequest, access: ChatAccess) -> ChatSessionKey:
+    """拒绝公共访问使用工作人员专属字段，并解析身份命名空间内的会话键。"""
     if not access.is_staff and (
         request.connection_id is not None or request.text2sql_mode or request.user_id is not None
     ):
@@ -62,6 +67,7 @@ def _resolve_request_session(request: ChatRequest | ChatStreamRequest, access: C
 async def _prepare_chat_request(
     request: ChatRequest, access: ChatAccess = Depends(get_chat_access)
 ) -> ChatSessionKey:
+    """解析普通聊天会话并在线程池校验附件路径，校验通过后返回会话键。"""
     session_key = _resolve_request_session(request, access)
     if request.attachments:
         await run_in_threadpool(_validate_uploaded_attachment_paths, request.attachments, access)
@@ -71,10 +77,53 @@ async def _prepare_chat_request(
 async def _prepare_stream_request(
     request: ChatStreamRequest, access: ChatAccess = Depends(get_chat_access)
 ) -> ChatSessionKey:
+    """解析流式聊天会话并在线程池校验附件路径，响应流建立前暴露校验失败。"""
     session_key = _resolve_request_session(request, access)
     if request.attachments:
         await run_in_threadpool(_validate_uploaded_attachment_paths, request.attachments, access)
     return session_key
+
+
+async def _prepare_agui_request(
+    input_data: RunAgentInput,
+    access: ChatAccess = Depends(get_chat_access),
+) -> tuple[ChatStreamRequest, ChatSessionKey]:
+    """Validate the run and access before acquiring application services."""
+    request = consultation_request(input_data)
+    session_key = _resolve_request_session(request, access)
+    if request.attachments:
+        await run_in_threadpool(_validate_uploaded_attachment_paths, request.attachments, access)
+    return request, session_key
+
+
+@router.post("/ag-ui")
+async def agent_chat_agui(
+    input_data: RunAgentInput,
+    http_request: Request,
+    access: ChatAccess = Depends(get_chat_access),
+    prepared: tuple[ChatStreamRequest, ChatSessionKey] = Depends(_prepare_agui_request),
+    session_manager: SessionManager = Depends(get_session_manager),
+    agent_service: AgentService = Depends(get_agent_service),
+):
+    """Run one authenticated consultation using the official AG-UI SSE binding."""
+    request, session_key = prepared
+    encoder = EventEncoder(accept=http_request.headers.get("accept"))
+
+    async def encode_events():
+        stream = stream_agui_events(
+            input_data, request, session_key, session_manager, agent_service,
+            allow_private_tools=access.is_staff,
+        )
+        try:
+            async for event in stream:
+                yield encoder.encode(event)
+        finally:
+            await close_with_timeout(stream.aclose)
+
+    return AGUIStreamingResponse(
+        encode_events(), media_type=encoder.get_content_type(),
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/chat", response_model=ChatResponse)

@@ -173,15 +173,21 @@ class ListSessionsResponse(BaseModel):
 
 
 class DeleteSessionResponse(BaseModel):
+    """返回会话删除操作的结果与提示信息。"""
+
     success: bool
     message: str
 
 
 class SessionMessagesQuery(BaseModel):
+    """限制读取会话消息的数量；None 表示不在该参数层指定上限。"""
+
     limit: int | None = Field(default=None, ge=0)
 
 
 class SessionMessagesResponse(BaseModel):
+    """返回会话消息列表及总量，用于历史记录读取。"""
+
     success: bool
     session_id: str
     messages: List[Dict[str, Any]]
